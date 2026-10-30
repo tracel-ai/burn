@@ -96,8 +96,8 @@ positions when sequence lengths differ.
 - Speed up Flex CPU F32 `exp`, `sigmoid`, and `softmax` with a SIMD `exp` within 2 ulp of libm, and
   run F32/F64 `round`, `floor`, `ceil`, and `trunc` with SIMD rounding. Flex `round` now returns
   `-0.0` for `-0.5` on every layout, as IEEE ties-to-even does. F32 `log`, `tanh`, `erf`, `gelu`,
-  and the GELU backward pass also run with SIMD; `log` matches the `libm` crate bit for bit on every
-  layout, `tanh` is within 2 ulp of libm, and `erf` within 1 ulp.
+  and the GELU backward pass also run with SIMD; `log` matches the `libm` crate bit for bit, `tanh`
+  is within 2 ulp of libm, and `erf` within 1 ulp.
   ([#6313](https://github.com/tracel-ai/burn/pull/6313),
   [#6341](https://github.com/tracel-ai/burn/pull/6341)) [@antimora](https://github.com/antimora)
 - Run GELU and sigmoid forward and backward operations in single CubeCL kernels.

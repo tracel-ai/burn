@@ -215,9 +215,7 @@ pub fn log(tensor: FlexTensor) -> FlexTensor {
         Ok(out) => return out,
         Err(tensor) => tensor,
     };
-    // libm's logf, which the SIMD path matches bit for bit, so f32 results
-    // don't depend on the layout.
-    unary_op(tensor, libm::logf, |x| x.ln())
+    unary_op(tensor, |x| x.ln(), |x| x.ln())
 }
 
 /// Natural logarithm of (1 + x): ln(1 + x)
