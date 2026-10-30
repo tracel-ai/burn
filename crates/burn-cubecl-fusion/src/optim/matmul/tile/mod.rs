@@ -2,10 +2,11 @@
 //!
 //! A routine stores its product through a destination the caller chooses, so the fused one is
 //! the unfused routine's own kernel storing into the trace's element-wise block ([`TraceSink`](sink::TraceSink))
-//! instead of a buffer. Which routine runs is the one cubek's matmul tables elected for the
+//! instead of a buffer. Which routine runs is the one cubek's matmul autotune elected for the
 //! product ([`elected`]); the autotune then races it fused against the fallback, the routine
 //! storing its product and the block running as its own kernel.
 
+mod operand;
 mod runner;
 mod sink;
 
@@ -20,25 +21,15 @@ use crate::{
 };
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
-use burn_ir::TensorIr;
-use burn_std::{DType, quantization::QParamTensor};
 use cubecl::{
     AutotuneKey, CubeTuneId,
-    prelude::TensorBinding,
-    tile::{
-        Axis,
-        launch::{Refusal, SinkLaunch, SinkLaunchVisitor},
-    },
+    tile::launch::{Refusal, SinkLaunch, SinkLaunchVisitor},
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
 use cubek::matmul::kernels::{
     MatmulOpStrategy,
-    plan::{MatmulCall, MatmulCallInput},
-    select::{
-        problem::{MatmulProblem, OperandKind},
-        selector::measured_table,
-    },
-    tensor::{PackedTensor, PlainTensor, StoredTensor},
+    plan::MatmulCall,
+    select::{problem::MatmulProblem, selector::measured_table},
     tune::{
         MatmulTableGroups,
         key::{MatmulTuneKey, create_key},
@@ -48,6 +39,7 @@ use cubek::std::{
     Hardware,
     matmul_axes::{K, M, N},
 };
+use operand::TraceOperand;
 use runner::SinkRunner;
 use serde::{Deserialize, Serialize};
 
@@ -116,19 +108,19 @@ pub(crate) fn execute(arg: MatmulOptimizationTuneArg, context: &mut Context<Cube
     TUNER.execute(&tune_id, &client, tunables, TuneInput::new(context, arg));
 }
 
-/// The routine cubek's matmul table elected for `call`, prepared for a sink and handed to
-/// `visitor`; `None` where the product's plan is no single table, or the table has not measured
-/// the product's key yet.
+/// The routine cubek's matmul autotune elected for `call`, prepared for a sink and handed to
+/// `visitor`; `None` where the product's plan is no single autotune, or the autotune has not
+/// measured the product's key yet.
 ///
-/// The table is the one the unfused product races on, under the same device identity, so the
+/// The autotune is the one the unfused product races on, under the same device identity, so the
 /// fused product launches whichever routine the unfused one settled.
 fn elected<V: SinkLaunchVisitor>(call: &MatmulCall, visitor: V) -> Option<V::Output> {
     let problem = MatmulProblem::new(
         (call.lhs.meta.shape(), call.lhs.tensor.kind()),
         (call.rhs.meta.shape(), call.rhs.tensor.kind()),
     );
-    let table = measured_table(MatmulOpStrategy::Autotune, &problem, &call.hw)?;
-    let (settings, _) = table.fastest_routine(call, MatmulTableGroups::default())?;
+    let autotune = measured_table(MatmulOpStrategy::Autotune, &problem, &call.hw)?;
+    let (settings, _) = autotune.fastest_routine(call, MatmulTableGroups::default())?;
     Some(settings.sink_launch(call, visitor))
 }
 
@@ -139,8 +131,12 @@ fn execute_fused(
 ) -> Result<TuneOutput, TraceError<TileFusedMatmulError>> {
     let info = &arg.info;
     let op = &info.matmul.op;
-    let lhs = operand(context, &op.lhs, [M, K]).map_err(TraceError::RunnerError)?;
-    let rhs = operand(context, &op.rhs, [K, N]).map_err(TraceError::RunnerError)?;
+    let lhs = TraceOperand::new(context, &op.lhs)
+        .call_input([M, K])
+        .map_err(TraceError::RunnerError)?;
+    let rhs = TraceOperand::new(context, &op.rhs)
+        .call_input([K, N])
+        .map_err(TraceError::RunnerError)?;
     let call = MatmulCall {
         hw: Hardware::from_client(&info.client),
         client: info.client.clone(),
@@ -154,63 +150,6 @@ fn execute_fused(
     elected(&call, FusedRun { arg, context }).unwrap_or(Err(TraceError::RunnerError(
         TileFusedMatmulError::NoRoutineElected,
     )))
-}
-
-/// The operand `tensor` names in the trace, one matrix over `axes`, bound as it is stored where
-/// its handle lies: plain, or, quantized, packed under its scales
-/// ([`PackedTensor::of_quantized`]).
-fn operand(
-    context: &Context<CubeFusionHandle>,
-    tensor: &TensorIr,
-    axes: [Axis; 2],
-) -> Result<MatmulCallInput, TileFusedMatmulError> {
-    let global = &context.tensors[&tensor.id];
-    let handle = context
-        .handles
-        .get_handle_ref(&global.id)
-        .expect("a fused product's operand has a handle");
-    let meta = handle.metadata(global.shape.clone());
-    let values = handle.clone().binding(global.shape.clone());
-    let DType::QFloat(scheme) = global.dtype else {
-        let elem = dtype_to_storage_type(global.dtype);
-        return Ok(MatmulCallInput::plain(PlainTensor::new(values, elem)));
-    };
-    let qparams = handle
-        .qparams
-        .as_ref()
-        .expect("a quantized operand holds its scales");
-    let block_scales = param(handle, &qparams.scales);
-    let global_scale = qparams.global.as_ref().map(|scale| param(handle, scale));
-    let packed = PackedTensor::of_quantized(
-        &handle.client,
-        values,
-        scheme,
-        block_scales,
-        global_scale,
-        axes,
-    )
-    .map_err(TileFusedMatmulError::Operand)?;
-    Ok(MatmulCallInput {
-        tensor: StoredTensor::Packed(packed),
-        meta,
-        framework_dequantize: None,
-    })
-}
-
-/// The quantization parameter `param` of the quantized tensor `handle` holds, bound where it lies
-/// in the tensor's buffer.
-fn param(handle: &CubeFusionHandle, param: &QParamTensor) -> PlainTensor {
-    let mut buffer = handle.handle.clone();
-    buffer.offset_start = Some(param.offset_start as u64);
-    buffer.offset_end = Some(param.offset_end as u64);
-    let meta = &param.metadata;
-    let binding = TensorBinding {
-        handle: buffer.binding(),
-        strides: meta.strides.clone(),
-        shape: meta.shape.clone(),
-        tiling: meta.tiling,
-    };
-    PlainTensor::new(binding, dtype_to_storage_type(param.dtype))
 }
 
 /// A fused product waiting for its routine's launch: the trace runs with the launch storing into
@@ -238,21 +177,10 @@ impl SinkLaunchVisitor for FusedRun<'_> {
 
 fn create_autotune_key(input: &TuneInput<MatmulOptimizationTuneArg>) -> TileFusedMatmulAutotuneKey {
     let opt = input.optimization();
-    let (tensors, handles) = (input.tensors(), input.handles());
     let op = &opt.info.matmul.op;
-    let operand = |tensor: &TensorIr| {
-        let global = &tensors[&tensor.id];
-        let handle = handles
-            .get_handle_ref(&global.id)
-            .expect("a fused product's operand has a handle");
-        let kind = match global.dtype {
-            DType::QFloat(scheme) => OperandKind::Quantized(scheme),
-            _ => OperandKind::Float,
-        };
-        (handle.metadata(global.shape.clone()), kind)
-    };
-    let (lhs, rhs) = (operand(&op.lhs), operand(&op.rhs));
-    let out = dtype_to_storage_type(tensors[&op.out.id].dtype);
+    let lhs = TraceOperand::new(input.context(), &op.lhs).key();
+    let rhs = TraceOperand::new(input.context(), &op.rhs).key();
+    let out = dtype_to_storage_type(input.tensors()[&op.out.id].dtype);
     TileFusedMatmulAutotuneKey::new(
         create_key(out, (&lhs.0, lhs.1), (&rhs.0, rhs.1)),
         opt.info.num_output_buffers(),

@@ -11,7 +11,7 @@ use cubecl::{
         layout::{Coords1d, plain::PlainLayout},
     },
     tile::{
-        Geometry, Partitioning, Tile, TileSpec,
+        Partitioning, Tile, TileSpec,
         kind::{GlobalOperand, Write},
         launch::{Destination, DestinationLaunch, Unbound},
         layout::RuntimeGeometry,
@@ -57,25 +57,17 @@ impl TraceSinkArgLaunch {
         config: FuseBlockConfig,
     ) -> Self {
         let Unbound { spec, geometry, .. } = sink;
-        let (shape, strides) = runtime_geometry(&geometry);
         TraceSinkArgLaunch::new(
             inputs,
             outputs,
-            shape,
-            strides,
+            geometry.shape().iter().map(|&e| e as u32).collect(),
+            geometry.strides().iter().map(|&s| s as u32).collect(),
             geometry.rank(),
             spec,
             product,
             config,
         )
     }
-}
-
-fn runtime_geometry(geometry: &Geometry) -> (SequenceArg<u32>, SequenceArg<u32>) {
-    (
-        geometry.shape().iter().map(|&e| e as u32).collect(),
-        geometry.strides().iter().map(|&s| s as u32).collect(),
-    )
 }
 
 #[cube]
