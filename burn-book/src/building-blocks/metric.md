@@ -38,16 +38,16 @@ throughout the training process. We currently offer a restricted range of metric
 
 ## Optimizer-step metrics
 
-`LearningRateMetric` implements `OptimizerStepMetric` and records the rate used for each optimizer
-update, including partial accumulation windows. It consumes optimizer-step values instead of model
-outputs. Register it with `.metrics((LossMetric::new(), LearningRateMetric::new()))`.
-It reports one series per scheduler parameter group; epoch summaries use the last applied rate.
+Register `LearningRateMetric` with `.metrics(LearningRateMetric::new())` to record each applied
+update, including partial accumulation windows, with one series per scheduler parameter group.
+Epoch summaries use the last applied rate.
 
-Custom optimizer metrics implement `OptimizerStepMetric` and register through
-`.metrics(OptimizerMetricRegistration::new(metric))`, or implement `MetricRegistration` directly.
+Custom metrics use the standard `Metric` and `Numeric` traits. Associate one metric or a tuple
+with `OnOptimizerStep::with(...)`, then register through `.metrics(...)` or `.metrics_text(...)`.
+Implement `Adaptor<YourInput>` for `OptimizerStepOutput` to supply their inputs.
+
 Custom strategies emit `LearnerEvent::OptimizerStep(OptimizerStepOutput::new(rates))` after each
-applied update and can attach typed observations with `with_observation`. See the API docs for
-`OptimizerStepMetric` and `OptimizerStepOutput` for the extension contracts.
+update. See the `OptimizerStepOutput` API docs for attaching custom observations.
 
 ## Using Metrics with the Learner
 

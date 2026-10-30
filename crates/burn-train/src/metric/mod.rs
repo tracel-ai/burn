@@ -1,8 +1,6 @@
 /// Metrics and observations for applied optimizer updates.
 pub mod optimizer;
-pub use optimizer::{
-    LearningRateMetric, OptimizerMetricContext, OptimizerStepMetric, OptimizerStepOutput,
-};
+pub use optimizer::{LearningRateMetric, OptimizerStepOutput};
 
 /// State module.
 pub mod state;

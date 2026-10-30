@@ -177,13 +177,12 @@ and skipped configuration or caches. This makes reusable module definitions easi
 
 #### Optimizer-step metrics
 
-**Breaking:** `LearningRateMetric` now implements `OptimizerStepMetric`. Replace
-`metric_train_numeric(LearningRateMetric::new())` with `metrics(LearningRateMetric::new())`.
-It records each applied update, including partial accumulation windows, with one series per
-scheduler parameter group. Custom strategies must emit
-`LearnerEvent::OptimizerStep(OptimizerStepOutput::new(rates))` after each update.
-Text optimizer series are logged and rendered but excluded from numeric training summaries.
-See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics) for extensions.
+**Breaking:** Replace `metric_train_numeric(LearningRateMetric::new())` with
+`metrics(LearningRateMetric::new())`. Learning rates are recorded per applied optimizer update
+and parameter group, including partial accumulation windows. Custom strategies must emit
+`LearnerEvent::OptimizerStep` after each update.
+Use `OnOptimizerStep::with(...)` to register standard metrics for optimizer updates.
+See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics).
 
 #### Dataloader progress and training completion
 

@@ -8,18 +8,15 @@ use burn_core::{
 };
 use burn_std::ExecutionError;
 use burn_train::{
-    EventProcessorFailure, EventProcessorTraining, ItemLazy, Learner, LearnerEvent, LearnerModel,
-    MetricRegistration, OptimizerMetricRegistration, SupervisedLearningStrategy,
-    SupervisedTraining, SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents,
-    TrainingError, TrainingItem, TrainingStrategy, ValidLoader,
+    EventProcessorFailure, EventProcessorTraining, ItemLazy, Learner, LearnerEvent,
+    OnOptimizerStep, SupervisedLearningStrategy, SupervisedTraining,
+    SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents, TrainingError, TrainingItem,
+    TrainingStrategy, ValidLoader,
     logger::{FileMetricLogger, MetricLogger},
-    metric::optimizer::{
-        LearningRateMetric, OptimizerMetricContext, OptimizerStepMetric, OptimizerStepOutput,
-    },
     metric::{
-        LossMetric, MetricAttributes, MetricDefinition, MetricEntry, MetricId, MetricName,
-        NumericAttributes, NumericEntry, SerializedEntry,
-        store::{MetricsUpdate, NumericMetricUpdate, Split},
+        Adaptor, LearningRateMetric, LossMetric, Metric, MetricAttributes, MetricMetadata,
+        MetricName, Numeric, NumericAttributes, NumericEntry, OptimizerStepOutput, SerializedEntry,
+        store::Split,
     },
 };
 use common::*;
@@ -49,18 +46,30 @@ enum Failure {
     Final,
 }
 
+struct ScalarInput(Option<Tensor<1>>);
+
+impl Adaptor<ScalarInput> for OptimizerStepOutput {
+    fn adapt(&self) -> ScalarInput {
+        ScalarInput(
+            self.observation::<Observations>()
+                .map(|value| value.update_norm.clone()),
+        )
+    }
+}
+
+#[derive(Clone)]
 struct ScalarMetric {
     name: MetricName,
     last: Option<f64>,
     failure: Failure,
-    read: fn(&OptimizerStepOutput) -> Result<f64, TensorReadError>,
+    read: fn(&ScalarInput, &MetricMetadata) -> Result<f64, TensorReadError>,
 }
 
 impl ScalarMetric {
     fn new(
         name: &str,
         failure: Failure,
-        read: fn(&OptimizerStepOutput) -> Result<f64, TensorReadError>,
+        read: fn(&ScalarInput, &MetricMetadata) -> Result<f64, TensorReadError>,
     ) -> Self {
         Self {
             name: Arc::new(name.into()),
@@ -69,71 +78,64 @@ impl ScalarMetric {
             read,
         }
     }
-
-    fn entry(&self, value: NumericEntry) -> MetricsUpdate {
-        MetricsUpdate::new(
-            vec![],
-            vec![NumericMetricUpdate::new(
-                MetricEntry::new(
-                    MetricId::new(self.name.clone()),
-                    SerializedEntry::new(value.current().to_string(), value.serialize()),
-                ),
-                Some(value),
-                None,
-            )],
-        )
-    }
 }
 
-impl<M: LearnerModel> MetricRegistration<M> for ScalarMetric {
-    fn register(self, training: SupervisedTraining<M>) -> SupervisedTraining<M> {
-        OptimizerMetricRegistration::new(self).register(training)
-    }
-}
+impl Metric for ScalarMetric {
+    type Input = ScalarInput;
 
-// Existing generic registration helpers and explicit type arguments need no extra parameter.
-fn register<M: LearnerModel, Me: MetricRegistration<M>>(
-    training: SupervisedTraining<M>,
-    metrics: Me,
-) -> SupervisedTraining<M> {
-    training.metrics::<Me>(metrics)
-}
-
-impl OptimizerStepMetric for ScalarMetric {
     fn name(&self) -> MetricName {
         self.name.clone()
     }
 
-    fn init(&mut self, _: &OptimizerMetricContext) -> Vec<MetricDefinition> {
-        vec![MetricDefinition {
-            metric_id: MetricId::new(self.name.clone()),
-            name: self.name.clone(),
-            description: None,
-            attributes: NumericAttributes::default().into(),
-        }]
+    fn attributes(&self) -> MetricAttributes {
+        NumericAttributes::default().into()
     }
 
     fn clear(&mut self) {
         self.last = None;
     }
 
-    fn update(&mut self, input: &OptimizerStepOutput) -> Result<MetricsUpdate, TensorReadError> {
+    fn update(
+        &mut self,
+        input: &ScalarInput,
+        metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         if self.failure == Failure::Update {
             return Err(ExecutionError::with_context("metric update failed").into());
         }
-        let value = (self.read)(input)?;
+        let value = (self.read)(input, metadata)?;
         self.last = Some(value);
-        Ok(self.entry(NumericEntry::Value(value)))
+        Ok(SerializedEntry::new(
+            value.to_string(),
+            NumericEntry::Value(value).serialize(),
+        ))
     }
 
-    fn end_epoch(&mut self) -> Result<MetricsUpdate, TensorReadError> {
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
         if self.failure == Failure::Final {
             return Err(ExecutionError::with_context("metric finalization failed").into());
         }
-        Ok(match self.last {
-            Some(value) => self.entry(NumericEntry::Final(value)),
-            None => MetricsUpdate::new(vec![], vec![]),
-        })
+        let value = self
+            .last
+            .ok_or_else(|| ExecutionError::with_context("no observations"))?;
+        Ok(SerializedEntry::new(
+            value.to_string(),
+            NumericEntry::Final(value).serialize(),
+        ))
+    }
+}
+
+impl Numeric for ScalarMetric {
+    fn value(&self) -> Option<NumericEntry> {
+        self.last.map(NumericEntry::Value)
+    }
+
+    fn running_value(&self) -> Option<NumericEntry> {
+        None
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        NumericEntry::Final(self.last.unwrap())
     }
 }
 
@@ -213,11 +215,11 @@ fn custom_metric_consumes_builtin_observations() {
     let (train, valid) = make_dataloaders();
     let dir = tempfile::tempdir().unwrap();
     let result = SupervisedTraining::new(dir.path(), train, valid)
-        .metrics::<OptimizerMetricRegistration<ScalarMetric>>(OptimizerMetricRegistration::new(
-            ScalarMetric::new("Custom LR", Failure::None, |output| {
-                Ok(output.learning_rate().base())
-            }),
-        ))
+        .metrics(OnOptimizerStep::with(ScalarMetric::new(
+            "Custom LR",
+            Failure::None,
+            |_, metadata| Ok(metadata.lr.as_ref().unwrap().base()),
+        )))
         .with_application_logger(None)
         .launch(make_learner(&device));
     assert!(result.error.is_none());
@@ -234,36 +236,31 @@ fn custom_metric_consumes_builtin_observations() {
     ));
 }
 
+#[derive(Clone)]
 struct StatusMetric;
 
-impl OptimizerStepMetric for StatusMetric {
+impl Metric for StatusMetric {
+    type Input = ();
+
     fn name(&self) -> MetricName {
         Arc::new("Optimizer Status".into())
     }
 
-    fn init(&mut self, _: &OptimizerMetricContext) -> Vec<MetricDefinition> {
-        vec![MetricDefinition {
-            metric_id: MetricId::new(self.name()),
-            name: self.name(),
-            description: None,
-            attributes: MetricAttributes::None,
-        }]
-    }
-
     fn clear(&mut self) {}
 
-    fn update(&mut self, _: &OptimizerStepOutput) -> Result<MetricsUpdate, TensorReadError> {
-        Ok(MetricsUpdate::new(
-            vec![MetricEntry::new(
-                MetricId::new(self.name()),
-                SerializedEntry::new("active".into(), "active".into()),
-            )],
-            vec![],
-        ))
+    fn update(
+        &mut self,
+        _: &(),
+        metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
+        let step = metadata.iteration.unwrap();
+        assert_eq!(metadata.progress.items_processed, step);
+        let status = format!("active {step}");
+        Ok(SerializedEntry::new(status.clone(), status))
     }
 
-    fn end_epoch(&mut self) -> Result<MetricsUpdate, TensorReadError> {
-        Ok(MetricsUpdate::new(vec![], vec![]))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(SerializedEntry::not_available(None))
     }
 }
 
@@ -273,18 +270,49 @@ fn text_optimizer_metrics_are_logged_but_excluded_from_summary() {
     let (train, valid) = make_dataloaders();
     let dir = tempfile::tempdir().unwrap();
     let result = SupervisedTraining::new(dir.path(), train, valid)
-        .metrics((
-            OptimizerMetricRegistration::new(StatusMetric),
-            LearningRateMetric::new(),
+        .metrics_text((
+            LossMetric::new(),
+            OnOptimizerStep::with((
+                StatusMetric,
+                ScalarMetric::new("Custom LR", Failure::None, |_, metadata| {
+                    Ok(metadata.lr.as_ref().unwrap().base())
+                }),
+            )),
         ))
+        .metrics(LearningRateMetric::new())
+        .num_epochs(2)
         .summary()
         .with_application_logger(None)
         .launch(make_learner(&device));
     assert!(result.error.is_none());
+    for epoch in 1..=2 {
+        assert_eq!(
+            std::fs::read_to_string(
+                dir.path()
+                    .join(format!("train/epoch-{epoch}/Optimizer_Status.log"))
+            )
+            .unwrap(),
+            "active 1\nactive 2\n"
+        );
+    }
+    let mut logger = FileMetricLogger::new(dir.path());
+    for split in [Split::Train, Split::Valid] {
+        assert_eq!(logger.read_numeric("Loss", 1, &split).unwrap().len(), 3);
+    }
     assert_eq!(
-        std::fs::read_to_string(dir.path().join("train/epoch-1/Optimizer_Status.log")).unwrap(),
-        "active\nactive\n"
+        logger
+            .read_numeric("Custom LR", 1, &Split::Train)
+            .unwrap()
+            .len(),
+        3
     );
+    for name in ["Optimizer Status", "Custom LR"] {
+        assert!(
+            !dir.path()
+                .join(format!("valid/epoch-1/{}.log", name.replace(' ', "_")))
+                .exists()
+        );
+    }
 }
 
 #[rstest::rstest]
@@ -304,21 +332,24 @@ fn custom_observations_share_reporting_and_error_handling(#[case] failure: Failu
     let training = SupervisedTraining::new(dir.path(), train, valid)
         .with_training_strategy(TrainingStrategy::Custom(Arc::new(CustomStrategy(failure))))
         .num_epochs(2);
-    let result = register(
-        training,
-        (
+    let result = training
+        .metrics((
             LossMetric::new(),
-            ScalarMetric::new("Update Norm", failure, |output| {
-                let observation = output.observation::<Observations>().ok_or_else(|| {
-                    ExecutionError::with_context("missing Update Norm observation")
-                })?;
-                observation.update_norm.clone().try_into_scalar::<f64>()
-            }),
+            OnOptimizerStep::with((
+                ScalarMetric::new("Update Norm", failure, |input, _| {
+                    let norm = input.0.as_ref().ok_or_else(|| {
+                        ExecutionError::with_context("missing Update Norm observation")
+                    })?;
+                    norm.clone().try_into_scalar::<f64>()
+                }),
+                ScalarMetric::new("Custom LR", Failure::None, |_, metadata| {
+                    Ok(metadata.lr.as_ref().unwrap().base())
+                }),
+            )),
             LearningRateMetric::new(),
-        ),
-    )
-    .with_application_logger(None)
-    .launch(learner);
+        ))
+        .with_application_logger(None)
+        .launch(learner);
     assert!(result.interrupted.is_none());
     match failure {
         Failure::None => assert!(result.error.is_none()),
@@ -348,6 +379,17 @@ fn custom_observations_share_reporting_and_error_handling(#[case] failure: Failu
         _ => 2,
     };
     assert_eq!(rates.len(), if updates == 0 { 0 } else { updates + 1 });
+    let custom_rates = logger.read_numeric("Custom LR", 1, &Split::Train).unwrap();
+    assert_eq!(
+        custom_rates
+            .iter()
+            .map(NumericEntry::serialize)
+            .collect::<Vec<_>>(),
+        rates
+            .iter()
+            .map(NumericEntry::serialize)
+            .collect::<Vec<_>>()
+    );
     let norms = logger
         .read_numeric("Update Norm", 1, &Split::Train)
         .unwrap();
@@ -367,7 +409,7 @@ fn custom_observations_share_reporting_and_error_handling(#[case] failure: Failu
                     logger.read_numeric("Loss", 1, &Split::Train).unwrap().len(),
                     3
                 );
-                for name in ["Update Norm", "Learning Rate"] {
+                for name in ["Update Norm", "Custom LR", "Learning Rate"] {
                     assert!(
                         logger
                             .read_numeric(name, 2, &Split::Train)

@@ -1,13 +1,9 @@
 use std::any::Any;
 
-use burn_core::tensor::TensorReadError;
 use burn_optim::lr_scheduler::module_lr_scheduler::ModuleLearningRate;
 use burn_std::ExecutionError;
 
-use crate::{
-    ItemLazy,
-    metric::{MetricDefinition, MetricName, store::MetricsUpdate},
-};
+use crate::ItemLazy;
 
 /// Observations captured for an applied optimizer update.
 ///
@@ -57,7 +53,7 @@ impl OptimizerStepOutput {
     /// Read an observation by type. Returns `None` if this update did not supply it.
     ///
     /// A metric requiring this observation should return an error when it is absent. Metrics
-    /// for optional observations can instead return an empty update. Observations are local to
+    /// for optional observations can instead return an unavailable entry. Observations are local to
     /// this optimizer step; an absent value never falls back to an earlier step's value.
     pub fn observation<T: 'static>(&self) -> Option<&T> {
         self.observations
@@ -96,66 +92,6 @@ impl<T: ItemLazy + 'static> ErasedObservation for Observation<T> {
         self.0 = Some(observation.sync()?);
         Ok(())
     }
-}
-
-/// Learner configuration available when initializing optimizer-step metrics.
-/// Per-update observations are supplied through [`OptimizerStepOutput`].
-pub struct OptimizerMetricContext {
-    num_learning_rate_groups: usize,
-}
-
-impl OptimizerMetricContext {
-    pub(crate) fn new(num_learning_rate_groups: usize) -> Self {
-        Self {
-            num_learning_rate_groups,
-        }
-    }
-
-    /// Number of configured learning-rate groups, including the base group.
-    pub fn num_learning_rate_groups(&self) -> usize {
-        self.num_learning_rate_groups
-    }
-}
-
-/// A metric that consumes values captured for applied optimizer updates.
-///
-/// Register with [`SupervisedTraining::metrics`](crate::SupervisedTraining::metrics), wrapping
-/// custom metrics in [`OptimizerMetricRegistration`](crate::OptimizerMetricRegistration) or
-/// implementing [`MetricRegistration`](crate::MetricRegistration) for them. Metrics run
-/// on the reporting thread after observations have been synchronized. They do not collect
-/// gradients or optimizer state themselves; the training strategy supplies those observations.
-/// Custom observations are optional at runtime; each metric decides whether absence is an error
-/// or a reason to skip that update.
-///
-/// Each metric can emit several series. Declare them in [`init`](Self::init) before emitting
-/// entries, using unique IDs and names across all registered metrics. Epoch finalization also
-/// runs for interrupted or failed splits. Finalize only observations actually received, without
-/// inventing a value for an empty epoch.
-pub trait OptimizerStepMetric: Send + 'static {
-    /// Name used to identify this metric in errors.
-    fn name(&self) -> MetricName;
-
-    /// Initialize once before training and declare all output series.
-    fn init(&mut self, context: &OptimizerMetricContext) -> Vec<MetricDefinition>;
-
-    /// Clear per-epoch state before the next training split.
-    fn clear(&mut self);
-
-    /// Process one applied optimizer update.
-    ///
-    /// # Errors
-    /// Returns an error if a required observation is missing or cannot be read. Other metrics
-    /// still run, and the training interrupter receives the failure through the event processor.
-    fn update(&mut self, output: &OptimizerStepOutput) -> Result<MetricsUpdate, TensorReadError>;
-
-    /// Finalize the epoch without adding another optimizer-step sample.
-    ///
-    /// Use [`NumericEntry::Final`](crate::metric::NumericEntry::Final) for authoritative epoch
-    /// values. Return an empty update when no value is available.
-    ///
-    /// # Errors
-    /// Returns an error if the final metric value cannot be computed.
-    fn end_epoch(&mut self) -> Result<MetricsUpdate, TensorReadError>;
 }
 
 #[cfg(test)]
