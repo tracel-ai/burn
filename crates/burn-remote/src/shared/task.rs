@@ -1,7 +1,7 @@
 use burn_backend::{DTypeUsageSet, ExecutionError, ProfileOptions, ProfileToken, TensorData};
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
-    DType, DeviceSettings,
+    BoolStore, DType, DeviceSettings,
     distributed::ReduceOperation,
     id::{IdGenerator, StreamId},
 };
@@ -206,7 +206,31 @@ pub struct SessionInfo {
     pub device_count: u32,
     /// Authenticated identity of the compute node, when the transport provides one.
     pub peer_id: Option<PeerId>,
+    /// What the device can do with each of [`HANDSHAKE_DTYPES`], so the client answers dtype
+    /// queries without a round-trip, and still answers them once the session has ended.
+    pub dtype_usage: Vec<(DType, DTypeUsageSet)>,
 }
+
+/// The dtypes whose usage the handshake carries: every one but the quantized dtypes, whose
+/// schemes are too many to list and are asked on first use instead.
+pub const HANDSHAKE_DTYPES: [DType; 16] = [
+    DType::F64,
+    DType::F32,
+    DType::Flex32,
+    DType::F16,
+    DType::BF16,
+    DType::I64,
+    DType::I32,
+    DType::I16,
+    DType::I8,
+    DType::U64,
+    DType::U32,
+    DType::U16,
+    DType::U8,
+    DType::Bool(BoolStore::Native),
+    DType::Bool(BoolStore::U8),
+    DType::Bool(BoolStore::U32),
+];
 
 /// Why a server will not serve a session, as the client is told.
 ///

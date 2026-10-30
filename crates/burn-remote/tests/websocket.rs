@@ -1404,7 +1404,8 @@ fn dropping_the_serving_future_ends_its_live_sessions() {
 }
 
 /// Once its session ended, a device's flush, sync and read report it poisoned, and why,
-/// and work queued in between neither panics nor reaches anything.
+/// and work queued in between neither panics nor reaches anything. What the device supports,
+/// learned on the handshake, is still known.
 #[test]
 fn an_ended_session_is_reported_by_flush_sync_and_read() {
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -1435,6 +1436,7 @@ fn an_ended_session_is_reported_by_flush_sync_and_read() {
             assert!(error.is_device_poisoned(), "{error}");
             assert!(error.to_string().contains("session ended"), "{error}");
         }
+        assert!(device.supports_dtype(DType::F32));
     });
     rt.shutdown_background();
 }

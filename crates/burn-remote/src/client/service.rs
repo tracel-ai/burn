@@ -23,7 +23,7 @@ use burn_std::{
     id::{IdGenerator, StreamId},
     profile::Instant,
 };
-use core::{future::Future, pin::Pin};
+use core::{fmt::Display, future::Future, pin::Pin};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use tokio::{
@@ -116,6 +116,9 @@ pub struct RemoteService {
     settings: Arc<OnceLock<DeviceSettings>>,
     /// Shared cell populated from the init handshake (read by `RemoteDevice::enumerate`).
     device_count: Arc<OnceLock<u32>>,
+    /// What the device can do with each dtype: the handshake's table, then each quantized dtype
+    /// once asked. Kept past the session's end, since it describes the device.
+    dtype_usage: HashMap<DType, DTypeUsageSet>,
     session_id: SessionId,
     closed: bool,
 }
@@ -164,6 +167,7 @@ impl DeviceService for RemoteService {
             logger,
             settings: settings_cell(id),
             device_count: device_count_cell(id),
+            dtype_usage: HashMap::new(),
             session_id,
             closed: false,
         }
@@ -336,6 +340,7 @@ pub(crate) struct WasmConnected {
     writer: SubmitWriter,
     settings: DeviceSettings,
     device_count: u32,
+    dtype_usage: Vec<(DType, DTypeUsageSet)>,
 }
 
 /// Open and hand-shake a session on the browser event loop.
@@ -362,6 +367,7 @@ pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> Result<WasmConnected,
         writer,
         settings: info.settings,
         device_count: info.device_count,
+        dtype_usage: info.dtype_usage,
     })
 }
 
@@ -752,14 +758,46 @@ impl RemoteService {
 
     /// What the server's device can do with `dtype`.
     ///
-    /// Nothing, once the session has ended: the answer cannot fail, and the next flush, sync or
-    /// read reports why.
+    /// Answered from the handshake's table, which outlives the session; a quantized dtype is
+    /// asked once and remembered.
+    ///
+    /// # Panics
+    ///
+    /// When there is no answer to give: the server cannot be reached, or the session ended
+    /// before a quantized `dtype` was asked. An empty set would read as a device that supports
+    /// nothing.
     pub fn dtype_usage(&mut self, dtype: DType) -> DTypeUsageSet {
+        if let Some(usage) = self.dtype_usage.get(&dtype) {
+            return *usage;
+        }
+        let unanswerable = |reason: &dyn Display| -> ! {
+            panic!("Cannot tell what the remote device can do with {dtype:?}: {reason}")
+        };
+        if let Some(error) = self.session.error() {
+            unanswerable(&error);
+        }
+        // Nothing is registered yet if this connect fails, so the session stays open for a retry.
+        if let Err(err) = self.try_connect() {
+            unanswerable(&format_args!(
+                "cannot open a session at {}: {err}",
+                self.endpoint.peer_addr()
+            ));
+        }
+        if let Some(usage) = self.dtype_usage.get(&dtype) {
+            return *usage;
+        }
+
         let rx = self.submit_request(|id| Task::DTypeUsage(id, dtype));
         match self.executor.block_on(rx) {
-            Ok(TaskResponseContent::DTypeUsage(set)) => set,
+            Ok(TaskResponseContent::DTypeUsage(usage)) => {
+                self.dtype_usage.insert(dtype, usage);
+                usage
+            }
             Ok(other) => panic!("Invalid response for DTypeUsage: {other:?}"),
-            Err(_) => DTypeUsageSet::empty(),
+            Err(_) => match self.session.error() {
+                Some(error) => unanswerable(&error),
+                None => unanswerable(&"the session ended"),
+            },
         }
     }
 
@@ -843,6 +881,7 @@ impl RemoteService {
             // Publish to the shared cells so `RemoteDevice::defaults` and listing can read them.
             let _ = self.settings.set(info.settings);
             let _ = self.device_count.set(info.device_count);
+            self.dtype_usage.extend(info.dtype_usage);
 
             Self::spawn_response_demux(&self.executor, streams.response, self.pending.responder());
             let responder = self.pending.responder();
@@ -885,6 +924,7 @@ impl RemoteService {
         }
         let _ = self.settings.set(connected.settings);
         let _ = self.device_count.set(connected.device_count);
+        self.dtype_usage.extend(connected.dtype_usage);
         self.writer = Some(connected.writer);
         self.start_logger();
     }

@@ -75,6 +75,7 @@ where
             settings: service.device_settings(init.device_index),
             device_count,
             peer_id: server_peer_id,
+            dtype_usage: service.dtype_usage(init.device_index),
         }),
     };
     let info = info
@@ -215,7 +216,8 @@ async fn forward_tasks(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_std::{BoolDType, DeviceSettings, FloatDType, IntDType};
+    use burn_backend::DTypeUsageSet;
+    use burn_std::{BoolDType, DType, DeviceSettings, FloatDType, IntDType};
     use bytes::Bytes;
     use std::{collections::VecDeque, sync::Mutex};
 
@@ -254,6 +256,10 @@ mod tests {
 
         fn device_count(&self) -> u32 {
             1
+        }
+
+        fn dtype_usage(&self, _device_index: u32) -> Vec<(DType, DTypeUsageSet)> {
+            Vec::new()
         }
 
         async fn close(&self, session_id: SessionId) {

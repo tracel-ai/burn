@@ -141,7 +141,7 @@ impl RouterClient for RemoteClient {
     fn dtype_usage(&self, dtype: burn_std::DType) -> burn_backend::DTypeUsageSet {
         self.handle
             .submit_blocking(move |s| s.dtype_usage(dtype))
-            .unwrap_or_default()
+            .unwrap_or_else(|err| panic!("{}", Self::service_stopped(err)))
     }
 
     fn flush(&self) -> Result<(), ExecutionError> {
