@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{ElementConversion, TensorData};
+use burn_tensor::{ElementConversion, TensorData, Tolerance};
 
 #[test]
 fn test_max_dim_2d() {
@@ -490,4 +490,115 @@ fn test_max_dim_with_indices_empty_output() {
     assert_eq!(indices.dims(), [0, 1]);
     assert_eq!(values.into_data().num_elements(), 0);
     assert_eq!(indices.into_data().num_elements(), 0);
+}
+
+/// Rows and columns mixing NaN with finite values and infinities; row 1 is all NaN.
+/// Expected values are from NumPy's `nanmax` / `nanmin`.
+fn nan_reduction_input() -> TestTensor<2> {
+    TestTensor::<2>::from([
+        [1.0, f32::NAN, 3.0, -2.0],
+        [f32::NAN, f32::NAN, f32::NAN, f32::NAN],
+        [
+            f32::NEG_INFINITY,
+            f32::NAN,
+            f32::NEG_INFINITY,
+            f32::NEG_INFINITY,
+        ],
+        [f32::NAN, f32::INFINITY, 0.0, f32::NAN],
+    ])
+}
+
+#[test]
+fn test_nan_max_min_dim_ignore_nan() {
+    let tensor = nan_reduction_input();
+    let inf = f32::INFINITY;
+
+    for dim in [1, -1] {
+        tensor
+            .clone()
+            .nan_max_dim(dim)
+            .into_data()
+            .assert_approx_eq::<FloatElem>(
+                &TensorData::from([[3.0], [f32::NAN], [-inf], [inf]]),
+                Tolerance::default(),
+            );
+        tensor
+            .clone()
+            .nan_min_dim(dim)
+            .into_data()
+            .assert_approx_eq::<FloatElem>(
+                &TensorData::from([[-2.0], [f32::NAN], [-inf], [0.0]]),
+                Tolerance::default(),
+            );
+    }
+
+    tensor
+        .clone()
+        .nan_max_dim(0)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(
+            &TensorData::from([[1.0, inf, 3.0, -2.0]]),
+            Tolerance::default(),
+        );
+    tensor
+        .nan_min_dim(0)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(
+            &TensorData::from([[-inf, inf, -inf, -inf]]),
+            Tolerance::default(),
+        );
+}
+
+#[test]
+fn test_nan_max_min_ignore_nan() {
+    let tensor = nan_reduction_input();
+
+    tensor
+        .clone()
+        .nan_max()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([f32::INFINITY]), Tolerance::default());
+    tensor.nan_min().into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([f32::NEG_INFINITY]),
+        Tolerance::default(),
+    );
+}
+
+#[test]
+fn test_nan_max_min_all_nan() {
+    let tensor = TestTensor::<2>::from([[f32::NAN, f32::NAN], [f32::NAN, f32::NAN]]);
+
+    for output in [tensor.clone().nan_max(), tensor.nan_min()] {
+        output
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&TensorData::from([f32::NAN]), Tolerance::default());
+    }
+}
+
+#[cfg(feature = "flex")]
+#[test]
+fn test_nan_max_min_dim_flex_half_dtypes() {
+    let input = TestTensor::<2>::from([
+        [f32::NAN, 2.0, f32::NEG_INFINITY],
+        [f32::NAN, f32::NAN, f32::NAN],
+    ]);
+
+    for dtype in [burn_tensor::DType::F16, burn_tensor::DType::BF16] {
+        let tensor = input.clone().cast(dtype);
+
+        tensor
+            .clone()
+            .nan_max_dim(1)
+            .into_data()
+            .convert::<f32>()
+            .assert_approx_eq::<f32>(&TensorData::from([[2.0], [f32::NAN]]), Tolerance::default());
+        tensor
+            .nan_min_dim(1)
+            .into_data()
+            .convert::<f32>()
+            .assert_approx_eq::<f32>(
+                &TensorData::from([[f32::NEG_INFINITY], [f32::NAN]]),
+                Tolerance::default(),
+            );
+    }
 }
