@@ -95,8 +95,21 @@ positions when sequence lengths differ.
   [#6075](https://github.com/tracel-ai/burn/pull/6075))
 - Speed up Flex CPU F32 `exp`, `sigmoid`, and `softmax` with a SIMD `exp` within 2 ulp of libm, and
   run F32/F64 `round`, `floor`, `ceil`, and `trunc` with SIMD rounding. Flex `round` now returns
-  `-0.0` for `-0.5` on every layout, as IEEE ties-to-even does.
-  ([#6313](https://github.com/tracel-ai/burn/pull/6313)) [@antimora](https://github.com/antimora)
+  `-0.0` for `-0.5` on every layout, as IEEE ties-to-even does. F32 `log`, `tanh`, `erf`, `gelu`,
+  and the GELU backward pass also run with SIMD; `log` matches the `libm` crate bit for bit, `tanh`
+  is within 2 ulp of libm, and `erf` within 1 ulp. F32 `log1p`, `atanh`, `log_sigmoid`, and the
+  log-sigmoid backward pass also run with SIMD; `log1p` and `atanh` match the `libm` crate bit for
+  bit. F32 `sin` and `cos` run with SIMD within 2 ulp of libm, and `tan` within 4; `atan`, `asin`,
+  and `acos` within 3, 2, and 1 ulp. F32 `atan2` (within 3 ulp) and `hypot` (within 1 ulp) run with
+  SIMD on same-shape contiguous operands, and the GELU and log-sigmoid backward passes run in one
+  pass. F32 `sinh` and `cosh` run with SIMD within 2 ulp of libm.
+  ([#6313](https://github.com/tracel-ai/burn/pull/6313),
+  [#6341](https://github.com/tracel-ai/burn/pull/6341),
+  [#6345](https://github.com/tracel-ai/burn/pull/6345),
+  [#6347](https://github.com/tracel-ai/burn/pull/6347),
+  [#6352](https://github.com/tracel-ai/burn/pull/6352),
+  [#6353](https://github.com/tracel-ai/burn/pull/6353),
+  [#6354](https://github.com/tracel-ai/burn/pull/6354)) [@antimora](https://github.com/antimora)
 - Run GELU and sigmoid forward and backward operations in single CubeCL kernels.
   ([#6114](https://github.com/tracel-ai/burn/pull/6114)) [@ssoj13](https://github.com/ssoj13)
 - Allow more CubeCL slices to share their source buffer, avoiding copies of KV-cache prefixes.

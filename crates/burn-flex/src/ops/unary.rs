@@ -210,11 +210,21 @@ pub fn exp(tensor: FlexTensor) -> FlexTensor {
 
 /// Natural logarithm: ln(x)
 pub fn log(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Ln) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.ln(), |x| x.ln())
 }
 
 /// Natural logarithm of (1 + x): ln(1 + x)
 pub fn log1p(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Ln1p) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.ln_1p(), |x| x.ln_1p())
 }
 
@@ -273,36 +283,71 @@ pub fn recip(tensor: FlexTensor) -> FlexTensor {
 
 /// Cosine
 pub fn cos(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Cos) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.cos(), |x| x.cos())
 }
 
 /// Sine
 pub fn sin(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Sin) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.sin(), |x| x.sin())
 }
 
 /// Tangent
 pub fn tan(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Tan) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.tan(), |x| x.tan())
 }
 
 /// Hyperbolic cosine
 pub fn cosh(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Cosh) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.cosh(), |x| x.cosh())
 }
 
 /// Hyperbolic sine
 pub fn sinh(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Sinh) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.sinh(), |x| x.sinh())
 }
 
 /// Hyperbolic tangent
 pub fn tanh(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Tanh) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.tanh(), |x| x.tanh())
 }
 
 /// Inverse cosine (arccos)
 pub fn acos(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Acos) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.acos(), |x| x.acos())
 }
 
@@ -313,6 +358,11 @@ pub fn acosh(tensor: FlexTensor) -> FlexTensor {
 
 /// Inverse sine (arcsin)
 pub fn asin(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Asin) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.asin(), |x| x.asin())
 }
 
@@ -323,11 +373,21 @@ pub fn asinh(tensor: FlexTensor) -> FlexTensor {
 
 /// Inverse tangent (arctan)
 pub fn atan(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Atan) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.atan(), |x| x.atan())
 }
 
 /// Inverse hyperbolic tangent
 pub fn atanh(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Atanh) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.atanh(), |x| x.atanh())
 }
 
@@ -373,6 +433,11 @@ pub fn trunc(tensor: FlexTensor) -> FlexTensor {
 
 /// Error function
 pub fn erf(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Erf) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, erf_f32, erf_f64)
 }
 
@@ -380,11 +445,9 @@ pub fn erf(tensor: FlexTensor) -> FlexTensor {
 // Error function implementation
 // ============================================================================
 //
-// Delegates to libm for full f32 / f64 precision. The previous Abramowitz
-// and Stegun 7.1.26 formula was capped at ~1.5e-7 max absolute error,
-// adequate for f32 but well short of f64's ~2.2e-16 precision. libm's erf
-// is derived from fdlibm and lands within a few ulps across the full
-// range in both precisions.
+// Scalar erf for f64, and for f32 tensors the SIMD path doesn't take.
+// Delegates to libm, which is derived from fdlibm and lands within a few
+// ulps across the full range in both precisions.
 
 /// Error function for f32.
 pub fn erf_f32(x: f32) -> f32 {
