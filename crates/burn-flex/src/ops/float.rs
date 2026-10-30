@@ -692,23 +692,41 @@ impl FloatTensorOps<Flex> for Flex {
         let max32 = max.to_f32().unwrap();
         let min64 = min.to_f64().unwrap();
         let max64 = max.to_f64().unwrap();
-        // `f32::clamp` panics on a NaN bound, so take that case out first and let the rest
-        // keep the native clamp, which decides signed zero and rejects `min > max`. A NaN
-        // bound gives NaN, agreeing with `clamp_min`/`clamp_max` below and with PyTorch.
+        // A NaN bound gives NaN, agreeing with `clamp_min`/`clamp_max` below and
+        // with PyTorch. Otherwise `min > max` panics as `f32::clamp` does, on the
+        // bounds in the precision the tensor uses, but checked once here: the
+        // check inside `f32::clamp` runs per element and keeps the loop from
+        // vectorizing. The comparisons below are the ones `f32::clamp` makes, so
+        // NaN inputs and signed zeros come out the same.
+        if min64.is_nan() || max64.is_nan() {
+            return unary::unary_op(tensor, |_: f32| f32::NAN, |_: f64| f64::NAN);
+        }
+        let ordered = match tensor.dtype() {
+            DType::F64 => min64 <= max64,
+            _ => min32 <= max32,
+        };
+        assert!(
+            ordered,
+            "clamp: min > max. min = {min64:?}, max = {max64:?}"
+        );
         unary::unary_op(
             tensor,
             move |x: f32| {
-                if min32.is_nan() || max32.is_nan() {
-                    f32::NAN
+                if x < min32 {
+                    min32
+                } else if x > max32 {
+                    max32
                 } else {
-                    x.clamp(min32, max32)
+                    x
                 }
             },
             move |x: f64| {
-                if min64.is_nan() || max64.is_nan() {
-                    f64::NAN
+                if x < min64 {
+                    min64
+                } else if x > max64 {
+                    max64
                 } else {
-                    x.clamp(min64, max64)
+                    x
                 }
             },
         )
@@ -738,15 +756,15 @@ impl FloatTensorOps<Flex> for Flex {
         )
     }
 
-    // Uses `copysign` rather than a `> 0.0` / `< 0.0` branch chain. The branch
-    // chain is compiled into a lookup from a `[2 x float]` constant pool at -O2
-    // and above, and some backends (notably Xtensa) have no instruction
-    // selection pattern for a PC-relative reference to a constant pool, so the
-    // whole crate fails to compile for those targets. One scalar constant
-    // leaves the pool with nothing to hold.
+    // Builds +-1 from the sign bit and the bits of 1.0 rather than a `> 0.0` /
+    // `< 0.0` branch chain. The branch chain is compiled into a lookup from a
+    // `[2 x float]` constant pool at -O2 and above, and some backends (notably
+    // Xtensa) have no instruction selection pattern for a PC-relative
+    // reference to a constant pool, so the whole crate fails to compile for
+    // those targets. The bit form needs no float constant besides 0.0, and
+    // unlike a `libm::copysignf` call it inlines, so the loop vectorizes.
     //
-    // `copysign(1.0, -0.0)` is `-1.0`, and NaN isn't `== 0.0` on either sign
-    // bit, so both must be checked before falling into `copysign`
+    // NaN and both zeros give 0, so they are checked first.
     fn float_sign(tensor: FloatTensor<Flex>) -> FloatTensor<Flex> {
         unary::unary_op(
             tensor,
@@ -754,14 +772,14 @@ impl FloatTensorOps<Flex> for Flex {
                 if x.is_nan() || x == 0.0 {
                     0.0
                 } else {
-                    libm::copysignf(1.0, x)
+                    f32::from_bits((x.to_bits() & 0x8000_0000) | 0x3f80_0000)
                 }
             },
             |x: f64| {
                 if x.is_nan() || x == 0.0 {
                     0.0
                 } else {
-                    libm::copysign(1.0, x)
+                    f64::from_bits((x.to_bits() & 0x8000_0000_0000_0000) | 0x3ff0_0000_0000_0000)
                 }
             },
         )
@@ -1264,6 +1282,11 @@ impl FloatTensorOps<Flex> for Flex {
             return Self::float_powf_scalar_impl(lhs, rhs);
         }
         let exponent = exponent as i32;
+        #[cfg(feature = "simd")]
+        let lhs = match unary::simd_map_float(lhs, crate::simd::PowI(exponent)) {
+            Ok(out) => return out,
+            Err(lhs) => lhs,
+        };
         unary::unary_op(
             lhs,
             |x| powi_float(x, exponent),
@@ -1345,6 +1368,68 @@ mod tests {
         Flex::float_powi_scalar(tensor, (-1074).into())
             .into_data()
             .assert_eq(&TensorData::from([f64::from_bits(1)]), true);
+    }
+
+    /// The SIMD path must give `powi_float`'s bits for exponents the scalar
+    /// dispatch doesn't special-case, of both signs and odd and even.
+    #[cfg(feature = "simd")]
+    #[test]
+    fn powi_simd_matches_scalar_bitwise() {
+        use super::powi_float;
+        use crate::simd::{PowI, map_to_vec};
+
+        let f32_in: alloc::vec::Vec<f32> = (-40..=40)
+            .map(|i| i as f32 * 0.37)
+            .chain([
+                0.0,
+                -0.0,
+                1e-30,
+                1e30,
+                f32::from_bits(1),
+                f32::INFINITY,
+                f32::NAN,
+            ])
+            .collect();
+        let f64_in: alloc::vec::Vec<f64> = f32_in.iter().map(|&x| f64::from(x) * 1.1).collect();
+        for n in [3, 4, 5, 7, 31, 100, -3, -4, -5, -7, -31, -100, i32::MIN] {
+            let out = map_to_vec(&f32_in, PowI(n));
+            for (&x, &y) in f32_in.iter().zip(&out) {
+                let expected = powi_float(x, n);
+                assert!(
+                    y.to_bits() == expected.to_bits() || (y.is_nan() && expected.is_nan()),
+                    "f32 {x:e}^{n} = {y:e}, scalar gives {expected:e}"
+                );
+            }
+            let out = map_to_vec(&f64_in, PowI(n));
+            for (&x, &y) in f64_in.iter().zip(&out) {
+                let expected = powi_float(x, n);
+                assert!(
+                    y.to_bits() == expected.to_bits() || (y.is_nan() && expected.is_nan()),
+                    "f64 {x:e}^{n} = {y:e}, scalar gives {expected:e}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "min > max")]
+    fn clamp_panics_when_min_exceeds_max() {
+        use burn_backend::ops::FloatTensorOps;
+
+        let tensor = crate::FlexTensor::from_data(TensorData::from([0.5f32]));
+        Flex::float_clamp(tensor, 1.0.into(), 0.0.into());
+    }
+
+    /// Bounds that differ in f64 but round to the same f32 are ordered for an
+    /// f32 tensor, as they were for `f32::clamp`.
+    #[test]
+    fn clamp_checks_bounds_in_the_tensor_precision() {
+        use burn_backend::ops::FloatTensorOps;
+
+        let tensor = crate::FlexTensor::from_data(TensorData::from([0.5f32, 2.0]));
+        Flex::float_clamp(tensor, 1.000_000_01f64.into(), 1.0.into())
+            .into_data()
+            .assert_eq(&TensorData::from([1.0f32, 1.0]), true);
     }
 
     #[test]
