@@ -1,7 +1,5 @@
 use super::{DeviceQueryError, RemoteChannel, RemoteClient, service};
-use crate::shared::{
-    DeviceQueryId, LocalTransferId, TaskResponseContent, TensorRemote, TransferCapability,
-};
+use crate::shared::{DeviceQueryId, LocalTransferId, TensorRemote, TransferCapability};
 use crate::{PeerAddr, PeerId};
 use burn_backend::{
     DeviceId, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
@@ -9,7 +7,7 @@ use burn_backend::{
 };
 use burn_ir::{CapturedGraphId, TensorIr};
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
-use burn_std::{DeviceSettings, future::DynFut};
+use burn_std::{DeviceSettings, device_handle::CallError, future::DynFut};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -69,14 +67,14 @@ impl RouterClient for RemoteClient {
         let stream_id = StreamId::current();
         self.handle
             .submit_blocking(|s| s.sync(stream_id))
-            .expect("Service call failed")
+            .unwrap_or_else(|err| Err(service_error(err)))
     }
 
     fn profile_start(&self) -> Result<Option<ProfileToken>, ExecutionError> {
         let stream_id = StreamId::current();
         self.handle
             .submit_blocking(move |s| s.profile_start(stream_id))
-            .expect("Service call failed")
+            .unwrap_or_else(|err| Err(service_error(err)))
     }
 
     fn profile_end(
@@ -89,10 +87,9 @@ impl RouterClient for RemoteClient {
         //
         // Blocking only on the issue, so the close keeps its place among the
         // tasks around it; the measurement is awaited through the duration.
-        Ok(self
-            .handle
+        self.handle
             .submit_blocking(move |s| s.profile_end(token, options))
-            .expect("Service call failed"))
+            .map_err(service_error)
     }
 
     /// Told to the server rather than closed: the close is a blocking round
@@ -106,21 +103,21 @@ impl RouterClient for RemoteClient {
         let stream_id = StreamId::current();
         self.handle
             .submit_blocking(move |s| s.graph_prepare(stream_id))
-            .expect("Service call failed")
+            .unwrap_or_else(|err| Err(service_error(err)))
     }
 
     fn graph_start_capture(&self) -> Result<(), ExecutionError> {
         let stream_id = StreamId::current();
         self.handle
             .submit_blocking(move |s| s.graph_start_capture(stream_id))
-            .expect("Service call failed")
+            .unwrap_or_else(|err| Err(service_error(err)))
     }
 
     fn graph_stop_capture(&self) -> Result<CapturedGraphId, ExecutionError> {
         let stream_id = StreamId::current();
         self.handle
             .submit_blocking(move |s| s.graph_stop_capture(stream_id))
-            .expect("Service call failed")
+            .unwrap_or_else(|err| Err(service_error(err)))
     }
 
     /// `Ok` once the replay is sent: the server answers no replay, and a failed one is the error
@@ -157,8 +154,10 @@ impl RouterClient for RemoteClient {
             .expect("Service call failed")
     }
 
-    fn flush(&self) {
-        self.handle.submit_blocking(|s| s.flush()).unwrap();
+    fn flush(&self) -> Result<(), ExecutionError> {
+        self.handle
+            .submit_blocking(|s| s.flush())
+            .unwrap_or_else(|err| Err(service_error(err)))
     }
 
     fn register_and_execute_graph(
@@ -189,21 +188,18 @@ impl RemoteClient {
         // Issue the request synchronously so ordering is preserved relative to subsequent
         // submissions; the returned future just awaits the server's response.
         let stream_id = StreamId::current();
-        let rx = self
-            .handle
+        self.handle
             .submit_blocking(move |s| s.read_tensors(stream_id, tensors))
-            .expect("Service call failed");
-
-        Box::pin(async move {
-            match rx.await {
-                Ok(TaskResponseContent::ReadTensors(res)) => res,
-                Ok(_) => panic!("Invalid response type for ReadTensors"),
-                Err(e) => Err(ExecutionError::generic(format!(
-                    "Failed to read tensors: {e:?}"
-                ))),
-            }
-        })
+            .unwrap_or_else(|err| {
+                let error = service_error(err);
+                Box::pin(async move { Err(error) })
+            })
     }
+}
+
+/// The service's thread is gone, with the session it held.
+fn service_error(err: CallError) -> ExecutionError {
+    ExecutionError::with_context(format!("The remote device's service stopped: {err:?}"))
 }
 
 #[derive(Clone, Debug)]

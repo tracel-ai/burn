@@ -70,8 +70,11 @@ impl RouterClient for GroupClient {
         self.interpreter.lock().sync()
     }
 
-    fn flush(&self) {
+    /// A member's failure to flush is kept for the group's next [`sync`](Self::sync), which
+    /// waits on every member.
+    fn flush(&self) -> Result<(), ExecutionError> {
         self.interpreter.lock().flush();
+        Ok(())
     }
 
     fn create_empty_handle(&self) -> TensorId {

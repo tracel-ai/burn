@@ -1415,6 +1415,41 @@ fn dropping_the_serving_future_ends_its_live_sessions() {
     rt.shutdown_background();
 }
 
+/// Once its session ended, a device's flush, sync and read report why, as a poisoned device's do,
+/// and work queued in between neither panics nor reaches anything.
+#[test]
+fn an_ended_session_is_reported_by_flush_sync_and_read() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let host = host_of(&listener);
+    let server = rt.spawn(
+        BackendServer::<Flex>::new(vec![Default::default()])
+            .serve_async(WebSocketTransport::from_listener(listener)),
+    );
+    let device = Device::remote_options(&host).init().unwrap();
+    device.sync().unwrap();
+
+    server.abort();
+    assert!(rt.block_on(server).unwrap_err().is_cancelled());
+
+    with_deadlock_watchdog(HANG_LIMIT, move || {
+        // The sync is what learns the session ended; every later call reports it again.
+        assert!(device.sync().is_err());
+        let doubled = Tensor::<1>::from_floats([3.0], &device) * 2.0;
+        for error in [
+            device.flush().unwrap_err(),
+            device.sync().unwrap_err(),
+            doubled.try_into_data().unwrap_err(),
+        ] {
+            assert!(error.to_string().contains("session ended"), "{error}");
+        }
+    });
+    rt.shutdown_background();
+}
+
 #[test]
 fn a_device_whose_server_restarted_is_replaced_by_a_new_one() {
     let rt = tokio::runtime::Builder::new_multi_thread()

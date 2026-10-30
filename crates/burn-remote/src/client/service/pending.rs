@@ -57,6 +57,11 @@ impl PendingResponses {
         rx
     }
 
+    /// The session these requests are answered on, which reports why it ended.
+    pub(crate) fn session(&self) -> &Arc<SessionEnd> {
+        &self.session
+    }
+
     /// A cheap, cloneable handle the response-demux task uses to deliver replies.
     pub(crate) fn responder(&self) -> Responder {
         Responder {
@@ -89,10 +94,11 @@ impl Responder {
         }
     }
 
-    /// End the session, and fail every caller waiting on a reply or asking for one later.
-    pub(crate) fn end_session(&self) {
+    /// End the session for `reason`, and fail every caller waiting on a reply or asking for one
+    /// later.
+    pub(crate) fn end_session(&self, reason: impl Into<String>) {
         // Before any caller wakes, so one that connects again on the failure gets a new device.
-        self.session.end();
+        self.session.end(reason);
         self.callbacks.lock().unwrap().clear();
     }
 }
@@ -158,7 +164,7 @@ mod tests {
         let mut rx1 = pending.register(id1);
 
         // The response stream died with both requests still in flight.
-        pending.responder().end_session();
+        pending.responder().end_session("the test ended it");
         assert!(session.has_ended());
 
         // Both receivers resolve immediately with an error instead of hanging.
@@ -175,7 +181,7 @@ mod tests {
     #[test]
     fn register_after_the_session_ended_returns_a_closed_receiver() {
         let mut pending = pending_responses();
-        pending.responder().end_session();
+        pending.responder().end_session("the test ended it");
 
         // A request issued after the connection dropped must not park forever.
         let id = pending.next_id();

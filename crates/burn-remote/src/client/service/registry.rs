@@ -1,7 +1,7 @@
 //! Process-global registry connecting Burn's compact `DeviceId` to rich remote endpoints.
 
 use burn_ir::TensorId;
-use burn_std::DeviceSettings;
+use burn_std::{DeviceSettings, ExecutionError};
 use std::{
     collections::HashMap,
     sync::{
@@ -19,20 +19,35 @@ pub(crate) fn new_tensor_id() -> TensorId {
     TensorId::new(TENSOR_ID_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
-/// Whether a device's session has ended: its response stream closed, or its writer failed. An
-/// ended session is never reopened; the next connect registers a new device.
+/// Whether a device's session has ended, and why: its response stream closed, its writer failed,
+/// or it could not be opened for work already queued on it. An ended session is never reopened;
+/// the next connect registers a new device.
 #[derive(Default)]
 pub(crate) struct SessionEnd {
     ended: AtomicBool,
+    reason: OnceLock<String>,
 }
 
 impl SessionEnd {
-    pub(crate) fn end(&self) {
+    /// End the session. The first reason given is the one reported.
+    pub(crate) fn end(&self, reason: impl Into<String>) {
+        let _ = self.reason.set(reason.into());
         self.ended.store(true, Ordering::Release);
     }
 
     pub(crate) fn has_ended(&self) -> bool {
         self.ended.load(Ordering::Acquire)
+    }
+
+    /// The error every flush, sync and read reports once the session has ended.
+    ///
+    /// Sticky, like a poisoned device: the tensors the session held are gone with it, so nothing
+    /// queued on it can run again.
+    pub(crate) fn error(&self) -> Option<ExecutionError> {
+        self.has_ended().then(|| {
+            let reason = self.reason.get().map_or("unknown reason", String::as_str);
+            ExecutionError::with_context(format!("The remote session ended: {reason}"))
+        })
     }
 }
 

@@ -597,7 +597,9 @@ impl RouterClient for CaptureClient {
     fn sync(&self) -> Result<(), ExecutionError> {
         Ok(())
     }
-    fn flush(&self) {}
+    fn flush(&self) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 
     fn create_empty_handle(&self) -> TensorId {
         self.state().lock().assert_open();

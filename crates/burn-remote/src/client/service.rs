@@ -19,12 +19,10 @@ use burn_backend::{
 use burn_ir::{CapturedGraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
     DType, DeviceSettings,
+    future::DynFut,
     id::{IdGenerator, StreamId},
     profile::Instant,
 };
-// Only the native `sync` path captures a backtrace; the wasm path returns without blocking.
-#[cfg(not(target_family = "wasm"))]
-use burn_std::backtrace::BackTrace;
 use core::{future::Future, pin::Pin};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -46,7 +44,7 @@ use writer::SubmitWriter;
 
 use super::{ConnectError, DeviceQueryError, runtime::Executor};
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
-use registry::{device_count_cell, settings_cell};
+use registry::{SessionEnd, device_count_cell, settings_cell};
 pub(crate) use registry::{device_count_for, register_endpoint, registered_device, session_end};
 pub(crate) use registry::{has_settings, new_tensor_id, session_of, settings_for};
 use serde_bytes::ByteBuf;
@@ -144,7 +142,7 @@ impl DeviceService for RemoteService {
         // doing the blocking network connect + handshake here would serialize every remote
         // device's setup behind that lock — N devices would connect strictly one at a time.
         // Instead we record the endpoint and open the sockets on the first real use, off the
-        // lock and on the device-runner thread (see `ensure_connected`).
+        // lock and on the device-runner thread (see `try_connect`).
         Self {
             id,
             executor,
@@ -286,7 +284,7 @@ impl RemoteService {
         let mut response = MessageSource::new(response);
         // Detached: the task owns the response stream and runs until it closes.
         let _demux = executor.spawn(async move {
-            loop {
+            let reason = loop {
                 match response.recv().await {
                     Ok(Some(msg)) => {
                         let reply: TaskResponse = match rmp_serde::from_slice(&msg) {
@@ -302,19 +300,19 @@ impl RemoteService {
                     }
                     Ok(None) => {
                         log::warn!("Remote response stream closed");
-                        break;
+                        break "the server closed the session".to_string();
                     }
                     Err(err) => {
                         log::warn!("Remote response stream error: {err:?}");
-                        break;
+                        break format!("the response stream failed: {err:?}");
                     }
                 }
-            }
+            };
 
             // The response stream is gone (clean close or error): the server will never answer
             // any in-flight or future request on this connection. Fail every waiting caller and
             // gate new ones so they error out instead of blocking forever on a dead server.
-            responder.end_session();
+            responder.end_session(reason);
         });
     }
 }
@@ -352,7 +350,9 @@ pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> Result<WasmConnected,
 
     let responder = plan.responder.clone();
     RemoteService::spawn_response_demux(&executor, streams.response, plan.responder);
-    let writer = SubmitWriter::spawn(&executor, streams.submit, move || responder.end_session());
+    let writer = SubmitWriter::spawn(&executor, streams.submit, move |reason| {
+        responder.end_session(reason)
+    });
 
     Ok(WasmConnected {
         writer,
@@ -428,7 +428,7 @@ impl RemoteService {
 
     pub fn register_tensor(&mut self, stream_id: StreamId, id: TensorId, data: TensorData) {
         self.submit_task(Task::RegisterTensor(stream_id, id, data));
-        self.flush();
+        self.send_batch();
     }
 
     /// Buffer a fire-and-forget "alias `src_id` under `new_id`" task. FIFO submission keeps it
@@ -455,7 +455,7 @@ impl RemoteService {
         new_id: TensorId,
     ) {
         self.submit_task(Task::RegisterTensorRemote(stream_id, tensor, new_id));
-        self.flush();
+        self.send_batch();
     }
 
     /// Expose a tensor for a cross-server transfer, flushing immediately.
@@ -478,7 +478,7 @@ impl RemoteService {
             capability,
             target,
         });
-        self.flush();
+        self.send_batch();
     }
 
     /// Expose a tensor for a same-host transfer, flushing immediately.
@@ -496,7 +496,7 @@ impl RemoteService {
             tensor,
             transfer_id,
         });
-        self.flush();
+        self.send_batch();
     }
 
     /// Register a tensor produced by a same-host transfer, flushing immediately.
@@ -514,7 +514,7 @@ impl RemoteService {
             transfer_id,
             new_id,
         });
-        self.flush();
+        self.send_batch();
     }
 
     /// Send one member's part of an all-reduce, flushing immediately: its session waits there
@@ -523,20 +523,28 @@ impl RemoteService {
         self.probe
             .emit(|| part.op_event(self.session_id, stream_id));
         self.submit_task(Task::AllReduceLocal { stream_id, part });
-        self.flush();
+        self.send_batch();
     }
 
     pub fn seed(&mut self, seed: u64) {
         self.submit_task(Task::Seed(seed));
     }
 
-    /// Read several tensors in one request.
+    /// Read several tensors in one request, issued now; the returned future awaits the answer.
     pub fn read_tensors(
         &mut self,
         stream_id: StreamId,
         tensors: Vec<TensorIr>,
-    ) -> Unconstrained<oneshot::Receiver<TaskResponseContent>> {
-        self.submit_request(|id| Task::ReadTensors(id, stream_id, tensors))
+    ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
+        let rx = self.submit_request(|id| Task::ReadTensors(id, stream_id, tensors));
+        let session = self.pending.session().clone();
+        Box::pin(async move {
+            match rx.await {
+                Ok(TaskResponseContent::ReadTensors(res)) => res,
+                Ok(other) => panic!("Invalid response for ReadTensors: {other:?}"),
+                Err(_) => Err(ended(&session)),
+            }
+        })
     }
 
     pub fn sync(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
@@ -546,10 +554,7 @@ impl RemoteService {
             match self.executor.block_on(rx) {
                 Ok(TaskResponseContent::SyncBackend(res)) => res,
                 Ok(other) => panic!("Invalid response for SyncBackend: {other:?}"),
-                Err(_) => Err(ExecutionError::Generic {
-                    reason: "Remote response channel closed before sync completed".into(),
-                    backtrace: BackTrace::capture(),
-                }),
+                Err(_) => Err(self.ended()),
             }
         }
         #[cfg(target_family = "wasm")]
@@ -559,8 +564,7 @@ impl RemoteService {
             // this `sync` still executes after it on the peer, and results are observed through
             // async reads. There is no host-side barrier to wait on, so we return immediately.
             let _ = stream_id;
-            self.flush();
-            Ok(())
+            self.flush()
         }
     }
 
@@ -580,11 +584,7 @@ impl RemoteService {
             let opened = match self.executor.block_on(rx) {
                 Ok(TaskResponseContent::ProfileStart(res)) => res,
                 Ok(other) => panic!("Invalid response for ProfileStart: {other:?}"),
-                Err(_) => Err(ExecutionError::Generic {
-                    reason: "Remote response channel closed before the profile window opened"
-                        .into(),
-                    backtrace: BackTrace::capture(),
-                }),
+                Err(_) => Err(self.ended()),
             };
             if let Ok(Some(token)) = &opened {
                 self.profile_streams.insert(token.id, stream_id);
@@ -610,14 +610,13 @@ impl RemoteService {
             return Self::no_such_window();
         };
         let rx = self.submit_request(|id| Task::ProfileEnd(id, stream_id, token, options));
+        let session = self.pending.session().clone();
 
         ProfileDuration::new_device_time_maybe(async move {
             let duration = match rx.await {
                 Ok(TaskResponseContent::ProfileEnd(res)) => res,
                 Ok(other) => panic!("Invalid response for ProfileEnd: {other:?}"),
-                Err(_) => Err(ExecutionError::with_context(
-                    "Remote response channel closed before the profile window closed",
-                )),
+                Err(_) => Err(ended(&session)),
             };
             match duration {
                 Ok(Some(duration)) => {
@@ -650,7 +649,7 @@ impl RemoteService {
             return;
         };
         self.submit_task(Task::ProfileAbandon(stream_id, token));
-        self.flush();
+        self.send_batch();
     }
 
     /// The answer to closing or abandoning a window this service does not
@@ -713,9 +712,7 @@ impl RemoteService {
             match self.executor.block_on(rx) {
                 Ok(TaskResponseContent::Capture(res)) => res,
                 Ok(other) => panic!("Invalid response for a graph capture request: {other:?}"),
-                Err(_) => Err(ExecutionError::with_context(
-                    "Remote response channel closed before the graph capture request completed",
-                )),
+                Err(_) => Err(self.ended()),
             }
         }
         #[cfg(target_family = "wasm")]
@@ -776,8 +773,14 @@ impl RemoteService {
     /// network send.
     fn submit(&mut self, task: RemoteMessage) {
         if self.batch.push(task) {
-            self.flush();
+            self.send_batch();
         }
+    }
+
+    /// Why a request was never answered: the session ended under it.
+    #[cfg(not(target_family = "wasm"))]
+    fn ended(&self) -> ExecutionError {
+        ended(self.pending.session())
     }
 
     /// Append a task and flush the buffer immediately.
@@ -788,18 +791,7 @@ impl RemoteService {
     /// send; correctness comes from FIFO enqueue order plus the oneshot await.
     fn submit_blocking(&mut self, task: RemoteMessage) {
         self.batch.push(task);
-        self.flush();
-    }
-
-    /// [`try_connect`](Self::try_connect), panicking on failure: a connect on first use has no
-    /// caller to return an error to.
-    pub fn ensure_connected(&mut self) {
-        if let Err(err) = self.try_connect() {
-            panic!(
-                "Failed to open a remote session at {}: {err}",
-                self.endpoint.peer_addr()
-            );
-        }
+        self.send_batch();
     }
 
     /// Open the session and run the init handshake, unless it is already open. A failed attempt
@@ -845,7 +837,7 @@ impl RemoteService {
             self.writer = Some(SubmitWriter::spawn(
                 &self.executor,
                 streams.submit,
-                move || responder.end_session(),
+                move |reason| responder.end_session(reason),
             ));
             self.start_logger();
             Ok(())
@@ -885,22 +877,54 @@ impl RemoteService {
         self.start_logger();
     }
 
+    /// Send the buffered tasks, and report why the session ended if it has.
+    ///
+    /// Work is not waited on: a failure the server meets running it claims the tensors it was
+    /// going to write, and the read of one of those reports it.
+    pub fn flush(&mut self) -> Result<(), ExecutionError> {
+        self.send_batch();
+        match self.pending.session().error() {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }
+    }
+
     /// Hand whatever's currently buffered to the writer task as one batch (the writer
-    /// serializes it off the runner thread). No-op when the buffer is empty; otherwise opens
-    /// the connection first if it isn't already up.
-    pub fn flush(&mut self) {
+    /// serializes it off the runner thread), opening the session first if it isn't already up.
+    ///
+    /// A failure ends the session rather than surfacing here, so that fire-and-forget work does not
+    /// panic in its caller: the next [`flush`](Self::flush), sync or read reports it.
+    fn send_batch(&mut self) {
         if self.batch.is_empty() {
             return;
         }
-        self.ensure_connected();
+        if self.pending.session().has_ended() {
+            // Nothing reaches an ended session: the tensors this work names went with it.
+            self.batch.take();
+            return;
+        }
+        if let Err(err) = self.try_connect() {
+            // The batch is lost with the connection, and later work may name the tensors it
+            // registered, so the session ends rather than reconnecting under that work.
+            self.batch.take();
+            self.pending.responder().end_session(format!(
+                "cannot open a session at {}: {err}",
+                self.endpoint.peer_addr()
+            ));
+            return;
+        }
         log::trace!("Flush session: {}", self.session_id);
         let batch = self.batch.take();
-        let writer = self
-            .writer
-            .as_ref()
-            .expect("writer is set by ensure_connected");
+        let writer = self.writer.as_ref().expect("writer is set by try_connect");
         writer.send(&self.executor, batch);
     }
+}
+
+/// Why a request on `session` was never answered.
+fn ended(session: &SessionEnd) -> ExecutionError {
+    session.error().unwrap_or_else(|| {
+        ExecutionError::with_context("The remote session dropped a request before answering it")
+    })
 }
 
 impl Drop for RemoteService {
