@@ -14,7 +14,7 @@ use cubek::matmul::{
         MatmulOpStrategy,
         plan::{FrameworkDequantize, MatmulCall, MatmulCallInput},
         select::{problem::MatmulProblem, selector::select},
-        tune::MatmulTableGroups,
+        tune::MatmulAutotuneGroups,
     },
 };
 use cubek::std::{
@@ -55,7 +55,7 @@ pub(crate) fn launch(
         (&lhs_shape, lhs.tensor.kind()),
         (&rhs_shape, rhs.tensor.kind()),
     );
-    let plan = select(strategy, &problem, &hw, MatmulTableGroups::default()).map_err(invalid)?;
+    let plan = select(strategy, &problem, &hw, MatmulAutotuneGroups::default()).map_err(invalid)?;
     let call = MatmulCall {
         hw,
         client,
