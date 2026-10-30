@@ -242,6 +242,10 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// in the reduced dimension. In this case, the lower of the two medians is returned,
     /// following PyTorch's behavior.
     ///
+    /// # NaN behavior
+    ///
+    /// The median of a reduced slice containing NaN is NaN, also following PyTorch.
+    ///
     /// # Note
     ///
     /// The current implementation performs a full sort along the specified dimension,
@@ -302,6 +306,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// The median is not unique for input tensors with an even number of elements
     /// in the reduced dimension. In this case, the lower of the two medians is returned,
     /// following PyTorch's behavior.
+    ///
+    /// # NaN behavior
+    ///
+    /// The median of a reduced slice containing NaN is NaN, also following PyTorch. The returned
+    /// index is the lowest coordinate containing NaN.
     ///
     /// # Note
     ///
