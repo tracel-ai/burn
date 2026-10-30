@@ -2,7 +2,8 @@ use super::{DeviceQueryError, RemoteChannel, RemoteClient, service};
 use crate::shared::{DeviceQueryId, LocalTransferId, TensorRemote, TransferCapability};
 use crate::{PeerAddr, PeerId};
 use burn_backend::{
-    DeviceId, DeviceOps, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
+    DeviceDescription, DeviceId, DeviceOps, DeviceTelemetry, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
     ProfileDuration, ProfileOptions, ProfileToken, RouterDeviceType, StreamId, TensorData,
 };
 use burn_ir::{CapturedGraphId, TensorIr};
@@ -123,6 +124,34 @@ impl RouterClient for RemoteClient {
         self.handle
             .submit_blocking(move |s| s.execution_mode_close(token))
             .map_err(service_failed)?
+    }
+
+    fn device_description(&self) -> Option<DeviceDescription> {
+        self.handle
+            .submit_blocking(|s| s.device_description())
+            .ok()
+            .flatten()
+    }
+
+    fn measure_telemetry(&self) -> DeviceTelemetry {
+        self.handle
+            .submit_blocking(|s| s.measure_telemetry())
+            .unwrap_or_default()
+    }
+
+    fn measure_memory(&self) -> Option<MemoryReport> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.measure_memory(stream_id))
+            .ok()
+            .flatten()
+    }
+
+    fn measure_peaks(&self, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        let requested = keys.to_vec();
+        self.handle
+            .submit_blocking(move |s| s.measure_peaks(requested))
+            .unwrap_or_else(|_| vec![Err(PeakError::Unsupported); keys.len()])
     }
 
     fn graph_prepare(&self) -> Result<(), ExecutionError> {

@@ -66,8 +66,7 @@
 //! - `std` (default): reading and writing breakdowns.
 //! - `instrument` (default): installing an observer, which arms every annotated method. Off, the
 //!   annotations compile away.
-//! - `cubecl`: [`Peaks::new`], and with `instrument` [`Instrument`], which reads a cubecl runtime's
-//!   kernel launches.
+//! - `cubecl`: with `instrument`, [`Instrument`], which reads a cubecl runtime's kernel launches.
 //! - `fusion` (default): the instrument also reads the fusion server's blocks, which it needs to
 //!   instrument a device that fuses.
 //!
@@ -75,7 +74,6 @@
 #![cfg_attr(not(all(feature = "cubecl", feature = "instrument")), doc = concat!("[`Instrument`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html")))]
 #![cfg_attr(not(all(feature = "cubecl", feature = "instrument")), doc = concat!("[`Instrument::measure`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html#method.measure")))]
 #![cfg_attr(not(all(feature = "cubecl", feature = "instrument")), doc = concat!("[`Instrument::breakdown`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html#method.breakdown")))]
-#![cfg_attr(not(feature = "cubecl"), doc = concat!("[`Peaks::new`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Peaks.html#method.new")))]
 #![cfg_attr(not(feature = "std"), doc = concat!("[`Breakdown`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Breakdown.html")))]
 #![cfg_attr(not(feature = "std"), doc = concat!("[`Measurement`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Measurement.html")))]
 #![cfg_attr(not(feature = "std"), doc = concat!("[`Measurement::write`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Measurement.html#method.write")))]
