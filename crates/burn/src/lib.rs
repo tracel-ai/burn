@@ -156,7 +156,9 @@
 //!   - `pytorch`: Enables PyTorch checkpoint import (implies `store`)
 //! - Others:
 //!   - `std`: Activates the standard library (deactivate for no_std)
-//!   - `linalg`: Enables linear algebra operations
+//!   - `linalg`: Enables linear algebra operations, and the `burn::nn` items built on them
+//!     (orthogonal initialization, cosine similarity and pairwise distance modules, cosine
+//!     embedding and triplet margin losses)
 //!   - `capture`: Makes the non-executing graph capture backend available.
 //!   - `group`: Makes the experimental `Device::group_options` available, to make a device whose
 //!     tensors can be split over several devices for tensor parallelism.

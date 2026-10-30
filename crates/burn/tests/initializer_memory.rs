@@ -1,9 +1,12 @@
-#![cfg(any(
-    feature = "cpu",
-    feature = "cuda",
-    feature = "rocm",
-    feature = "vulkan",
-    feature = "wgpu"
+#![cfg(all(
+    feature = "linalg",
+    any(
+        feature = "cpu",
+        feature = "cuda",
+        feature = "rocm",
+        feature = "vulkan",
+        feature = "wgpu"
+    )
 ))]
 
 use burn::{

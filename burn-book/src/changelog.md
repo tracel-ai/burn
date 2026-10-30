@@ -263,6 +263,13 @@ conflicts with it (E0119); delete the handwritten one.
 
 ### Training and modules
 
+#### Linear-algebra layers behind `linalg`
+
+**Breaking:** `burn` and `burn-nn` no longer build `burn-linalg` unless the `linalg` feature is
+enabled. `CosineSimilarity`, `PairwiseDistance`, `CosineEmbeddingLoss`, `TripletMarginLoss`, and
+`Initializer::Orthogonal` are now behind it. Add `linalg` to your `burn` features (or `burn-nn`
+features) to keep using them. ([#6327](https://github.com/tracel-ai/burn/pull/6327))
+
 #### More flexible `#[derive(Module)]`
 
 `#[derive(Module)]` now supports generic fields, associated types, and recursive modules. Trait

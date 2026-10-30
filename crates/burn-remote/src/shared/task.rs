@@ -83,6 +83,7 @@ pub struct LocalAllReducePart {
 
 impl LocalAllReducePart {
     /// How many members the all-reduce has.
+    #[cfg(feature = "server")]
     pub fn members(&self) -> usize {
         self.sessions.len()
     }
