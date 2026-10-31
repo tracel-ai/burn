@@ -24,6 +24,21 @@ fn remainder_int(a: i64, b: i64) -> i64 {
     }
 }
 
+/// Integer power. A negative exponent gives `1 / a^|b|` truncated toward zero, which is 0 unless
+/// `|a| == 1` (PyTorch does the same).
+#[inline]
+fn powi_int(a: i64, b: i64) -> i64 {
+    if b >= 0 {
+        return a.wrapping_pow(b as u32);
+    }
+    match a {
+        1 => 1,
+        -1 if b % 2 == 0 => 1,
+        -1 => -1,
+        _ => 0,
+    }
+}
+
 /// Convert a Scalar to (i64, u64) pair for the given dtype.
 /// Only the matching type's conversion is validated; the other gets a dummy 0.
 fn scalar_to_int_pair(dtype: DType, rhs: &Scalar) -> (i64, u64) {
@@ -1293,7 +1308,7 @@ impl IntTensorOps<Flex> for Flex {
     }
 
     fn int_powi(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
-        int_binary_op(lhs, rhs, |a, b| a.wrapping_pow(b as u32))
+        int_binary_op(lhs, rhs, powi_int)
     }
 
     fn int_zeros(shape: Shape, _device: &Device<Flex>, dtype: IntDType) -> IntTensor<Flex> {
@@ -1393,11 +1408,19 @@ impl IntTensorOps<Flex> for Flex {
 
     fn int_powi_scalar_impl(lhs: IntTensor<Flex>, rhs: burn_backend::Scalar) -> IntTensor<Flex> {
         use num_traits::ToPrimitive;
-        let exp = rhs.to_i64().unwrap() as u32;
+        let exp = rhs.to_i64().unwrap();
         if lhs.dtype() == DType::U64 {
-            return scalar_op_typed(lhs, exp as u64, move |x: u64, _| x.wrapping_pow(exp));
+            return scalar_op_typed(lhs, exp as u64, move |x: u64, _| {
+                if exp >= 0 {
+                    x.wrapping_pow(exp as u32)
+                } else {
+                    u64::from(x == 1)
+                }
+            });
         }
-        int_scalar_op(lhs, exp as i64, move |x, _| x.wrapping_pow(exp))
+        // The exponent is captured rather than passed as the scalar operand, which
+        // `int_scalar_op` truncates to the tensor's dtype.
+        int_scalar_op(lhs, exp, move |x, _| powi_int(x, exp))
     }
 
     fn int_max_abs(tensor: IntTensor<Flex>) -> IntTensor<Flex> {

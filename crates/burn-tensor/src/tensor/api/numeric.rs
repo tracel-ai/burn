@@ -717,6 +717,9 @@ where
 
     /// Applies element wise power operation with a integer Tensor
     ///
+    /// For integer tensors, a negative exponent gives `1 / base^|exponent|` truncated toward zero:
+    /// a base of 1 or -1 keeps its value or sign, and any other base, including 0, gives 0.
+    ///
     /// # Arguments
     ///
     /// * `other` - The tensor to apply the power operation with.
@@ -739,6 +742,9 @@ where
     }
 
     /// Applies element wise power operation with a integer scalar
+    ///
+    /// For integer tensors, a negative exponent gives `1 / base^|exponent|` truncated toward zero:
+    /// a base of 1 or -1 keeps its value or sign, and any other base, including 0, gives 0.
     ///
     /// # Arguments
     ///
