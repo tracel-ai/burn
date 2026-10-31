@@ -80,6 +80,11 @@ impl ModuleCodegen for StructModuleCodegen {
                 quote! {
                     let #local = burn::module::Module::to_device(self.#name, device);
                 }
+            } else if field_type.is_device {
+                // A skipped `Device` field records where the module lives; it
+                // must follow the parameters or tensors built from it end up on
+                // the old device.
+                quote! { let #local = device.clone(); }
             } else {
                 quote! { let #local = self.#name; }
             }
@@ -99,6 +104,11 @@ impl ModuleCodegen for StructModuleCodegen {
                 quote! {
                     let #local = burn::module::Module::fork(self.#name, device);
                 }
+            } else if field_type.is_device {
+                // A skipped `Device` field records where the module lives; it
+                // must follow the parameters or tensors built from it end up on
+                // the old device.
+                quote! { let #local = device.clone(); }
             } else {
                 quote! { let #local = self.#name; }
             }
@@ -296,6 +306,8 @@ pub enum ModuleFieldAttribute {
 #[derive(Default, Debug)]
 pub struct ModuleFieldType {
     pub is_module: bool,
+    /// Skipped field of type `Device`, moved along by `to_device` and `fork`.
+    pub is_device: bool,
     pub attr: Option<ModuleFieldAttribute>,
 }
 
@@ -339,6 +351,7 @@ pub(crate) fn parse_module_field_type(field: &Field) -> syn::Result<ModuleFieldT
         }
     }
     field_type.is_module = !is_primitive_type(&field.ty) && field_type.attr.is_none();
+    field_type.is_device = field_type.attr.is_some() && type_matches_ident(&field.ty, &["Device"]);
     Ok(field_type)
 }
 

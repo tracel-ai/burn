@@ -884,3 +884,39 @@ mod grad_distributed {
         (grads_synced, grads_original)
     }
 }
+
+#[derive(Module, Debug)]
+struct ModuleWithDevice {
+    weight: Param<Tensor<2>>,
+    #[module(skip)]
+    device: Device,
+}
+
+#[cfg(feature = "cpu")]
+mod skipped_device {
+    use super::*;
+
+    fn moved(apply: impl FnOnce(ModuleWithDevice, &Device) -> ModuleWithDevice) {
+        let (from, to) = (Device::flex(), Device::cpu());
+        let module = ModuleWithDevice {
+            weight: Param::from_tensor(Tensor::zeros([2, 2], &from)),
+            device: from,
+        };
+
+        let module = apply(module, &to);
+
+        // tensors built from the stored device must land next to the weights
+        assert_eq!(module.device, to);
+        assert_eq!(module.weight.val().device(), to);
+    }
+
+    #[test]
+    fn to_device_moves_a_skipped_device_field() {
+        moved(|module, device| module.to_device(device));
+    }
+
+    #[test]
+    fn fork_moves_a_skipped_device_field() {
+        moved(|module, device| module.fork(device));
+    }
+}
