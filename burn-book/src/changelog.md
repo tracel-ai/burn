@@ -430,6 +430,11 @@ Third-party backends replace `memory_pool_report`, `memory_pool_usage` and `memo
 with `measure_memory`, and may implement `device_description`, `measure_telemetry` and
 `measure_peaks`.
 
+`SlicedPoolReport` is now `MemoryPoolReport`, whose `kind` tells a pool of shared pages from one
+whose allocations each own their page. `measure_memory` reports both, so a memory without
+sub-slicing, as in every wasm build, no longer reports an empty list. The largest allocation a
+device accepts is `capabilities().properties.memory.max_page_size`.
+
 #### NdArray and LibTorch backend removal
 
 **Breaking:** The deprecated NdArray and LibTorch backends have been removed. Replace `NdArray` or

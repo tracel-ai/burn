@@ -4,8 +4,8 @@ use burn_backend::cubecl::{ThroughputKey, dtype_to_storage_type, measure_peak_th
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceDescription,
     DeviceTelemetry, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-    MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
-    ProfileToken, SlicedPoolReport, TensorData, profile_with_tokens,
+    MemoryPoolReport, MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration,
+    ProfileOptions, ProfileToken, TensorData, profile_with_tokens,
 };
 use burn_std::{BoolStore, DType, id::StreamId, quantization::quantizable};
 use cubecl::device::DeviceId;
@@ -311,22 +311,26 @@ impl Backend for CubeBackend {
     fn measure_memory(device: &Self::Device) -> Option<MemoryReport> {
         let report = device.client().memory_report(MemoryScope::Device);
         let usage = report.usage();
-        // One entry per pool that carves pages — the pool sized to what it
-        // serves, the pools a growth left behind, and the metadata pool —
-        // in the order allocations are routed through them. Pools whose
-        // allocations own their page have no page size to report.
+        // One entry per dynamic pool holding memory, in the order allocations
+        // are routed through them. The pool of zero-sized allocations holds no
+        // bytes.
         let pools = report
             .streams
             .iter()
             .flat_map(|stream| &stream.pools.dynamic)
             .filter_map(|pool| {
-                let page_size = match pool.kind {
-                    MemoryPoolKind::Sliced { page_size, .. } => page_size,
-                    MemoryPoolKind::Adaptive { page_size, .. } => page_size,
+                let kind = match pool.kind {
+                    MemoryPoolKind::Sliced { page_size, .. }
+                    | MemoryPoolKind::Adaptive { page_size, .. } => {
+                        burn_backend::MemoryPoolKind::Sliced { page_size }
+                    }
+                    MemoryPoolKind::Exclusive { max_alloc_size } if max_alloc_size > 0 => {
+                        burn_backend::MemoryPoolKind::Exclusive
+                    }
                     _ => return None,
                 };
-                Some(SlicedPoolReport {
-                    page_size,
+                Some(MemoryPoolReport {
+                    kind,
                     pages: pool.pages,
                     pages_peak: pool.pages_peak,
                     largest_alloc: pool.largest_alloc,
