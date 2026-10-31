@@ -34,7 +34,10 @@ interoperability, and advanced tensor management.
 ## Quick Start
 
 ```rust
-use burn_store::{ModuleSnapshot, PytorchStore, SafetensorsStore, BurnpackStore, HalfPrecisionAdapter};
+use burn_store::{
+    BurnpackStore, HalfPrecisionAdapter, ModuleSnapshot, PyTorchToBurnAdapter, PytorchStore,
+    SafetensorsStore,
+};
 
 // Load from PyTorch
 let mut store = PytorchStore::from_file("model.pt");
