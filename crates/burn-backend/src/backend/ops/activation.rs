@@ -1,7 +1,39 @@
 use crate::tensor::FloatTensor;
 use crate::{Backend, Scalar, TensorMetadata, get_or_init_device_settings};
-use burn_std::IndexingUpdateOp;
+use burn_std::{FloatDType, IndexingUpdateOp, IntDType};
 use core::f64::consts::SQRT_2;
+
+/// Selects an index dtype able to address every position along a reduced axis.
+///
+/// `log_softmax` locates the per-row maximum with `argmax`; the resulting indices
+/// then drive a gather. A narrow user-configured default (for example `I8`) cannot
+/// address a longer axis, so the configured dtype is kept only when it fits and
+/// widened otherwise. The configured dtype is always backend-supported, and any
+/// device able to hold this axis also supports the wider `I32`/`I64` fallback.
+fn argmax_index_dtype(configured: IntDType, axis: usize) -> IntDType {
+    /// Count of representable non-negative indices: values `0..capacity` are addressable.
+    fn capacity(dtype: IntDType) -> u128 {
+        match dtype {
+            IntDType::I8 => 1u128 << 7,
+            IntDType::U8 => 1u128 << 8,
+            IntDType::I16 => 1u128 << 15,
+            IntDType::U16 => 1u128 << 16,
+            IntDType::I32 => 1u128 << 31,
+            IntDType::U32 => 1u128 << 32,
+            IntDType::I64 => 1u128 << 63,
+            IntDType::U64 => 1u128 << 64,
+        }
+    }
+
+    let axis = axis as u128;
+    if capacity(configured) >= axis {
+        configured
+    } else if capacity(IntDType::I32) >= axis {
+        IntDType::I32
+    } else {
+        IntDType::I64
+    }
+}
 
 /// Activation function operations.
 ///
@@ -222,7 +254,10 @@ pub trait ActivationOps<B: Backend> {
     /// Applies the softmax function along the given dimension.
     ///
     /// Exponentiates the stable log-softmax decomposition to preserve small gradients
-    /// when the largest probability rounds to one.
+    /// when the largest probability rounds to one. Low-precision storage (`f16`/`bf16`)
+    /// is widened to `f32` for the decomposition and only the final probabilities are
+    /// rounded back, so they still sum to one; gradients flow to the original dtype
+    /// through the casts.
     ///
     /// # Arguments
     ///
@@ -233,7 +268,18 @@ pub trait ActivationOps<B: Backend> {
     ///
     /// The output tensor.
     fn softmax(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
-        B::float_exp(Self::log_softmax(tensor, dim))
+        let float_dtype = FloatDType::from(tensor.dtype());
+        match float_dtype {
+            // Exponentiating a log-softmax already rounded to `f16`/`bf16` loses
+            // normalization: `exp(round(log p))` need not sum to one. Compute in
+            // `f32` and round only the final probabilities.
+            FloatDType::F16 | FloatDType::BF16 => {
+                let widened = B::float_cast(tensor, FloatDType::F32);
+                let probabilities = B::float_exp(Self::log_softmax(widened, dim));
+                B::float_cast(probabilities, float_dtype)
+            }
+            _ => B::float_exp(Self::log_softmax(tensor, dim)),
+        }
     }
 
     /// Applies the log-softmax function along the given dimension.
@@ -260,7 +306,10 @@ pub trait ActivationOps<B: Backend> {
         }
         let device = tensor.device();
         let settings = get_or_init_device_settings::<B>(&device);
-        let indices = B::float_argmax(tensor.clone(), dim, settings.int_dtype);
+        // The argmax indices are internal and must address the reduced axis; the
+        // user's int default may be too narrow (e.g. `I8`) for it.
+        let index_dtype = argmax_index_dtype(settings.int_dtype, shape[dim]);
+        let indices = B::float_argmax(tensor.clone(), dim, index_dtype);
         let max = B::float_gather(dim, tensor.clone(), indices.clone());
         let selected = B::bool_scatter(
             dim,
@@ -350,5 +399,33 @@ pub trait ActivationOps<B: Backend> {
                 B::float_mul(sign, B::float_sub(ones, B::float_recip(z))),
             ),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn argmax_index_dtype_keeps_configured_when_it_fits() {
+        // An axis the configured dtype can address is left untouched, so the
+        // common I32/I64 defaults keep the previous behavior.
+        assert_eq!(argmax_index_dtype(IntDType::I8, 128), IntDType::I8);
+        assert_eq!(argmax_index_dtype(IntDType::U8, 256), IntDType::U8);
+        assert_eq!(argmax_index_dtype(IntDType::I32, 1_000_000), IntDType::I32);
+    }
+
+    #[test]
+    fn argmax_index_dtype_widens_narrow_defaults() {
+        // A narrow default that cannot address the axis would overflow argmax
+        // (index 128 wraps to -128 in I8), so it is widened to a dtype that fits.
+        assert_eq!(argmax_index_dtype(IntDType::I8, 129), IntDType::I32);
+        assert_eq!(argmax_index_dtype(IntDType::U8, 257), IntDType::I32);
+        assert_eq!(argmax_index_dtype(IntDType::I16, 40_000), IntDType::I32);
+        // Beyond I32 the fallback widens again rather than overflow.
+        assert_eq!(
+            argmax_index_dtype(IntDType::I16, (1usize << 31) + 1),
+            IntDType::I64
+        );
     }
 }

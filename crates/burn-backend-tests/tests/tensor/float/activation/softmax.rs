@@ -68,6 +68,38 @@ fn test_softmax_many_small_contributions_bf16() {
     assert_many_small_contributions(burn_tensor::DType::BF16, false);
 }
 
+fn assert_normalizes_equal_classes(dtype: burn_tensor::DType, classes: usize) {
+    // Equal logits must give probabilities that still sum to one. The previous
+    // `exp(log_softmax)` default overshot in low precision (bf16 summed to ~1.023
+    // for 32768 classes) by exponentiating an already-rounded log probability.
+    let tensor = TestTensor::<2>::from_data(
+        TensorData::new(vec![0.0f32; classes], [1, classes]),
+        &Default::default(),
+    )
+    .cast(dtype);
+    let output = activation::softmax(tensor, 1).into_data().convert::<f64>();
+    let sum: f64 = output.iter::<f64>().sum();
+    let tolerance = match dtype {
+        burn_tensor::DType::F16 | burn_tensor::DType::BF16 => 5e-3,
+        _ => 1e-6,
+    };
+    assert!(
+        (sum - 1.0).abs() <= tolerance,
+        "{dtype:?}: {classes} equal classes summed to {sum}, expected 1"
+    );
+}
+
+#[test]
+fn test_softmax_normalizes_many_equal_classes() {
+    assert_normalizes_equal_classes(<FloatElem as burn_tensor::Element>::dtype(), 4096);
+}
+
+#[cfg(feature = "flex")]
+#[test]
+fn test_softmax_normalizes_many_equal_classes_bf16() {
+    assert_normalizes_equal_classes(burn_tensor::DType::BF16, 32768);
+}
+
 #[test]
 fn test_softmax_single_finite_class() {
     let tensor = TestTensor::<2>::from([[9.0], [-3.0]]);
