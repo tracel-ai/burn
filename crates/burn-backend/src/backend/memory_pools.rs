@@ -11,7 +11,7 @@
 
 /// One dynamic pool's measured state, in the order allocations are routed
 /// through the pools.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SlicedPoolReport {
     /// Size of each page in bytes; for a pool whose allocations each own
     /// their page, the largest page it accepts.
@@ -26,7 +26,7 @@ pub struct SlicedPoolReport {
 
 /// One reading of a device allocator's state, across the runtime's streams and
 /// pools.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MemoryPoolUsage {
     /// Live allocations, not pages.
     pub number_allocs: u64,
@@ -37,4 +37,16 @@ pub struct MemoryPoolUsage {
     /// Total bytes reserved on the device: at least `bytes_in_use`, plus pages
     /// held for reuse.
     pub bytes_reserved: u64,
+}
+
+/// What a device's allocator holds: its state across streams and pools, and
+/// each dynamic pool's.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct MemoryReport {
+    /// The allocator's state, across the runtime's streams and pools.
+    pub usage: MemoryPoolUsage,
+    /// Each pool that carves pages, in the order allocations are routed
+    /// through them, the pools a growth left behind last. Pools of other kinds
+    /// — an allocation's own page, the metadata churn — are left out.
+    pub pools: alloc::vec::Vec<SlicedPoolReport>,
 }

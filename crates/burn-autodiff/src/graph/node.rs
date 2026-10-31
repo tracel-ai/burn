@@ -53,6 +53,39 @@ pub struct Parent {
 }
 
 impl Node {
+    /// A node one deeper than the deepest of `parent_nodes`, with the tracked ones as parents.
+    pub fn from_parents(
+        parent_nodes: &[NodeRef],
+        requirement: Requirement,
+        properties: ComputingProperty,
+    ) -> Self {
+        let order = parent_nodes
+            .iter()
+            .map(|node| node.order)
+            .reduce(usize::max)
+            .unwrap_or(0)
+            + 1;
+
+        let client = parent_nodes
+            .first()
+            .map(|node| node.client.clone())
+            .unwrap_or_else(AutodiffClientImpl::new);
+
+        Self::new(
+            parent_nodes
+                .iter()
+                .filter_map(|node| node.clone_if_require_grad())
+                .map(|node| Parent::new(node.id, node.order == 0))
+                .collect(),
+            order,
+            NodeId::new(),
+            requirement,
+            properties,
+            client,
+            None,
+        )
+    }
+
     /// Returns the [node](Node) only if gradients are required.
     pub fn clone_if_require_grad(self: &Arc<Self>) -> Option<NodeRef> {
         match self.requirement.is_none() {

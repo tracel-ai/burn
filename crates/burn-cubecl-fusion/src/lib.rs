@@ -27,6 +27,7 @@ pub mod inspect;
 mod base;
 
 pub mod engine;
+#[cfg(feature = "autotune")]
 pub(crate) mod tune;
 
 pub use base::*;

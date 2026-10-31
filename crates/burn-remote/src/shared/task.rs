@@ -1,7 +1,11 @@
-use burn_backend::{DTypeUsageSet, ExecutionError, ProfileOptions, ProfileToken, TensorData};
-use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
+use burn_backend::{
+    DTypeUsageSet, DeviceDescription, DeviceTelemetry, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
+    ProfileOptions, ProfileToken, TensorData,
+};
+use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
-    DType, DeviceSettings,
+    BoolStore, DType, DeviceSettings,
     distributed::ReduceOperation,
     id::{IdGenerator, StreamId},
 };
@@ -20,15 +24,17 @@ use crate::{
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 6;
+pub const PROTOCOL_VERSION: u16 = 9;
 
 /// Routing id for a task whose result is fetched back.
 ///
 /// Only the result-producing tasks ([`Task::ReadTensors`], [`Task::SyncBackend`],
-/// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`]) carry a `RequestId`;
-/// the server echoes it on its [`TaskResponse`] so
-/// the client demultiplexes results back to the right pending callback. Fire-and-forget tasks
-/// have no id because no result ever comes back.
+/// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`], [`Task::CapturePrepare`],
+/// [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`], the execution-mode tasks
+/// and the description and measurement tasks) carry a
+/// `RequestId`; the server echoes it on its [`TaskResponse`] so the client demultiplexes results
+/// back to the right pending callback. Fire-and-forget tasks have no id because no result ever
+/// comes back.
 pub type RequestId = u64;
 
 /// Rendezvous id for moving a tensor between devices on one compute peer. Random, since the
@@ -78,6 +84,7 @@ pub struct LocalAllReducePart {
 
 impl LocalAllReducePart {
     /// How many members the all-reduce has.
+    #[cfg(feature = "server")]
     pub fn members(&self) -> usize {
         self.sessions.len()
     }
@@ -205,7 +212,31 @@ pub struct SessionInfo {
     pub device_count: u32,
     /// Authenticated identity of the compute node, when the transport provides one.
     pub peer_id: Option<PeerId>,
+    /// What the device can do with each of [`HANDSHAKE_DTYPES`], so the client answers dtype
+    /// queries without a round-trip, and still answers them once the session has ended.
+    pub dtype_usage: Vec<(DType, DTypeUsageSet)>,
 }
+
+/// The dtypes whose usage the handshake carries: every one but the quantized dtypes, whose
+/// schemes are too many to list and are asked on first use instead.
+pub const HANDSHAKE_DTYPES: [DType; 16] = [
+    DType::F64,
+    DType::F32,
+    DType::Flex32,
+    DType::F16,
+    DType::BF16,
+    DType::I64,
+    DType::I32,
+    DType::I16,
+    DType::I8,
+    DType::U64,
+    DType::U32,
+    DType::U16,
+    DType::U8,
+    DType::Bool(BoolStore::Native),
+    DType::Bool(BoolStore::U8),
+    DType::Bool(BoolStore::U32),
+];
 
 /// Why a server will not serve a session, as the client is told.
 ///
@@ -306,6 +337,13 @@ pub enum Task {
         transfer_id: LocalTransferId,
         new_id: TensorId,
     },
+    /// Register `id` as failed by `reason`: its data was never produced, so a read of it reports
+    /// why. For a transfer whose source could not send it, as when its session ended.
+    RegisterFailure {
+        stream_id: StreamId,
+        id: TensorId,
+        reason: String,
+    },
     /// One member's part of an all-reduce over devices of this server.
     AllReduceLocal {
         stream_id: StreamId,
@@ -329,6 +367,93 @@ pub enum Task {
     /// something for as long as it stays open, so the client says so rather
     /// than leaving it.
     ProfileAbandon(StreamId, ProfileToken),
+    /// Prepare the server's backend for a graph capture where `stream_id` stands.
+    ///
+    /// The session holds its device's capture from here until the capture ends, or the session
+    /// does: another session's capture on the device is refused meanwhile.
+    CapturePrepare(RequestId, StreamId),
+    /// Start recording the server backend's launches on `stream_id` into a graph, after every
+    /// earlier task. Answered, since a backend that cannot record one, or a device another
+    /// session is capturing on, says so here and the client falls back to re-running.
+    CaptureStart(RequestId, StreamId),
+    /// Stop the recording on `stream_id` and keep the graph under the id the client picked,
+    /// until a [`CaptureRelease`](Task::CaptureRelease) of it.
+    CaptureStop(RequestId, StreamId, CapturedGraphId),
+    /// Replay a kept graph on `stream_id`.
+    ///
+    /// Fire-and-forget: a graph replays once per step, where a round trip would cost what the
+    /// graph saves. A failed replay is the answer to the next
+    /// [`ReadTensors`](Task::ReadTensors) or [`SyncBackend`](Task::SyncBackend) on `stream_id`,
+    /// in place of that task's own result.
+    CaptureReplay(StreamId, CapturedGraphId),
+    /// Drop a kept graph; the client never replays it again.
+    CaptureRelease(CapturedGraphId),
+    /// Ask the server the device query registered under the id about the session's device.
+    DeviceQuery(RequestId, DeviceQueryId),
+    /// Open an execution mode on the server's backend where `stream_id` stands, after every
+    /// earlier task, until an [`ExecutionModeClose`](Task::ExecutionModeClose) of the token it
+    /// answers, or the session ends.
+    ExecutionModeOpen(RequestId, StreamId, ExecutionMode),
+    /// What the work under an open execution mode has triggered so far.
+    ExecutionModeStatistics(RequestId, ExecutionModeToken),
+    /// Close an open execution mode on the stream it was opened on, after every earlier task,
+    /// answering what the work under it triggered.
+    ExecutionModeClose(RequestId, ExecutionModeToken),
+    /// What the session's device is, as its driver states it.
+    DeviceDescription(RequestId),
+    /// One reading of the counters of the session's device.
+    MeasureTelemetry(RequestId),
+    /// What the allocator of the session's device holds, where `stream_id` stands, after every
+    /// earlier task.
+    MeasureMemory(RequestId, StreamId),
+    /// The peak throughput of the session's device for each key.
+    MeasurePeaks(RequestId, Vec<PeakKey>),
+}
+
+/// The id a server registers a device query under, and a client asks it by.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DeviceQueryId(String);
+
+impl DeviceQueryId {
+    /// The query named `id`.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    /// The id as text.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<&str> for DeviceQueryId {
+    fn from(id: &str) -> Self {
+        Self::new(id)
+    }
+}
+
+impl From<String> for DeviceQueryId {
+    fn from(id: String) -> Self {
+        Self::new(id)
+    }
+}
+
+impl core::fmt::Display for DeviceQueryId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+/// Why a server did not answer a [device query](Task::DeviceQuery).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub enum DeviceQueryFailure {
+    /// The server registered no query under the id.
+    Unknown,
+    /// The query's handler panicked.
+    Panicked {
+        /// The panic's message.
+        reason: String,
+    },
 }
 
 #[allow(missing_docs)]
@@ -346,7 +471,7 @@ impl super::Encode for TaskResponse {}
 pub enum TaskResponseContent {
     /// Server responds with the selected device's settings plus the total number of devices
     /// it hosts (so the client can enumerate them, see [`RemoteDevice::enumerate`]).
-    Init(SessionInfo),
+    Init(Box<SessionInfo>),
     ReadTensors(Result<Vec<TensorData>, ExecutionError>),
     SyncBackend(Result<(), ExecutionError>),
     DTypeUsage(DTypeUsageSet),
@@ -355,6 +480,26 @@ pub enum TaskResponseContent {
     /// The window's duration on the server's clock; `None` when it carried no
     /// measurement.
     ProfileEnd(Result<Option<Duration>, ExecutionError>),
+    /// The answer to [`CapturePrepare`](Task::CapturePrepare),
+    /// [`CaptureStart`](Task::CaptureStart) and
+    /// [`CaptureStop`](Task::CaptureStop).
+    Capture(Result<(), ExecutionError>),
+    /// The answer to [`DeviceQuery`](Task::DeviceQuery).
+    DeviceQuery(Result<serde_bytes::ByteBuf, DeviceQueryFailure>),
+    /// The answer to [`ExecutionModeOpen`](Task::ExecutionModeOpen): `None` when the server's
+    /// backend runs every launch.
+    ExecutionModeOpen(Result<Option<ExecutionModeToken>, ExecutionError>),
+    /// The answer to [`ExecutionModeStatistics`](Task::ExecutionModeStatistics) and
+    /// [`ExecutionModeClose`](Task::ExecutionModeClose).
+    ExecutionStatistics(Result<ExecutionStatistics, ExecutionError>),
+    /// The answer to [`DeviceDescription`](Task::DeviceDescription).
+    DeviceDescription(Option<DeviceDescription>),
+    /// The answer to [`MeasureTelemetry`](Task::MeasureTelemetry).
+    Telemetry(DeviceTelemetry),
+    /// The answer to [`MeasureMemory`](Task::MeasureMemory).
+    Memory(Option<MemoryReport>),
+    /// The answer to [`MeasurePeaks`](Task::MeasurePeaks), one per key in order.
+    Peaks(Vec<Result<Peak, PeakError>>),
     /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init),
     /// before it closes the session.
     InitRefused(SessionRefusal),

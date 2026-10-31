@@ -38,6 +38,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
     fn process_train(&mut self, event: LearnerEvent<T>) -> Result<(), EventProcessorError> {
         let mut failures = Vec::new();
         match event {
+            LearnerEvent::OptimizerStep(_) => {}
             LearnerEvent::Start {
                 total_epochs,
                 starting_epoch,
@@ -108,6 +109,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
     fn process_valid(&mut self, event: LearnerEvent<V>) -> Result<(), EventProcessorError> {
         let mut failures = Vec::new();
         match event {
+            LearnerEvent::OptimizerStep(_) => {}
             LearnerEvent::Start { .. } => {} // no-op
             LearnerEvent::StartSplit {
                 epoch_number,

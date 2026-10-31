@@ -214,32 +214,8 @@ impl<B: Backend> AutodiffTensor<B> {
         requirement: Requirement,
         computing_properties: ComputingProperty,
     ) -> Self {
-        let order = parent_nodes
-            .iter()
-            .map(|node| node.order)
-            .reduce(usize::max)
-            .unwrap_or(0)
-            + 1;
-
-        let client = parent_nodes
-            .first()
-            .map(|node| node.client.clone())
-            .unwrap_or_else(AutodiffClientImpl::new);
-
-        let node: NodeRef = Node::new(
-            parent_nodes
-                .iter()
-                .filter_map(|node| node.clone_if_require_grad())
-                .map(|node| Parent::new(node.id, node.order == 0))
-                .collect(),
-            order,
-            NodeId::new(),
-            requirement,
-            computing_properties,
-            client,
-            None,
-        )
-        .into();
+        let node: NodeRef =
+            Node::from_parents(parent_nodes, requirement, computing_properties).into();
 
         Self {
             rc: Arc::new(node.id),

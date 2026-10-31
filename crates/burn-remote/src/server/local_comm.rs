@@ -17,7 +17,7 @@
 
 use crate::shared::{LocalAllReducePart, LocalCollectiveId, LocalTransferId, SessionId};
 use burn_backend::tensor::FloatTensor;
-use burn_ir::{BackendIr, HandleKind};
+use burn_ir::{BackendIr, HandleKind, TensorError};
 use burn_std::id::StreamId;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -27,8 +27,12 @@ use tokio::sync::{Mutex, Notify, oneshot};
 /// be reclaimed if that session goes away before its target takes it.
 struct Pending<B: BackendIr> {
     source: SessionId,
-    tensor: HandleKind<B>,
+    tensor: Exposed<B>,
 }
+
+/// What a source session exposes for a same-host transfer: the primitive, or the failure that
+/// claimed it, for the target to claim its copy with.
+pub type Exposed<B> = Result<HandleKind<B>, TensorError>;
 
 /// A member that has handed its tensor to an all-reduce, waiting for its result.
 struct ArrivedMember<B: BackendIr> {
@@ -167,7 +171,7 @@ impl<B: BackendIr> LocalCommService<B> {
         &self,
         source: SessionId,
         transfer_id: LocalTransferId,
-        tensor: HandleKind<B>,
+        tensor: Exposed<B>,
     ) {
         self.pending
             .lock()
@@ -177,7 +181,7 @@ impl<B: BackendIr> LocalCommService<B> {
     }
 
     /// Take the primitive exposed under `transfer_id`, waiting until it is exposed.
-    pub async fn take(&self, transfer_id: LocalTransferId) -> HandleKind<B> {
+    pub async fn take(&self, transfer_id: LocalTransferId) -> Exposed<B> {
         loop {
             // Register interest *before* checking the map so an `expose` that lands between
             // the check and the await can't slip through the gap and leave us parked forever.

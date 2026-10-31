@@ -85,6 +85,7 @@ vulkan = ["wgpu", "burn-tensor/vulkan", "burn-wgpu/vulkan"]
 webgpu = ["wgpu", "burn-tensor/webgpu", "burn-wgpu/webgpu"]
 wgpu = ["burn-tensor/wgpu", "dep:burn-wgpu", "burn-instrument/cubecl"]
 metal = ["wgpu", "burn-tensor/metal", "burn-wgpu/metal"]
+metal-native = ["burn-tensor/metal-native", "burn-instrument/cubecl"]
 cpu = ["burn-tensor/cpu", "dep:burn-cpu", "burn-instrument/cubecl"]
 autodiff = ["burn-tensor/autodiff"]
 capture = ["burn-tensor/capture"]
@@ -114,7 +115,6 @@ autotune-checks = [
     "burn-rocm?/autotune-checks",
     "burn-wgpu?/autotune-checks",
 ]
-attention-backward = ["burn-tensor/attention-backward"]
 fusion = [
     "dep:burn-fusion",
     "burn-tensor/fusion",

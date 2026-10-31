@@ -15,10 +15,10 @@ type SharedCallbacks = Arc<Mutex<HashMap<RequestId, oneshot::Sender<TaskResponse
 /// Correlates response-producing requests with the caller awaiting each one.
 ///
 /// Each response-producing task ([`ReadTensors`](crate::shared::Task::ReadTensors),
-/// `SyncBackend`, `DTypeUsage`, `ProfileStart`, `ProfileEnd`) carries a [`RequestId`]; the
-/// server echoes it on the
-/// response. The runner thread [`register`](Self::register)s a [`oneshot`] callback before
-/// sending the task, and the response-demux task delivers the reply through a [`Responder`].
+/// `SyncBackend`, `DTypeUsage`, `ProfileStart`, `ProfileEnd`, and the graph-capture requests)
+/// carries a [`RequestId`]; the server echoes it on the response. The runner thread
+/// [`register`](Self::register)s a [`oneshot`] callback before sending the task, and the
+/// response-demux task delivers the reply through a [`Responder`].
 ///
 /// The callbacks are guarded by a plain [`std::sync::Mutex`]: the lock is only ever held for a
 /// single insert/remove/drain and never across an `.await`, so neither the runner thread nor the
@@ -89,10 +89,11 @@ impl Responder {
         }
     }
 
-    /// End the session, and fail every caller waiting on a reply or asking for one later.
-    pub(crate) fn end_session(&self) {
+    /// End the session for `reason`, and fail every caller waiting on a reply or asking for one
+    /// later.
+    pub(crate) fn end_session(&self, reason: impl Into<String>) {
         // Before any caller wakes, so one that connects again on the failure gets a new device.
-        self.session.end();
+        self.session.end(reason);
         self.callbacks.lock().unwrap().clear();
     }
 }
@@ -158,7 +159,7 @@ mod tests {
         let mut rx1 = pending.register(id1);
 
         // The response stream died with both requests still in flight.
-        pending.responder().end_session();
+        pending.responder().end_session("the test ended it");
         assert!(session.has_ended());
 
         // Both receivers resolve immediately with an error instead of hanging.
@@ -175,7 +176,7 @@ mod tests {
     #[test]
     fn register_after_the_session_ended_returns_a_closed_receiver() {
         let mut pending = pending_responses();
-        pending.responder().end_session();
+        pending.responder().end_session("the test ended it");
 
         // A request issued after the connection dropped must not park forever.
         let id = pending.next_id();

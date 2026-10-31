@@ -1,9 +1,11 @@
+use crate::execution::OPEN_MODES;
 use crate::{CubeDevice, tensor::CubeTensor};
-use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::cubecl::{ThroughputKey, dtype_to_storage_type, measure_peak_throughput};
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, ExecutionError,
-    MemoryPoolUsage, ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport, TensorData,
-    profile_with_tokens,
+    Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceDescription,
+    DeviceTelemetry, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
+    MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
+    ProfileToken, SlicedPoolReport, TensorData, profile_with_tokens,
 };
 use burn_std::{BoolStore, DType, id::StreamId, quantization::quantizable};
 use cubecl::device::DeviceId;
@@ -190,6 +192,36 @@ impl Backend for CubeBackend {
         device.client().profile_abandon(window);
     }
 
+    /// A process mode applies to the whole process, as cubecl applies one.
+    fn execution_mode_open(
+        device: &Self::Device,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        let client = device.client();
+        OPEN_MODES.lock().open(mode, &client).map(Some)
+    }
+
+    fn execution_mode_statistics(
+        _device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        OPEN_MODES.lock().statistics(token)
+    }
+
+    /// The launches the opening stream's client still buffers were issued
+    /// under the mode, and only count once the runtime takes them: they are
+    /// flushed first. A flush that fails still closes the mode.
+    fn execution_mode_close(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let flushed = token
+            .opened_on
+            .executes(|| device.client().flush().map_err(server_err));
+        let closed = OPEN_MODES.lock().close(token);
+        flushed.and(closed)
+    }
+
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = device.client();
         client.graph_prepare().map_err(graph_err)
@@ -254,53 +286,79 @@ impl Backend for CubeBackend {
         let _ = client.memory_cleanup();
     }
 
-    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
-        let report = device.client().memory_report(MemoryScope::Device);
-
-        // One entry per pool that carves pages — the pool sized to what it
-        // serves, the pools a growth left behind, and the metadata pool —
-        // in the order allocations are routed through them. A pool whose
-        // allocations each own their page reports the largest it accepts:
-        // a memory without sub-slicing (every wasm build) has no other kind.
-        Some(
-            report
-                .streams
-                .iter()
-                .flat_map(|stream| &stream.pools.dynamic)
-                .filter_map(|pool| {
-                    let page_size = match pool.kind {
-                        MemoryPoolKind::Sliced { page_size, .. } => page_size,
-                        MemoryPoolKind::Adaptive { page_size, .. } => page_size,
-                        // The pool of zero-sized allocations holds no bytes.
-                        MemoryPoolKind::Exclusive { max_alloc_size } if max_alloc_size > 0 => {
-                            max_alloc_size
-                        }
-                        _ => return None,
-                    };
-                    Some(SlicedPoolReport {
-                        page_size,
-                        pages: pool.pages,
-                        pages_peak: pool.pages_peak,
-                        largest_alloc: pool.largest_alloc,
-                    })
-                })
-                .collect(),
-        )
+    /// Asks the driver alone and opens no client, so describing every device
+    /// a machine has costs no context on any of them. A wgpu default device
+    /// describes nothing: its adapter is chosen only when its client is
+    /// created.
+    fn device_description(device: &Self::Device) -> Option<DeviceDescription> {
+        device.description().map(Into::into)
     }
 
-    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
-        let usage = device.client().memory_report(MemoryScope::Device).usage();
+    /// Read through the counter the card keeps, whichever runtime drives it:
+    /// NVIDIA's management library, the driver's figures for an AMD or an
+    /// Intel card, the platform's own on Windows and macOS.
+    fn measure_telemetry(device: &Self::Device) -> DeviceTelemetry {
+        let utilization = device.utilization().ok();
+        DeviceTelemetry {
+            busy_percent: utilization.map(|utilization| utilization.busy_percent),
+            memory_busy_percent: utilization
+                .and_then(|utilization| utilization.memory_busy_percent),
+            temperature_celsius: device.temperature().ok().map(|reading| reading.celsius),
+            power_watts: device.power().ok().map(|reading| reading.watts),
+        }
+    }
 
-        Some(MemoryPoolUsage {
-            number_allocs: usage.number_allocs,
-            bytes_in_use: usage.bytes_in_use,
-            bytes_padding: usage.bytes_padding,
-            bytes_reserved: usage.bytes_reserved,
+    fn measure_memory(device: &Self::Device) -> Option<MemoryReport> {
+        let report = device.client().memory_report(MemoryScope::Device);
+        let usage = report.usage();
+        // One entry per pool that carves pages — the pool sized to what it
+        // serves, the pools a growth left behind, and the metadata pool —
+        // in the order allocations are routed through them. Pools whose
+        // allocations own their page have no page size to report.
+        let pools = report
+            .streams
+            .iter()
+            .flat_map(|stream| &stream.pools.dynamic)
+            .filter_map(|pool| {
+                let page_size = match pool.kind {
+                    MemoryPoolKind::Sliced { page_size, .. } => page_size,
+                    MemoryPoolKind::Adaptive { page_size, .. } => page_size,
+                    _ => return None,
+                };
+                Some(SlicedPoolReport {
+                    page_size,
+                    pages: pool.pages,
+                    pages_peak: pool.pages_peak,
+                    largest_alloc: pool.largest_alloc,
+                })
+            })
+            .collect();
+        Some(MemoryReport {
+            usage: MemoryPoolUsage {
+                number_allocs: usage.number_allocs,
+                bytes_in_use: usage.bytes_in_use,
+                bytes_padding: usage.bytes_padding,
+                bytes_reserved: usage.bytes_reserved,
+            },
+            pools,
         })
     }
 
-    fn memory_capacity(device: &Self::Device) -> Option<u64> {
-        device.client().properties().memory.max_memory()
+    /// Runs cubecl's throughput probes, a memory peak counted in the bytes it
+    /// moves and every other in the operations or launches it retires.
+    fn measure_peaks(device: &Self::Device, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        let client = device.client();
+        keys.iter()
+            .map(|key| {
+                let probe = ThroughputKey::from(*key);
+                let value = measure_peak_throughput(&client, probe)?;
+                let per_second = match key {
+                    PeakKey::Memory(_) => value.bytes_per_s(&probe),
+                    _ => value.ops_per_s(),
+                };
+                Ok(Peak { per_second })
+            })
+            .collect()
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)

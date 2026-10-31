@@ -12,8 +12,10 @@ use alloc::{
     vec::Vec,
 };
 use burn_backend::{
-    Backend, DType, DeviceOps, ExecutionError, FloatDType, ProfileDuration, ProfileOptions,
-    ProfileToken, Shape, TensorData, TensorMetadata, TensorPrimitive, ops::TransactionPrimitive,
+    Backend, BackendGraph, DType, DeviceDescription, DeviceOps, DeviceTelemetry, ExecutionError,
+    ExecutionMode, ExecutionModeToken, ExecutionStatistics, FloatDType, MemoryReport, Peak,
+    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, Shape, TensorData,
+    TensorMetadata, TensorPrimitive, ops::TransactionPrimitive,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
@@ -146,6 +148,18 @@ impl<B: BackendIr> TensorInterpreter<B> {
         self.context.handles.set_error(id, error);
     }
 
+    /// Register `id` as failed by `error`, unless something wrote it or a failure already claims
+    /// it: for a failure that cannot name its write set.
+    pub fn claim_unwritten(&mut self, id: TensorId, error: TensorError) {
+        self.context.handles.claim_unwritten(id, error);
+    }
+
+    /// The failure `tensor` carries, taken the way [`get_tensor`](Self::get_tensor) takes its
+    /// handle: a read-write use releases it.
+    pub fn take_error(&mut self, tensor: &TensorIr) -> Option<TensorError> {
+        self.context.handles.take_error(tensor)
+    }
+
     /// Why `id` cannot be read, if it cannot: a failure claimed it, or nothing produced it.
     pub fn read_failure(&self, id: &TensorId) -> Option<String> {
         let handles = &self.context.handles;
@@ -177,8 +191,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// [`RouterClient::register_alias`](crate::RouterClient::register_alias)). Cloning the backend
     /// handle is a cheap `Arc`-style refcount bump, so the buffer survives until *both* ids are
     /// freed — consuming the alias on one stream can't pull it out from under the other.
+    ///
+    /// An alias of a tensor a failure claimed carries the same failure.
     pub fn register_alias(&mut self, new_id: TensorId, src_id: TensorId) {
         let ctx = &mut self.context;
+        if let Some(error) = ctx.handles.error(&src_id) {
+            let error = error.clone();
+            ctx.handles.set_error(new_id, error);
+            return;
+        }
         let handle = ctx
             .handles
             .get_handle_ref(&src_id)
@@ -236,12 +257,28 @@ impl<B: BackendIr> TensorInterpreter<B> {
 
 impl<B: BackendIr> TensorInterpreter<B> {
     /// Execute a tensor operation.
+    ///
+    /// Failures are deferred to the tensors the operation was going to write,
+    /// as on fusion and CubeCL backends: an operation reading a tensor a
+    /// failure claimed is skipped and its outputs carry that failure, reported
+    /// by the read of one of those outputs, while work sharing no tensor with
+    /// the failure runs as usual. A backend reports its failures as errors; one
+    /// that panics is not caught here.
     pub fn register_op(&mut self, op: OperationIr) {
-        // Remove unused tensor handles
-        let ctx = &mut self.context;
+        let handles = &mut self.context.handles;
+        if let Some(error) = handles.input_error(&op) {
+            let error = error.propagated();
+            handles.free_inputs(&op);
+            handles.set_output_errors(&op, &error);
+            return;
+        }
 
-        let handles = &mut ctx.handles;
-        match &op {
+        self.execute_op(&op);
+    }
+
+    fn execute_op(&mut self, op: &OperationIr) {
+        let handles = &mut self.context.handles;
+        match op {
             // For every op: get the input(s), execute the operation and register the output(s)
             OperationIr::BaseFloat(op) => match op {
                 BaseOperationIr::Reshape(desc) => {
@@ -590,7 +627,11 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::int_cat(tensors, desc.dim);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationIr::Cast(_) => unreachable!(),
+                BaseOperationIr::Cast(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_cast(tensor, desc.out.dtype.into());
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
                 BaseOperationIr::Empty(desc) => {
                     let shape = desc.out.shape.clone();
                     let output = B::int_empty(shape, &self.device, desc.out.dtype.into());
@@ -2309,11 +2350,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
             },
             OperationIr::Custom(desc) => match self.custom_ops.get(&desc.id) {
                 Some(handler) => handler(handles, desc, &self.device),
-                None => panic!(
-                    "No custom-op handler registered for `{}`. Register one on the server via \
-                     `CustomOpRegistry`/the server builder before starting it.",
-                    desc.id
-                ),
+                None => {
+                    let error = TensorError::new(ExecutionError::with_context(format!(
+                        "No custom-op handler registered for `{}`. Register one on the server \
+                         via `CustomOpRegistry`/the server builder before starting it.",
+                        desc.id
+                    )));
+                    handles.free_inputs(op);
+                    handles.set_output_errors(op, &error);
+                }
             },
             OperationIr::Init(_) => {
                 // Nothing to do.
@@ -2325,24 +2370,46 @@ impl<B: BackendIr> TensorInterpreter<B> {
     }
 
     /// Read a tensor's data, returning a future for the host readback.
+    ///
+    /// A tensor a failure claimed reads as that failure.
     pub fn read_tensor_async(
         &mut self,
         tensor: TensorIr,
     ) -> DynFut<Result<TensorData, ExecutionError>> {
-        self.take_for_read(&tensor).into_data()
+        match self.context.handles.take_error(&tensor) {
+            Some(error) => {
+                let error = ExecutionError::from(error);
+                Box::pin(async move { Err(error) })
+            }
+            None => self.take_for_read(&tensor).into_data(),
+        }
     }
 
     /// Read several tensors in the order given, those that are not quantized as one backend
     /// transaction.
+    ///
+    /// When a failure claimed one of them, the read is that failure; the others are still taken.
     pub fn read_tensors_async(
         &mut self,
         tensors: &[TensorIr],
     ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
         let mut batch = ReadBatch::default();
+        let mut failure = None;
         for tensor in tensors {
-            batch.push(self.take_for_read(tensor));
+            match self.context.handles.take_error(tensor) {
+                Some(error) => {
+                    failure.get_or_insert(error);
+                }
+                None => batch.push(self.take_for_read(tensor)),
+            }
         }
-        Box::pin(batch.execute())
+        match failure {
+            Some(error) => {
+                let error = ExecutionError::from(error);
+                Box::pin(async move { Err(error) })
+            }
+            None => Box::pin(batch.execute()),
+        }
     }
 
     fn take_for_read(&mut self, tensor: &TensorIr) -> ReadPrimitive<B> {
@@ -2419,6 +2486,76 @@ impl<B: BackendIr> TensorInterpreter<B> {
     pub fn profile_abandon(&self, token: ProfileToken) {
         B::profile_abandon(&self.device, token)
     }
+
+    /// Open `mode` on the backend where the calling stream stands.
+    pub fn execution_mode_open(
+        &self,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        B::execution_mode_open(&self.device, mode)
+    }
+
+    /// What the work under the mode `token` opened has triggered so far.
+    pub fn execution_mode_statistics(
+        &self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::execution_mode_statistics(&self.device, token)
+    }
+
+    /// Close the mode `token` opened.
+    pub fn execution_mode_close(
+        &self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::execution_mode_close(&self.device, token)
+    }
+
+    /// What the backend's device is, as its driver states it.
+    pub fn device_description(&self) -> Option<DeviceDescription> {
+        B::device_description(&self.device)
+    }
+
+    /// One reading of the counters of the backend's device.
+    pub fn measure_telemetry(&self) -> DeviceTelemetry {
+        B::measure_telemetry(&self.device)
+    }
+
+    /// What the allocator of the backend's device holds, where the calling
+    /// stream stands.
+    pub fn measure_memory(&self) -> Option<MemoryReport> {
+        B::measure_memory(&self.device)
+    }
+
+    /// The peak throughput of the backend's device for each of `keys`.
+    pub fn measure_peaks(&self, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        B::measure_peaks(&self.device, keys)
+    }
+
+    /// Prepare the backend for a graph capture.
+    pub fn graph_prepare(&self) -> Result<(), ExecutionError> {
+        B::graph_prepare(&self.device)
+    }
+
+    /// Start recording the backend's launches on the calling stream into a graph.
+    pub fn graph_start_capture(&self) -> Result<(), ExecutionError> {
+        B::graph_start_capture(&self.device)
+    }
+
+    /// Stop the recording on the calling stream and return the backend's graph.
+    pub fn graph_stop_capture(&self) -> Result<BackendGraph<B>, ExecutionError> {
+        B::graph_stop_capture(&self.device)
+    }
+
+    /// Replay `graph` on the calling stream.
+    ///
+    /// # Safety
+    ///
+    /// The contract of [`Backend::graph_replay`].
+    pub unsafe fn graph_replay(&self, graph: &BackendGraph<B>) -> Result<(), ExecutionError> {
+        // Safety: forwarded verbatim from this method's own contract.
+        unsafe { B::graph_replay(&self.device, graph) }
+    }
 }
 
 /// A tensor taken from the handle container to be read.
@@ -2494,7 +2631,7 @@ mod tests {
     use super::*;
     use burn_backend::quantization::{QuantScheme, QuantStore, QuantValue};
     use burn_flex::Flex;
-    use burn_ir::MatmulOpIr;
+    use burn_ir::{CastOpIr, MatmulOpIr};
 
     #[test]
     fn a_quantized_matmul_yields_the_dtype_the_client_recorded() {
@@ -2522,5 +2659,176 @@ mod tests {
             .expect("flex reads synchronously")
             .unwrap();
         assert_eq!(data.dtype(), DType::F16);
+    }
+
+    /// A tensor a failure claimed reads as that failure, rather than panicking the worker that
+    /// serves the read, and a read-write read releases it as it would release a handle.
+    #[test]
+    fn a_failed_tensor_reads_as_its_failure() {
+        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
+        let written = interpreter.register_tensor_data_desc(TensorData::from([1.0f32]));
+        let failed = TensorIr::uninit(TensorId::new(u64::MAX), Shape::new([1]), DType::F32);
+        interpreter.set_error(
+            failed.id,
+            TensorError::new(ExecutionError::with_context("the work failed")),
+        );
+
+        let read = TensorIr {
+            status: TensorStatus::ReadOnly,
+            ..failed
+        };
+        let error = burn_std::reader::try_read_sync(
+            interpreter.read_tensors_async(&[written, read.clone()]),
+        )
+        .expect("flex reads synchronously")
+        .unwrap_err();
+        assert!(error.to_string().contains("the work failed"), "{error}");
+
+        // A read-write read is the tensor's last use, so it releases the failure with it.
+        let last = TensorIr {
+            status: TensorStatus::ReadWrite,
+            ..read
+        };
+        let read = burn_std::reader::try_read_sync(interpreter.read_tensor_async(last.clone()))
+            .expect("flex reads synchronously");
+        assert!(read.is_err());
+        assert_eq!(
+            interpreter.read_failure(&last.id),
+            Some(format!("tensor {:?} was never produced", last.id))
+        );
+    }
+
+    /// An operation reading a tensor a failure claimed does not run: its output reports the root
+    /// failure, and an operation sharing no tensor with it still runs.
+    #[test]
+    fn an_op_on_a_failed_tensor_is_skipped_and_its_output_reports_the_root() {
+        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
+        let healthy = interpreter.register_tensor_data_desc(TensorData::from([0.0f32]));
+        let failed = TensorIr::uninit(TensorId::new(u64::MAX), Shape::new([1]), DType::F32);
+        interpreter.set_error(
+            failed.id,
+            TensorError::new(ExecutionError::with_context("the root failure")),
+        );
+
+        let (skipped, skipped_out) = exp(&failed, u64::MAX - 1);
+        let (downstream, downstream_out) = exp(&skipped_out, u64::MAX - 2);
+        let (independent, independent_out) = exp(&healthy, u64::MAX - 3);
+        interpreter.register_op(skipped);
+        interpreter.register_op(downstream);
+        interpreter.register_op(independent);
+
+        let error = read(&mut interpreter, &downstream_out).unwrap_err();
+        assert!(error.to_string().contains("the root failure"), "{error}");
+        read(&mut interpreter, &independent_out)
+            .unwrap()
+            .assert_eq(&TensorData::from([1.0f32]), true);
+    }
+
+    /// A skipped operation still releases the inputs it consumes: no `Drop` follows a read-write
+    /// use, so the healthy operand's buffer and the failed operand's error would otherwise stay
+    /// held for the life of the interpreter.
+    #[test]
+    fn a_skipped_op_releases_the_inputs_it_consumes() {
+        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
+        let healthy = interpreter.register_tensor_data_desc(TensorData::from([1.0f32]));
+        let failed = TensorIr::uninit(TensorId::new(u64::MAX), Shape::new([1]), DType::F32);
+        interpreter.set_error(
+            failed.id,
+            TensorError::new(ExecutionError::with_context("the root failure")),
+        );
+        let out = TensorIr::uninit(TensorId::new(u64::MAX - 1), Shape::new([1]), DType::F32);
+
+        let consumed = |tensor: &TensorIr| TensorIr {
+            status: TensorStatus::ReadWrite,
+            ..tensor.clone()
+        };
+        interpreter.register_op(OperationIr::NumericFloat(
+            DType::F32,
+            NumericOperationIr::Add(burn_ir::BinaryOpIr {
+                lhs: consumed(&failed),
+                rhs: consumed(&healthy),
+                out: out.clone(),
+            }),
+        ));
+
+        let handles = &interpreter.context.handles;
+        assert!(
+            !handles.has_handle(&healthy.id),
+            "the healthy operand leaked"
+        );
+        assert!(
+            handles.error(&failed.id).is_none(),
+            "the failed operand's error leaked"
+        );
+        assert!(
+            handles.error(&out.id).is_some(),
+            "the output was not claimed"
+        );
+    }
+
+    /// An alias of a tensor a failure claimed reads as that failure.
+    #[test]
+    fn an_alias_of_a_failed_tensor_carries_its_failure() {
+        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
+        let failed = TensorId::new(u64::MAX);
+        interpreter.set_error(
+            failed,
+            TensorError::new(ExecutionError::with_context("the root failure")),
+        );
+
+        let alias = TensorId::new(u64::MAX - 1);
+        interpreter.register_alias(alias, failed);
+
+        assert!(
+            interpreter
+                .read_failure(&alias)
+                .is_some_and(|reason| reason.contains("the root failure"))
+        );
+    }
+
+    #[test]
+    fn an_int_cast_yields_the_element_the_client_recorded() {
+        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
+        let input = interpreter.register_tensor_data_desc(TensorData::from([1i32, -2, 3]));
+        let mut out = TensorIr::uninit(TensorId::new(u64::MAX), Shape::new([3]), DType::I64);
+
+        interpreter.register_op(OperationIr::BaseInt(BaseOperationIr::Cast(CastOpIr {
+            input,
+            out: out.clone(),
+        })));
+
+        out.status = TensorStatus::ReadWrite;
+        let data = burn_std::reader::try_read_sync(interpreter.read_tensor_async(out))
+            .expect("flex reads synchronously")
+            .unwrap();
+        data.assert_eq(&TensorData::from([1i64, -2, 3]), true);
+    }
+
+    fn read(
+        interpreter: &mut TensorInterpreter<Flex>,
+        tensor: &TensorIr,
+    ) -> Result<TensorData, ExecutionError> {
+        let tensor = TensorIr {
+            status: TensorStatus::ReadOnly,
+            ..tensor.clone()
+        };
+        burn_std::reader::try_read_sync(interpreter.read_tensor_async(tensor))
+            .expect("flex reads synchronously")
+    }
+
+    fn exp(input: &TensorIr, out: u64) -> (OperationIr, TensorIr) {
+        let out = TensorIr::uninit(TensorId::new(out), input.shape.clone(), DType::F32);
+        let input = TensorIr {
+            status: TensorStatus::ReadOnly,
+            ..input.clone()
+        };
+        let op = OperationIr::Float(
+            DType::F32,
+            FloatOperationIr::Exp(burn_ir::UnaryOpIr {
+                input,
+                out: out.clone(),
+            }),
+        );
+        (op, out)
     }
 }

@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use burn_backend::{
-    DType, DTypeUsageSet, DeviceSettings, ExecutionError, TensorData, TensorMetadata,
+    DType, DTypeUsageSet, DeviceSettings, ExecutionError, ExecutionMode, ExecutionModeToken,
+    TensorData, TensorMetadata,
 };
 use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_router::{RouterClient, RouterTensor};
@@ -70,8 +71,8 @@ impl RouterClient for GroupClient {
         self.interpreter.lock().sync()
     }
 
-    fn flush(&self) {
-        self.interpreter.lock().flush();
+    fn flush(&self) -> Result<(), ExecutionError> {
+        self.interpreter.lock().flush()
     }
 
     fn create_empty_handle(&self) -> TensorId {
@@ -94,6 +95,17 @@ impl RouterClient for GroupClient {
 
     fn dtype_usage(&self, dtype: DType) -> DTypeUsageSet {
         self.interpreter.lock().dtype_usage(dtype)
+    }
+
+    /// Refused rather than answered `None`: the group's members may well apply a mode, and a
+    /// caller told that the group does not would run a compile-only pass for real.
+    fn execution_mode_open(
+        &self,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        Err(ExecutionError::with_context(format!(
+            "a device group does not open {mode:?}: open it on the group's devices"
+        )))
     }
 
     fn register_and_execute_graph(&self, _: GraphId, _: Vec<OperationIr>, _: GraphBindings) {

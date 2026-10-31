@@ -8,8 +8,9 @@ use core::marker::PhantomData;
 
 use burn_backend::{
     backend::{
-        AutodiffBackend, Backend, BackendTypes, ExecutionError, MemoryPoolUsage, ProfileDuration,
-        ProfileOptions, ProfileToken, SlicedPoolReport,
+        AutodiffBackend, Backend, BackendTypes, DeviceDescription, DeviceTelemetry, ExecutionError,
+        ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError,
+        PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
     },
     tensor::{BoolTensor, IntTensor, QuantizedTensor},
 };
@@ -83,6 +84,27 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::profile_abandon(device, token)
     }
 
+    fn execution_mode_open(
+        device: &Self::Device,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        B::execution_mode_open(device, mode)
+    }
+
+    fn execution_mode_statistics(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::execution_mode_statistics(device, token)
+    }
+
+    fn execution_mode_close(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::execution_mode_close(device, token)
+    }
+
     fn memory_persistent_allocations<
         Output: Send,
         Input: Send,
@@ -99,16 +121,20 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::memory_cleanup(device)
     }
 
-    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
-        B::memory_pool_report(device)
+    fn device_description(device: &Self::Device) -> Option<DeviceDescription> {
+        B::device_description(device)
     }
 
-    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
-        B::memory_pool_usage(device)
+    fn measure_telemetry(device: &Self::Device) -> DeviceTelemetry {
+        B::measure_telemetry(device)
     }
 
-    fn memory_capacity(device: &Self::Device) -> Option<u64> {
-        B::memory_capacity(device)
+    fn measure_memory(device: &Self::Device) -> Option<MemoryReport> {
+        B::measure_memory(device)
+    }
+
+    fn measure_peaks(device: &Self::Device, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        B::measure_peaks(device, keys)
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)

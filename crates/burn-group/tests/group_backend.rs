@@ -1,5 +1,5 @@
 use burn_backend::{
-    Backend, Scalar, Shape, TensorData,
+    Backend, Distribution, FloatDType, Scalar, Shape, TensorData,
     ops::{ActivationOps, FloatTensorOps, QTensorOps},
     quantization::QuantScheme,
     tensor::FloatTensor,
@@ -11,8 +11,12 @@ use burn_group::{
     ShardingError,
 };
 use burn_std::future::block_on;
+use std::sync::{Mutex, PoisonError};
 
 type Group = GroupBackend;
+
+/// Flex keeps one RNG for the whole process, so tests that seed it take turns.
+static RNG: Mutex<()> = Mutex::new(());
 
 macro_rules! check_unary {
     ($num_members:expr, $input:expr, |$backend:ident, $a:ident| $body:expr) => {
@@ -138,6 +142,44 @@ fn a_quantized_tensor_is_not_split() {
     let refused = client.reshard(quantized, Split { dim: 0 });
 
     assert!(matches!(refused, Err(ShardingError::Quantized)));
+}
+
+#[test]
+fn each_member_of_a_split_random_tensor_draws_its_own_shard() {
+    let _rng = RNG.lock().unwrap_or_else(PoisonError::into_inner);
+    let device = group(2);
+    Group::seed(&device, 7);
+    let split = read::<Group>(reshard(random::<Group>([4, 6], &device), Split { dim: 1 }));
+
+    Flex::seed(&FlexDevice, 7);
+    let shards = vec![
+        random::<Flex>([4, 3], &FlexDevice),
+        random::<Flex>([4, 3], &FlexDevice),
+    ];
+
+    // Split on dim 0, a whole draw cut in two has the same values as two shard draws.
+    assert_eq!(split, read::<Flex>(Flex::float_cat(shards, 1)));
+}
+
+#[test]
+fn a_seed_runs_the_random_tensors_made_before_it() {
+    let _rng = RNG.lock().unwrap_or_else(PoisonError::into_inner);
+    let device = group(2);
+    Group::seed(&device, 7);
+    let made_before = [
+        random::<Group>([4, 6], &device),
+        random::<Group>([4, 6], &device),
+    ];
+    Group::seed(&device, 7);
+    let made_after = [
+        random::<Group>([4, 6], &device),
+        random::<Group>([4, 6], &device),
+    ];
+
+    assert_eq!(
+        made_before.map(read::<Group>),
+        made_after.map(read::<Group>)
+    );
 }
 
 #[test]
@@ -286,6 +328,10 @@ fn data<S: Into<Shape>>(shape: S, seed: usize) -> TensorData {
 fn positive(data: TensorData) -> TensorData {
     let values: Vec<f32> = data.iter::<f32>().map(|value| value.abs() + 1.0).collect();
     TensorData::new(values, data.shape().clone())
+}
+
+fn random<B: Backend>(shape: [usize; 2], device: &B::Device) -> FloatTensor<B> {
+    B::float_random(shape.into(), Distribution::Default, device, FloatDType::F32)
 }
 
 fn read<B: Backend>(tensor: FloatTensor<B>) -> TensorData {

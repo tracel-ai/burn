@@ -508,6 +508,9 @@ impl ModuleDisplay for PositionWiseFeedForward {
 
 Burn comes with built-in modules that you can use to build your own modules.
 
+`CosineSimilarity`, `PairwiseDistance`, `CosineEmbeddingLoss`, `TripletMarginLoss`, and
+`Initializer::Orthogonal` require the `linalg` feature of `burn`.
+
 ### General
 
 | Burn API            | PyTorch Equivalent                            |
@@ -593,6 +596,7 @@ Interpolation modules resize tensors using one of the available `InterpolateMode
 | Mode      | Description                                        |
 | --------- | -------------------------------------------------- |
 | `Nearest` | Nearest-neighbor interpolation                     |
+| `NearestExact` | Nearest-neighbor interpolation with half-pixel mapping |
 | `Linear`  | Linear interpolation (bilinear for 2D)             |
 | `Cubic`   | Cubic interpolation (bicubic for 2D)               |
 | `Lanczos` | Lanczos3 resampling (6-tap sinc-based filter, a=3) |
@@ -605,7 +609,21 @@ one of `output_size` or `scale_factor` must be set; `forward` panics otherwise.
 | `output_size`   | `Option<usize>` / `Option<[usize; 2]>` | `None`    | Target output size; set this or `scale_factor` |
 | `scale_factor`  | `Option<f32>` / `Option<[f32; 2]>`     | `None`    | Output is `floor(input * scale_factor)`        |
 | `mode`          | `InterpolateMode`                      | `Nearest` | Interpolation algorithm                        |
-| `align_corners` | `bool`                                 | `true`    | Align input/output corner pixels               |
+
+Algorithm-specific settings belong to the `InterpolateMode` variants.
+`Linear`, `Cubic` and `Lanczos` accept `HalfPixel` or `AlignCorners` coordinate transforms.
+`Nearest` uses fixed asymmetric coordinates with floor rounding; `NearestExact` uses fixed
+half-pixel coordinates with ties rounded upward.
+
+```rust,ignore
+Interpolate2dConfig::new()
+    .with_output_size(Some([224, 224]))
+    .with_mode(InterpolateMode::Cubic {
+        coordinate_transform: CoordinateTransformMode::HalfPixel,
+        a: -0.75,
+    })
+    .init();
+```
 
 ### RNNs
 
