@@ -125,6 +125,10 @@ name = "cross_unfold_ops"
 harness = false
 
 [[bench]]
+name = "ctc_ops"
+harness = false
+
+[[bench]]
 name = "cumulative_ops"
 harness = false
 

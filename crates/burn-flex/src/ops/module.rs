@@ -44,6 +44,16 @@ pub(crate) fn cast_from_f32<E: Element + Pod + Copy>(
 }
 
 impl ModuleOps<Flex> for Flex {
+    fn ctc_loss(
+        log_probs: FloatTensor<Flex>,
+        targets: IntTensor<Flex>,
+        input_lengths: IntTensor<Flex>,
+        target_lengths: IntTensor<Flex>,
+        blank: usize,
+    ) -> FloatTensor<Flex> {
+        super::ctc::ctc_loss(log_probs, targets, input_lengths, target_lengths, blank)
+    }
+
     fn conv1d(
         x: FloatTensor<Flex>,
         weight: FloatTensor<Flex>,
