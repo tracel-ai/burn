@@ -12,24 +12,27 @@ use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 use burn::config::Config;
 use burn::tensor::{Device, Tensor};
 
-/// Configuration to create the [RmsProp](RmsProp) optimizer.
+/// Configuration for the [`RmsProp`] optimizer.
 #[derive(Config, Debug)]
 pub struct RmsPropConfig {
-    /// Smoothing constant.
+    /// Smoothing constant for the exponential moving averages.
     #[config(default = 0.99)]
     alpha: f32,
-    /// momentum for RmsProp.
+    /// Momentum coefficient. Set to `0.0` to disable momentum.
     #[config(default = 0.9)]
     momentum: f32,
-    /// A value required for numerical stability.
+    /// Constant added to the normalization denominator for numerical stability.
     #[config(default = 1e-5)]
     epsilon: f32,
-    /// if True, compute the centered RmsProp, the gradient is normalized by an estimation of its variance
+    /// Whether to use centered RMSProp.
+    ///
+    /// If `true`, normalize gradients using an estimate of their variance instead of
+    /// their mean square.
     #[config(default = false)]
     centered: bool,
-    /// [Weight decay](WeightDecayConfig) config.
+    /// [Weight decay](WeightDecayConfig) configuration.
     weight_decay: Option<WeightDecayConfig>,
-    /// [Gradient Clipping](GradientClippingConfig) config.
+    /// [Gradient clipping](GradientClippingConfig) configuration.
     grad_clipping: Option<GradientClippingConfig>,
 }
 
@@ -53,7 +56,7 @@ impl RmsPropConfig {
         }
     }
 
-    /// Initialize RmsProp optimizer.
+    /// Initialize the RMSProp optimizer.
     ///
     /// # Returns
     ///
@@ -68,8 +71,10 @@ impl RmsPropConfig {
     }
 }
 
-/// Optimizer that implements stochastic gradient descent with momentum.
-/// The optimizer can be configured with [RmsPropConfig](RmsPropConfig).
+/// RMSProp optimizer with optional momentum and centered normalization.
+///
+/// Normalizes gradients using an exponential moving average of their squares, or an
+/// estimated variance when centered mode is enabled. Configure it with [`RmsPropConfig`].
 #[derive(Clone)]
 pub struct RmsProp {
     alpha: f32,
@@ -139,26 +144,26 @@ impl Optimizer for RmsProp {
     }
 }
 
-/// State of [RmsProp](RmsProp)
+/// Running statistics and optional momentum buffer for [`RmsProp`].
 #[derive(RecordState, Clone, new)]
 pub struct RmsPropState<const D: usize> {
-    /// Current squared average state.
+    /// Exponential moving average of squared gradients.
     pub square_avg: SquareAvgState<D>,
-    /// Current centered state
+    /// Statistics used to normalize gradients.
     pub centered: CenteredState<D>,
-    /// Current gradient momentum, if any.
+    /// Momentum buffer, if momentum is enabled.
     pub momentum: Option<RmsPropMomentumState<D>>,
 }
 
-/// [SquareAvgState](SquareAvgState) is to store and pass optimizer step params.
+/// Exponential moving average of squared gradients used by [`RmsProp`].
 #[derive(RecordState, Clone, new)]
 pub struct SquareAvgState<const D: usize> {
-    /// Current squared average.
+    /// Current exponential moving average of squared gradients.
     pub square_avg: Tensor<D>,
 }
 
 impl<const D: usize> SquareAvgState<D> {
-    /// transform [SquareAvgState] to the next step
+    /// Update the exponential moving average of squared gradients.
     fn transform(alpha: f32, grad: Tensor<D>, state: Option<Self>) -> (Tensor<D>, Self) {
         match state {
             Some(state) => {
@@ -190,17 +195,17 @@ impl<const D: usize> SquareAvgState<D> {
     }
 }
 
-/// [CenteredState](CenteredState) is to store and pass optimizer step params.
+/// Gradient normalization statistics used by [`RmsProp`].
 #[derive(RecordState, Clone, new)]
 pub struct CenteredState<const D: usize> {
-    /// The averaged gradient to calculate the centered gradient, if available.
+    /// Exponential moving average of gradients when centered RMSProp is enabled.
     pub grad_avg: Option<Tensor<D>>,
-    /// The current average value.
+    /// Estimated gradient variance when centered, or mean square otherwise.
     pub avg: Tensor<D>,
 }
 
 impl<const D: usize> CenteredState<D> {
-    /// transform [CenteredState] to the next step
+    /// Update the gradient normalization statistics for the selected RMSProp variant.
     fn transform(
         alpha: f32,
         centered: bool,
@@ -259,8 +264,9 @@ impl<const D: usize> CenteredState<D> {
     }
 }
 
-/// [RmsPropMomentum](RmsPropMomentum) is to store config status for optimizer.
-/// (, which is stored in [optimizer](RmsProp) itself and not passed in during `step()` calculation)
+/// Gradient normalization and momentum configuration stored in [`RmsProp`].
+///
+/// The running momentum buffer is stored separately in [`RmsPropMomentumState`].
 #[derive(Clone)]
 pub struct RmsPropMomentum {
     momentum: f32,
@@ -268,7 +274,7 @@ pub struct RmsPropMomentum {
 }
 
 impl RmsPropMomentum {
-    /// transform [grad](Tensor) and [RmsPropMomentumState] to the next step
+    /// Normalize gradients and update the momentum buffer when momentum is enabled.
     fn transform<const D: usize>(
         &self,
         grad: Tensor<D>,
@@ -293,7 +299,7 @@ impl RmsPropMomentum {
     }
 }
 
-/// [RmsPropMomentumState](RmsPropMomentumState) is to store and pass optimizer step params.
+/// Running momentum buffer used by [`RmsProp`].
 #[derive(RecordState, Clone, new)]
 pub struct RmsPropMomentumState<const D: usize> {
     buf: Tensor<D>,
