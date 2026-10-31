@@ -9,14 +9,25 @@
 //! [`Backend`](super::Backend) is also implemented by backends with no pools at
 //! all.
 
+/// How a dynamic pool uses its device-memory pages.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum MemoryPoolKind {
+    /// Allocations share pages of the reported size.
+    Sliced {
+        /// Size of each page in bytes.
+        page_size: u64,
+    },
+    /// Each allocation occupies its own page; page sizes may differ.
+    Exclusive,
+}
+
 /// One dynamic pool's measured state, in the order allocations are routed
 /// through the pools.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct SlicedPoolReport {
-    /// Size of each page in bytes; for a pool whose allocations each own
-    /// their page, the largest page it accepts.
-    pub page_size: u64,
-    /// Pages currently held.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct MemoryPoolReport {
+    /// How the pool uses its pages.
+    pub kind: MemoryPoolKind,
+    /// Pages currently held, including pages retained for reuse.
     pub pages: u64,
     /// The most pages ever held at once.
     pub pages_peak: u64,
@@ -45,8 +56,9 @@ pub struct MemoryPoolUsage {
 pub struct MemoryReport {
     /// The allocator's state, across the runtime's streams and pools.
     pub usage: MemoryPoolUsage,
-    /// Each pool that carves pages, in the order allocations are routed
-    /// through them, the pools a growth left behind last. Pools of other kinds
-    /// — an allocation's own page, the metadata churn — are left out.
-    pub pools: alloc::vec::Vec<SlicedPoolReport>,
+    /// Each dynamic pool holding device memory, in the order allocations are
+    /// routed through them, the pools a growth left behind last. A memory
+    /// without sub-slicing, as in every wasm build, has only
+    /// [`Exclusive`](MemoryPoolKind::Exclusive) pools.
+    pub pools: alloc::vec::Vec<MemoryPoolReport>,
 }
