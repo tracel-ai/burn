@@ -99,6 +99,7 @@ pub mod comparison;
 mod conv_common;
 pub mod conv;
 pub mod conv_transpose;
+mod ctc;
 pub mod cumulative;
 pub mod deform_conv;
 pub mod expand;
