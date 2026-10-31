@@ -162,7 +162,7 @@ pub(crate) mod unary_basic {
             match comptime![options.kind] {
                 BasicFloatUnaryKind::Exp => Vector::exp(input),
                 BasicFloatUnaryKind::Log => Vector::ln(input),
-                BasicFloatUnaryKind::Log1p => Vector::log1p(input),
+                BasicFloatUnaryKind::Log1p => burn_backend::cubecl::stable_log1p(input),
                 BasicFloatUnaryKind::Sqrt => Vector::sqrt(input),
                 BasicFloatUnaryKind::Abs => Vector::abs(input),
                 BasicFloatUnaryKind::Sign => {

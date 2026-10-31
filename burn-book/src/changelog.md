@@ -372,6 +372,11 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   [#5963](https://github.com/tracel-ai/burn/pull/5963),
   [#6001](https://github.com/tracel-ai/burn/pull/6001),
   [#6029](https://github.com/tracel-ai/burn/pull/6029))
+- Preserve small, representable log probabilities and gradients at high confidence in softmax,
+  log-softmax, and cross-entropy loss. Correct Flex softmax normalization when many small
+  probabilities accumulate. Preserve small inputs to CubeCL `log1p` and correct singleton
+  broadcasting after fused gather operations.
+  ([#6212](https://github.com/tracel-ai/burn/issues/6212))
 - Return zero attention for fully masked rows instead of producing NaNs.
   ([#6039](https://github.com/tracel-ai/burn/pull/6039))
 - Correct accelerated attention results for padding masks broadcast across query positions.

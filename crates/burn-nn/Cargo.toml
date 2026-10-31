@@ -46,3 +46,8 @@ rstest = { workspace = true }
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]
+
+[[bench]]
+name = "softmax_collapse"
+harness = false
+required-features = ["std", "burn-core/flex"]
