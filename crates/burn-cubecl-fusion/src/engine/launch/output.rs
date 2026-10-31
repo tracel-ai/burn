@@ -1105,6 +1105,7 @@ mod tests {
             inputs: inputs.iter().copied().map(arg).collect(),
             output: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
             dim,
+            equal_input_sizes: false,
         }
     }
 

@@ -1,6 +1,6 @@
 use super::*;
 
-use burn_tensor::Tolerance;
+use burn_tensor::{TensorData, Tolerance};
 
 #[test]
 fn should_diff_cat() {
@@ -102,4 +102,27 @@ fn should_slice_grads_correctly_when_some_inputs_not_tracked() {
     grad_3
         .to_data()
         .assert_eq(&burn_tensor::TensorData::from([[4.0, 5.0, 6.0]]), false);
+}
+
+#[test]
+fn should_diff_cat_with_many_equal_inputs() {
+    let device = AutodiffDevice::new();
+    let inputs: Vec<_> = (1..=35)
+        .map(|index| {
+            let value = index as f32;
+            TestTensor::<2>::from_data([[value, value * 2.0, -value]], &device).require_grad()
+        })
+        .collect();
+    let gradients = TestTensor::cat(inputs.clone(), 0).square().sum().backward();
+    for (index, input) in inputs.iter().enumerate() {
+        let value = (index + 1) as f32;
+        input
+            .grad(&gradients)
+            .unwrap()
+            .into_data()
+            .assert_approx_eq::<FloatElem>(
+                &TensorData::from([[value * 2.0, value * 4.0, -value * 2.0]]),
+                Tolerance::default(),
+            );
+    }
 }
