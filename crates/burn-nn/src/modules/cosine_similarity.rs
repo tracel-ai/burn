@@ -63,13 +63,13 @@ impl ModuleDisplay for CosineSimilarity {
 }
 
 impl CosineSimilarity {
-    /// Applies the forward pass, computing one similarity per row.
+    /// Applies the forward pass, computing similarities along the configured dimension.
     ///
     /// # Shapes
     ///
     /// - x1:     `[batch_size, features]`
     /// - x2:     `[batch_size, features]`
-    /// - output: `[batch_size]`
+    /// - output: `[batch_size]` when `dim` is `1` or `-1`, or `[features]` when `dim` is `0` or `-2`.
     pub fn forward(&self, x1: Tensor<2>, x2: Tensor<2>) -> Tensor<1> {
         cosine_similarity(x1, x2, self.dim, Some(self.eps)).squeeze_dim(self.dim)
     }

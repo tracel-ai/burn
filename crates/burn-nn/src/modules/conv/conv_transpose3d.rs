@@ -96,7 +96,7 @@ impl ModuleDisplay for ConvTranspose3d {
 }
 
 impl ConvTranspose3dConfig {
-    /// Initialize a new [conv transpose 2d](ConvTranspose3d) module.
+    /// Initialize a new [conv transpose 3d](ConvTranspose3d) module.
     pub fn init(&self, device: &Device) -> ConvTranspose3d {
         checks::checks_channels_div_groups(self.channels[0], self.channels[1], self.groups);
 

@@ -1922,7 +1922,7 @@ where
     /// specified.
     ///
     /// # Warning
-    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
+    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn gather(self, dim: impl AsIndex, indices: Tensor<D, Int>) -> Self {
         let dim = unwrap_dim_index(dim.try_dim_index(D), "Gather");
@@ -1989,7 +1989,7 @@ where
     /// Other references to the input tensor will not be modified by this operation.
     ///
     /// # Warning
-    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
+    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     ///
     /// # Panics
