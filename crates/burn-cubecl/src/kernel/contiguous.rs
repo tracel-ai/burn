@@ -6,8 +6,8 @@ use cubecl::server::MemoryLayoutStrategy;
 use crate::{ops::empty_qtensor, tensor::CubeTensor};
 
 /// A storage-tiled tensor laid out in rows again, through cubek's untile; a plain tensor as it
-/// is. A tensor is tiled for one matmul and read there through its binding; every other kernel
-/// and every layout rewrite reads rows, so this is their head.
+/// is. cubek's matmul reads the tiles and the elementwise kernels walk them in place; every other
+/// kernel reads rows, through [`CubeTensor::binding`], which lays them back here.
 ///
 /// # Panics
 ///
@@ -25,7 +25,7 @@ pub fn untile(tensor: CubeTensor) -> CubeTensor {
     let (client, device, dtype) = (tensor.client.clone(), tensor.device.clone(), tensor.dtype);
     let output = cubek::matmul::tiled::storage::untile(
         &client,
-        tensor.binding(),
+        tensor.stored_binding(),
         dtype_to_storage_type(dtype),
     )
     .expect("a storage-tiled binding describes its own tiles");
