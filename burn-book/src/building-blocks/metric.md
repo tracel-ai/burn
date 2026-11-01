@@ -36,11 +36,24 @@ throughout the training process. We currently offer a restricted range of metric
 | PSNR          | Computes the Peak Signal-to-Noise Ratio (PSNR) for image quality assessment                          |
 | SSIM          | Computes the Structural Similarity index measure (SSIM) for image quality assessment                 |
 
+## Optimizer-step metrics
+
+Register `LearningRateMetric` with `.metrics(LearningRateMetric::new())` to record each applied
+update, including partial accumulation windows, with one series per scheduler parameter group.
+Epoch summaries use the last applied rate.
+
+Custom metrics use the standard `Metric` and `Numeric` traits. Associate one metric or a tuple
+with `OnOptimizerStep::with(...)`, then register through `.metrics(...)` or `.metrics_text(...)`.
+Implement `Adaptor<YourInput>` for `OptimizerStepOutput` to supply their inputs.
+
+Custom strategies emit `LearnerEvent::OptimizerStep(OptimizerStepOutput::new(rates))` after each
+update.
+
 ## Using Metrics with the Learner
 
-In order to use a metric, the output of your training step must implement the `Adaptor` trait from 
-`burn-train::metric` for each metric's corresponding input type. The `Adaptor` trait simply converts 
-your output struct into the input type the metric expects.
+For metrics that consume model outputs, the output of your training step must implement the
+`Adaptor` trait from `burn-train::metric` for each metric's corresponding input type. The `Adaptor`
+trait simply converts your output struct into the input type the metric expects.
 
 Burn provides four built-in output structs that cover common tasks. Each one already implements 
 `Adaptor` for a set of metrics, so in many cases you can use them directly without writing any 

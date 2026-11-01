@@ -2,7 +2,8 @@ use crate::{RouterChannel, RouterTensor};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use burn_backend::{
-    DType, ExecutionMode, ExecutionModeToken, ExecutionStatistics, ProfileDuration, ProfileOptions,
+    DType, DeviceDescription, DeviceTelemetry, ExecutionMode, ExecutionModeToken,
+    ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
     ProfileToken, TensorData, UnknownExecutionMode,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
@@ -148,6 +149,28 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     ) -> Result<ExecutionStatistics, ExecutionError> {
         let _ = token;
         Err(UnknownExecutionMode.into())
+    }
+
+    /// What the interpreter's device is, as its driver states it — see
+    /// [`Backend::device_description`](burn_backend::Backend::device_description).
+    fn device_description(&self) -> Option<DeviceDescription> {
+        None
+    }
+
+    /// One reading of the counters of the interpreter's device.
+    fn measure_telemetry(&self) -> DeviceTelemetry {
+        DeviceTelemetry::default()
+    }
+
+    /// What the allocator of the interpreter's device holds, after every
+    /// operation registered so far on the calling stream.
+    fn measure_memory(&self) -> Option<MemoryReport> {
+        None
+    }
+
+    /// The peak throughput of the interpreter's device for each of `keys`.
+    fn measure_peaks(&self, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        keys.iter().map(|_| Err(PeakError::Unsupported)).collect()
     }
 
     /// Prepare the interpreter's backend for a graph capture — see
