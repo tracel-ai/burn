@@ -19,6 +19,13 @@ pub(crate) trait ModuleCodegen {
     fn gen_display(&self) -> TokenStream;
 
     fn fields(&self) -> Vec<(&syn::Field, &ModuleFieldType)>;
+
+    /// Returns true if any skipped field holds a `Device` that must follow the module.
+    fn has_device_fields(&self) -> bool {
+        self.fields()
+            .iter()
+            .any(|(_, field_type)| field_type.is_device)
+    }
 }
 
 pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
@@ -103,9 +110,44 @@ pub(crate) fn generate_module_stateless<Codegen: ModuleCodegen>(
     let attributes_fn = codegen.gen_display();
     let clone_fn = codegen.gen_clone();
 
+    // A stateless module can still carry a skipped `Device`; it has to move with
+    // `to_device` and `fork`, so the empty implementation is not enough.
+    let module_body = if codegen.has_device_fields() {
+        let to_device = codegen.gen_to_device();
+        let fork = codegen.gen_fork();
+        quote! {
+            fn visit<V: burn::module::ModuleVisitor>(&self, _visitor: &mut V) {}
+
+            fn map<M: burn::module::ModuleMapper>(self, _mapper: &mut M) -> Self {
+                self
+            }
+
+            #to_device
+            #fork
+
+            fn collect_devices(&self, devices: burn::module::Devices) -> burn::module::Devices {
+                devices
+            }
+
+            fn materialize(self) -> Self {
+                self
+            }
+
+            fn valid(&self) -> Self {
+                self.clone()
+            }
+
+            fn train(self) -> Self {
+                self
+            }
+        }
+    } else {
+        quote! { burn::empty!(module); }
+    };
+
     let mut codegen = quote! {
         impl #generics burn::module::Module for #name #generics_ty #generics_where {
-            burn::empty!(module);
+            #module_body
         }
 
         impl #generics core::fmt::Display for #name #generics_ty #generics_where {

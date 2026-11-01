@@ -892,6 +892,19 @@ struct ModuleWithDevice {
     device: Device,
 }
 
+// Only a skipped device, so the derive takes the stateless path.
+#[derive(Module, Debug)]
+struct OnlyDevice {
+    #[module(skip)]
+    device: Device,
+}
+
+#[derive(Module, Debug)]
+enum DeviceOrCount {
+    Device(#[module(skip)] Device),
+    Count(usize),
+}
+
 #[cfg(feature = "cpu")]
 mod skipped_device {
     use super::*;
@@ -918,5 +931,43 @@ mod skipped_device {
     #[test]
     fn fork_moves_a_skipped_device_field() {
         moved(|module, device| module.fork(device));
+    }
+
+    fn only_device_moved(apply: impl FnOnce(OnlyDevice, &Device) -> OnlyDevice) {
+        let (from, to) = (Device::flex(), Device::cpu());
+        let module = apply(OnlyDevice { device: from }, &to);
+        assert_eq!(module.device, to);
+    }
+
+    #[test]
+    fn to_device_moves_the_only_skipped_device_field() {
+        only_device_moved(|module, device| module.to_device(device));
+    }
+
+    #[test]
+    fn fork_moves_the_only_skipped_device_field() {
+        only_device_moved(|module, device| module.fork(device));
+    }
+
+    fn enum_moved(apply: impl Fn(DeviceOrCount, &Device) -> DeviceOrCount) {
+        let (from, to) = (Device::flex(), Device::cpu());
+        match apply(DeviceOrCount::Device(from), &to) {
+            DeviceOrCount::Device(device) => assert_eq!(device, to),
+            other => panic!("unexpected variant {other:?}"),
+        }
+        match apply(DeviceOrCount::Count(3), &to) {
+            DeviceOrCount::Count(count) => assert_eq!(count, 3),
+            other => panic!("unexpected variant {other:?}"),
+        }
+    }
+
+    #[test]
+    fn to_device_moves_a_skipped_device_variant() {
+        enum_moved(|module, device| module.to_device(device));
+    }
+
+    #[test]
+    fn fork_moves_a_skipped_device_variant() {
+        enum_moved(|module, device| module.fork(device));
     }
 }

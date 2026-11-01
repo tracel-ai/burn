@@ -69,12 +69,13 @@ impl ModuleCodegen for EnumModuleCodegen {
     }
 
     fn gen_to_device(&self) -> TokenStream {
-        let match_body = self.gen_variants_match_fn(|variant, is_module| {
-            if !is_module {
-                return quote! { Self::#variant(module) };
-            }
-            quote! {
-                Self::#variant(burn::module::Module::to_device(module, device))
+        let match_body = self.gen_variants_match_device_fn(|variant, field_type| {
+            if field_type.is_module {
+                quote! { Self::#variant(burn::module::Module::to_device(module, device)) }
+            } else if field_type.is_device {
+                quote! { Self::#variant(device.clone()) }
+            } else {
+                quote! { Self::#variant(module) }
             }
         });
 
@@ -86,12 +87,13 @@ impl ModuleCodegen for EnumModuleCodegen {
     }
 
     fn gen_fork(&self) -> TokenStream {
-        let match_body = self.gen_variants_match_fn(|variant, is_module| {
-            if !is_module {
-                return quote! { Self::#variant(module) };
-            }
-            quote! {
-                Self::#variant(burn::module::Module::fork(module, device))
+        let match_body = self.gen_variants_match_device_fn(|variant, field_type| {
+            if field_type.is_module {
+                quote! { Self::#variant(burn::module::Module::fork(module, device)) }
+            } else if field_type.is_device {
+                quote! { Self::#variant(device.clone()) }
+            } else {
+                quote! { Self::#variant(module) }
             }
         });
 
@@ -247,6 +249,29 @@ impl EnumModuleCodegen {
         F: Fn(Ident, bool) -> TokenStream,
     {
         self.gen_variants_match_fn_param("self", "Self::", func)
+    }
+
+    /// Generate the match arms for `to_device` and `fork`, which also need to know
+    /// whether a skipped field holds a `Device`.
+    fn gen_variants_match_device_fn<F>(&self, func: F) -> TokenStream
+    where
+        F: Fn(Ident, &ModuleFieldType) -> TokenStream,
+    {
+        let match_arms = self.variants.iter().map(|variant| {
+            let name = &variant.ident;
+            let arm_code = func(name.clone(), &variant.field_type);
+            if variant.field_type.is_device {
+                quote! { Self::#name(_) => #arm_code, }
+            } else {
+                quote! { Self::#name(module) => #arm_code, }
+            }
+        });
+
+        quote! {
+            match self {
+                #(#match_arms)*
+            }
+        }
     }
 
     /// Generate a match expression over the given argument (e.g., `self`)
