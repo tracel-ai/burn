@@ -241,5 +241,32 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 # cubecl-zspace = { version = "0.12.0-pre.1", default-features = false }
 # cubek = { version = "0.4.0-pre.1", default-features = false }
 
+# cubecl at tracel-ai/cubecl feat/tiled-metadata-dims (the pin plus a tiled metadata's dim
+# rewrites), until that change is in the pinned rev. The host differs from the pin's so cargo
+# takes it as a patch.
+[patch."https://github.com/tracel-ai/cubecl"]
+cubecl = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-common = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-core = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-cpp = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-cpu = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-cuda = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-environment = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-hip = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-ir = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-llvm = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-macros = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-macros-internal = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-metal = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-monitoring = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-opt = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-runtime = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-server = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-spirv = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-std = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-tile = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-wgpu = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+cubecl-zspace = { git = "https://www.github.com/tracel-ai/cubecl", rev = "a6dc5711c4f6ecb43c0c63fce4477f69901356f6" }
+
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
