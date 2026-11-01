@@ -456,20 +456,24 @@ fn cat_outputs_of_different_shapes_read_their_own_inputs() {
     });
 }
 
+/// Equal-size inputs take the balanced branch tree in the fused `cat` kernel. 27 inputs
+/// need 29 bindings, which fits Metal's limit of 30, and the odd count splits the tree
+/// unevenly.
 #[test]
 fn cat_equal_noncontiguous_inputs_preserves_order() {
+    const INPUTS: usize = 27;
     let stream = test_stream();
     stream.executes(|| {
-        let device = Default::default();
-        let inputs = (0..35)
+        let device: Device = Default::default();
+        let inputs = (0..INPUTS)
             .map(|input| {
                 let values = (0..24).map(|index| (input * 32 + index) as f32).collect();
                 TestTensor::<3>::from_data(TensorData::new(values, [2, 3, 4]), &device)
                     .swap_dims(1, 2)
             })
-            .collect();
+            .collect::<Vec<_>>();
         let mut expected = Vec::new();
-        for input in 0..35 {
+        for input in 0..INPUTS {
             for batch in 0..2 {
                 for column in 0..4 {
                     for row in 0..3 {
@@ -478,10 +482,36 @@ fn cat_equal_noncontiguous_inputs_preserves_order() {
                 }
             }
         }
+        device.sync().unwrap();
+
+        #[cfg(feature = "cube")]
+        let inspector = FusionInspector::install(stream);
         let output = TestTensor::cat(inputs, 0).add_scalar(1.0);
         output.into_data().assert_approx_eq::<FloatElem>(
-            &TensorData::new(expected, [70, 4, 3]),
+            &TensorData::new(expected, [INPUTS * 2, 4, 3]),
             Tolerance::default(),
         );
+        device.sync().unwrap();
+
+        // An unfused `cat` computes the same values, so only the inspector shows that the
+        // equal-size branch tree ran.
+        #[cfg(feature = "cube")]
+        {
+            let reports = inspector.drain();
+            let tables = reports
+                .iter()
+                .map(|report| report.format_table())
+                .collect::<Vec<_>>()
+                .join("\n\n");
+
+            assert!(
+                reports
+                    .iter()
+                    .flat_map(|report| report.blocks.iter())
+                    .any(|block| matches!(block.kind, BlockKind::Fused { .. })
+                        && block.operations.iter().any(matchers::is_cat())),
+                "cat of {INPUTS} equal inputs should be fused\n\n{tables}",
+            );
+        }
     });
 }
