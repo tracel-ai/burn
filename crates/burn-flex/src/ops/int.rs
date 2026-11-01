@@ -1309,6 +1309,11 @@ impl IntTensorOps<Flex> for Flex {
     }
 
     fn int_powi(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
+        // U64 exponents > i64::MAX would read as negative through the i64 cast
+        if lhs.dtype() == DType::U64 {
+            let (lhs, rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
+            return binary_op_typed(lhs, rhs, |a: u64, b: u64| a.wrapping_pow(b as u32));
+        }
         int_binary_op(lhs, rhs, powi_int)
     }
 
@@ -1514,6 +1519,16 @@ mod tests {
         let result = Flex::int_div(a, b);
         let values: Vec<u64> = bytemuck::cast_slice(result.into_data().as_bytes()).to_vec();
         assert_eq!(values[0], u64::MAX / 2);
+    }
+
+    #[test]
+    fn test_u64_powi_large_exponent() {
+        // An exponent above i64::MAX is still a non-negative power, not `1 / base^|exp|`.
+        let a = FlexTensor::from_data(TensorData::new(vec![3u64, 1], [2]));
+        let b = FlexTensor::from_data(TensorData::new(vec![1u64 << 63, u64::MAX], [2]));
+        let result = Flex::int_powi(a, b);
+        let values: Vec<u64> = bytemuck::cast_slice(result.into_data().as_bytes()).to_vec();
+        assert_eq!(values, vec![1, 1]);
     }
 
     #[test]
