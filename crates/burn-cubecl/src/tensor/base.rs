@@ -225,6 +225,17 @@ impl CubeTensor {
         crate::kernel::untile(self).stored_binding()
     }
 
+    /// This tensor ready for a rewrite of its dims (swap, permute, expand): a float one as it is,
+    /// its tiles moving with their dims through its metadata; a quantized one laid back in rows,
+    /// which [`untile`](crate::kernel::untile) refuses when it is tiled, since its scales lie in
+    /// its kernel's tile order and no rewrite restates them.
+    pub(crate) fn untile_quantized(self) -> Self {
+        match self.qparams {
+            Some(_) => crate::kernel::untile(self),
+            None => self,
+        }
+    }
+
     /// This tensor bound as it is stored, its tiling included: for the readers that take storage
     /// tiles, cubek's matmul ([`stored`](Self::stored)) and the untile itself.
     pub fn stored_binding(self) -> TensorBinding {
