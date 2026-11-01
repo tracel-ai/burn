@@ -444,7 +444,10 @@ mod storage_tiled {
 
     /// The values in logical order, read at `f32` whatever the tensor holds.
     fn values(tensor: CubeTensor) -> Vec<f32> {
-        into_data_sync(tensor).convert::<f32>().try_to_vec::<f32>().unwrap()
+        into_data_sync(tensor)
+            .convert::<f32>()
+            .try_to_vec::<f32>()
+            .unwrap()
     }
 
     fn assert_close(have: &[f32], want: &[f32], what: &str) {
