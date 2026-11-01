@@ -1,6 +1,6 @@
 //! Utilities for saving tensors as images
 
-use burn_core::tensor::Tensor;
+use burn_core::tensor::{Tensor, ZeroDimPlaceholders};
 use image::{Rgb, RgbImage};
 use std::fs;
 use std::path::Path;
@@ -93,8 +93,11 @@ pub fn save_tensor_as_image<const D: usize, P: AsRef<std::ffi::OsStr>>(
             let [n, h, w] = tensor.shape().dims();
             tensor.reshape([n, 1, h, w])
         }
-        ImageDimOrder::Nchw => tensor.reshape([0, 0, 0, 0]),
-        ImageDimOrder::Nhwc => tensor.swap_dims(1, 3).swap_dims(2, 3).reshape([0, 0, 0, 0]),
+        ImageDimOrder::Nchw => tensor.reshape(ZeroDimPlaceholders([0, 0, 0, 0])),
+        ImageDimOrder::Nhwc => tensor
+            .swap_dims(1, 3)
+            .swap_dims(2, 3)
+            .reshape(ZeroDimPlaceholders([0, 0, 0, 0])),
     };
 
     let data = tensor.to_data();

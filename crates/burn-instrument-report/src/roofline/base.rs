@@ -215,6 +215,7 @@ mod tests {
     #[test]
     fn each_direction_is_charged_at_its_own_ceiling() {
         let peaks = Peaks {
+            launch_seconds: None,
             copy_bytes_per_s: Some(160.0e9),
             read_bytes_per_s: Some(230.0e9),
             write_bytes_per_s: Some(115.0e9),

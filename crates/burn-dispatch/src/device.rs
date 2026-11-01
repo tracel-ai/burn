@@ -5,6 +5,8 @@ use crate::devices::*;
 
 #[cfg(feature = "capture")]
 use burn_capture::CaptureDevice;
+#[cfg(feature = "group")]
+use burn_group::{GroupDevice, GroupError};
 
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
@@ -57,6 +59,10 @@ pub enum DispatchDevice {
     /// A non-executing graph capture device.
     #[cfg(feature = "capture")]
     Capture(CaptureDevice),
+
+    /// A [group of devices](crate::backends::Group) that a tensor can be split over.
+    #[cfg(feature = "group")]
+    Group(GroupDevice),
 
     /// The [autodiff enabled backend](crate::backends::Autodiff) device.
     #[cfg(feature = "autodiff")]
@@ -114,6 +120,9 @@ impl DispatchDevice {
             // The kernels run on the server, which this local API cannot reach.
             #[cfg(feature = "remote")]
             DispatchDevice::Remote(_) => Vec::new(),
+            // A group's peaks are its members', measured on them.
+            #[cfg(feature = "group")]
+            DispatchDevice::Group(_) => Vec::new(),
             #[cfg(feature = "capture")]
             DispatchDevice::Capture(_) => Vec::new(),
         }
@@ -205,6 +214,8 @@ impl core::fmt::Debug for DispatchDevice {
             Self::Flex(device) => f.debug_tuple("Flex").field(device).finish(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => f.debug_tuple("Remote").field(device).finish(),
+            #[cfg(feature = "group")]
+            Self::Group(device) => f.debug_tuple("Group").field(device).finish(),
             #[cfg(feature = "capture")]
             Self::Capture(device) => f.debug_tuple("Capture").field(device).finish(),
             #[cfg(feature = "autodiff")]
@@ -260,6 +271,13 @@ impl Default for DispatchDevice {
                         ));
                         panic!(
                             "BURN_DEVICE=metal requested, but the 'metal' feature is not enabled."
+                        );
+                    }
+                    "metal-native" => {
+                        #[cfg(feature = "metal-native")]
+                        return Self::Cube(CubeDevice::Metal(Default::default()));
+                        panic!(
+                            "BURN_DEVICE=metal-native requested, but the 'metal-native' feature is not enabled."
                         );
                     }
                     "vulkan" => {
@@ -319,6 +337,9 @@ impl Default for DispatchDevice {
         #[cfg(feature = "cuda")]
         return Self::Cube(CubeDevice::Cuda(Default::default()));
 
+        #[cfg(feature = "metal-native")]
+        return Self::Cube(CubeDevice::Metal(Default::default()));
+
         #[cfg(feature = "metal")]
         return Self::Cube(CubeDevice::Wgpu(Default::default()));
 
@@ -374,6 +395,8 @@ impl PartialEq for DispatchDevice {
             (Self::Flex(a), Self::Flex(b)) => a == b,
             #[cfg(feature = "remote")]
             (Self::Remote(a), Self::Remote(b)) => a == b,
+            #[cfg(feature = "group")]
+            (Self::Group(a), Self::Group(b)) => a == b,
             #[cfg(feature = "capture")]
             (Self::Capture(a), Self::Capture(b)) => a == b,
             #[allow(unreachable_patterns)]
@@ -391,6 +414,65 @@ impl DispatchDevice {
     #[doc(hidden)]
     pub fn capture() -> Self {
         Self::Capture(CaptureDevice::default())
+    }
+
+    /// A new group of `devices`, its members, that a tensor can be split over, apart from every
+    /// other group.
+    ///
+    /// Make a group once and reuse it, as any device: each call registers a new group for the
+    /// rest of the process.
+    ///
+    /// Each of its default dtypes is the first of the members' configured ones, in member order,
+    /// that every member supports.
+    ///
+    /// # Errors
+    ///
+    /// When `devices` is empty or mixes backends, when they are not Cube or Flex devices, when no
+    /// member's default for a dtype runs on every member, or when the members quantize
+    /// differently. An autodiff group is a group of plain devices made autodiff afterwards.
+    ///
+    /// # Panics
+    ///
+    /// When the process already has 65,536 groups.
+    #[cfg(feature = "group")]
+    pub fn group(devices: alloc::vec::Vec<DispatchDevice>) -> Result<Self, GroupError> {
+        if let Some(error) = devices.iter().find_map(Self::refused_as_member) {
+            return Err(error);
+        }
+        let group = match devices.first() {
+            #[cfg(cube_backend)]
+            Some(Self::Cube(_)) => {
+                let members = group_members!(devices, Cube)?;
+                GroupDevice::with_member_settings::<crate::backends::Cube>(&members)
+            }
+            #[cfg(feature = "flex")]
+            Some(Self::Flex(_)) => {
+                let members = group_members!(devices, Flex)?;
+                GroupDevice::with_member_settings::<crate::backends::Flex>(&members)
+            }
+            Some(other) => unreachable!("{other:?} was refused as a member"),
+            None => Err(GroupError::NoDevices),
+        }?;
+        Ok(Self::Group(group))
+    }
+
+    /// Why this device cannot be a group's member, or `None` when it can.
+    #[cfg(feature = "group")]
+    fn refused_as_member(&self) -> Option<GroupError> {
+        match self {
+            #[cfg(cube_backend)]
+            Self::Cube(_) => None,
+            #[cfg(feature = "flex")]
+            Self::Flex(_) => None,
+            #[cfg(feature = "autodiff")]
+            Self::Autodiff(_) => Some(GroupError::AutodiffMember),
+            #[cfg(feature = "remote")]
+            Self::Remote(_) => Some(GroupError::RemoteMember),
+            #[allow(unreachable_patterns)]
+            other => Some(GroupError::UnsupportedBackend {
+                device: alloc::format!("{other:?}"),
+            }),
+        }
     }
 
     #[cfg(feature = "autodiff")]
@@ -417,7 +499,8 @@ impl DispatchDevice {
     /// [`Device::to_id`](burn_backend::Device::to_id), which encodes the dispatch variant into its
     /// type. A [`DeviceHandle`](burn_backend::DeviceHandle) opened with it shares the fusion
     /// server's queue, so a task submitted there runs between the operations registered before
-    /// and after it. An autodiff device answers for the device it wraps.
+    /// and after it. An autodiff device answers for the device it wraps. A device group answers
+    /// `None`: each of its members has a fusion server of its own.
     pub fn fusion_worker(&self) -> Option<DeviceId> {
         match self {
             #[cfg(cube_backend)]
@@ -450,6 +533,8 @@ impl DispatchDevice {
             Self::Flex(_) => DispatchDeviceId::Flex,
             #[cfg(feature = "remote")]
             Self::Remote(_) => DispatchDeviceId::Remote,
+            #[cfg(feature = "group")]
+            Self::Group(_) => DispatchDeviceId::Group,
             #[cfg(feature = "capture")]
             Self::Capture(_) => DispatchDeviceId::Capture,
             #[cfg(feature = "autodiff")]
@@ -488,6 +573,7 @@ pub enum DispatchDeviceId {
     // 6 was NdArray; keep the other backend IDs stable.
     Remote = 10,
     Capture = 11,
+    Group = 12,
 }
 
 impl From<DispatchDeviceId> for u16 {
@@ -507,6 +593,8 @@ impl TryFrom<u16> for DispatchDeviceId {
             4 => Ok(Self::Flex),
             #[cfg(feature = "remote")]
             10 => Ok(Self::Remote),
+            #[cfg(feature = "group")]
+            12 => Ok(Self::Group),
             #[cfg(feature = "capture")]
             11 => Ok(Self::Capture),
             _ => Err(()),
@@ -525,6 +613,8 @@ impl DeviceOps for DispatchDevice {
             Self::Flex(device) => device.defaults(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => device.defaults(),
+            #[cfg(feature = "group")]
+            Self::Group(device) => device.defaults(),
             #[cfg(feature = "capture")]
             Self::Capture(device) => device.defaults(),
             #[cfg(feature = "autodiff")]
@@ -546,6 +636,8 @@ impl burn_backend::Device for DispatchDevice {
             DispatchDeviceId::Flex => Self::Flex(FlexDevice::from_id(device_id)),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Self::Remote(RemoteDevice::from_id(device_id)),
+            #[cfg(feature = "group")]
+            DispatchDeviceId::Group => Self::Group(GroupDevice::from_id(device_id)),
             #[cfg(feature = "capture")]
             DispatchDeviceId::Capture => Self::Capture(CaptureDevice::from_id(device_id)),
             _ => unreachable!("No backend feature enabled."),
@@ -562,6 +654,8 @@ impl burn_backend::Device for DispatchDevice {
             Self::Flex(device) => device.to_id(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => device.to_id(),
+            #[cfg(feature = "group")]
+            Self::Group(device) => device.to_id(),
             #[cfg(feature = "capture")]
             Self::Capture(device) => device.to_id(),
             #[cfg(feature = "autodiff")]
@@ -604,6 +698,13 @@ impl From<RocmDevice> for DispatchDevice {
     }
 }
 
+#[cfg(feature = "metal-native")]
+impl From<MetalDevice> for DispatchDevice {
+    fn from(device: MetalDevice) -> Self {
+        DispatchDevice::Cube(CubeDevice::Metal(device))
+    }
+}
+
 #[cfg(any(
     feature = "wgpu",
     feature = "metal",
@@ -620,6 +721,13 @@ impl From<WgpuDevice> for DispatchDevice {
 impl From<FlexDevice> for DispatchDevice {
     fn from(device: FlexDevice) -> Self {
         DispatchDevice::Flex(device)
+    }
+}
+
+#[cfg(feature = "group")]
+impl From<GroupDevice> for DispatchDevice {
+    fn from(device: GroupDevice) -> Self {
+        DispatchDevice::Group(device)
     }
 }
 

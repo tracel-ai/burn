@@ -121,22 +121,6 @@ impl ComponentTree {
         common.first().copied()
     }
 
-    /// Add `extra` to `component` and every parent that declares a floor. A component
-    /// with no floor is timed but not scored, and stays that way; no traffic
-    /// leaves every component as it was, so a batch of one marks nothing.
-    pub fn add_observed(&mut self, component: ComponentId, extra: Bounds) {
-        if extra == Bounds::default() {
-            return;
-        }
-        let scored: Vec<ComponentId> = self.ancestors(component).collect();
-        for component in scored {
-            let component = self.component_mut(component);
-            if component.bounds.is_some() {
-                component.observed = Some(component.observed.unwrap_or_default() + extra);
-            }
-        }
-    }
-
     /// The breakdown these components make, with what the instrument says about its
     /// timings.
     ///
@@ -252,7 +236,6 @@ impl ComponentTree {
                 .map(|site| site.to_string())
                 .collect(),
             bounds: component.bounds,
-            observed: component.observed,
             entries: component.entries,
             children: component
                 .children
@@ -275,8 +258,6 @@ struct ComponentRecord {
     /// Distinct call sites that entered this label, in first-seen order.
     sites: Vec<&'static str>,
     bounds: Option<Bounds>,
-    /// See [`Component::observed`].
-    observed: Option<Bounds>,
     entries: usize,
     children: Vec<ComponentId>,
     kernels: KernelCounter,
@@ -294,7 +275,6 @@ impl ComponentRecord {
             // Left empty: `enter` sums each entry's bounds into it over
             // `unwrap_or_default`, so seeding a zero here says nothing.
             bounds: None,
-            observed: None,
             entries: 0,
             children: Vec::new(),
             kernels: KernelCounter::default(),
@@ -608,63 +588,6 @@ mod tests {
         assert!(
             read.is_err(),
             "an open component has kernels yet to launch, so its component is not finished"
-        );
-    }
-
-    /// Observed traffic lands beside the declared floor of its component and of every
-    /// parent that declares one.
-    #[test]
-    fn observed_traffic_reaches_its_component_and_every_component_around_it() {
-        let mut components = ComponentTree::default();
-        let floor = Bounds {
-            read: 10,
-            write: 1,
-            flops: 4,
-        };
-        components.enter(declared("model"));
-        components.enter(Declaration {
-            bounds: Some(floor),
-            ..declared("block")
-        });
-        let experts = component(components.enter(Declaration {
-            bounds: Some(floor),
-            ..declared("experts")
-        }));
-        components.exit();
-        components.enter(Declaration {
-            bounds: Some(floor),
-            ..declared("norm")
-        });
-        components.exit();
-        components.exit();
-        components.exit();
-        let extra = Bounds {
-            read: 400,
-            write: 0,
-            flops: 0,
-        };
-        components.add_observed(experts, extra);
-
-        let tree = finished(&components).tree;
-        let model = &tree[0];
-        let block = &model.children[0];
-        let (experts, norm) = (&block.children[0], &block.children[1]);
-        assert_eq!(
-            experts.bounds,
-            Some(floor),
-            "the declared floor stays as declared"
-        );
-        assert_eq!(experts.observed, Some(extra));
-        assert_eq!(
-            block.observed,
-            Some(extra),
-            "its parent moved that traffic too"
-        );
-        assert_eq!(norm.observed, None, "a sibling did not");
-        assert_eq!(
-            (model.bounds, model.observed),
-            (None, None),
-            "a component that declares no floor stays unscored"
         );
     }
 

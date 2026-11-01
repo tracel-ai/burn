@@ -1,5 +1,6 @@
+use alloc::vec::Vec;
 use burn_backend::{Distribution, Scalar};
-use burn_std::{DType, PadMode, Shape};
+use burn_std::{DType, PadMode, Shape, distributed::ReduceOperation};
 
 use crate::{Device, bridge::BasicOps, ops::BridgeTensor};
 
@@ -524,4 +525,14 @@ pub(crate) trait Numeric: BasicOps {
     /// For padding tensors, users should prefer the [`Tensor::pad`](crate::Tensor::pad)
     /// function, which is more high-level and designed for public use.
     fn pad(tensor: BridgeTensor, padding: &[(usize, usize)], mode: PadMode) -> BridgeTensor;
+
+    /// Every member receives `op` over every member's tensor.
+    fn all_reduce(tensors: Vec<BridgeTensor>, op: ReduceOperation) -> Vec<BridgeTensor>;
+
+    /// Member `i` receives chunk `i` along `dim` of `op` over every member's tensor.
+    fn reduce_scatter(
+        tensors: Vec<BridgeTensor>,
+        dim: usize,
+        op: ReduceOperation,
+    ) -> Vec<BridgeTensor>;
 }

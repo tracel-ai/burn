@@ -297,3 +297,63 @@ fn test_avg_pool2d_asymmetric_padding() {
         .to_data()
         .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
 }
+
+#[test]
+fn test_avg_pool2d_dilation() {
+    // ONNX `test_averagepool_2d_dilations`: each window reads every other row and column.
+    let x = TestTensor::from([[[
+        [1.0, 2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0, 8.0],
+        [9.0, 10.0, 11.0, 12.0],
+        [13.0, 14.0, 15.0, 16.0],
+    ]]]);
+
+    let output = avg_pool2d(
+        x,
+        AvgPoolOptions::new([2, 2])
+            .with_stride([1, 1])
+            .with_dilation([2, 2])
+            .with_ceil_mode(true),
+    );
+
+    TestTensor::<4>::from([[[[6.0, 7.0], [10.0, 11.0]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
+}
+
+#[test]
+fn test_avg_pool2d_dilation_padding_ceil_mode() {
+    // Input 5x6 (values 0..30), kernel [2, 3], dilation 2, stride 2, padding 1, ceil mode.
+    // Window rows are {-1, 1}, {1, 3}, {3, 5}, and columns {-1, 1, 3}, {1, 3, 5}, {3, 5, 7}.
+    // Row 5 lands in the padding; column 7 lands past it and is never counted.
+    let x = TestTensor::<4>::from(
+        TestTensorInt::arange(0..30, &Default::default())
+            .reshape::<4, _>([1, 1, 5, 6])
+            .into_data(),
+    );
+    let options = AvgPoolOptions::new([2, 3])
+        .with_stride([2, 2])
+        .with_padding([1, 1])
+        .with_dilation([2, 2])
+        .with_ceil_mode(true);
+
+    let output = avg_pool2d(x.clone(), options.clone());
+    TestTensor::<4>::from([[[
+        [2.6667, 4.5, 5.0],
+        [9.3333, 15.0, 16.0],
+        [6.6667, 10.5, 11.0],
+    ]]])
+    .to_data()
+    .assert_approx_eq::<FloatElem>(
+        &output.into_data(),
+        Tolerance::default().set_half_precision_relative(1e-3),
+    );
+
+    let output = avg_pool2d(x, options.with_count_include_pad(false));
+    TestTensor::<4>::from([[[[8.0, 9.0, 10.0], [14.0, 15.0, 16.0], [20.0, 21.0, 22.0]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(
+            &output.into_data(),
+            Tolerance::default().set_half_precision_relative(1e-3),
+        );
+}

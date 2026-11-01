@@ -11,6 +11,7 @@ use std::{
 };
 
 use super::conn::{EndpointKey, RemoteEndpoint};
+use crate::shared::SessionId;
 
 static TENSOR_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -47,6 +48,8 @@ struct EndpointEntry {
     device_index: u32,
     settings: Arc<OnceLock<DeviceSettings>>,
     device_count: Arc<OnceLock<u32>>,
+    /// The one session this device opens, named before it opens so a collective can name it.
+    session_id: SessionId,
     session: Arc<SessionEnd>,
 }
 
@@ -94,6 +97,7 @@ pub(crate) fn register_endpoint(endpoint: RemoteEndpoint, device_index: u32) -> 
             device_index,
             settings: Arc::new(OnceLock::new()),
             device_count: Arc::new(OnceLock::new()),
+            session_id: SessionId::new(),
             session: Arc::default(),
         },
     );
@@ -146,4 +150,8 @@ pub(crate) fn device_count_for(id: u32) -> Option<u32> {
 
 pub(crate) fn session_end(id: u32) -> Arc<SessionEnd> {
     with_entry(id, |entry| entry.session.clone())
+}
+
+pub(crate) fn session_of(id: u32) -> SessionId {
+    with_entry(id, |entry| entry.session_id)
 }

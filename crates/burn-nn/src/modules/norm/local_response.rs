@@ -1,6 +1,7 @@
 use burn_core as burn;
 
 use burn::config::Config;
+use burn::instrument::{self, Bounds, compute};
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::module::avg_pool1d;
 use burn::tensor::ops::AvgPoolOptions;
@@ -67,6 +68,17 @@ pub struct LocalResponseNorm {
 }
 
 impl LocalResponseNorm {
+    /// The floor for a normalization alone: read the input once, write the output once. The
+    /// window over neighbouring channels is a pass over the same bytes, so no arithmetic is
+    /// declared.
+    fn bounds<const D: usize>(&self, input: &Tensor<D>) -> Bounds {
+        Bounds {
+            read: instrument::tensor_bytes(input),
+            write: instrument::tensor_bytes(input),
+            flops: 0,
+        }
+    }
+
     /// Applies Local Response Normalization on the input tensor.
     ///
     /// # Shapes
@@ -77,6 +89,7 @@ impl LocalResponseNorm {
     /// # Panics
     ///
     /// Panics if the input tensor rank is less than 3.
+    #[compute(bounds = Self::bounds)]
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         assert_shape!(input, [_, _, _, ..]);
 

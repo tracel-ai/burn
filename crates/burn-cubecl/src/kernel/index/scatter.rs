@@ -5,7 +5,9 @@ use crate::{
     },
     tensor::CubeTensor,
 };
+use burn_backend::DType;
 use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type};
+use cubecl::client::Client;
 use cubecl::{CubeDim, calculate_cube_count_elemwise, features::AtomicUsage, ir::Type};
 use cubecl::{prelude::*, std::FastDivmod};
 
@@ -157,14 +159,14 @@ fn scatter_add_atomic(
     tensor
 }
 
-fn adds_atomically(tensor: &CubeTensor) -> bool {
-    let properties = tensor.client.properties();
-    // CPU scatter keeps one unit per row, avoiding contended atomic updates.
+pub(super) fn adds_atomically(client: &Client, dtype: DType) -> bool {
+    let properties = client.properties();
+    // CPU indexing updates keep one unit per row, avoiding contended atomics.
     if properties.hardware.num_cpu_cores.is_some() {
         return false;
     }
     properties
-        .atomic_type_usage(Type::atomic(dtype_to_elem_type(tensor.dtype)))
+        .atomic_type_usage(Type::atomic(dtype_to_elem_type(dtype)))
         .contains(AtomicUsage::Add)
 }
 
@@ -216,7 +218,9 @@ pub(crate) fn scatter(
 ) -> CubeTensor {
     match is_bool {
         true => scatter_op::<OrOp>(dim, tensor, indices, value),
-        false if adds_atomically(&tensor) => scatter_add_atomic(dim, tensor, indices, value),
+        false if adds_atomically(&tensor.client, tensor.dtype) => {
+            scatter_add_atomic(dim, tensor, indices, value)
+        }
         false => scatter_op::<AddOp>(dim, tensor, indices, value),
     }
 }

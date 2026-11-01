@@ -1,7 +1,11 @@
 use alloc::vec::Vec;
 use burn_backend::{
     AutodiffBackend, Distribution, Scalar, TensorData, TensorMetadata, TensorPrimitive,
-    ops::{BoolTensorOps, FloatTensorOps, IntTensorOps, QTensorOps, TransactionPrimitive},
+    distributed::ReduceOperation,
+    ops::{
+        BoolTensorOps, CollectiveOps, FloatTensorOps, IntTensorOps, QTensorOps,
+        TransactionPrimitive,
+    },
 };
 use burn_dispatch::Dispatch;
 use burn_std::{DType, ExecutionError, IndexingUpdateOp, PadMode, Shape, Slice};
@@ -385,6 +389,41 @@ impl BasicOps for Float {
     fn unfold(tensor: BridgeTensor, dim: usize, size: usize, step: usize) -> BridgeTensor {
         BridgeTensor::float(Dispatch::float_unfold(tensor.into_float(), dim, size, step))
     }
+
+    fn all_gather(tensors: Vec<BridgeTensor>, dim: usize) -> Vec<BridgeTensor> {
+        match tensors.first().unwrap().kind() {
+            BridgeKind::Float => BridgeTensor::floats(Dispatch::float_all_gather(
+                BridgeTensor::into_dispatch_vec(tensors),
+                dim,
+            )),
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn all_to_all(
+        tensors: Vec<BridgeTensor>,
+        split_dim: usize,
+        concat_dim: usize,
+    ) -> Vec<BridgeTensor> {
+        match tensors.first().unwrap().kind() {
+            BridgeKind::Float => BridgeTensor::floats(Dispatch::float_all_to_all(
+                BridgeTensor::into_dispatch_vec(tensors),
+                split_dim,
+                concat_dim,
+            )),
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn broadcast(tensor: BridgeTensor, devices: &[Device]) -> Vec<BridgeTensor> {
+        match tensor.kind() {
+            BridgeKind::Float => BridgeTensor::floats(Dispatch::float_broadcast(
+                tensor.into(),
+                &Device::as_dispatch_vec(devices),
+            )),
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
 }
 
 impl Numeric for Float {
@@ -655,6 +694,31 @@ impl Numeric for Float {
             (BridgeKind::QFloat, BridgeKind::QFloat) => from_q_primitive(Dispatch::q_matmul(
                 TensorPrimitive::QFloat(lhs),
                 TensorPrimitive::QFloat(rhs),
+            )),
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn all_reduce(tensors: Vec<BridgeTensor>, op: ReduceOperation) -> Vec<BridgeTensor> {
+        match tensors.first().unwrap().kind() {
+            BridgeKind::Float => BridgeTensor::floats(Dispatch::float_all_reduce(
+                BridgeTensor::into_dispatch_vec(tensors),
+                op,
+            )),
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn reduce_scatter(
+        tensors: Vec<BridgeTensor>,
+        dim: usize,
+        op: ReduceOperation,
+    ) -> Vec<BridgeTensor> {
+        match tensors.first().unwrap().kind() {
+            BridgeKind::Float => BridgeTensor::floats(Dispatch::float_reduce_scatter(
+                BridgeTensor::into_dispatch_vec(tensors),
+                dim,
+                op,
             )),
             _ => panic!("Should be Float primitive kind"),
         }

@@ -1,7 +1,7 @@
 use super::*;
 use burn_tensor::{
     TensorData, Tolerance,
-    ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode},
+    ops::{GridSampleMode, GridSampleOptions, GridSamplePaddingMode},
 };
 
 /// Tests grid_sample_2d with default options (align_corners=false, zeros padding).
@@ -23,7 +23,7 @@ fn should_grid_sample_2d_default() {
         &device,
     );
 
-    let output = tensor.grid_sample_2d(grid, InterpolateMode::Bilinear);
+    let output = tensor.grid_sample_2d(grid, GridSampleMode::Bilinear);
 
     // Expected values computed with PyTorch grid_sample(align_corners=False, padding_mode='zeros')
     let expected = TensorData::from([[[[4.0, 2.0625], [2.0, 1.04]]]]);
@@ -47,7 +47,7 @@ fn should_grid_sample_2d_align_corners_border() {
         &device,
     );
 
-    let options = GridSampleOptions::new(InterpolateMode::Bilinear)
+    let options = GridSampleOptions::new(GridSampleMode::Bilinear)
         .with_padding_mode(GridSamplePaddingMode::Border)
         .with_align_corners(true);
     let output = tensor.grid_sample_2d(grid, options);
@@ -89,7 +89,7 @@ fn should_pad_border_grid_sample_2d() {
     );
     let grid = TestTensor::<4>::from_data([[[[0.0, -2.0]]]], &device);
 
-    let options = GridSampleOptions::new(InterpolateMode::Bilinear)
+    let options = GridSampleOptions::new(GridSampleMode::Bilinear)
         .with_padding_mode(GridSamplePaddingMode::Border);
     let output = tensor.grid_sample_2d(grid, options);
 
@@ -114,7 +114,7 @@ fn should_pad_reflection_grid_sample_2d() {
         &device,
     );
 
-    let options = GridSampleOptions::new(InterpolateMode::Bilinear)
+    let options = GridSampleOptions::new(GridSampleMode::Bilinear)
         .with_padding_mode(GridSamplePaddingMode::Reflection);
     let output = tensor.grid_sample_2d(grid, options);
 
@@ -146,7 +146,7 @@ fn should_grid_sample_2d_nearest_round_half_to_even() {
         &device,
     );
 
-    let output = tensor.grid_sample_2d(grid, InterpolateMode::Nearest);
+    let output = tensor.grid_sample_2d(grid, GridSampleMode::Nearest);
 
     // Expected values follow PyTorch's nearbyint rule for grid_sample(mode='nearest')
     let expected = TensorData::from([[[[0.0, 2.0, 2.0, 0.0]]]]);

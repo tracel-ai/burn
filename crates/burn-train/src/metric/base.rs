@@ -21,11 +21,7 @@ impl MetricMetadata {
     #[cfg(test)]
     pub fn fake() -> Self {
         Self {
-            progress: Progress {
-                items_processed: 1,
-                items_total: 1,
-                unit: Some("items".to_string()),
-            },
+            progress: Progress::new(1, 1, Some("items".to_string())),
             iteration: Some(0),
             lr: None,
         }

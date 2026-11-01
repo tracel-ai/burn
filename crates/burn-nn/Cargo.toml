@@ -34,7 +34,8 @@ burn-linalg = { workspace = true }
 num-traits = { workspace = true }
 
 [dev-dependencies]
-burn-core = { workspace = true, features = ["autodiff"] }
+# `instrument`, for the tests that read what a layer declares.
+burn-core = { workspace = true, features = ["autodiff", "instrument"] }
 rstest = { workspace = true }
 
 [package.metadata.docs.rs]

@@ -2,10 +2,12 @@ use crate::Initializer;
 use burn_core as burn;
 
 use crate::activation::{Activation, ActivationConfig};
+use crate::modules::role::Role;
 use crate::{GateController, LstmState, OptionalInitialLstmState};
 use alloc::boxed::Box;
 use burn::Tensor;
 use burn::config::Config;
+use burn::instrument::compute;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::prelude::Device;
 use burn::prelude::s;
@@ -219,6 +221,7 @@ impl Lstm {
     ///     containing the output features for all timesteps.
     ///   - The second element is the final [`LstmState`], which includes the final cell and hidden states,
     ///     both with the shape `[batch_size, d_hidden]`.
+    #[compute]
     pub fn forward_iter<I: Iterator<Item = (usize, Tensor<3>)>>(
         &self,
         input_timestep_iter: I,
@@ -238,9 +241,10 @@ impl Lstm {
             let input_t = input_t.squeeze_dim(1);
 
             // i(nput)g(ate) tensors
-            let biased_ig_input_sum = self
-                .input_gate
-                .gate_product(input_t.clone(), hidden_state.clone());
+            let biased_ig_input_sum = Role::INPUT_GATE.run(|| {
+                self.input_gate
+                    .gate_product(input_t.clone(), hidden_state.clone())
+            });
             let input_values = self.gate_activation.forward(biased_ig_input_sum);
 
             // f(orget)g(ate) tensors - either computed or coupled to input gate
@@ -248,22 +252,25 @@ impl Lstm {
                 // Coupled mode: f_t = 1 - i_t
                 input_values.clone().neg().add_scalar(1.0)
             } else {
-                let biased_fg_input_sum = self
+                let forget_gate = self
                     .forget_gate
                     .as_ref()
-                    .expect("Forget gate must be present when input_forget is false")
-                    .gate_product(input_t.clone(), hidden_state.clone());
+                    .expect("Forget gate must be present when input_forget is false");
+                let biased_fg_input_sum = Role::FORGET_GATE
+                    .run(|| forget_gate.gate_product(input_t.clone(), hidden_state.clone()));
                 self.gate_activation.forward(biased_fg_input_sum)
             };
 
             // o(output)g(ate) tensors
-            let biased_og_input_sum = self
-                .output_gate
-                .gate_product(input_t.clone(), hidden_state.clone());
+            let biased_og_input_sum = Role::OUTPUT_GATE.run(|| {
+                self.output_gate
+                    .gate_product(input_t.clone(), hidden_state.clone())
+            });
             let output_values = self.gate_activation.forward(biased_og_input_sum);
 
             // c(ell)g(ate) tensors
-            let biased_cg_input_sum = self.cell_gate.gate_product(input_t, hidden_state.clone());
+            let biased_cg_input_sum =
+                Role::CELL_GATE.run(|| self.cell_gate.gate_product(input_t, hidden_state.clone()));
             let candidate_cell_values = self.cell_activation.forward(biased_cg_input_sum);
 
             cell_state = forget_values * cell_state + input_values * candidate_cell_values;
@@ -295,6 +302,35 @@ mod test {
     use burn_core::prelude::Device;
     use burn_core::tensor::{Distribution, ElementConversion, Shape, TensorData, Tolerance};
     pub type FT = f32;
+
+    /// Each gate runs under its role, so the four gates' projections stay apart.
+    #[cfg(feature = "std")]
+    #[test]
+    fn an_lstm_names_its_gates() {
+        let device = Device::default();
+        let lstm = LstmConfig::new(3, 4, true).init(&device);
+        let input = Tensor::<3>::zeros([1, 1, 3], &device);
+
+        let recorded = crate::recording::recorded(|| {
+            lstm.forward(input, None);
+        });
+
+        let gates: alloc::vec::Vec<_> = recorded
+            .lines()
+            .into_iter()
+            .filter(|line| !line.starts_with("    "))
+            .collect();
+        assert_eq!(
+            gates,
+            [
+                "lstm (unpriced)",
+                "  input gate (unpriced)",
+                "  forget gate (unpriced)",
+                "  output gate (unpriced)",
+                "  cell gate (unpriced)",
+            ]
+        );
+    }
 
     #[rstest::rstest]
     #[case(false, false, 60)]

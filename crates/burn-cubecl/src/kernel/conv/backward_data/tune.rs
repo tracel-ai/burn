@@ -11,7 +11,10 @@ use crate::{
     CubeAutotuneKey, CubeTuneId,
     kernel::conv::{
         ConvAutotuneKey,
-        backward_data::{fallback::conv_data_backward_fallback, implicit_gemm::*},
+        backward_data::{
+            fallback::conv_data_backward_fallback, implicit_gemm::*,
+            stride_phases::dgrad_stride_phases,
+        },
         im2col::{dgrad_im2col, dgrad_im2col_1x1},
     },
     tensor::CubeTensor,
@@ -38,6 +41,12 @@ pub fn dgrad_autotune<const N: usize>(
                 "dgrad_fallback",
                 |(out_grad, weights, input_shape, options)| {
                     conv_data_backward_fallback::<N>(out_grad, weights, input_shape, options)
+                },
+            ))
+            .with(Tunable::new(
+                "dgrad_stride_phases",
+                |(out_grad, weights, input_shape, options)| {
+                    dgrad_stride_phases::<N>(out_grad, weights, input_shape, options)
                 },
             ))
             // Pointwise unit stride only; `dgrad_im2col` declines this shape so

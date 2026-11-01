@@ -8,6 +8,8 @@
 //! - KV Caching for Streaming Inference
 
 use crate::cache::TensorCache;
+use crate::modules::bounds;
+use crate::modules::role::Role;
 use crate::modules::{Linear, LinearConfig};
 use crate::{Dropout, DropoutConfig, Initializer};
 use burn::tensor::assert_shape;
@@ -15,6 +17,7 @@ use burn_core as burn;
 
 use burn::{
     config::Config,
+    instrument::{self, Bounds, compute},
     module::Module,
     tensor::{
         Bool, Device, Tensor,
@@ -163,6 +166,7 @@ impl CrossAttention {
     /// # Panics
     ///
     /// Panics if the batch size of `context` differs from `query`.
+    #[compute]
     pub fn forward(
         &self,
         query: Tensor<3>,
@@ -174,9 +178,9 @@ impl CrossAttention {
         assert_shape!(context, [batch, _, _]);
 
         // 1. Projections
-        let q = self.query.forward(query);
-        let k = self.key.forward(context.clone());
-        let v = self.value.forward(context);
+        let q = Role::QUERY.run(|| self.query.forward(query));
+        let k = Role::KEY.run(|| self.key.forward(context.clone()));
+        let v = Role::VALUE.run(|| self.value.forward(context));
 
         // 2. Reshape Heads
         // Q: [Batch, Heads, L_q, D_head]
@@ -192,44 +196,7 @@ impl CrossAttention {
             .reshape([batch, l_k, self.n_heads_kv, self.d_head])
             .swap_dims(1, 2);
 
-        // 3. GQA Expansion
-        // ADVICE: Handle GQA by repeating KV heads to match Query heads
-        let (k, v) = if self.n_heads != self.n_heads_kv {
-            let n_rep = self.n_heads / self.n_heads_kv;
-            (self.repeat_kv(k, n_rep), self.repeat_kv(v, n_rep))
-        } else {
-            (k, v)
-        };
-
-        // 4. Score Calculation
-        let scores = q.matmul(k.transpose()) * self.scale;
-
-        // 5. Masking
-        // ADVICE: Use min_float for F16/FP8 safety
-        let scores = if let Some(mask) = mask {
-            let mask = mask.reshape([batch, 1, 1, l_k]);
-            scores.mask_fill(mask, self.min_float)
-        } else {
-            scores
-        };
-
-        // 6. Softmax
-        // ADVICE: Optional Quiet Softmax for sparse networks
-        let weights = if self.quiet_softmax {
-            quiet_softmax(scores, 3)
-        } else {
-            softmax(scores, 3)
-        };
-
-        let weights = self.dropout.forward(weights);
-
-        // 7. Aggregate & Output
-        let output = weights.matmul(v);
-        let output = output
-            .swap_dims(1, 2)
-            .reshape([batch, l_q, self.n_heads * self.d_head]);
-
-        self.output.forward(output)
+        self.attend_and_project(q, k, v, mask)
     }
 
     /// Applies cross-attention to query using context as key and value.
@@ -250,6 +217,7 @@ impl CrossAttention {
     /// # Panics
     ///
     /// Panics if the batch size of `context` differs from `query`.
+    #[compute]
     pub fn forward_cache(
         &self,
         query: Tensor<3>,
@@ -261,19 +229,19 @@ impl CrossAttention {
         assert_shape!(context, [batch, _, _]);
 
         // 1. Projections
-        let q = self.query.forward(query);
+        let q = Role::QUERY.run(|| self.query.forward(query));
 
         let k_compute = |context: Tensor<3>| {
             let [batch, l_k, _] = context.dims();
-            self.key
-                .forward(context)
+            Role::KEY
+                .run(|| self.key.forward(context))
                 .reshape([batch, l_k, self.n_heads_kv, self.d_head])
                 .swap_dims(1, 2)
         };
         let v_compute = |context: Tensor<3>| {
             let [batch, l_k, _] = context.dims();
-            self.value
-                .forward(context)
+            Role::VALUE
+                .run(|| self.value.forward(context))
                 .reshape([batch, l_k, self.n_heads_kv, self.d_head])
                 .swap_dims(1, 2)
         };
@@ -281,15 +249,44 @@ impl CrossAttention {
         let k = cache.k.forward_full(context.clone(), k_compute);
         let v = cache.v.forward_full(context, v_compute);
 
-        let [_, _, l_k, _] = k.dims();
-
         // 2. Reshape Heads
         // Q: [Batch, Heads, L_q, D_head]
+        // K, V are already in their correct shape from k_compute and v_compute
         let q = q
             .reshape([batch, l_q, self.n_heads, self.d_head])
             .swap_dims(1, 2);
 
-        // K, V are already in their correct shape from k_compute and v_compute
+        self.attend_and_project(q, k, v, mask)
+    }
+
+    /// Attend over the heads and project the context back, `[batch, seq_len_query, d_model]`.
+    fn attend_and_project(
+        &self,
+        q: Tensor<4>,
+        k: Tensor<4>,
+        v: Tensor<4>,
+        mask: Option<Tensor<2, Bool>>,
+    ) -> Tensor<3> {
+        let [batch, _, l_q, _] = q.dims();
+        let output = self.attend(q, k, v, mask);
+        let output = output
+            .swap_dims(1, 2)
+            .reshape([batch, l_q, self.n_heads * self.d_head]);
+
+        Role::OUTPUT.run(|| self.output.forward(output))
+    }
+
+    /// Weigh `v` by how well `q` matches `k`, `[batch, heads, seq_len_query, d_head]`.
+    #[compute(label = "scaled dot product", bounds = Self::attend_bounds)]
+    fn attend(
+        &self,
+        q: Tensor<4>,
+        k: Tensor<4>,
+        v: Tensor<4>,
+        mask: Option<Tensor<2, Bool>>,
+    ) -> Tensor<4> {
+        let [batch, _, _, _] = q.dims();
+        let [_, _, l_k, _] = k.dims();
 
         // 3. GQA Expansion
         // ADVICE: Handle GQA by repeating KV heads to match Query heads
@@ -322,13 +319,24 @@ impl CrossAttention {
 
         let weights = self.dropout.forward(weights);
 
-        // 7. Aggregate & Output
-        let output = weights.matmul(v);
-        let output = output
-            .swap_dims(1, 2)
-            .reshape([batch, l_q, self.n_heads * self.d_head]);
+        // 7. Aggregate
+        weights.matmul(v)
+    }
 
-        self.output.forward(output)
+    /// The floor for [`attend`](Self::attend) alone: scaled dot-product attention's over the
+    /// key and value heads before they are shared out, reading the mask besides.
+    fn attend_bounds(
+        &self,
+        q: &Tensor<4>,
+        k: &Tensor<4>,
+        v: &Tensor<4>,
+        mask: &Option<Tensor<2, Bool>>,
+    ) -> Bounds {
+        let attention = bounds::attention(q, k, v);
+        Bounds {
+            read: attention.read + mask.as_ref().map_or(0, instrument::tensor_bytes),
+            ..attention
+        }
     }
 
     /// Helper for Grouped Query Attention
@@ -344,6 +352,33 @@ impl CrossAttention {
 mod tests {
     use super::*;
     use burn::tensor::{Distribution, Int, Shape, Tensor, Tolerance};
+
+    /// Grouped-query attention reads each key and value head once, not once per query head
+    /// sharing it, and does the arithmetic of every query head.
+    #[cfg(feature = "std")]
+    #[test]
+    fn shared_key_heads_are_read_once() {
+        let device = Default::default();
+        let attention = CrossAttentionConfig::new(8, 6, 4, 2, 2)
+            .with_dropout(0.0)
+            .init(&device);
+        let query = Tensor::<3>::zeros([1, 3, 8], &device);
+        let context = Tensor::<3>::zeros([1, 5, 6], &device);
+
+        let recorded = crate::recording::recorded(|| {
+            attention.forward(query, context, None);
+        });
+
+        // Query heads `[1, 4, 3, 2]`, key and value heads `[1, 2, 5, 2]`.
+        assert_eq!(
+            recorded.declared("scaled dot product"),
+            Some(Bounds {
+                read: (24 + 20 + 20) * 4,
+                write: 24 * 4,
+                flops: 2 * (4 * 3) * 5 * (2 + 2),
+            })
+        );
+    }
 
     #[test]
     fn test_cross_attention_mha_shapes() {

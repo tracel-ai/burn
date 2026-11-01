@@ -1,14 +1,14 @@
 use cubecl::prelude::*;
 
 use crate::tensor::CubeTensor;
-use burn_backend::ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode};
+use burn_backend::ops::{GridSampleMode, GridSampleOptions, GridSamplePaddingMode};
 
 use super::bilinear::grid_sample_bilinear_launch;
 
 /// Grid sample operation supporting bilinear interpolation
 pub fn grid_sample(input: CubeTensor, grid: CubeTensor, options: GridSampleOptions) -> CubeTensor {
     match options.mode {
-        InterpolateMode::Bilinear => grid_sample_bilinear_launch(input, grid, options),
+        GridSampleMode::Bilinear => grid_sample_bilinear_launch(input, grid, options),
         _ => panic!(
             "Unsupported grid_sample interpolation mode: {:?}",
             options.mode

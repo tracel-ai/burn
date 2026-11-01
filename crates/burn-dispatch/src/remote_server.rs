@@ -43,6 +43,10 @@ macro_rules! with_backend {
             Some(DispatchDevice::Capture(_)) => Err(ServeError::UnsupportedDevice {
                 reason: "a capture device cannot host a remote server".into(),
             }),
+            #[cfg(feature = "group")]
+            Some(DispatchDevice::Group(_)) => Err(ServeError::UnsupportedDevice {
+                reason: "a device group cannot host a remote server".into(),
+            }),
             #[cfg(feature = "autodiff")]
             Some(DispatchDevice::Autodiff(_)) => {
                 unreachable!("Autodiff stripped by DispatchDevice::inner")

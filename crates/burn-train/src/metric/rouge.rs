@@ -35,6 +35,7 @@ pub struct RougeLScore {
 }
 
 /// Input for [RougeLScore].
+/// Predictions and targets must have the same batch size, but their sequence lengths may differ.
 #[derive(new)]
 pub struct RougeLInput {
     /// Predicted token sequences.
@@ -77,7 +78,12 @@ impl Metric for RougeLScore {
     ) -> Result<SerializedEntry, TensorReadError> {
         let outputs = &input.outputs;
         let targets = &input.targets;
-        let [batch_size, seq_len] = targets.dims();
+        let [output_batch_size, output_seq_len] = outputs.dims();
+        let [batch_size, target_seq_len] = targets.dims();
+        assert_eq!(
+            output_batch_size, batch_size,
+            "ROUGE predictions and targets must have the same batch size"
+        );
 
         let outputs_data = outputs.try_to_vec_as::<i32>()?;
         let targets_data = targets.try_to_vec_as::<i32>()?;
@@ -87,11 +93,11 @@ impl Metric for RougeLScore {
         let mut total_f1 = 0.0_f64;
 
         for i in 0..batch_size {
-            let start = i * seq_len;
-            let end = (i + 1) * seq_len;
+            let output_start = i * output_seq_len;
+            let target_start = i * target_seq_len;
 
-            let output_seq = &outputs_data[start..end];
-            let target_seq = &targets_data[start..end];
+            let output_seq = &outputs_data[output_start..output_start + output_seq_len];
+            let target_seq = &targets_data[target_start..target_start + target_seq_len];
 
             let output_seq = match pad_token {
                 Some(pad) => {
@@ -188,6 +194,7 @@ impl Numeric for RougeLScore {
 mod tests {
     use super::*;
     use burn_core::tensor::TensorData;
+    use rstest::rstest;
 
     #[test]
     fn test_rouge_l_perfect_match() {
@@ -337,5 +344,32 @@ mod tests {
         metric.clear();
         assert!(metric.value().unwrap().current().is_nan());
         assert!(metric.final_value().current().is_nan());
+    }
+
+    #[rstest]
+    #[case(true)]
+    #[case(false)]
+    fn test_rouge_l_unequal_sequence_lengths(#[case] longer_preds: bool) {
+        let device = Default::default();
+        let mut a = Tensor::from_data([[1i64, 2, 9], [3, 4, 8]], &device);
+        let mut b = Tensor::from_data([[1i64, 2], [3, 4]], &device);
+        if !longer_preds {
+            std::mem::swap(&mut a, &mut b);
+        }
+
+        let mut metric = RougeLScore::new();
+        metric
+            .update(&RougeLInput::new(a, b), &MetricMetadata::fake())
+            .unwrap();
+        assert!((metric.value().unwrap().current() - 80.0).abs() < 1e-6);
+    }
+
+    #[test]
+    #[should_panic(expected = "ROUGE predictions and targets must have the same batch size")]
+    fn test_rouge_l_mismatched_batch_sizes() {
+        let device = Default::default();
+        let preds = Tensor::from_data([[1i64, 2]], &device);
+        let tgts = Tensor::from_data([[1i64, 2], [3, 4]], &device);
+        let _ = RougeLScore::new().update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
     }
 }

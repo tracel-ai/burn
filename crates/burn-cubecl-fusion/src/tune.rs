@@ -161,10 +161,6 @@ impl<'a, O> TuneInput<'a, O> {
         &self.context().tensors
     }
 
-    pub(crate) fn handles(&self) -> &HandleContainer<CubeFusionHandle> {
-        &self.context().handles
-    }
-
     pub(crate) fn optimization(&self) -> &O {
         &self.optimization
     }

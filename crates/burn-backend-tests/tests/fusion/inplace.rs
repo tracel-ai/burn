@@ -338,3 +338,51 @@ fn inplace_output_narrower_than_width_stays_in_bounds() {
             .assert_approx_eq::<FloatElem>(&TensorData::full(nhwc, 7.0), Tolerance::default());
     });
 }
+
+/// An in-place output narrower than the fused block's width becomes the block's reference: every
+/// unit must still be placed at the block's width, not at the output's own vector size.
+///
+/// A column narrowed out of `source` and transposed is launched with vector size one, while the
+/// contiguous `row` vectorizes the block. Once `source` is dropped the column is the only owner
+/// of its buffer, so the output aliases it and becomes the reference.
+#[test]
+fn inplace_reference_narrower_than_width_indexes_every_unit() {
+    let stream = test_stream();
+    stream.executes(|| {
+        let device: burn_tensor::Device = Default::default();
+        let source = || {
+            TestTensorInt::<1>::arange(0..128, &device)
+                .float()
+                .reshape([1, 16, 8])
+        };
+        let row = || TestTensor::<3>::ones([1, 1, 16], &device);
+        let column_plus_row = |source: &TestTensor<3>, row: TestTensor<3>| {
+            source.clone().narrow(2, 4, 1).swap_dims(1, 2) + row
+        };
+        let expected = TensorData::new(
+            (0..16).map(|c| (c * 8 + 4 + 1) as f32).collect(),
+            [1, 1, 16],
+        );
+
+        // Warmup with `source` kept alive: autotune trials run on forked contexts that never alias.
+        let (kept, row_kept) = (source(), row());
+        device.sync().unwrap();
+        column_plus_row(&kept, row_kept)
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+
+        let (dropped, row) = (source(), row());
+        device.sync().unwrap();
+        let out = column_plus_row(&dropped, row);
+        drop(dropped);
+        let before = inplace_alias_count();
+        let out = out.into_data();
+        let after = inplace_alias_count();
+
+        out.assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+        assert!(
+            after > before,
+            "the output should alias the transposed column"
+        );
+    });
+}

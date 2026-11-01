@@ -83,6 +83,7 @@
 //! | ROCm                    | `rocm`   | `Device::rocm(0)`                    |
 //! | wgpu (any graphics API) | `wgpu`   | `Device::wgpu(Default::default())`   |
 //! | Metal                   | `metal`  | `Device::metal(Default::default())`  |
+//! | Metal (cubecl runtime)  | `metal-native` | `Device::metal_native()`       |
 //! | Vulkan                  | `vulkan` | `Device::vulkan(Default::default())` |
 //! | WebGPU                  | `webgpu` | `Device::webgpu(Default::default())` |
 //! | CubeCL CPU              | `cpu`    | `Device::cpu()`                      |
@@ -125,6 +126,7 @@
 //!   - `webgpu`: Adds `Device::webgpu`, pinned to WebGPU (implies `wgpu`)
 //!   - `vulkan`: Adds `Device::vulkan`, pinned to Vulkan (implies `wgpu`)
 //!   - `metal`: Adds `Device::metal`, pinned to Metal with native MSL (implies `wgpu`)
+//!   - `metal-native`: Adds `Device::metal_native`, cubecl's own Metal runtime (no wgpu)
 //!   - `cuda`: Makes available the CUDA backend
 //!   - `rocm`: Makes available the ROCm backend
 //!   - `cpu`: Makes available the CubeCL CPU backend
@@ -142,6 +144,9 @@
 //!   - `template`: Enable hand-written, non-JIT custom kernels in the CubeCL backends.
 //!   - `fusion`: Enable operation fusion in backends that support it.
 //!   - `tracing`: Enable diagnostic tracing in the selected backends (disabled by default).
+//!   - `instrument`: Arm the `#[compute]` annotations of the layers and of your own components,
+//!     for `burn::instrument::Instrument` to measure (disabled by default; without it the
+//!     annotations compile away).
 //! - Backend decorators
 //!   - `autodiff`: Makes available the Autodiff backend
 //! - Model Storage
@@ -153,6 +158,8 @@
 //!   - `std`: Activates the standard library (deactivate for no_std)
 //!   - `linalg`: Enables linear algebra operations
 //!   - `capture`: Makes the non-executing graph capture backend available.
+//!   - `group`: Makes the experimental `Device::group_options` available, to make a device whose
+//!     tensors can be split over several devices for tensor parallelism.
 //!   - `ir`: Makes Burn's operation intermediate representation available.
 //!   - `cubecl`: Re-exports CubeCL as `burn::cubecl` for writing custom kernels.
 //!   - `signal`: Enables signal processing operations from `burn-signal`.
@@ -217,6 +224,8 @@ pub mod rl {
     pub use burn_rl::*;
 }
 
+#[cfg(feature = "group")]
+pub use burn_core::tensor::group;
 #[cfg(feature = "remote")]
 pub use burn_core::tensor::remote;
 #[cfg(feature = "remote-server")]

@@ -103,6 +103,11 @@ impl ActivationOps<Flex> for Flex {
     }
 
     fn sigmoid(tensor: FloatTensor<Flex>) -> FloatTensor<Flex> {
+        #[cfg(feature = "simd")]
+        let tensor = match crate::ops::unary::simd_map::<f32, _>(tensor, crate::simd::Sigmoid) {
+            Ok(out) => return out,
+            Err(tensor) => tensor,
+        };
         unary_op(tensor, sigmoid_f32, sigmoid_f64)
     }
 
@@ -375,14 +380,36 @@ fn softmax_row_f32_simd<S: macerator::Simd>(input: &[f32], output: &mut [f32]) {
     }
 
     // Pass 2: compute exp(x - max), store in output, accumulate sum.
-    // Scalar exp (no SIMD exp in macerator). This pass is the one that
-    // actually does memory reads + writes on the whole row, so scalar
-    // here still lands us at memory bandwidth.
-    let mut sum = 0.0f32;
-    for idx in 0..len {
-        let e = (input[idx] - max_val).exp();
-        output[idx] = e;
-        sum += e;
+    // The tail runs through the same SIMD exp in a padded buffer, so every
+    // element of the row is computed the same way.
+    let max_vec = max_val.splat::<S>();
+    let mut sum_vec = 0.0f32.splat::<S>();
+    let mut i = 0;
+    while i < simd_len {
+        unsafe {
+            let x = vload_unaligned::<S, _>(input.as_ptr().add(i));
+            let e = crate::simd::exp_f32::<S>(x - max_vec);
+            vstore_unaligned::<S, _>(output.as_mut_ptr().add(i), e);
+            sum_vec += e;
+        }
+        i += lanes;
+    }
+    let mut sum = sum_vec.reduce_add();
+    let tail = len - simd_len;
+    if tail > 0 {
+        let mut buf = [0.0f32; crate::simd::MAX_LANES];
+        assert!(
+            lanes <= buf.len(),
+            "SIMD f32 lane count {lanes} exceeds the buffer"
+        );
+        buf[..tail].copy_from_slice(&input[simd_len..]);
+        // SAFETY: the assertion above keeps one vector within `buf`.
+        unsafe {
+            let x = vload_unaligned::<S, _>(buf.as_ptr());
+            vstore_unaligned::<S, _>(buf.as_mut_ptr(), crate::simd::exp_f32::<S>(x - max_vec));
+        }
+        output[simd_len..].copy_from_slice(&buf[..tail]);
+        sum += buf[..tail].iter().sum::<f32>();
     }
 
     // Pass 3: normalize.

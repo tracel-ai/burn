@@ -157,12 +157,54 @@ where
     )
 }
 
+/// Runs a SIMD `op` over a contiguous tensor of dtype `E`: in place when the
+/// storage is unique and starts at offset 0, otherwise in one pass into a new
+/// buffer. Other dtypes and strided tensors are handed back as `Err`.
+#[cfg(feature = "simd")]
+pub(crate) fn simd_map<E, O>(mut tensor: FlexTensor, op: O) -> Result<FlexTensor, FlexTensor>
+where
+    E: burn_backend::Element + bytemuck::Pod + macerator::Scalar,
+    O: crate::simd::LaneOp<E>,
+{
+    if tensor.dtype() == E::dtype()
+        && tensor.is_unique()
+        && let Some((0, end)) = tensor.layout().contiguous_offsets()
+    {
+        crate::simd::map_inplace(&mut tensor.storage_mut::<E>()[..end], op);
+        return Ok(tensor);
+    }
+    let Some(src) = tensor.as_slice::<E>() else {
+        return Err(tensor);
+    };
+    let out = crate::simd::map_to_vec(src, op);
+    Ok(FlexTensor::new(
+        Bytes::from_elems(out),
+        Layout::contiguous(tensor.layout().shape().clone()),
+        E::dtype(),
+    ))
+}
+
+/// SIMD rounding for f32 and f64; other dtypes and strided tensors are
+/// handed back as `Err`.
+#[cfg(feature = "simd")]
+fn round_simd<O>(tensor: FlexTensor, op: O) -> Result<FlexTensor, FlexTensor>
+where
+    O: crate::simd::LaneOp<f32> + crate::simd::LaneOp<f64>,
+{
+    simd_map::<f32, _>(tensor, op).or_else(|tensor| simd_map::<f64, _>(tensor, op))
+}
+
 // ============================================================================
 // Specific unary operations
 // ============================================================================
 
 /// Exponential: e^x
 pub fn exp(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Exp) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.exp(), |x| x.exp())
 }
 
@@ -291,51 +333,41 @@ pub fn atanh(tensor: FlexTensor) -> FlexTensor {
 
 /// Round to nearest integer (ties to even / banker's rounding)
 pub fn round(tensor: FlexTensor) -> FlexTensor {
-    unary_op(tensor, round_ties_even_f32, round_ties_even_f64)
-}
-
-fn round_ties_even_f32(x: f32) -> f32 {
-    round_ties_even(x)
-}
-
-fn round_ties_even_f64(x: f64) -> f64 {
-    round_ties_even(x)
-}
-
-/// Round to nearest integer, ties to even (banker's rounding).
-///
-/// `num_traits::Float::round` rounds ties away from zero. This corrects
-/// the halfway case to round to the nearest even integer instead.
-///
-/// Safety of the `to_i64` path: for f32, values with magnitude >= 2^23
-/// have no fractional bits, so `(x - r).abs()` is always 0.0 (never 0.5).
-/// For f64, the threshold is 2^52. The halfway check therefore only
-/// triggers for values well within i64 range.
-fn round_ties_even<F: num_traits::Float + num_traits::ToPrimitive>(x: F) -> F {
-    let r = x.round();
-    if (x - r).abs() == F::from(0.5).unwrap() {
-        // Ties: round to even by checking if r is odd
-        match r.to_i64() {
-            Some(ri) if ri % 2 != 0 => r - x.signum(),
-            _ => r,
-        }
-    } else {
-        r
-    }
+    #[cfg(feature = "simd")]
+    let tensor = match round_simd(tensor, crate::simd::RoundTiesEven) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
+    unary_op(tensor, libm::roundevenf, libm::roundeven)
 }
 
 /// Floor (round down)
 pub fn floor(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match round_simd(tensor, crate::simd::Floor) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.floor(), |x| x.floor())
 }
 
 /// Ceiling (round up)
 pub fn ceil(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match round_simd(tensor, crate::simd::Ceil) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.ceil(), |x| x.ceil())
 }
 
 /// Truncate (round towards zero)
 pub fn trunc(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match round_simd(tensor, crate::simd::Trunc) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.trunc(), |x| x.trunc())
 }
 
@@ -365,14 +397,13 @@ pub fn erf_f64(x: f64) -> f64 {
 }
 
 // Tests kept here probe flex-internal unary helpers that don't flow through
-// the generic FloatTensorOps API. Specifically, the manual round_ties_even
-// implementation has a subtle to_i64 conversion path that must not trip on
-// values outside i64 range. Plain elementwise unary smokes (exp, log, sqrt,
+// the generic FloatTensorOps API, and the agreement of the SIMD and scalar
+// paths for the same op. Plain elementwise unary smokes (exp, log, sqrt,
 // abs, sin/cos, tanh, round/floor/ceil, erf) and their stride-through-op
 // variants (transposed/flipped/narrowed/sliced) have been migrated to
 // burn-backend-tests so they run against every backend. When adding new
 // tests, keep them here only if they probe flex-internal helpers
-// (erf_f32/f64, round_ties_even); otherwise add them to
+// (erf_f32/f64) or that path agreement; otherwise add them to
 // crates/burn-backend-tests/tests/tensor/float/ops/.
 #[cfg(test)]
 #[allow(clippy::excessive_precision)]
@@ -392,6 +423,23 @@ mod tests {
         for (a, b) in out.iter().zip(data.iter()) {
             assert_eq!(a.to_bits(), b.to_bits());
         }
+    }
+
+    /// Contiguous f32 takes the SIMD path and a transposed view the scalar
+    /// one; both must give std's bits, including -0.0 for -0.5.
+    #[test]
+    fn round_ties_even_sign_of_zero_matches_on_every_layout() {
+        let data = vec![-0.5f32, -2.5, 0.5, -1.5];
+        let tensor = FlexTensor::from_data(TensorData::new(data.clone(), [2, 2]));
+        let bits = |t: FlexTensor| -> Vec<u32> {
+            let out: Vec<f32> = t.into_data().try_into_vec().unwrap();
+            out.iter().map(|x| x.to_bits()).collect()
+        };
+        let expected: Vec<u32> = data.iter().map(|x| x.round_ties_even().to_bits()).collect();
+
+        assert_eq!(bits(super::round(tensor.clone())), expected, "contiguous");
+        let transposed = super::round(tensor.transpose(0, 1)).transpose(0, 1);
+        assert_eq!(bits(transposed), expected, "transposed");
     }
 
     // The previous A&S 7.1.26 erf implementation had ~1.5e-7 max absolute

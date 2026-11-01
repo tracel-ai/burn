@@ -374,6 +374,25 @@ mod tests {
         }
     }
 
+    #[test]
+    fn data_len_matches_default_quantized_values() {
+        for values in [3usize, 4, 5] {
+            let data = TensorData::quantized(
+                vec![0i8; values],
+                [values],
+                QuantScheme::default(),
+                &[0.5],
+                None,
+            );
+
+            assert_eq!(
+                data_len(data.dtype(), data.shape()),
+                data.bytes().len(),
+                "predicted size disagrees for {values} default-scheme values"
+            );
+        }
+    }
+
     /// Packed quantized storage divides only the packed dimension, so a non-divisible extent
     /// pads once per line rather than once over the flattened tensor, as `QuantizedBytes::new`
     /// lays it out.

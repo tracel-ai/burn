@@ -4,8 +4,9 @@ use crate::{
     stream::{Context, OrderedExecution},
 };
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError, MemoryPoolUsage,
-    ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport, profile_with_tokens,
+    Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, MemoryPoolUsage, ProfileDuration, ProfileOptions,
+    ProfileToken, SlicedPoolReport, profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -116,6 +117,52 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         let _ = client.run(move || B::profile_abandon(&device, token));
     }
 
+    /// Opened after the calling stream's queue drains, so what was registered
+    /// before runs under the mode it was registered in.
+    fn execution_mode_open(
+        device: &Self::Device,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::execution_mode_open(&device, mode))
+            .map_err(server_error)?
+    }
+
+    /// Read where the backend counts, without a hop through the queue: the
+    /// queue holds launches, not their statistics.
+    fn execution_mode_statistics(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::execution_mode_statistics(device, token)
+    }
+
+    /// Closed after the queue of the stream the mode was opened on drains, so
+    /// what was registered there under the mode runs under it, whichever
+    /// thread closes it. A drain that fails still closes the mode, here,
+    /// rather than leave it discarding every later launch.
+    fn execution_mode_close(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let inner = device.clone();
+        let drained = token
+            .opened_on
+            .executes(|| client.try_sync(move || B::execution_mode_close(&inner, token)));
+        match drained {
+            Ok(closed) => closed,
+            Err(err) => {
+                let closed = token
+                    .opened_on
+                    .executes(|| B::execution_mode_close(device, token));
+                closed.and(Err(server_error(err)))
+            }
+        }
+    }
+
     fn ad_enabled(_device: &Self::Device) -> bool {
         false
     }
@@ -174,6 +221,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         let device = device.clone();
 
         client.sync(move || B::memory_pool_usage(&device))
+    }
+
+    fn memory_capacity(device: &Self::Device) -> Option<u64> {
+        B::memory_capacity(device)
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
@@ -397,10 +448,6 @@ pub enum OperationRan {
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation fuser](crate::OperationFuser).
-///
-/// Collective operations on the remote/router interpreter path are driven through the
-/// [`DistributedOps`](burn_backend::distributed::DistributedOps) supertrait of [`Backend`], which
-/// every fusion backend satisfies unconditionally.
 pub trait FusionBackend:
     BackendIr<Handle = FusionHandle<Self::FusionRuntime>, Device = FusionDevice<Self::FusionRuntime>>
 {

@@ -1,6 +1,9 @@
 use crate::Initializer;
 use alloc::format;
 
+use crate::modules::bounds::{self, Windows};
+use burn::instrument::{Bounds, compute};
+use burn::tensor::module::conv_output_size;
 use burn_core as burn;
 
 use crate::PaddingConfig2d;
@@ -139,6 +142,37 @@ impl ModuleDisplay for Conv2d {
 }
 
 impl Conv2d {
+    /// The options the convolution runs with, its padding resolved against `input`'s size.
+    fn options(&self, input: &Tensor<4>) -> ConvOptions<2> {
+        let [_batch_size, _channels_in, height_in, width_in] = input.dims();
+        let effective_kernel =
+            core::array::from_fn(|i| (self.kernel_size[i] - 1) * self.dilation[i] + 1);
+
+        // Calculate padding as pairs - handles Same, Valid, and Explicit uniformly
+        let ((top, bottom), (left, right)) = self.padding.calculate_padding_2d_pairs(
+            height_in,
+            width_in,
+            &effective_kernel,
+            &self.stride,
+        );
+
+        ConvOptions::new_with_padding(
+            self.stride,
+            [(top, bottom), (left, right)],
+            self.dilation,
+            self.groups,
+        )
+    }
+
+    /// None where the convolution cannot size its output, which it rejects.
+    fn bounds(&self, input: &Tensor<4>) -> Option<Bounds> {
+        let options = self.options(input);
+        let weight = self.weight.val();
+        let output_size = conv_output_size(bounds::spatial(input), &weight.shape(), &options)?;
+        let windowing = Windows::convolution(self.kernel_size, &options).over(input, output_size);
+        Some(windowing.convolution(input, &weight, &self.bias))
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// See [conv2d](burn::tensor::module::conv2d) for more information.
@@ -160,24 +194,9 @@ impl Conv2d {
     ///
     /// println!("{:?}", y.dims()); // [1, 8, 26, 26]
     /// ```
+    #[compute(bounds = Self::bounds)]
     pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
-        let [_batch_size, _channels_in, height_in, width_in] = input.dims();
-
-        // Calculate padding as pairs - handles Same, Valid, and Explicit uniformly
-        let ((top, bottom), (left, right)) = self.padding.calculate_padding_2d_pairs(
-            height_in,
-            width_in,
-            &self.kernel_size,
-            &self.stride,
-        );
-
-        let options = ConvOptions::new_with_padding(
-            self.stride,
-            [(top, bottom), (left, right)],
-            self.dilation,
-            self.groups,
-        );
-
+        let options = self.options(&input);
         conv2d(
             input,
             self.weight.val(),
@@ -194,6 +213,59 @@ mod tests {
     use super::*;
     use burn::tensor::TensorData;
     type FT = f32;
+
+    /// A kernel narrower than its stride steps over input positions, which its floor does not
+    /// read.
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_strided_convolution_reads_the_positions_its_windows_cover() {
+        let device = Default::default();
+        let conv = Conv2dConfig::new([1, 1], [1, 1])
+            .with_stride([2, 2])
+            .with_bias(false)
+            .init(&device);
+        let input = Tensor::<4>::zeros([1, 1, 4, 4], &device);
+
+        let recorded = crate::recording::recorded(|| {
+            conv.forward(input);
+        });
+
+        // A 2x2 output, each window one position of the 4x4 input.
+        assert_eq!(
+            recorded.declared("conv2d").map(|bounds| bounds.read),
+            Some((2 * 2 + 1) * 4)
+        );
+    }
+
+    /// A grouped convolution multiply-adds each output with one group's kernel, and writes the
+    /// output its stride sizes.
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_grouped_convolution_declares_its_floor() {
+        let device = Default::default();
+        let conv = Conv2dConfig::new([4, 6], [3, 2])
+            .with_stride([2, 1])
+            .with_groups(2)
+            .init(&device);
+        let input = Tensor::<4>::zeros([2, 4, 7, 5], &device);
+        let mut output = None;
+
+        let recorded = crate::recording::recorded(|| {
+            output = Some(conv.forward(input));
+        });
+
+        // The weight is `[6, 4 / 2, 3, 2]` and the output `[2, 6, 3, 4]`.
+        let outputs = 2 * 6 * 3 * 4;
+        assert_eq!(recorded.lines(), ["conv2d"]);
+        assert_eq!(
+            recorded.declared("conv2d"),
+            Some(Bounds {
+                read: (2 * 4 * 7 * 5 + 6 * 2 * 3 * 2 + 6) * 4,
+                write: burn::instrument::tensor_bytes(&output.unwrap()),
+                flops: 2 * outputs * 2 * 3 * 2,
+            })
+        );
+    }
 
     #[test]
     fn initializer_default() {
@@ -281,6 +353,20 @@ mod tests {
 
         // Same padding should preserve spatial dimensions
         assert_eq!(output.dims(), [1, 4, 5, 5]);
+    }
+
+    #[test]
+    fn same_with_dilation_uses_effective_kernel() {
+        let device = Default::default();
+        let conv = Conv2dConfig::new([1, 1], [3, 3])
+            .with_padding(PaddingConfig2d::Same)
+            .with_dilation([2, 2])
+            .with_bias(false)
+            .init(&device);
+
+        let output = conv.forward(Tensor::<4>::zeros([1, 1, 8, 9], &device));
+
+        assert_eq!(output.dims(), [1, 1, 8, 9]);
     }
 
     #[test]

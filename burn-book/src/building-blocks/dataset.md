@@ -29,8 +29,7 @@ in-bounds item. Accessing an index at or beyond `len()` must panic, as with inde
 `DatasetError::new(error)` wraps an error when a default-error implementation needs to propagate it.
 
 Dataset iteration yields `Result<I, E>` for each index. The iterator advances past a failed item,
-so callers can choose whether to stop or continue. Only exhaustion ends the iterator. In 0.21,
-`get` returned `Option<I>`; see [Migrating to Burn 0.22](../migrating-to-0.22.md#datasets-and-dataloaders).
+so callers can choose whether to stop or continue. Only exhaustion ends the iterator.
 
 The dataset trait assumes a fixed-length set of items that can be randomly accessed in constant
 time. This is a major difference from datasets that use Apache Arrow underneath to improve streaming
@@ -243,6 +242,10 @@ fn into_u8_pixels(item: ImageDatasetItem) -> Vec<u8> {
 // ...
 // root/cat/cat1.png
 let dataset = ImageFolderDataset::new_classification("path/to/dataset/root").unwrap();
+
+// Labels are assigned to the class folders in sorted order. The name of a label can be looked
+// up, for example to display a prediction.
+assert_eq!(dataset.class_name(0), Some("cat"));
 ```
 
 ```rust, ignore
@@ -348,6 +351,21 @@ step to prepare the batch data, as is done [in the basic workflow guide](../basi
 The process is illustrated in the figure below for the MNIST dataset.
 
 <img title="Burn Data Loading Pipeline" alt="Burn Data Loading Pipeline" src="./dataset.png">
+
+The workers keep building batches while the model processes earlier ones, and queue them until they
+are read. By default the queue holds two batches per worker; `DataLoaderBuilder::prefetch(n)` sets
+its total capacity instead, shared by all workers. With four workers, the default queues eight
+batches, while `prefetch(2)` queues two. A batcher that creates its tensors on a GPU keeps every
+queued batch in device memory, plus one per worker waiting to be sent, so lower the queue when
+memory is tight and raise it when batches take long to build.
+
+```rust,ignore
+let dataloader = DataLoaderBuilder::new(batcher)
+    .batch_size(32)
+    .num_workers(4)
+    .prefetch(2)
+    .build(dataset);
+```
 
 Dataloader iterators yield `Result<Batch, DatasetError>`. Handle each result before using the batch.
 For example, this helper stops at the first retrieval error and returns it to the caller:

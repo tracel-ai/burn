@@ -4,8 +4,8 @@ Saving your trained machine learning model is quite easy. As mentioned in the
 [Record](./building-blocks/record.md) section, a module's parameters are captured in a
 `ModuleRecord` and serialized to the [burnpack](./building-blocks/record.md) format (`.bpk`).
 
-For checkpoints saved with an older Burn release, see
-[Migrating checkpoints](./migrating-to-0.22.md#migrating-checkpoints).
+For checkpoints saved before Burn 0.22, see
+[Migrating checkpoints](https://github.com/tracel-ai/burn/blob/release/0.22/burn-book/src/migrating-to-0.22.md#migrating-checkpoints).
 
 ```rust, ignore
 use burn::store::ModuleRecord;

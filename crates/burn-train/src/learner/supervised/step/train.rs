@@ -210,19 +210,12 @@ impl<M: LearnerModel> MultiDevicesTrainStep<M> {
     ) -> Result<StepOutput<TrainingModelOutput<M>>, MultiDeviceStepError> {
         let mut num_send = 0;
 
-        let mut items_total = 0;
-        let mut items_processed = 0;
-        let unit: Option<String> = Some("items".to_string());
-
         for (i, worker) in self.workers.iter().enumerate() {
             let dataloader = &mut dataloaders[i];
             match dataloader.next() {
                 Some(Ok(item)) => {
                     worker.register(item, model);
                     num_send += 1;
-                    let progress = dataloader.progress();
-                    items_total += progress.items_total;
-                    items_processed += progress.items_processed;
                 }
                 Some(Err(err)) => return Err(MultiDeviceStepError::Dataset(err)),
                 None => {}
@@ -246,7 +239,9 @@ impl<M: LearnerModel> MultiDevicesTrainStep<M> {
         if !failures.is_empty() {
             return Err(MultiDeviceStepError::Workers(failures));
         }
-        Ok((outputs, Progress::new(items_processed, items_total, unit)))
+        // Exhausted loaders still contribute their final counts and expected totals.
+        let progress = Progress::aggregate(dataloaders.iter().map(|loader| loader.progress()));
+        Ok((outputs, progress))
     }
 }
 

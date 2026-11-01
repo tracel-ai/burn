@@ -79,7 +79,9 @@ impl FlexTensor {
                 // Buffer exactly matches logical size; try zero-copy unwrap
                 match Arc::try_unwrap(self.data) {
                     Ok(bytes) => bytes,
-                    Err(arc) => Bytes::from_bytes_vec((*arc)[..expected_bytes].to_vec()),
+                    // Preserve allocation alignment so typed consumers can reuse
+                    // this copy instead of copying a second time from Vec<u8>.
+                    Err(arc) => (*arc).clone(),
                 }
             } else {
                 // Contiguous at offset 0 but buffer is oversized (e.g., narrowed view).
@@ -946,6 +948,17 @@ pub(crate) fn dtype_size(dtype: DType) -> usize {
 mod tests {
     use super::*;
     use alloc::vec;
+
+    #[test]
+    fn test_shared_export_preserves_typed_allocation() {
+        let tensor = FlexTensor::from_data(TensorData::from([1.0f64, 2.0, 3.0]));
+        let data = tensor.clone().into_data();
+        let ptr = data.bytes().as_ptr();
+        let values = data.try_into_vec::<f64>().unwrap();
+        assert_eq!(values.as_ptr().cast::<u8>(), ptr);
+        assert_eq!(values, vec![1.0, 2.0, 3.0]);
+        assert_eq!(tensor.storage::<f64>(), &[1.0, 2.0, 3.0]);
+    }
 
     #[test]
     fn test_from_data_roundtrip() {

@@ -29,6 +29,14 @@ pub struct Peaks {
     pub write_bytes_per_s: Option<f64>,
     /// The arithmetic peak, where the device has one.
     pub flops: Option<ComputePeak>,
+    /// Seconds one kernel launch takes on the device, launched back to back: the least any
+    /// kernel costs, whatever it moves.
+    ///
+    /// The bandwidth and arithmetic ceilings say nothing about a kernel that moves a few
+    /// kilobytes. On an RTX PRO 6000 a norm over one token's hidden state would take 0.02 µs
+    /// at the read ceiling, and a launch takes 2.5. Measured so a reader can hold such a
+    /// kernel to it; no floor in this crate's reports charges it.
+    pub launch_seconds: Option<f64>,
 }
 
 /// An arithmetic peak and the dtype it was measured at: the tensor-core kernel for 16-bit floats,
@@ -195,6 +203,13 @@ impl Peaks {
                 .into_iter()
                 .find_map(|key| measured(device, key))
                 .map(|per_s| ComputePeak { per_s, dtype }),
+            launch_seconds: measured(
+                device,
+                ThroughputKey {
+                    mode: ThroughputMode::Launch,
+                },
+            )
+            .map(|per_s| 1.0 / per_s),
         }
     }
 }
@@ -301,6 +316,7 @@ mod tests {
     #[test]
     fn an_impossible_write_ceiling_takes_both_directions_with_it() {
         let broken = Peaks {
+            launch_seconds: None,
             copy_bytes_per_s: Some(156.0e9),
             read_bytes_per_s: Some(227.0e9),
             write_bytes_per_s: Some(281.0e9),
@@ -384,6 +400,7 @@ mod tests {
     #[test]
     fn a_rejected_pair_is_not_also_reported_as_inconsistent() {
         let broken = Peaks {
+            launch_seconds: None,
             copy_bytes_per_s: Some(156.0e9),
             read_bytes_per_s: Some(227.0e9),
             write_bytes_per_s: Some(281.0e9),
@@ -405,6 +422,7 @@ mod tests {
     #[test]
     fn findings_name_what_was_dropped_before_what_was_doubted() {
         let odd = Peaks {
+            launch_seconds: None,
             copy_bytes_per_s: Some(140.0e9),
             read_bytes_per_s: Some(234.0e9),
             write_bytes_per_s: Some(212.0e9),
@@ -428,6 +446,7 @@ mod tests {
     #[test]
     fn a_working_probe_set_reports_nothing() {
         let measured = Peaks {
+            launch_seconds: None,
             copy_bytes_per_s: Some(161.0e9),
             read_bytes_per_s: Some(199.0e9),
             write_bytes_per_s: Some(137.0e9),

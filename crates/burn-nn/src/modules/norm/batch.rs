@@ -1,6 +1,7 @@
 use crate::Initializer;
 use burn_core as burn;
 
+use burn::instrument::{self, Bounds, compute};
 use burn::module::Flag;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::{Device, Tensor, assert_shape};
@@ -102,6 +103,35 @@ impl BatchNormConfig {
 }
 
 impl BatchNorm {
+    /// The floor for a normalization alone: read the input, the scale and shift and the running
+    /// statistics once, write the output once, and the running statistics back when training
+    /// updates them. The batch statistics are a pass over the same bytes, so no arithmetic is
+    /// declared.
+    fn bounds<const D: usize>(&self, input: &Tensor<D>) -> Bounds {
+        // The running mean and variance are per channel, as wide as the scale.
+        let per_channel = instrument::tensor_bytes(&self.gamma.val());
+        let statistics = 2 * per_channel;
+        let updated = match self.trains(input) {
+            true => statistics,
+            false => 0,
+        };
+        Bounds {
+            read: instrument::tensor_bytes(input)
+                + per_channel
+                + instrument::tensor_bytes(&self.beta.val())
+                + statistics,
+            write: instrument::tensor_bytes(input) + updated,
+            flops: 0,
+        }
+    }
+
+    /// Whether a pass over `input` trains this layer, which takes the batch statistics and
+    /// updates the running ones. Selected by the device *and* the layer state: the device alone
+    /// says a backward is possible, not that this layer takes part in one.
+    fn trains<const D: usize>(&self, input: &Tensor<D>) -> bool {
+        input.device().is_autodiff() && self.training.is_enabled()
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// See [`BatchNorm`] for more information.
@@ -114,6 +144,7 @@ impl BatchNorm {
     /// # Panics
     ///
     /// Panics if the input has rank < 2 or its second axis is not `num_features`.
+    #[compute(bounds = Self::bounds)]
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         let [num_features] = self.gamma.shape().dims();
         assert_shape!(input, [_, num_features, ..]);
@@ -130,7 +161,7 @@ impl BatchNorm {
         // `running_mean` and `running_var`, mutating state the caller has said it does not want
         // trained. The identified flag lets a structural group select this behavior without
         // inferring the state of the whole layer from one tensor parameter.
-        match input.device().is_autodiff() && self.training.is_enabled() {
+        match self.trains(&input) {
             true => self.forward_train(input),
             false => self.forward_inference(input),
         }

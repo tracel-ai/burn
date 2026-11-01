@@ -53,6 +53,7 @@ wgpu = ["cubecl-backend", "burn-core/wgpu", "burn-cubecl/wgpu"]
 vulkan = ["cubecl-backend", "burn-core/vulkan", "burn-cubecl/vulkan"]
 webgpu = ["cubecl-backend", "burn-core/webgpu", "burn-cubecl/webgpu"]
 metal = ["cubecl-backend", "burn-core/metal", "burn-cubecl/metal"]
+metal-native = ["cubecl-backend", "burn-core/metal-native", "burn-cubecl/metal-native"]
 cpu = ["cubecl-backend", "burn-core/cpu", "burn-cubecl/cpu"]
 flex = ["burn-core/flex"]
 

@@ -17,6 +17,13 @@ ignore = [
     # `webpki-roots` 0.26.11 (tokenizers → hf-hub → ureq) only re-exports 1.x roots.
     # Cargo.lock pins the patched 1.0.10; remove this ignore when the advisory accounts for the wrapper.
     "RUSTSEC-2026-0381",
+    # Temporary until Polars supports zstd >=0.14.3 / zstd-safe >=8.2.0.
+    # Our examples do not read Parquet or reuse zstd stream contexts.
+    "RUSTSEC-2026-0391",
+    # The affected zstd-safe `seekable` feature is not enabled.
+    "RUSTSEC-2026-0398",
+    # Polars uses the unaffected read decoder, not the affected write decoder.
+    "RUSTSEC-2026-0403",
 ] # advisory IDs to ignore e.g. ["RUSTSEC-2019-0001", ...]
 informational_warnings = [
     "unmaintained",

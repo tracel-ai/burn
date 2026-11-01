@@ -14,6 +14,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::DType;
+use burn_backend::ops::{CoordinateTransformMode, InterpolateMode, InterpolateOptions};
 use burn_std::{Bytes, Shape, bf16, f16};
 use num_traits::Float;
 
@@ -26,8 +27,12 @@ use crate::{FlexTensor, Layout};
 /// Generates an interpolation forward typed dispatcher.
 macro_rules! interpolate_typed {
     ($fn_name:ident, $impl_fn:ident, $T:ty) => {
-        pub fn $fn_name(x: FlexTensor, output_size: [usize; 2], align_corners: bool) -> FlexTensor {
-            $impl_fn::<$T>(x, output_size, align_corners)
+        pub fn $fn_name(
+            x: FlexTensor,
+            output_size: [usize; 2],
+            options: &InterpolateOptions,
+        ) -> FlexTensor {
+            $impl_fn::<$T>(x, output_size, options)
         }
     };
 }
@@ -35,9 +40,13 @@ macro_rules! interpolate_typed {
 /// Generates an interpolation bf16 forward wrapper via f32 conversion.
 macro_rules! interpolate_bf16 {
     ($bf16_fn:ident, $f32_fn:ident) => {
-        pub fn $bf16_fn(x: FlexTensor, output_size: [usize; 2], align_corners: bool) -> FlexTensor {
+        pub fn $bf16_fn(
+            x: FlexTensor,
+            output_size: [usize; 2],
+            options: &InterpolateOptions,
+        ) -> FlexTensor {
             let x_f32 = convert_bf16_to_f32(&x);
-            let result_f32 = $f32_fn(x_f32, output_size, align_corners);
+            let result_f32 = $f32_fn(x_f32, output_size, options);
             convert_f32_to_bf16(&result_f32)
         }
     };
@@ -50,9 +59,9 @@ macro_rules! interpolate_backward_typed {
             x: FlexTensor,
             grad: FlexTensor,
             output_size: [usize; 2],
-            align_corners: bool,
+            options: &InterpolateOptions,
         ) -> FlexTensor {
-            $impl_fn::<$T>(x, grad, output_size, align_corners)
+            $impl_fn::<$T>(x, grad, output_size, options)
         }
     };
 }
@@ -64,11 +73,11 @@ macro_rules! interpolate_backward_bf16 {
             x: FlexTensor,
             grad: FlexTensor,
             output_size: [usize; 2],
-            align_corners: bool,
+            options: &InterpolateOptions,
         ) -> FlexTensor {
             let x_f32 = convert_bf16_to_f32(&x);
             let grad_f32 = convert_bf16_to_f32(&grad);
-            let result_f32 = $f32_fn(x_f32, grad_f32, output_size, align_corners);
+            let result_f32 = $f32_fn(x_f32, grad_f32, output_size, options);
             convert_f32_to_bf16(&result_f32)
         }
     };
@@ -166,44 +175,75 @@ interpolate_backward_bf16!(
 // Generic implementations with rayon parallelism
 // ============================================================================
 
-/// Compute coordinate mapping parameters.
-///
-/// align_corners=true:  ratio = (in_size - 1) / (out_size - 1), coord = out * ratio
-/// align_corners=false: ratio = in_size / out_size, coord = (out + 0.5) * ratio - 0.5
-fn coord_ratio(in_size: usize, out_size: usize, align_corners: bool) -> f64 {
-    if align_corners {
-        (in_size as f64 - 1.0) / (out_size.max(1) - 1).max(1) as f64
-    } else {
-        in_size as f64 / out_size as f64
+/// Map an output coordinate to input coordinate for a given spatial axis.
+pub fn map_coordinate(
+    out_coord: usize,
+    in_size: usize,
+    out_size: usize,
+    scale_factor: Option<f32>,
+    mode: CoordinateTransformMode,
+) -> f64 {
+    let s: f64 = match scale_factor {
+        Some(s) => s as f64,
+        None => out_size as f64 / in_size as f64,
+    };
+    let l_in = in_size as f64;
+    let l_out = out_size as f64;
+    let x_out = out_coord as f64;
+
+    match mode {
+        CoordinateTransformMode::HalfPixel => match scale_factor {
+            Some(_) => (x_out + 0.5) / s - 0.5,
+            None => (x_out + 0.5) * l_in / l_out - 0.5,
+        },
+        CoordinateTransformMode::AlignCorners => {
+            if out_size == 1 {
+                0.0
+            } else {
+                x_out * (l_in - 1.0) / (l_out - 1.0)
+            }
+        }
     }
 }
 
-/// Map an output coordinate to input coordinate.
-#[inline]
-fn map_coord(out_coord: usize, ratio: f64, align_corners: bool) -> f64 {
-    if align_corners {
-        out_coord as f64 * ratio
-    } else {
-        (out_coord as f64 + 0.5) * ratio - 0.5
-    }
-}
-
-/// Precompute nearest-neighbor source index lookup table.
-/// Returns a Vec where `map[out_coord]` is the corresponding input coordinate.
-fn nearest_index_map(in_size: usize, out_size: usize) -> Vec<usize> {
-    let ratio = in_size as f64 / out_size as f64;
-    let max = in_size - 1;
+fn nearest_axis_map(
+    in_size: usize,
+    out_size: usize,
+    scale_factor: Option<f32>,
+    mode: InterpolateMode,
+) -> Vec<usize> {
     (0..out_size)
-        .map(|o| ((o as f64 * ratio).floor() as usize).min(max))
+        .map(|out_coord| {
+            let idx = match mode {
+                InterpolateMode::Nearest => {
+                    let x_in = match scale_factor {
+                        Some(scale) => out_coord as f64 / f64::from(scale),
+                        None => out_coord as f64 * in_size as f64 / out_size as f64,
+                    };
+                    x_in.floor() as isize
+                }
+                InterpolateMode::NearestExact => {
+                    let x_in = map_coordinate(
+                        out_coord,
+                        in_size,
+                        out_size,
+                        scale_factor,
+                        CoordinateTransformMode::HalfPixel,
+                    );
+                    (x_in + 0.5).floor() as isize
+                }
+                _ => unreachable!("nearest sampling requires a nearest interpolation mode"),
+            };
+            idx.clamp(0, in_size as isize - 1) as usize
+        })
         .collect()
 }
 
 /// Nearest neighbor interpolation.
-/// Maps output coordinates to input using floor(ratio * out_coord) via precomputed lookup tables.
 fn interpolate_nearest_impl<T>(
     x: FlexTensor,
     output_size: [usize; 2],
-    _align_corners: bool,
+    options: &InterpolateOptions,
 ) -> FlexTensor
 where
     T: Float + burn_backend::Element + bytemuck::Pod + Send + Sync,
@@ -222,16 +262,17 @@ where
     );
     let [out_height, out_width] = output_size;
 
-    let y_map = nearest_index_map(in_height, out_height);
-    let x_map = nearest_index_map(in_width, out_width);
+    let scale_y = options.scale_factor.map(|s| s[0]);
+    let scale_x = options.scale_factor.map(|s| s[1]);
+    let y_map = nearest_axis_map(in_height, out_height, scale_y, options.mode);
+    let x_map = nearest_axis_map(in_width, out_width, scale_x, options.mode);
 
     let out_numel = batch * channels * out_height * out_width;
     let in_hw = in_height * in_width;
     let out_hw = out_height * out_width;
 
-    // Per-plane nearest gather using precomputed index maps.
     #[inline]
-    fn gather_plane<T: Copy>(
+    fn gather_plane<T: Float + Copy>(
         input: &[T],
         in_base: usize,
         output: &mut [T],
@@ -241,8 +282,8 @@ where
         x_map: &[usize],
     ) {
         for (oh, &ih) in y_map.iter().enumerate() {
-            let in_row = in_base + ih * in_width;
             let out_row_start = oh * out_width;
+            let in_row = in_base + ih * in_width;
             for (ow, &iw) in x_map.iter().enumerate() {
                 output[out_row_start + ow] = input[in_row + iw];
             }
@@ -258,7 +299,6 @@ where
 
         let bc = batch * channels;
 
-        // Each (batch, channel) plane is independent, so parallelize across planes.
         #[cfg(feature = "rayon")]
         if out_numel >= super::PARALLEL_THRESHOLD {
             use rayon::prelude::*;
@@ -311,16 +351,46 @@ where
     )
 }
 
+#[derive(Clone, Copy)]
+struct BilinearTap {
+    low: usize,
+    high: usize,
+    weight: f64,
+}
+
+fn bilinear_axis_taps(
+    in_size: usize,
+    out_size: usize,
+    scale_factor: Option<f32>,
+    coord_mode: CoordinateTransformMode,
+) -> Vec<BilinearTap> {
+    (0..out_size)
+        .map(|out_coord| {
+            let x_in = map_coordinate(out_coord, in_size, out_size, scale_factor, coord_mode);
+
+            let low = (x_in.floor().max(0.0) as usize).min(in_size - 1);
+            let high = (low + 1).min(in_size - 1);
+            let weight = (x_in - low as f64).max(0.0);
+            BilinearTap { low, high, weight }
+        })
+        .collect()
+}
+
 /// Bilinear interpolation.
-/// Uses 4-point weighted average based on distance to neighbors.
 fn interpolate_bilinear_impl<T>(
     x: FlexTensor,
     output_size: [usize; 2],
-    align_corners: bool,
+    options: &InterpolateOptions,
 ) -> FlexTensor
 where
     T: Float + burn_backend::Element + bytemuck::Pod + Send + Sync,
 {
+    let InterpolateMode::Bilinear {
+        coordinate_transform,
+    } = options.mode
+    else {
+        unreachable!("bilinear sampling requires a bilinear interpolation mode");
+    };
     let x = x.to_contiguous();
     let input = x.storage::<T>();
     let shape = x.layout().shape();
@@ -335,12 +405,49 @@ where
     );
     let [out_height, out_width] = output_size;
 
-    let y_ratio = coord_ratio(in_height, out_height, align_corners);
-    let x_ratio = coord_ratio(in_width, out_width, align_corners);
+    let scale_y = options.scale_factor.map(|s| s[0]);
+    let scale_x = options.scale_factor.map(|s| s[1]);
+    let y_axis_taps = bilinear_axis_taps(in_height, out_height, scale_y, coordinate_transform);
+    let x_axis_taps = bilinear_axis_taps(in_width, out_width, scale_x, coordinate_transform);
 
     let out_numel = batch * channels * out_height * out_width;
     let in_hw = in_height * in_width;
     let out_hw = out_height * out_width;
+
+    #[inline]
+    fn bilinear_sample<T: Float + Copy>(
+        input: &[T],
+        in_base: usize,
+        in_width: usize,
+        y_tap: &BilinearTap,
+        x_tap: &BilinearTap,
+    ) -> T {
+        let (
+            BilinearTap {
+                low: y_low,
+                high: y_high,
+                weight: y_weight,
+            },
+            BilinearTap {
+                low: x_low,
+                high: x_high,
+                weight: x_weight,
+            },
+        ) = (y_tap, x_tap);
+
+        let p_a = input[in_base + y_low * in_width + x_low];
+        let p_b = input[in_base + y_low * in_width + x_high];
+        let p_c = input[in_base + y_high * in_width + x_low];
+        let p_d = input[in_base + y_high * in_width + x_high];
+
+        let one = T::one();
+        let xw = T::from(*x_weight).unwrap();
+        let yw = T::from(*y_weight).unwrap();
+        p_a * (one - xw) * (one - yw)
+            + p_b * xw * (one - yw)
+            + p_c * (one - xw) * yw
+            + p_d * xw * yw
+    }
 
     let output = {
         #[cfg(feature = "rayon")]
@@ -355,29 +462,9 @@ where
                     let in_base = b * channels * in_hw + c * in_hw;
                     let out_base = b * channels * out_hw + c * out_hw;
 
-                    for oh in 0..out_height {
-                        let y_in = map_coord(oh, y_ratio, align_corners);
-                        let y_low = (y_in.floor().max(0.0)) as usize;
-                        let y_high = (y_low + 1).min(in_height - 1);
-                        let y_weight = T::from((y_in - y_low as f64).max(0.0)).unwrap();
-
-                        for ow in 0..out_width {
-                            let x_in = map_coord(ow, x_ratio, align_corners);
-                            let x_low = (x_in.floor().max(0.0)) as usize;
-                            let x_high = (x_low + 1).min(in_width - 1);
-                            let x_weight = T::from((x_in - x_low as f64).max(0.0)).unwrap();
-
-                            let p_a = input[in_base + y_low * in_width + x_low];
-                            let p_b = input[in_base + y_low * in_width + x_high];
-                            let p_c = input[in_base + y_high * in_width + x_low];
-                            let p_d = input[in_base + y_high * in_width + x_high];
-
-                            let one = T::one();
-                            let result = p_a * (one - x_weight) * (one - y_weight)
-                                + p_b * x_weight * (one - y_weight)
-                                + p_c * (one - x_weight) * y_weight
-                                + p_d * x_weight * y_weight;
-
+                    for (oh, y_tap) in y_axis_taps.iter().enumerate() {
+                        for (ow, x_tap) in x_axis_taps.iter().enumerate() {
+                            let result = bilinear_sample(input, in_base, in_width, y_tap, x_tap);
                             let out_idx = out_base + oh * out_width + ow;
                             unsafe {
                                 out_ptr.write(out_idx, result);
@@ -397,29 +484,9 @@ where
                     let in_base = b * channels * in_hw + c * in_hw;
                     let out_base = b * channels * out_hw + c * out_hw;
 
-                    for oh in 0..out_height {
-                        let y_in = map_coord(oh, y_ratio, align_corners);
-                        let y_low = (y_in.floor().max(0.0)) as usize;
-                        let y_high = (y_low + 1).min(in_height - 1);
-                        let y_weight = T::from((y_in - y_low as f64).max(0.0)).unwrap();
-
-                        for ow in 0..out_width {
-                            let x_in = map_coord(ow, x_ratio, align_corners);
-                            let x_low = (x_in.floor().max(0.0)) as usize;
-                            let x_high = (x_low + 1).min(in_width - 1);
-                            let x_weight = T::from((x_in - x_low as f64).max(0.0)).unwrap();
-
-                            let p_a = input[in_base + y_low * in_width + x_low];
-                            let p_b = input[in_base + y_low * in_width + x_high];
-                            let p_c = input[in_base + y_high * in_width + x_low];
-                            let p_d = input[in_base + y_high * in_width + x_high];
-
-                            let one = T::one();
-                            let result = p_a * (one - x_weight) * (one - y_weight)
-                                + p_b * x_weight * (one - y_weight)
-                                + p_c * (one - x_weight) * y_weight
-                                + p_d * x_weight * y_weight;
-
+                    for (oh, y_tap) in y_axis_taps.iter().enumerate() {
+                        for (ow, x_tap) in x_axis_taps.iter().enumerate() {
+                            let result = bilinear_sample(input, in_base, in_width, y_tap, x_tap);
                             output[out_base + oh * out_width + ow] = result;
                         }
                     }
@@ -442,6 +509,7 @@ struct AxisTap {
     weight: f64,
 }
 
+#[derive(Clone, Copy)]
 struct AxisTaps<const N: usize> {
     taps: [AxisTap; N],
     len: usize,
@@ -458,13 +526,16 @@ impl<const N: usize> AxisTaps<N> {
 fn bicubic_axis_taps(
     in_size: usize,
     out_size: usize,
-    ratio: f64,
-    align_corners: bool,
-    a: f64,
+    scale_factor: Option<f32>,
+    coord_mode: CoordinateTransformMode,
+    a: f32,
 ) -> Vec<[AxisTap; 4]> {
+    let a = a as f64;
+
     (0..out_size)
         .map(|out_coord| {
-            let coord = map_coord(out_coord, ratio, align_corners);
+            let coord = map_coordinate(out_coord, in_size, out_size, scale_factor, coord_mode);
+
             let base = coord.floor() as isize;
             let mut taps = [AxisTap {
                 index: 0,
@@ -472,7 +543,8 @@ fn bicubic_axis_taps(
             }; 4];
 
             for (tap, offset) in taps.iter_mut().zip(-1..=2_isize) {
-                let index = (base + offset).clamp(0, in_size as isize - 1) as usize;
+                let raw_idx = base + offset;
+                let index = raw_idx.clamp(0, in_size as isize - 1) as usize;
                 let distance = (coord - base as f64) - offset as f64;
                 *tap = AxisTap {
                     index,
@@ -489,11 +561,18 @@ fn bicubic_axis_taps(
 fn interpolate_bicubic_impl<T>(
     x: FlexTensor,
     output_size: [usize; 2],
-    align_corners: bool,
+    options: &InterpolateOptions,
 ) -> FlexTensor
 where
     T: Float + burn_backend::Element + bytemuck::Pod + Send + Sync,
 {
+    let InterpolateMode::Bicubic {
+        coordinate_transform,
+        a,
+    } = options.mode
+    else {
+        unreachable!("bicubic sampling requires a bicubic interpolation mode");
+    };
     let x = x.to_contiguous();
     let input = x.storage::<T>();
     let shape = x.layout().shape();
@@ -508,17 +587,15 @@ where
     );
     let [out_height, out_width] = output_size;
 
-    let y_ratio = coord_ratio(in_height, out_height, align_corners);
-    let x_ratio = coord_ratio(in_width, out_width, align_corners);
+    let scale_y = options.scale_factor.map(|s| s[0]);
+    let scale_x = options.scale_factor.map(|s| s[1]);
+    let y_axis_taps = bicubic_axis_taps(in_height, out_height, scale_y, coordinate_transform, a);
+    let x_axis_taps = bicubic_axis_taps(in_width, out_width, scale_x, coordinate_transform, a);
 
     let out_numel = batch * channels * out_height * out_width;
     let in_hw = in_height * in_width;
     let out_hw = out_height * out_width;
-    let a = -0.75_f64;
-    let y_axis_taps = bicubic_axis_taps(in_height, out_height, y_ratio, align_corners, a);
-    let x_axis_taps = bicubic_axis_taps(in_width, out_width, x_ratio, align_corners, a);
 
-    /// Compute one Bicubic output pixel from precomputed axis taps.
     #[inline]
     fn bicubic_sample<T: Float + burn_backend::Element + bytemuck::Pod>(
         input: &[T],
@@ -530,7 +607,13 @@ where
         let mut sum = 0.0_f64;
 
         for y_tap in y_taps {
+            if y_tap.weight == 0.0 {
+                continue;
+            }
             for x_tap in x_taps {
+                if x_tap.weight == 0.0 {
+                    continue;
+                }
                 let value = input[in_base + y_tap.index * in_width + x_tap.index];
                 let value = <T as num_traits::ToPrimitive>::to_f64(&value).unwrap_or(0.0);
                 sum += value * x_tap.weight * y_tap.weight;
@@ -551,7 +634,6 @@ where
 
             // Adaptive parallelization: if few (batch, channel) pairs, parallelize rows too
             if num_bc_pairs < 8 {
-                // Fine-grained: parallelize over (batch, channel, row) for better CPU utilization
                 let total_rows = batch * channels * out_height;
                 (0..total_rows).into_par_iter().for_each(|id| {
                     let b = id / (channels * out_height);
@@ -562,32 +644,31 @@ where
                     let in_base = b * channels * in_hw + c * in_hw;
                     let out_base = b * channels * out_hw + c * out_hw;
 
-                    let y_taps = &y_axis_taps[oh];
+                    let y_tap = &y_axis_taps[oh];
 
-                    for (ow, x_taps) in x_axis_taps.iter().enumerate() {
+                    for (ow, x_tap) in x_axis_taps.iter().enumerate() {
                         let out_idx = out_base + oh * out_width + ow;
                         unsafe {
                             out_ptr.write(
                                 out_idx,
-                                bicubic_sample(input, in_base, in_width, y_taps, x_taps),
+                                bicubic_sample(input, in_base, in_width, y_tap, x_tap),
                             );
                         }
                     }
                 });
             } else {
-                // Coarse-grained: parallelize over (batch, channel) for cache efficiency
                 (0..batch).into_par_iter().for_each(|b| {
                     (0..channels).into_par_iter().for_each(|c| {
                         let in_base = b * channels * in_hw + c * in_hw;
                         let out_base = b * channels * out_hw + c * out_hw;
 
-                        for (oh, y_taps) in y_axis_taps.iter().enumerate() {
-                            for (ow, x_taps) in x_axis_taps.iter().enumerate() {
+                        for (oh, y_tap) in y_axis_taps.iter().enumerate() {
+                            for (ow, x_tap) in x_axis_taps.iter().enumerate() {
                                 let out_idx = out_base + oh * out_width + ow;
                                 unsafe {
                                     out_ptr.write(
                                         out_idx,
-                                        bicubic_sample(input, in_base, in_width, y_taps, x_taps),
+                                        bicubic_sample(input, in_base, in_width, y_tap, x_tap),
                                     );
                                 }
                             }
@@ -606,10 +687,10 @@ where
                     let in_base = b * channels * in_hw + c * in_hw;
                     let out_base = b * channels * out_hw + c * out_hw;
 
-                    for (oh, y_taps) in y_axis_taps.iter().enumerate() {
-                        for (ow, x_taps) in x_axis_taps.iter().enumerate() {
+                    for (oh, y_tap) in y_axis_taps.iter().enumerate() {
+                        for (ow, x_tap) in x_axis_taps.iter().enumerate() {
                             output[out_base + oh * out_width + ow] =
-                                bicubic_sample(input, in_base, in_width, y_taps, x_taps);
+                                bicubic_sample(input, in_base, in_width, y_tap, x_tap);
                         }
                     }
                 }
@@ -660,12 +741,13 @@ fn lanczos3_weight(x: f64) -> f64 {
 fn lanczos3_axis_taps(
     in_size: usize,
     out_size: usize,
-    ratio: f64,
-    align_corners: bool,
+    scale_factor: Option<f32>,
+    coord_mode: CoordinateTransformMode,
 ) -> Vec<AxisTaps<6>> {
     (0..out_size)
         .map(|out_coord| {
-            let coord = map_coord(out_coord, ratio, align_corners);
+            let coord = map_coordinate(out_coord, in_size, out_size, scale_factor, coord_mode);
+
             let base = coord.floor();
             let mut taps = [AxisTap {
                 index: 0,
@@ -699,11 +781,17 @@ fn lanczos3_axis_taps(
 fn interpolate_lanczos3_impl<T>(
     x: FlexTensor,
     output_size: [usize; 2],
-    align_corners: bool,
+    options: &InterpolateOptions,
 ) -> FlexTensor
 where
     T: Float + burn_backend::Element + bytemuck::Pod + Send + Sync,
 {
+    let InterpolateMode::Lanczos3 {
+        coordinate_transform,
+    } = options.mode
+    else {
+        unreachable!("lanczos3 sampling requires a lanczos3 interpolation mode");
+    };
     let x = x.to_contiguous();
     let input = x.storage::<T>();
     let shape = x.layout().shape();
@@ -718,16 +806,15 @@ where
     );
     let [out_height, out_width] = output_size;
 
-    let y_ratio = coord_ratio(in_height, out_height, align_corners);
-    let x_ratio = coord_ratio(in_width, out_width, align_corners);
+    let scale_y = options.scale_factor.map(|s| s[0]);
+    let scale_x = options.scale_factor.map(|s| s[1]);
+    let y_axis_taps = lanczos3_axis_taps(in_height, out_height, scale_y, coordinate_transform);
+    let x_axis_taps = lanczos3_axis_taps(in_width, out_width, scale_x, coordinate_transform);
 
     let out_numel = batch * channels * out_height * out_width;
     let in_hw = in_height * in_width;
     let out_hw = out_height * out_width;
-    let y_axis_taps = lanczos3_axis_taps(in_height, out_height, y_ratio, align_corners);
-    let x_axis_taps = lanczos3_axis_taps(in_width, out_width, x_ratio, align_corners);
 
-    /// Compute one Lanczos3 output pixel from precomputed axis taps.
     #[inline]
     fn lanczos3_sample<T: Float + burn_backend::Element + bytemuck::Pod>(
         input: &[T],
@@ -739,7 +826,6 @@ where
         let mut result = 0.0_f64;
         let mut weight_sum = 0.0_f64;
 
-        // Keep the original nested accumulation order for bitwise-equivalent results.
         for y_tap in y_taps.as_slice() {
             for x_tap in x_taps.as_slice() {
                 let weight = y_tap.weight * x_tap.weight;
@@ -774,14 +860,14 @@ where
                 let in_base = b * channels * in_hw + c * in_hw;
                 let out_base = b * channels * out_hw + c * out_hw;
 
-                let y_taps = &y_axis_taps[oh];
+                let y_tap = &y_axis_taps[oh];
 
-                for (ow, x_taps) in x_axis_taps.iter().enumerate() {
+                for (ow, x_tap) in x_axis_taps.iter().enumerate() {
                     let out_idx = out_base + oh * out_width + ow;
                     unsafe {
                         out_ptr.write(
                             out_idx,
-                            lanczos3_sample(input, in_base, in_width, y_taps, x_taps),
+                            lanczos3_sample(input, in_base, in_width, y_tap, x_tap),
                         );
                     }
                 }
@@ -797,10 +883,10 @@ where
                     let in_base = b * channels * in_hw + c * in_hw;
                     let out_base = b * channels * out_hw + c * out_hw;
 
-                    for (oh, y_taps) in y_axis_taps.iter().enumerate() {
-                        for (ow, x_taps) in x_axis_taps.iter().enumerate() {
+                    for (oh, y_tap) in y_axis_taps.iter().enumerate() {
+                        for (ow, x_tap) in x_axis_taps.iter().enumerate() {
                             output[out_base + oh * out_width + ow] =
-                                lanczos3_sample(input, in_base, in_width, y_taps, x_taps);
+                                lanczos3_sample(input, in_base, in_width, y_tap, x_tap);
                         }
                     }
                 }
@@ -825,7 +911,7 @@ fn interpolate_nearest_backward_impl<T>(
     x: FlexTensor,
     grad: FlexTensor,
     output_size: [usize; 2],
-    _align_corners: bool,
+    options: &InterpolateOptions,
 ) -> FlexTensor
 where
     T: Float + burn_backend::Element + bytemuck::Pod + Send + Sync,
@@ -844,14 +930,15 @@ where
     );
     let [out_height, out_width] = output_size;
 
-    let y_map = nearest_index_map(in_height, out_height);
-    let x_map = nearest_index_map(in_width, out_width);
+    let scale_y = options.scale_factor.map(|s| s[0]);
+    let scale_x = options.scale_factor.map(|s| s[1]);
+    let y_map = nearest_axis_map(in_height, out_height, scale_y, options.mode);
+    let x_map = nearest_axis_map(in_width, out_width, scale_x, options.mode);
 
     let in_numel = batch * channels * in_height * in_width;
     let in_hw = in_height * in_width;
     let out_hw = out_height * out_width;
 
-    // Scatter-add gradients from one output plane into one input gradient plane.
     #[inline]
     fn scatter_plane<T: Float + Copy>(
         grad_data: &[T],
@@ -864,9 +951,9 @@ where
     ) {
         for (oh, &ih) in y_map.iter().enumerate() {
             let grad_row = grad_base + oh * out_width;
+            let in_row = ih * in_width;
             for (ow, &iw) in x_map.iter().enumerate() {
-                input_grad[ih * in_width + iw] =
-                    input_grad[ih * in_width + iw] + grad_data[grad_row + ow];
+                input_grad[in_row + iw] = input_grad[in_row + iw] + grad_data[grad_row + ow];
             }
         }
     }
@@ -874,8 +961,6 @@ where
     let mut input_grad = vec![T::zero(); in_numel];
     let bc = batch * channels;
 
-    // Each (batch, channel) plane is independent, so parallelize across planes.
-    // Gate on output size since the work is proportional to iterating output pixels.
     #[cfg(feature = "rayon")]
     if bc * out_hw >= super::PARALLEL_THRESHOLD {
         use rayon::prelude::*;
@@ -931,11 +1016,17 @@ fn interpolate_bilinear_backward_impl<T>(
     x: FlexTensor,
     grad: FlexTensor,
     output_size: [usize; 2],
-    align_corners: bool,
+    options: &InterpolateOptions,
 ) -> FlexTensor
 where
     T: Float + burn_backend::Element + bytemuck::Pod + Send + Sync,
 {
+    let InterpolateMode::Bilinear {
+        coordinate_transform,
+    } = options.mode
+    else {
+        unreachable!("bilinear sampling requires a bilinear interpolation mode");
+    };
     let grad = grad.to_contiguous();
     let grad_data = grad.storage::<T>();
     let shape = x.layout().shape();
@@ -950,8 +1041,10 @@ where
     );
     let [out_height, out_width] = output_size;
 
-    let y_ratio = coord_ratio(in_height, out_height, align_corners);
-    let x_ratio = coord_ratio(in_width, out_width, align_corners);
+    let scale_y = options.scale_factor.map(|s| s[0]);
+    let scale_x = options.scale_factor.map(|s| s[1]);
+    let y_axis_taps = bilinear_axis_taps(in_height, out_height, scale_y, coordinate_transform);
+    let x_axis_taps = bilinear_axis_taps(in_width, out_width, scale_x, coordinate_transform);
 
     let in_numel = batch * channels * in_height * in_width;
     let mut input_grad = vec![T::zero(); in_numel];
@@ -963,29 +1056,34 @@ where
     let run_plane = |bc_idx: usize, grad_plane: &mut [T]| {
         let out_base = bc_idx * out_hw;
 
-        for oh in 0..out_height {
-            let y_in = map_coord(oh, y_ratio, align_corners);
-            let y_low = (y_in.floor().max(0.0)) as usize;
-            let y_high = (y_low + 1).min(in_height - 1);
-            let y_weight = T::from((y_in - y_low as f64).max(0.0)).unwrap();
+        for (oh, y_tap) in y_axis_taps.iter().enumerate() {
+            let BilinearTap {
+                low: y_low,
+                high: y_high,
+                weight: y_weight,
+            } = y_tap;
 
-            for ow in 0..out_width {
-                let x_in = map_coord(ow, x_ratio, align_corners);
-                let x_low = (x_in.floor().max(0.0)) as usize;
-                let x_high = (x_low + 1).min(in_width - 1);
-                let x_weight = T::from((x_in - x_low as f64).max(0.0)).unwrap();
+            let yw = T::from(*y_weight).unwrap();
+            let one = T::one();
 
+            for (ow, x_tap) in x_axis_taps.iter().enumerate() {
+                let BilinearTap {
+                    low: x_low,
+                    high: x_high,
+                    weight: x_weight,
+                } = x_tap;
+
+                let xw = T::from(*x_weight).unwrap();
                 let grad_val = grad_data[out_base + oh * out_width + ow];
-                let one = T::one();
 
-                grad_plane[y_low * in_width + x_low] = grad_plane[y_low * in_width + x_low]
-                    + grad_val * (one - x_weight) * (one - y_weight);
+                grad_plane[y_low * in_width + x_low] =
+                    grad_plane[y_low * in_width + x_low] + grad_val * (one - xw) * (one - yw);
                 grad_plane[y_low * in_width + x_high] =
-                    grad_plane[y_low * in_width + x_high] + grad_val * x_weight * (one - y_weight);
+                    grad_plane[y_low * in_width + x_high] + grad_val * xw * (one - yw);
                 grad_plane[y_high * in_width + x_low] =
-                    grad_plane[y_high * in_width + x_low] + grad_val * (one - x_weight) * y_weight;
+                    grad_plane[y_high * in_width + x_low] + grad_val * (one - xw) * yw;
                 grad_plane[y_high * in_width + x_high] =
-                    grad_plane[y_high * in_width + x_high] + grad_val * x_weight * y_weight;
+                    grad_plane[y_high * in_width + x_high] + grad_val * xw * yw;
             }
         }
     };
@@ -1022,11 +1120,18 @@ fn interpolate_bicubic_backward_impl<T>(
     x: FlexTensor,
     grad: FlexTensor,
     output_size: [usize; 2],
-    align_corners: bool,
+    options: &InterpolateOptions,
 ) -> FlexTensor
 where
     T: Float + burn_backend::Element + bytemuck::Pod + Send + Sync,
 {
+    let InterpolateMode::Bicubic {
+        coordinate_transform,
+        a,
+    } = options.mode
+    else {
+        unreachable!("bicubic sampling requires a bicubic interpolation mode");
+    };
     let grad = grad.to_contiguous();
     let grad_data = grad.storage::<T>();
     let shape = x.layout().shape();
@@ -1041,48 +1146,39 @@ where
     );
     let [out_height, out_width] = output_size;
 
-    let y_ratio = coord_ratio(in_height, out_height, align_corners);
-    let x_ratio = coord_ratio(in_width, out_width, align_corners);
+    let scale_y = options.scale_factor.map(|s| s[0]);
+    let scale_x = options.scale_factor.map(|s| s[1]);
+    let y_axis_taps = bicubic_axis_taps(in_height, out_height, scale_y, coordinate_transform, a);
+    let x_axis_taps = bicubic_axis_taps(in_width, out_width, scale_x, coordinate_transform, a);
 
     let in_numel = batch * channels * in_height * in_width;
     let mut input_grad = vec![T::zero(); in_numel];
 
     let in_hw = in_height * in_width;
     let out_hw = out_height * out_width;
-    let a = -0.75_f64;
     let bc = batch * channels;
 
     let run_plane = |bc_idx: usize, grad_plane: &mut [T]| {
         let out_base = bc_idx * out_hw;
 
-        for oh in 0..out_height {
-            let y_in = map_coord(oh, y_ratio, align_corners);
-            let y0 = y_in.floor() as isize;
-
-            for ow in 0..out_width {
-                let x_in = map_coord(ow, x_ratio, align_corners);
-                let x0 = x_in.floor() as isize;
-
+        for (oh, y_taps) in y_axis_taps.iter().enumerate() {
+            for (ow, x_taps) in x_axis_taps.iter().enumerate() {
                 let grad_val = <T as num_traits::ToPrimitive>::to_f64(
                     &grad_data[out_base + oh * out_width + ow],
                 )
                 .unwrap_or(0.0);
 
-                for dy in -1..=2_isize {
-                    let y = y0 + dy;
-                    let y_idx = y.clamp(0, in_height as isize - 1) as usize;
-                    let ty = (y_in - y0 as f64) - dy as f64;
-                    let wy = cubic_weight(ty, a);
-
-                    for dx in -1..=2_isize {
-                        let x = x0 + dx;
-                        let x_idx = x.clamp(0, in_width as isize - 1) as usize;
-                        let tx = (x_in - x0 as f64) - dx as f64;
-                        let wx = cubic_weight(tx, a);
-
-                        let weight = wx * wy * grad_val;
-                        grad_plane[y_idx * in_width + x_idx] =
-                            grad_plane[y_idx * in_width + x_idx] + T::from(weight).unwrap();
+                for y_t in y_taps {
+                    if y_t.weight == 0.0 {
+                        continue;
+                    }
+                    for x_t in x_taps {
+                        if x_t.weight == 0.0 {
+                            continue;
+                        }
+                        let weight = x_t.weight * y_t.weight * grad_val;
+                        grad_plane[y_t.index * in_width + x_t.index] =
+                            grad_plane[y_t.index * in_width + x_t.index] + T::from(weight).unwrap();
                     }
                 }
             }
@@ -1150,6 +1246,7 @@ fn convert_f32_to_bf16(x: &FlexTensor) -> FlexTensor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use burn_backend::ops::InterpolateMode;
 
     fn make_input_f32(batch: usize, channels: usize, height: usize, width: usize) -> FlexTensor {
         let numel = batch * channels * height * width;
@@ -1183,8 +1280,11 @@ mod tests {
     {
         let [batch, channels, in_height, in_width] = shape;
         let [out_height, out_width] = output_size;
-        let y_ratio = coord_ratio(in_height, out_height, align_corners);
-        let x_ratio = coord_ratio(in_width, out_width, align_corners);
+        let coord_mode = if align_corners {
+            CoordinateTransformMode::AlignCorners
+        } else {
+            CoordinateTransformMode::HalfPixel
+        };
         let in_hw = in_height * in_width;
         let out_hw = out_height * out_width;
         let mut output = vec![T::zero(); batch * channels * out_hw];
@@ -1196,11 +1296,11 @@ mod tests {
                 let out_base = b * channels * out_hw + c * out_hw;
 
                 for oh in 0..out_height {
-                    let y_in = map_coord(oh, y_ratio, align_corners);
+                    let y_in = map_coordinate(oh, in_height, out_height, None, coord_mode);
                     let y0 = y_in.floor() as isize;
 
                     for ow in 0..out_width {
-                        let x_in = map_coord(ow, x_ratio, align_corners);
+                        let x_in = map_coordinate(ow, in_width, out_width, None, coord_mode);
                         let x0 = x_in.floor() as isize;
                         let mut sum = 0.0_f64;
 
@@ -1242,8 +1342,11 @@ mod tests {
     {
         let [batch, channels, in_height, in_width] = shape;
         let [out_height, out_width] = output_size;
-        let y_ratio = coord_ratio(in_height, out_height, align_corners);
-        let x_ratio = coord_ratio(in_width, out_width, align_corners);
+        let coord_mode = if align_corners {
+            CoordinateTransformMode::AlignCorners
+        } else {
+            CoordinateTransformMode::HalfPixel
+        };
         let in_hw = in_height * in_width;
         let out_hw = out_height * out_width;
         let max_h = in_height as isize - 1;
@@ -1256,11 +1359,11 @@ mod tests {
                 let out_base = b * channels * out_hw + c * out_hw;
 
                 for oh in 0..out_height {
-                    let y_in = map_coord(oh, y_ratio, align_corners);
+                    let y_in = map_coordinate(oh, in_height, out_height, None, coord_mode);
                     let y0 = y_in.floor();
 
                     for ow in 0..out_width {
-                        let x_in = map_coord(ow, x_ratio, align_corners);
+                        let x_in = map_coordinate(ow, in_width, out_width, None, coord_mode);
                         let x0 = x_in.floor();
                         let mut result = 0.0_f64;
                         let mut weight_sum = 0.0_f64;
@@ -1329,7 +1432,15 @@ mod tests {
             Layout::contiguous(Shape::from(shape.to_vec())),
             <T as burn_backend::Element>::dtype(),
         );
-        let actual = interpolate_bicubic_impl::<T>(input, output_size, align_corners);
+        let options = InterpolateOptions::new(InterpolateMode::Bicubic {
+            coordinate_transform: if align_corners {
+                CoordinateTransformMode::AlignCorners
+            } else {
+                CoordinateTransformMode::HalfPixel
+            },
+            a: -0.75,
+        });
+        let actual = interpolate_bicubic_impl::<T>(input, output_size, &options);
         assert_bitwise_equal(
             actual.storage::<T>(),
             &expected,
@@ -1354,7 +1465,14 @@ mod tests {
             Layout::contiguous(Shape::from(shape.to_vec())),
             <T as burn_backend::Element>::dtype(),
         );
-        let actual = interpolate_lanczos3_impl::<T>(input, output_size, align_corners);
+        let options = InterpolateOptions::new(InterpolateMode::Lanczos3 {
+            coordinate_transform: if align_corners {
+                CoordinateTransformMode::AlignCorners
+            } else {
+                CoordinateTransformMode::HalfPixel
+            },
+        });
+        let actual = interpolate_lanczos3_impl::<T>(input, output_size, &options);
         assert_bitwise_equal(
             actual.storage::<T>(),
             &expected,
@@ -1384,7 +1502,15 @@ mod tests {
             Layout::contiguous(Shape::from(shape.to_vec())),
             DType::BF16,
         );
-        let actual = interpolate_bicubic_bf16(input, output_size, align_corners);
+        let options = InterpolateOptions::new(InterpolateMode::Bicubic {
+            coordinate_transform: if align_corners {
+                CoordinateTransformMode::AlignCorners
+            } else {
+                CoordinateTransformMode::HalfPixel
+            },
+            a: -0.75,
+        });
+        let actual = interpolate_bicubic_bf16(input, output_size, &options);
         assert_bitwise_equal(
             actual.storage::<bf16>(),
             &expected,
@@ -1414,7 +1540,14 @@ mod tests {
             Layout::contiguous(Shape::from(shape.to_vec())),
             DType::BF16,
         );
-        let actual = interpolate_lanczos3_bf16(input, output_size, align_corners);
+        let options = InterpolateOptions::new(InterpolateMode::Lanczos3 {
+            coordinate_transform: if align_corners {
+                CoordinateTransformMode::AlignCorners
+            } else {
+                CoordinateTransformMode::HalfPixel
+            },
+        });
+        let actual = interpolate_lanczos3_bf16(input, output_size, &options);
         assert_bitwise_equal(
             actual.storage::<bf16>(),
             &expected,
@@ -1441,13 +1574,16 @@ mod tests {
         for in_size in 1..=8 {
             for out_size in 1..=9 {
                 for align_corners in [false, true] {
-                    let ratio = coord_ratio(in_size, out_size, align_corners);
-                    let table = bicubic_axis_taps(in_size, out_size, ratio, align_corners, a);
+                    let coord_mode = if align_corners {
+                        CoordinateTransformMode::AlignCorners
+                    } else {
+                        CoordinateTransformMode::HalfPixel
+                    };
+                    let table = bicubic_axis_taps(in_size, out_size, None, coord_mode, a as f32);
 
                     for (out_coord, axis_taps) in table.iter().enumerate() {
-                        let coord = map_coord(out_coord, ratio, align_corners);
+                        let coord = map_coordinate(out_coord, in_size, out_size, None, coord_mode);
                         let base = coord.floor() as isize;
-                        assert_eq!(axis_taps.len(), 4);
 
                         for (tap, offset) in axis_taps.iter().zip(-1..=2_isize) {
                             let index = (base + offset).clamp(0, in_size as isize - 1) as usize;
@@ -1466,11 +1602,15 @@ mod tests {
         for in_size in 1..=8 {
             for out_size in 1..=9 {
                 for align_corners in [false, true] {
-                    let ratio = coord_ratio(in_size, out_size, align_corners);
-                    let table = lanczos3_axis_taps(in_size, out_size, ratio, align_corners);
+                    let coord_mode = if align_corners {
+                        CoordinateTransformMode::AlignCorners
+                    } else {
+                        CoordinateTransformMode::HalfPixel
+                    };
+                    let table = lanczos3_axis_taps(in_size, out_size, None, coord_mode);
 
                     for (out_coord, axis_taps) in table.iter().enumerate() {
-                        let coord = map_coord(out_coord, ratio, align_corners);
+                        let coord = map_coordinate(out_coord, in_size, out_size, None, coord_mode);
                         let base = coord.floor();
                         let expected: Vec<AxisTap> = (-2..=3_isize)
                             .filter_map(|offset| {
@@ -1527,7 +1667,10 @@ mod tests {
             Layout::contiguous(Shape::from(vec![1, 1, 1, 8])),
             DType::F32,
         );
-        let actual = interpolate_lanczos3_f32(input, [1, 8], true);
+        let options = InterpolateOptions::new(InterpolateMode::Lanczos3 {
+            coordinate_transform: CoordinateTransformMode::AlignCorners,
+        });
+        let actual = interpolate_lanczos3_f32(input, [1, 8], &options);
         let actual = actual.storage::<f32>();
 
         assert!(actual[7].is_finite());
@@ -1543,7 +1686,8 @@ mod tests {
             DType::F32,
         );
 
-        let result = interpolate_nearest_f32(x, [4, 4], true);
+        let options = InterpolateOptions::new(InterpolateMode::Nearest);
+        let result = interpolate_nearest_f32(x, [4, 4], &options);
         let output = result.storage::<f32>();
 
         assert_eq!(output.len(), 16);
@@ -1562,7 +1706,10 @@ mod tests {
             DType::F32,
         );
 
-        let result = interpolate_bilinear_f32(x, [4, 4], true);
+        let options = InterpolateOptions::new(InterpolateMode::Bilinear {
+            coordinate_transform: CoordinateTransformMode::AlignCorners,
+        });
+        let result = interpolate_bilinear_f32(x, [4, 4], &options);
         let output = result.storage::<f32>();
 
         assert!((output[0] - 0.0).abs() < 1e-5);
@@ -1574,14 +1721,19 @@ mod tests {
     #[test]
     fn test_bicubic_basic() {
         let x = make_input_f32(1, 1, 4, 4);
-        let result = interpolate_bicubic_f32(x, [8, 8], true);
+        let options = InterpolateOptions::new(InterpolateMode::Bicubic {
+            coordinate_transform: CoordinateTransformMode::AlignCorners,
+            a: -0.75,
+        });
+        let result = interpolate_bicubic_f32(x, [8, 8], &options);
         assert_eq!(result.layout().shape().to_vec(), vec![1, 1, 8, 8]);
     }
 
     #[test]
     fn test_downsample() {
         let x = make_input_f32(1, 1, 4, 4);
-        let result = interpolate_nearest_f32(x, [2, 2], true);
+        let options = InterpolateOptions::new(InterpolateMode::Nearest);
+        let result = interpolate_nearest_f32(x, [2, 2], &options);
         assert_eq!(result.layout().shape().to_vec(), vec![1, 1, 2, 2]);
     }
 
@@ -1594,7 +1746,8 @@ mod tests {
             DType::F32,
         );
 
-        let result = interpolate_nearest_backward_f32(x, grad, [4, 4], true);
+        let options = InterpolateOptions::new(InterpolateMode::Nearest);
+        let result = interpolate_nearest_backward_f32(x, grad, [4, 4], &options);
         let output = result.storage::<f32>();
 
         assert_eq!(output.len(), 4);

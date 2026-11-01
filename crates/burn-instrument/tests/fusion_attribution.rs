@@ -203,7 +203,7 @@ impl CaseBreakdown {
         device.sync().expect("the device answers before the run");
         core::mem::drop(warmed);
 
-        let breakdown = Instrument::new(&device).breakdown(|| model(input));
+        let breakdown = Instrument::new(&device).breakdown(|| model(input.clone()));
         core::mem::drop(serial);
         Self {
             boundary,

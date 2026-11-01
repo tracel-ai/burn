@@ -1,3 +1,6 @@
+use crate::modules::bounds::{self, Windows};
+use burn::instrument::{Bounds, compute};
+use burn::tensor::module::max_pool_output_size;
 use burn_core as burn;
 
 use crate::PaddingConfig2d;
@@ -82,19 +85,8 @@ impl MaxPool2dConfig {
 }
 
 impl MaxPool2d {
-    /// Applies the forward pass on the input tensor.
-    ///
-    /// See [max_pool2d](burn::tensor::module::max_pool2d) for more information.
-    ///
-    /// # Shapes
-    ///
-    /// - input: `[batch_size, channels, height_in, width_in]`
-    /// - output: `[batch_size, channels, height_out, width_out]`
-    pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
-        let options = MaxPoolOptions::new(self.kernel_size)
-            .with_stride(self.stride)
-            .with_dilation(self.dilation)
-            .with_ceil_mode(self.ceil_mode);
+    /// The options the pool runs with, its padding resolved against `input`'s size.
+    fn options(&self, input: &Tensor<4>) -> MaxPoolOptions<2> {
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
         let effective_kernel =
             core::array::from_fn(|i| (self.kernel_size[i] - 1) * self.dilation[i] + 1);
@@ -105,10 +97,36 @@ impl MaxPool2d {
             &self.stride,
         );
 
-        max_pool2d(
-            input,
-            options.with_padding_pairs([padding_height, padding_width]),
+        MaxPoolOptions::new(self.kernel_size)
+            .with_stride(self.stride)
+            .with_dilation(self.dilation)
+            .with_ceil_mode(self.ceil_mode)
+            .with_padding_pairs([padding_height, padding_width])
+    }
+
+    /// None where the pool cannot size its output, which it rejects.
+    fn bounds(&self, input: &Tensor<4>) -> Option<Bounds> {
+        let options = self.options(input);
+        let output_size = max_pool_output_size(bounds::spatial(input), &options)?;
+        Some(
+            Windows::max_pool(&options)
+                .over(input, output_size)
+                .resampling(input),
         )
+    }
+
+    /// Applies the forward pass on the input tensor.
+    ///
+    /// See [max_pool2d](burn::tensor::module::max_pool2d) for more information.
+    ///
+    /// # Shapes
+    ///
+    /// - input: `[batch_size, channels, height_in, width_in]`
+    /// - output: `[batch_size, channels, height_out, width_out]`
+    #[compute(bounds = Self::bounds)]
+    pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
+        let options = self.options(&input);
+        max_pool2d(input, options)
     }
 }
 
@@ -116,6 +134,34 @@ impl MaxPool2d {
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// A pool writes the output its windows size, ceil mode included.
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_pool_declares_the_output_it_writes() {
+        let device = Default::default();
+        let pool = MaxPool2dConfig::new([3, 3])
+            .with_strides([2, 2])
+            .with_ceil_mode(true)
+            .init();
+        let input = Tensor::<4>::zeros([1, 2, 6, 6], &device);
+        let read = burn::instrument::tensor_bytes(&input);
+        let mut output = None;
+
+        let recorded = crate::recording::recorded(|| {
+            output = Some(pool.forward(input));
+        });
+
+        assert_eq!(recorded.lines(), ["max pool2d"]);
+        assert_eq!(
+            recorded.declared("max pool2d"),
+            Some(Bounds {
+                read,
+                write: burn::instrument::tensor_bytes(&output.unwrap()),
+                flops: 0,
+            })
+        );
+    }
 
     #[test]
     fn same_padding_with_dilation() {

@@ -1,7 +1,9 @@
 use crate::Initializer;
+use crate::modules::bounds;
 use burn_core as burn;
 
 use burn::config::Config;
+use burn::instrument::{self, Bounds, compute};
 use burn::module::Content;
 use burn::module::DisplaySettings;
 use burn::module::Module;
@@ -69,6 +71,18 @@ impl LayerNormConfig {
 }
 
 impl LayerNorm {
+    /// The floor for a normalization alone: read the input and the parameters once, write the
+    /// output once. The statistics are a pass over the same bytes, so no arithmetic is declared.
+    fn bounds<const D: usize>(&self, input: &Tensor<D>) -> Bounds {
+        Bounds {
+            read: instrument::tensor_bytes(input)
+                + instrument::tensor_bytes(&self.gamma.val())
+                + bounds::optional_parameter(&self.beta),
+            write: instrument::tensor_bytes(input),
+            flops: 0,
+        }
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// See the [LayerNorm](LayerNorm) documentation for more information.
@@ -81,6 +95,7 @@ impl LayerNorm {
     /// # Panics
     ///
     /// Panics if the last axis of `input` is not `d_model`.
+    #[compute(bounds = Self::bounds)]
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         let gamma = self.gamma.val();
         let [d_model] = gamma.dims();
@@ -129,6 +144,29 @@ mod tests {
     use burn::tensor::TensorData;
     use burn::tensor::Tolerance;
     type FT = f32;
+
+    /// A norm reads its input and its parameters, the bias among them, and writes its output.
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_norm_declares_its_parameters() {
+        let device = Default::default();
+        let norm = LayerNormConfig::new(8).init(&device);
+        let input = Tensor::<3>::zeros([2, 3, 8], &device);
+
+        let recorded = crate::recording::recorded(|| {
+            norm.forward(input);
+        });
+
+        assert_eq!(recorded.lines(), ["layer norm"]);
+        assert_eq!(
+            recorded.declared("layer norm"),
+            Some(burn::instrument::Bounds {
+                read: (2 * 3 * 8 + 8 + 8) * 4,
+                write: 2 * 3 * 8 * 4,
+                flops: 0,
+            })
+        );
+    }
 
     #[test]
     #[should_panic(expected = "assert_shape!(input, [.., d_model]): axis 1 expected 10, got 3")]

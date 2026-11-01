@@ -15,10 +15,10 @@ type SharedCallbacks = Arc<Mutex<HashMap<RequestId, oneshot::Sender<TaskResponse
 /// Correlates response-producing requests with the caller awaiting each one.
 ///
 /// Each response-producing task ([`ReadTensors`](crate::shared::Task::ReadTensors),
-/// `SyncBackend`, `DTypeUsage`, `ProfileStart`, `ProfileEnd`) carries a [`RequestId`]; the
-/// server echoes it on the
-/// response. The runner thread [`register`](Self::register)s a [`oneshot`] callback before
-/// sending the task, and the response-demux task delivers the reply through a [`Responder`].
+/// `SyncBackend`, `DTypeUsage`, `ProfileStart`, `ProfileEnd`, and the graph-capture requests)
+/// carries a [`RequestId`]; the server echoes it on the response. The runner thread
+/// [`register`](Self::register)s a [`oneshot`] callback before sending the task, and the
+/// response-demux task delivers the reply through a [`Responder`].
 ///
 /// The callbacks are guarded by a plain [`std::sync::Mutex`]: the lock is only ever held for a
 /// single insert/remove/drain and never across an `.await`, so neither the runner thread nor the

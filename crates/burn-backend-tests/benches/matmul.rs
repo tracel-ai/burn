@@ -11,7 +11,7 @@
 mod common;
 use common::BencherExt;
 
-use burn_tensor::{Tensor, TensorData};
+use burn_tensor::{FloatDType, Tensor, TensorData};
 use divan::Bencher;
 
 #[cfg(not(feature = "bench-disable-alloc"))]
@@ -178,6 +178,53 @@ macro_rules! bench_backend {
                 fn both_transposed_256x256(bencher: Bencher) {
                     let a = make_matrix(256, 256).transpose();
                     let b = make_matrix(256, 256).transpose();
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
+                }
+            }
+
+            // A transformer's projections at Qwen3-8B's widths (hidden 4096, intermediate 12288),
+            // in f16: a prompt of 512 tokens, decode steps of 8 and 1 tokens, and the weight
+            // gradient of training, whose lhs is transposed.
+            #[divan::bench_group(name = "transformer")]
+            mod transformer {
+                use super::*;
+
+                fn half(rows: usize, cols: usize) -> Tensor<2> {
+                    make_matrix(rows, cols).cast(FloatDType::F16)
+                }
+
+                #[divan::bench]
+                fn prefill_512x4096_4096x4096(bencher: Bencher) {
+                    let a = half(512, 4096);
+                    let b = half(4096, 4096);
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
+                }
+
+                #[divan::bench]
+                fn prefill_512x4096_4096x12288(bencher: Bencher) {
+                    let a = half(512, 4096);
+                    let b = half(4096, 12288);
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
+                }
+
+                #[divan::bench]
+                fn decode_8x4096_4096x12288(bencher: Bencher) {
+                    let a = half(8, 4096);
+                    let b = half(4096, 12288);
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
+                }
+
+                #[divan::bench]
+                fn decode_1x4096_4096x4096(bencher: Bencher) {
+                    let a = half(1, 4096);
+                    let b = half(4096, 4096);
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
+                }
+
+                #[divan::bench]
+                fn weight_grad_f32_4096x512_512x4096(bencher: Bencher) {
+                    let a = make_matrix(512, 4096).transpose();
+                    let b = make_matrix(512, 4096);
                     bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
             }

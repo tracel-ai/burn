@@ -121,6 +121,28 @@ impl TensorError {
     }
 }
 
+/// The failure a read found, as the error a read reports.
+///
+/// [`TensorError`] is how the failure is carried while it claims a tensor;
+/// [`ExecutionError`] is how a caller receives it.
+///
+/// At depth zero this tensor is an output of the work that actually failed,
+/// so the caller gets that error itself — its variant and its backtrace
+/// intact, rather than a rendering of it. Below a skip there is a second
+/// fact to report, how far down the chain this tensor sits, and no error of
+/// its own to lose: `Display` names both.
+impl From<TensorError> for ExecutionError {
+    fn from(error: TensorError) -> Self {
+        match error.depth() {
+            0 => error.cause().clone(),
+            _ if error.cause().is_device_poisoned() => {
+                ExecutionError::device_poisoned(alloc::format!("{error}"))
+            }
+            _ => ExecutionError::with_context(alloc::format!("{error}")),
+        }
+    }
+}
+
 impl core::fmt::Display for TensorError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.depth {

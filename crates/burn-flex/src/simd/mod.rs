@@ -30,6 +30,12 @@ pub use portable::{
     rdiv_inplace_f32, recip_inplace_f32, rsub_inplace_f32, sub_inplace_f32,
 };
 
+#[cfg(feature = "simd")]
+pub(crate) use portable::{
+    Ceil, Exp, Floor, LaneOp, MAX_LANES, RoundTiesEven, Sigmoid, Trunc, exp_f32, map_inplace,
+    map_to_vec,
+};
+
 // When simd feature disabled: use scalar fallback (bool ops + CmpOp only)
 #[cfg(not(feature = "simd"))]
 mod scalar;

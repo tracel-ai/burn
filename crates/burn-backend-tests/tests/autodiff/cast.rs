@@ -1,5 +1,5 @@
 // Skip on metal - F64 not supported
-#![cfg(all(feature = "std", not(feature = "metal")))]
+#![cfg(all(feature = "std", not(any(feature = "metal", feature = "metal-native"))))]
 
 use super::*;
 use burn_tensor::{DType, TensorData};

@@ -551,7 +551,7 @@ Loading Model Records From Previous Versions ⚠️
 Burn 0.22 uses burnpack for native records and cannot directly read legacy `Recorder` formats such
 as `.mpk`, `.bin`, or JSON. Load the checkpoint in a compatible older Burn project, export the model
 weights through `burn-store`, and import them into your 0.22 model. See
-[Migrating checkpoints](https://github.com/tracel-ai/burn/blob/main/burn-book/src/migrating-to-0.22.md#migrating-checkpoints) for an example and
+[Migrating checkpoints](https://github.com/tracel-ai/burn/blob/release/0.22/burn-book/src/migrating-to-0.22.md#migrating-checkpoints) for an example and
 the distinction between transferring weights and resuming training state.
 
 For records saved before `0.14.0`, an earlier migration step may also be needed: use Burn `0.14`,
@@ -588,8 +588,16 @@ issues are likely to be easy to fix, there are no guarantees at this stage.
 
 ## License
 
-Burn is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
-See [LICENSE-APACHE](https://github.com/tracel-ai/burn/blob/main/LICENSE-APACHE) and [LICENSE-MIT](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT) for details. Opening a pull
-request is assumed to signal agreement with these licensing terms.
+Burn is distributed under the terms of either the
+[MIT License](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT) or the
+[Apache License, Version 2.0](https://github.com/tracel-ai/burn/blob/main/LICENSE-APACHE).
+Unless otherwise noted, this applies to all contents of this repository, including source code,
+examples, documentation, and code snippets in the Burn Book and Contributor Book. See the licenses
+for details.
+
+Third-party materials and externally downloaded datasets or models remain subject to their respective
+licenses.
+
+Opening a pull request is assumed to signal agreement with these licensing terms.
 
 </div>
