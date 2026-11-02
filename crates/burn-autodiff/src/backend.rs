@@ -8,7 +8,8 @@ use core::marker::PhantomData;
 
 use burn_backend::{
     backend::{
-        AutodiffBackend, Backend, BackendTypes, DeviceDescription, DeviceTelemetry, ExecutionError,
+        AutodiffBackend, Backend, BackendTypes, DeviceDescription, DeviceTelemetry,
+        EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
         ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError,
         PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
     },
@@ -103,6 +104,32 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         token: ExecutionModeToken,
     ) -> Result<ExecutionStatistics, ExecutionError> {
         B::execution_mode_close(device, token)
+    }
+
+    fn environment_create(
+        device: &Self::Device,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_create(device, name, origin)
+    }
+
+    fn environment_activate(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_activate(device, id)
+    }
+
+    fn environment_active(device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_active(device)
+    }
+
+    fn environment_save(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        B::environment_save(device, id)
     }
 
     fn memory_persistent_allocations<
