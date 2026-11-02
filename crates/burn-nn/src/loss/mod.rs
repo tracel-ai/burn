@@ -1,4 +1,5 @@
 mod binary_cross_entropy;
+#[cfg(feature = "linalg")]
 mod cosine_embedding;
 mod cross_entropy;
 mod ctc;
@@ -15,9 +16,11 @@ mod reduction;
 mod rnnt;
 mod smooth_l1;
 mod soft_margin;
+#[cfg(feature = "linalg")]
 mod triplet_margin;
 
 pub use binary_cross_entropy::*;
+#[cfg(feature = "linalg")]
 pub use cosine_embedding::*;
 pub use cross_entropy::*;
 pub use ctc::*;
@@ -34,4 +37,5 @@ pub use reduction::*;
 pub use rnnt::*;
 pub use smooth_l1::*;
 pub use soft_margin::*;
+#[cfg(feature = "linalg")]
 pub use triplet_margin::*;

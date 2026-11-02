@@ -11,7 +11,7 @@ impl CubeTensor {
     /// This tensor bound as its values, at the element they are stored in.
     pub fn plain(self) -> PlainTensor {
         let elem = dtype_to_storage_type(self.dtype);
-        PlainTensor::new(self.binding(), elem)
+        PlainTensor::new(self.stored_binding(), elem)
     }
 
     /// This tensor, one matrix over `axes` in the order its shape states them, as it is stored:
@@ -30,7 +30,14 @@ impl CubeTensor {
             .plain();
         let global = self.global().map(CubeTensor::plain);
         let client = self.client.clone();
-        PackedTensor::of_quantized(&client, self.binding(), scheme, block_scales, global, axes)
-            .map(StoredTensor::Packed)
+        PackedTensor::of_quantized(
+            &client,
+            self.stored_binding(),
+            scheme,
+            block_scales,
+            global,
+            axes,
+        )
+        .map(StoredTensor::Packed)
     }
 }

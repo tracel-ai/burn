@@ -1,12 +1,12 @@
 //! Process-global registry connecting Burn's compact `DeviceId` to rich remote endpoints.
 
 use burn_ir::TensorId;
-use burn_std::DeviceSettings;
+use burn_std::{DeviceSettings, ExecutionError};
 use std::{
     collections::HashMap,
     sync::{
         Arc, Mutex, OnceLock,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicU64, Ordering},
     },
 };
 
@@ -19,20 +19,41 @@ pub(crate) fn new_tensor_id() -> TensorId {
     TensorId::new(TENSOR_ID_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
-/// Whether a device's session has ended: its response stream closed, or its writer failed. An
-/// ended session is never reopened; the next connect registers a new device.
+/// Whether a device's session has ended, and why: its response stream closed, its writer failed,
+/// or it could not be opened for work already queued on it. An ended session is never reopened;
+/// the next connect registers a new device.
 #[derive(Default)]
 pub(crate) struct SessionEnd {
-    ended: AtomicBool,
+    reason: OnceLock<String>,
 }
 
 impl SessionEnd {
-    pub(crate) fn end(&self) {
-        self.ended.store(true, Ordering::Release);
+    /// End the session. The first reason given is the one reported.
+    pub(crate) fn end(&self, reason: impl Into<String>) {
+        let _ = self.reason.set(reason.into());
     }
 
     pub(crate) fn has_ended(&self) -> bool {
-        self.ended.load(Ordering::Acquire)
+        self.reason.get().is_some()
+    }
+
+    /// The error every flush, sync and read reports once the session has ended.
+    ///
+    /// A [poisoned device](ExecutionError::DevicePoisoned): the tensors the session held are gone
+    /// with it, so nothing queued on it can run again, and a later connect is a new device.
+    pub(crate) fn error(&self) -> Option<ExecutionError> {
+        self.reason.get().map(|reason| {
+            ExecutionError::device_poisoned(format!("The remote session ended: {reason}"))
+        })
+    }
+
+    /// Why a request on this session was never answered.
+    ///
+    /// Only an ended session drops a request unanswered, so this is [`error`](Self::error).
+    pub(crate) fn unanswered(&self) -> ExecutionError {
+        self.error().unwrap_or_else(|| {
+            ExecutionError::device_poisoned("The remote session dropped a request unanswered")
+        })
     }
 }
 

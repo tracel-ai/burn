@@ -71,8 +71,8 @@ impl RouterClient for GroupClient {
         self.interpreter.lock().sync()
     }
 
-    fn flush(&self) {
-        self.interpreter.lock().flush();
+    fn flush(&self) -> Result<(), ExecutionError> {
+        self.interpreter.lock().flush()
     }
 
     fn create_empty_handle(&self) -> TensorId {

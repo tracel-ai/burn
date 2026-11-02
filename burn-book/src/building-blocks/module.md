@@ -508,6 +508,9 @@ impl ModuleDisplay for PositionWiseFeedForward {
 
 Burn comes with built-in modules that you can use to build your own modules.
 
+`CosineSimilarity`, `PairwiseDistance`, `CosineEmbeddingLoss`, `TripletMarginLoss`, and
+`Initializer::Orthogonal` require the `linalg` feature of `burn`.
+
 ### General
 
 | Burn API            | PyTorch Equivalent                            |

@@ -1,9 +1,6 @@
 <div align="center">
   <img src="assets/burn-symbol-colour.svg" alt="The Burn logo" height="200"/>
-
-  <h1>Burn</h1>
-
-  <p><b>A tensor library and deep learning framework for numerical computing, training and inference.</b></p>
+  <br /><br />
 
 [![Rust 1.95 or later](https://img.shields.io/badge/Rust-1.95%2B-f15a24?style=flat-square&logo=rust&logoColor=white)](https://crates.io/crates/burn)
 [![License](https://img.shields.io/badge/License-MIT%2FApache--2.0-f15a24?style=flat-square)](#license)
@@ -15,7 +12,10 @@
 [![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-f15a24?style=flat-square)](https://deepwiki.com/tracel-ai/burn)
 [![Blaze: macOS CI](assets/ci-powered-by-blaze.svg)](https://runblaze.dev)
 
+  <p><b>A tensor library and deep learning framework for numerical computing, training and inference.</b></p>
 </div>
+
+---
 
 <div align="left">
 

@@ -103,7 +103,7 @@ cubecl = ["dep:cubecl"]
 
 audio = ["burn-core/audio"]
 vision = ["burn-core/vision", "burn-vision"]
-linalg = ["dep:burn-linalg"]
+linalg = ["dep:burn-linalg", "burn-nn/linalg"]
 signal = ["dep:burn-signal"]
 rl = ["dep:burn-rl", "burn-train?/rl"]
 

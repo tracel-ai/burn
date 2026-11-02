@@ -1,10 +1,11 @@
 use burn_backend::{
-    DTypeUsageSet, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
+    DTypeUsageSet, DeviceDescription, DeviceTelemetry, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
     ProfileOptions, ProfileToken, TensorData,
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
-    DType, DeviceSettings,
+    BoolStore, DType, DeviceSettings,
     distributed::ReduceOperation,
     id::{IdGenerator, StreamId},
 };
@@ -23,14 +24,14 @@ use crate::{
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 8;
+pub const PROTOCOL_VERSION: u16 = 9;
 
 /// Routing id for a task whose result is fetched back.
 ///
 /// Only the result-producing tasks ([`Task::ReadTensors`], [`Task::SyncBackend`],
 /// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`], [`Task::CapturePrepare`],
-/// [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`] and the execution-mode
-/// tasks) carry a
+/// [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`], the execution-mode tasks
+/// and the description and measurement tasks) carry a
 /// `RequestId`; the server echoes it on its [`TaskResponse`] so the client demultiplexes results
 /// back to the right pending callback. Fire-and-forget tasks have no id because no result ever
 /// comes back.
@@ -83,6 +84,7 @@ pub struct LocalAllReducePart {
 
 impl LocalAllReducePart {
     /// How many members the all-reduce has.
+    #[cfg(feature = "server")]
     pub fn members(&self) -> usize {
         self.sessions.len()
     }
@@ -210,7 +212,31 @@ pub struct SessionInfo {
     pub device_count: u32,
     /// Authenticated identity of the compute node, when the transport provides one.
     pub peer_id: Option<PeerId>,
+    /// What the device can do with each of [`HANDSHAKE_DTYPES`], so the client answers dtype
+    /// queries without a round-trip, and still answers them once the session has ended.
+    pub dtype_usage: Vec<(DType, DTypeUsageSet)>,
 }
+
+/// The dtypes whose usage the handshake carries: every one but the quantized dtypes, whose
+/// schemes are too many to list and are asked on first use instead.
+pub const HANDSHAKE_DTYPES: [DType; 16] = [
+    DType::F64,
+    DType::F32,
+    DType::Flex32,
+    DType::F16,
+    DType::BF16,
+    DType::I64,
+    DType::I32,
+    DType::I16,
+    DType::I8,
+    DType::U64,
+    DType::U32,
+    DType::U16,
+    DType::U8,
+    DType::Bool(BoolStore::Native),
+    DType::Bool(BoolStore::U8),
+    DType::Bool(BoolStore::U32),
+];
 
 /// Why a server will not serve a session, as the client is told.
 ///
@@ -311,6 +337,13 @@ pub enum Task {
         transfer_id: LocalTransferId,
         new_id: TensorId,
     },
+    /// Register `id` as failed by `reason`: its data was never produced, so a read of it reports
+    /// why. For a transfer whose source could not send it, as when its session ended.
+    RegisterFailure {
+        stream_id: StreamId,
+        id: TensorId,
+        reason: String,
+    },
     /// One member's part of an all-reduce over devices of this server.
     AllReduceLocal {
         stream_id: StreamId,
@@ -366,6 +399,15 @@ pub enum Task {
     /// Close an open execution mode on the stream it was opened on, after every earlier task,
     /// answering what the work under it triggered.
     ExecutionModeClose(RequestId, ExecutionModeToken),
+    /// What the session's device is, as its driver states it.
+    DeviceDescription(RequestId),
+    /// One reading of the counters of the session's device.
+    MeasureTelemetry(RequestId),
+    /// What the allocator of the session's device holds, where `stream_id` stands, after every
+    /// earlier task.
+    MeasureMemory(RequestId, StreamId),
+    /// The peak throughput of the session's device for each key.
+    MeasurePeaks(RequestId, Vec<PeakKey>),
 }
 
 /// The id a server registers a device query under, and a client asks it by.
@@ -429,7 +471,7 @@ impl super::Encode for TaskResponse {}
 pub enum TaskResponseContent {
     /// Server responds with the selected device's settings plus the total number of devices
     /// it hosts (so the client can enumerate them, see [`RemoteDevice::enumerate`]).
-    Init(SessionInfo),
+    Init(Box<SessionInfo>),
     ReadTensors(Result<Vec<TensorData>, ExecutionError>),
     SyncBackend(Result<(), ExecutionError>),
     DTypeUsage(DTypeUsageSet),
@@ -450,6 +492,14 @@ pub enum TaskResponseContent {
     /// The answer to [`ExecutionModeStatistics`](Task::ExecutionModeStatistics) and
     /// [`ExecutionModeClose`](Task::ExecutionModeClose).
     ExecutionStatistics(Result<ExecutionStatistics, ExecutionError>),
+    /// The answer to [`DeviceDescription`](Task::DeviceDescription).
+    DeviceDescription(Option<DeviceDescription>),
+    /// The answer to [`MeasureTelemetry`](Task::MeasureTelemetry).
+    Telemetry(DeviceTelemetry),
+    /// The answer to [`MeasureMemory`](Task::MeasureMemory).
+    Memory(Option<MemoryReport>),
+    /// The answer to [`MeasurePeaks`](Task::MeasurePeaks), one per key in order.
+    Peaks(Vec<Result<Peak, PeakError>>),
     /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init),
     /// before it closes the session.
     InitRefused(SessionRefusal),

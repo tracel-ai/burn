@@ -11,16 +11,10 @@ use burn_group::{GroupDevice, GroupError};
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
 
-// Throughput types come from `burn-backend` (which re-exports them from cubecl),
-// so `burn-dispatch` needs no direct `cubecl` dependency.
+// The capabilities come from `burn-backend` (which takes them from cubecl), so
+// `burn-dispatch` needs no direct `cubecl` dependency.
 #[cfg(feature = "cubecl")]
-use alloc::vec::Vec;
-#[cfg(feature = "cubecl")]
-use burn_backend::cubecl::{DeviceIdentity, ThroughputError, ThroughputKey, ThroughputValue};
-// `cubecl` without a runtime feature gives the throughput *types* but no `Cube` device to
-// measure, so the measurement itself follows `cube_backend` rather than the feature.
-#[cfg(cube_backend)]
-use burn_backend::cubecl::measure_peak_throughput;
+pub use burn_backend::cubecl::CubeCapabilities;
 
 /// Represents a device for the [`Dispatch`](crate::Dispatch).
 ///
@@ -69,62 +63,36 @@ pub enum DispatchDevice {
     Autodiff(AutodiffDevice),
 }
 
+/// The device query a server answers a device's [`CubeCapabilities`] with: a remote device's
+/// capabilities are its server's device's.
+#[cfg(feature = "cubecl")]
+pub const CAPABILITIES_QUERY: &str = "burn.cubecl.capabilities";
+
 #[cfg(feature = "cubecl")]
 impl DispatchDevice {
-    /// Who this device is, `None` for a backend that does not report one. An autodiff device
-    /// answers for the device it wraps. Opens the device.
-    pub fn identity(&self) -> Option<DeviceIdentity> {
+    /// What the cubecl device behind this one can do, opening it: its features, limits, memory,
+    /// identity and compile target. An autodiff device answers for the device it wraps, a remote
+    /// device with what its server's device reports. `None` for a device on no cubecl runtime,
+    /// and for a server that does not answer.
+    pub fn capabilities(&self) -> Option<CubeCapabilities> {
         match self {
-            #[cfg(cube_backend)]
-            DispatchDevice::Cube(device) => Some(device.client().properties().identity.clone()),
-            #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(device) => device.inner.identity(),
-            #[allow(unreachable_patterns)]
-            _ => None,
-        }
-    }
-
-    /// Measure peak throughput for this device against the given `keys`.
-    ///
-    /// Only cubecl-backed devices can measure throughput; other backends
-    /// (remote, ...) return an empty vector. An autodiff
-    /// device reports the peaks of the device it wraps. Each returned result
-    /// corresponds positionally to the key at the same index, and carries a
-    /// [`ThroughputError`] where the device has no peak for that key.
-    // With `cubecl` on but no runtime compiled in, every arm below ignores `keys`.
-    #[cfg_attr(not(cube_backend), allow(unused_variables))]
-    pub fn performance_stats(
-        &self,
-        keys: &[ThroughputKey],
-    ) -> Vec<Result<ThroughputValue, ThroughputError>> {
-        // No catch-all arm: a new backend must fail to compile here rather
-        // than silently report no peaks.
-        match self {
-            #[cfg(not(backend_enabled))]
-            Self::Unavailable(never) => never.unreachable(),
             #[cfg(cube_backend)]
             DispatchDevice::Cube(device) => {
                 let client = device.client();
-                keys.iter()
-                    .map(|key| measure_peak_throughput(&client, *key))
-                    .collect()
+                Some(CubeCapabilities {
+                    properties: client.properties().clone(),
+                    target: client.target_properties().clone(),
+                })
             }
-            // Autodiff does not change the hardware, so measure the wrapped device.
             #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(device) => device.performance_stats(keys),
-
-            // Not cubecl-backed, so there are no kernels to measure.
-            #[cfg(feature = "flex")]
-            DispatchDevice::Flex(_) => Vec::new(),
-
-            // The kernels run on the server, which this local API cannot reach.
-            #[cfg(feature = "remote")]
-            DispatchDevice::Remote(_) => Vec::new(),
-            // A group's peaks are its members', measured on them.
-            #[cfg(feature = "group")]
-            DispatchDevice::Group(_) => Vec::new(),
-            #[cfg(feature = "capture")]
-            DispatchDevice::Capture(_) => Vec::new(),
+            DispatchDevice::Autodiff(device) => device.inner.capabilities(),
+            #[cfg(all(feature = "remote", not(target_family = "wasm")))]
+            DispatchDevice::Remote(device) => {
+                let answer = device.query(CAPABILITIES_QUERY).ok()?;
+                rmp_serde::from_slice(&answer).ok()
+            }
+            #[allow(unreachable_patterns)]
+            _ => None,
         }
     }
 }

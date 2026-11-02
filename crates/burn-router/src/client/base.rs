@@ -2,7 +2,8 @@ use crate::{RouterChannel, RouterTensor};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use burn_backend::{
-    DType, ExecutionMode, ExecutionModeToken, ExecutionStatistics, ProfileDuration, ProfileOptions,
+    DType, DeviceDescription, DeviceTelemetry, ExecutionMode, ExecutionModeToken,
+    ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
     ProfileToken, TensorData, UnknownExecutionMode,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
@@ -68,7 +69,13 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     /// Unlike [`sync`](Self::sync), this does not block on results — it only ensures the
     /// buffered operations are handed off for execution (and, for the remote backend, sent to
     /// the server) instead of sitting in a local buffer.
-    fn flush(&self);
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`ExecutionError`] when the work can no longer be executed at all, such as a
+    /// remote session that ended. A failure of the work itself is deferred to the tensors it was
+    /// going to write and reported by a read of one of them.
+    fn flush(&self) -> Result<(), ExecutionError>;
     /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).
     fn create_empty_handle(&self) -> TensorId;
     /// Create a new [RouterTensor] from the tensor data.
@@ -142,6 +149,28 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     ) -> Result<ExecutionStatistics, ExecutionError> {
         let _ = token;
         Err(UnknownExecutionMode.into())
+    }
+
+    /// What the interpreter's device is, as its driver states it — see
+    /// [`Backend::device_description`](burn_backend::Backend::device_description).
+    fn device_description(&self) -> Option<DeviceDescription> {
+        None
+    }
+
+    /// One reading of the counters of the interpreter's device.
+    fn measure_telemetry(&self) -> DeviceTelemetry {
+        DeviceTelemetry::default()
+    }
+
+    /// What the allocator of the interpreter's device holds, after every
+    /// operation registered so far on the calling stream.
+    fn measure_memory(&self) -> Option<MemoryReport> {
+        None
+    }
+
+    /// The peak throughput of the interpreter's device for each of `keys`.
+    fn measure_peaks(&self, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        keys.iter().map(|_| Err(PeakError::Unsupported)).collect()
     }
 
     /// Prepare the interpreter's backend for a graph capture — see

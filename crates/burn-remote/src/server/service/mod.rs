@@ -10,7 +10,8 @@ pub(crate) use base::parse_init_handshake;
 
 use std::future::Future;
 
-use burn_std::DeviceSettings;
+use burn_backend::DTypeUsageSet;
+use burn_std::{DType, DeviceSettings};
 use tokio::sync::mpsc;
 
 use crate::shared::{SessionId, Task, TaskResponse};
@@ -45,6 +46,11 @@ pub(crate) trait SessionService: Send + Sync + 'static {
     /// The number of devices this server hosts, returned on the handshake so the client can
     /// enumerate every device behind the address.
     fn device_count(&self) -> u32;
+
+    /// What the device at `device_index` can do with each of
+    /// [`HANDSHAKE_DTYPES`](crate::shared::HANDSHAKE_DTYPES), returned on the handshake so the
+    /// client answers dtype queries without a round-trip.
+    fn dtype_usage(&self, device_index: u32) -> Vec<(DType, DTypeUsageSet)>;
 
     /// Drop the session, letting its worker drain and exit. A `close` for an unknown session is a
     /// no-op.

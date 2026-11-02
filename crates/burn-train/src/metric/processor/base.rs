@@ -22,6 +22,10 @@ pub enum LearnerEvent<T> {
     },
     /// Signal that an item have been processed.
     ProcessedItem(TrainingItem<T>),
+    /// An optimizer update has been applied. Emit once per logical optimizer step, including
+    /// a final partial accumulation window, with the learning rates used for that update.
+    /// Distributed strategies emit this from one reporting worker only.
+    OptimizerStep(crate::metric::OptimizerStepOutput),
     /// Signal the start of a split.
     StartSplit {
         /// The epoch number.

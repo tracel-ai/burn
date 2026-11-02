@@ -52,7 +52,7 @@ wgpu = ["cubecl", "burn-cubecl/wgpu"]
 cpu = ["cubecl", "burn-cubecl/cpu"]
 autodiff = ["burn-autodiff"]
 # Remote compute client over Iroh.
-remote = ["std", "burn-remote", "burn-remote/iroh"]
+remote = ["std", "burn-remote", "burn-remote/iroh", "dep:rmp-serde"]
 # Host a remote compute server over Iroh.
 remote-server = ["remote", "burn-remote/server"]
 # Add the legacy WebSocket transport.
@@ -92,6 +92,8 @@ burn-cubecl = { workspace = true, optional = true }
 burn-flex = { workspace = true, optional = true }
 
 burn-remote = { workspace = true, optional = true, features = ["client"] }
+# Encodes a device's cubecl capabilities for the device query a server answers them with.
+rmp-serde = { workspace = true, optional = true }
 burn-capture = { workspace = true, optional = true }
 burn-group = { workspace = true, optional = true }
 

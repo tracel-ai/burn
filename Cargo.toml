@@ -227,7 +227,7 @@ cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false
 cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bb8b3041d2afedd40cffd33474d0a371529e3466" }
 cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bb8b3041d2afedd40cffd33474d0a371529e3466" }
 cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bb8b3041d2afedd40cffd33474d0a371529e3466" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "4cee341f14f4a01eceaa9db955dfe7cf0f78e29c" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "83c7cbbb6f40c407c473e21ae4cb59a5c59b54fa" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -240,6 +240,32 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 # cubecl-environment = { version = "0.12.0-pre.1", default-features = false }
 # cubecl-zspace = { version = "0.12.0-pre.1", default-features = false }
 # cubek = { version = "0.4.0-pre.1", default-features = false }
+
+# cubecl at cubecl dev (the flip pin plus cubecl#2025's tiled metadata), until cubek pins a
+# cubecl holding #2025. The host differs from the pin's so cargo takes it as a patch.
+[patch."https://github.com/tracel-ai/cubecl"]
+cubecl = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-common = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-core = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-cpp = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-cpu = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-cuda = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-environment = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-hip = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-ir = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-llvm = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-macros = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-macros-internal = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-metal = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-monitoring = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-opt = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-runtime = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-server = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-spirv = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-std = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-tile = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-wgpu = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
+cubecl-zspace = { git = "https://www.github.com/tracel-ai/cubecl", rev = "d8d66ab39e4b41b60ec4e37cd92f34d019887a1c" }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
