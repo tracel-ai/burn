@@ -13,6 +13,10 @@ out once, at load. The result holds the same values and every operation takes it
 included. On CubeCL backends, it's stored in the tiles the device's matmul reads, where a tile
 divides `k` and `n`; other backends return it as it lies, and so do quantized weights.
 
+`LinearLayout::Matmul` makes a `Linear` lay its weight out this way at init and at load. Records
+still save it in rows, as `LinearLayout::Row` does, so a `Row` record loads into a `Matmul`
+layer and back.
+
 **Breaking for backend implementors:** `ModuleOps` gains the required method
 `lay_out_for_matmul`. Returning the weight unchanged is a correct implementation.
 ([#PR](https://github.com/tracel-ai/burn/pull/PR)) [@louisfd](https://github.com/louisfd)
