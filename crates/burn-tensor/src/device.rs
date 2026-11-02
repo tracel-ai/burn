@@ -1590,7 +1590,10 @@ mod tests {
     }
 }
 
-#[cfg(all(test, any(feature = "wgpu-msl", feature = "vulkan", feature = "webgpu")))]
+#[cfg(all(
+    test,
+    any(feature = "wgpu-msl", feature = "vulkan", feature = "webgpu")
+))]
 mod enumerate_wgpu_tests {
     use super::*;
     use burn_dispatch::devices::{CubeDevice, WgpuDevice, WgpuDeviceKind};
