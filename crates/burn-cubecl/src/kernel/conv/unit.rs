@@ -189,9 +189,10 @@ mod tests {
 
     #[test]
     fn rejected_candidates_preserve_the_error() {
+        let fallback = || panic!("unsupported candidates must not execute fallback");
         let hardware = MatmulAvailabilityError::PlaneOpsUnavailable.into();
         assert!(matches!(
-            with_shape_fallback::<()>(Err(hardware), || panic!("hardware errors must propagate")),
+            with_shape_fallback::<()>(Err(hardware), fallback),
             Err(ConvSetupError::Matmul(MatmulSetupError::Unavailable(
                 MatmulAvailabilityError::PlaneOpsUnavailable
             )))
@@ -199,9 +200,7 @@ mod tests {
         let config =
             ConvSetupError::Matmul(MatmulSetupError::InvalidConfig(Box::new("invalid tiling")));
         assert!(matches!(
-            with_shape_fallback::<()>(Err(config), || panic!(
-                "configuration errors must propagate"
-            )),
+            with_shape_fallback::<()>(Err(config), fallback),
             Err(ConvSetupError::Matmul(MatmulSetupError::InvalidConfig(_)))
         ));
         let launch = LaunchError::Unknown {
@@ -209,9 +208,7 @@ mod tests {
             backtrace: Default::default(),
         };
         assert!(matches!(
-            with_shape_fallback::<()>(Err(ConvSetupError::Launch(launch)), || panic!(
-                "launch errors must propagate"
-            )),
+            with_shape_fallback::<()>(Err(ConvSetupError::Launch(launch)), fallback),
             Err(ConvSetupError::Launch(_))
         ));
     }

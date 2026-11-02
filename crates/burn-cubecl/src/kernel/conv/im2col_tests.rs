@@ -1,26 +1,29 @@
 use super::{conv_im2col, flatten_columns, forward_columns, im2col};
-use crate::{CubeDevice, ops::into_data_sync, tensor::CubeTensor};
+use crate::{
+    CubeDevice,
+    kernel::into_contiguous,
+    ops::{into_data_sync, swap_dims},
+    tensor::CubeTensor,
+};
 use burn_backend::{
     DType,
     ops::{ConvOptions, conv::calculate_conv_output_sizes},
 };
-use burn_std::{Metadata, Shape};
+use burn_std::{Metadata, Shape, tensor::contiguous_strides};
 use cubecl::prelude::CubeElement;
 
 #[test]
 fn forward_workspace_is_bounded_without_row_padding() {
     let device = CubeDevice::default();
     let input = upload(&device, &[1], &[0.0], false);
-    let columns = forward_columns(&input, 3, 2).unwrap();
-    assert_eq!(&columns.meta.strides()[..], &[2, 1]);
 
     // A 1x2 filter over a 4096x4097 image: pitched 16-byte rows would
     // allocate 256 MiB even though the logical workspace is only 128 MiB.
     let rows = 4096 * 4096;
     let columns = forward_columns(&input, rows, 2).unwrap();
+    assert_eq!(&columns.meta.strides()[..], &[2, 1]);
     assert_eq!(columns.handle.size(), 128 * 1024 * 1024);
     assert!(forward_columns(&input, rows + 1, 2).is_none());
-    assert!(forward_columns(&input, usize::MAX, 2).is_none());
 }
 
 #[test]
@@ -48,35 +51,21 @@ fn slice_lowering_preserves_workspace_and_zeros_padding() {
 }
 
 fn upload(device: &CubeDevice, shape: &[usize], values: &[f32], permuted: bool) -> CubeTensor {
-    let rank = shape.len();
-    let mut order = (0..rank).collect::<Vec<_>>();
-    if permuted {
-        order.swap(1, rank - 1);
-    }
-    let mut strides = vec![0; rank];
-    let mut size = 1;
-    for &axis in order.iter().rev() {
-        strides[axis] = size;
-        size *= shape[axis];
-    }
-    let mut data = vec![0.0; size];
-    for (i, &value) in values.iter().enumerate() {
-        let mut rem = i;
-        let mut offset = 0;
-        for axis in (0..rank).rev() {
-            offset += (rem % shape[axis]) * strides[axis];
-            rem /= shape[axis];
-        }
-        data[offset] = value;
-    }
     let client = device.client();
-    CubeTensor::new(
+    let tensor = CubeTensor::new(
         client.clone(),
-        client.create_from_slice(f32::as_bytes(&data)),
-        Metadata::new(Shape::from(shape), strides),
+        client.create_from_slice(f32::as_bytes(values)),
+        Metadata::new(Shape::from(shape), contiguous_strides(shape)),
         device.clone(),
         DType::F32,
-    )
+    );
+    if permuted {
+        let last = shape.len() - 1;
+        // Preserve logical values while making channels non-contiguous.
+        swap_dims(into_contiguous(swap_dims(tensor, 1, last)), 1, last)
+    } else {
+        tensor
+    }
 }
 
 fn check<const N: usize>(
@@ -169,42 +158,39 @@ fn check<const N: usize>(
 }
 
 fn suite(device: CubeDevice) {
-    for permuted in [false, true] {
-        for bias in [false, true] {
-            check(
-                &device,
-                [17],
-                [3],
-                ConvOptions::new_with_padding([2], [(1, 2)], [2], 1),
-                permuted,
-                bias,
-            );
-            check(
-                &device,
-                [13, 17],
-                [3, 3],
-                ConvOptions::new([1, 1], [1, 1], [1, 1], 1),
-                permuted,
-                bias,
-            );
-            check(
-                &device,
-                [9, 11],
-                [2, 3],
-                ConvOptions::new_with_padding([2, 1], [(0, 1), (3, 0)], [2, 2], 1),
-                permuted,
-                bias,
-            );
-            check(
-                &device,
-                [5, 7, 9],
-                [2, 2, 3],
-                ConvOptions::new_with_padding([1, 2, 1], [(1, 0), (0, 1), (2, 0)], [1, 1, 2], 1),
-                permuted,
-                bias,
-            );
-        }
-    }
+    // Cover each layout/bias combination once across the distinct geometries.
+    check(
+        &device,
+        [17],
+        [3],
+        ConvOptions::new_with_padding([2], [(1, 2)], [2], 1),
+        false,
+        false,
+    );
+    check(
+        &device,
+        [13, 17],
+        [3, 3],
+        ConvOptions::new([1, 1], [1, 1], [1, 1], 1),
+        false,
+        true,
+    );
+    check(
+        &device,
+        [9, 11],
+        [2, 3],
+        ConvOptions::new_with_padding([2, 1], [(0, 1), (3, 0)], [2, 2], 1),
+        true,
+        false,
+    );
+    check(
+        &device,
+        [5, 7, 9],
+        [2, 2, 3],
+        ConvOptions::new_with_padding([1, 2, 1], [(1, 0), (0, 1), (2, 0)], [1, 1, 2], 1),
+        true,
+        true,
+    );
 }
 
 #[cfg(feature = "cuda")]

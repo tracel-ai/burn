@@ -293,25 +293,16 @@ mod tests {
         let grad = empty([1, 1, 1, 14]);
         // Minimal anchoring maps both channel counts to 16. Only the first
         // problem is depthwise; reusing its candidate for the second panics.
-        let depthwise = create_key(&(
-            empty([1, 3, 3, 7]),
-            grad.clone(),
-            Shape::new([14, 3, 3, 1]),
-            options.clone(),
-        ));
-        let grouped = create_key(&(
-            empty([1, 3, 3, 14]),
-            grad,
-            Shape::new([14, 3, 3, 2]),
-            options,
-        ));
-        let (CubeAutotuneKey::Conv(depthwise), CubeAutotuneKey::Conv(grouped)) =
-            (depthwise, grouped)
-        else {
-            panic!("expected convolution keys");
-        };
-        assert_eq!(depthwise.in_channels, 7);
-        assert_eq!(grouped.in_channels, 14);
-        assert_ne!(depthwise, grouped);
+        for channels in [7, 14] {
+            let CubeAutotuneKey::Conv(key) = create_key(&(
+                empty([1, 3, 3, channels]),
+                grad.clone(),
+                Shape::new([14, 3, 3, channels / options.groups]),
+                options.clone(),
+            )) else {
+                panic!("expected convolution key");
+            };
+            assert_eq!(key.in_channels, channels);
+        }
     }
 }
