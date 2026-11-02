@@ -208,7 +208,8 @@ pub fn conv2d(
 
 /// Applies a [3D convolution](burn_backend::ops::ModuleOps::conv3d).
 ///
-/// Asymmetric 3D padding is not yet supported.
+/// Supports symmetric and asymmetric padding. Asymmetric padding is applied by
+/// zero-padding the input, so the backend always runs a symmetric convolution.
 /// The deprecated [`PaddedConvOptions`](crate::ops::PaddedConvOptions) is also
 /// accepted for compatibility.
 pub fn conv3d(
@@ -226,9 +227,13 @@ pub fn conv3d(
         options.groups,
     ));
 
-    if options.is_asymmetric() {
-        panic!("Asymmetric padding is not yet supported for conv3d");
-    }
+    let (x, options) = if options.is_asymmetric() {
+        let padding = options.padding;
+        let options = ConvOptions::new(options.stride, [0; 3], options.dilation, options.groups);
+        (x.pad(padding, PadMode::Constant(0.0)), options)
+    } else {
+        (x, options)
+    };
 
     Tensor::new(BridgeTensor::float(Dispatch::conv3d(
         x.primitive.into_float(),
