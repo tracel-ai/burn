@@ -10,8 +10,10 @@ use crate::{
     CubeFusionHandle, Tiles,
     engine::{
         codegen::ir::FuseOp,
-        launch::layout::{dim_order, strides_for},
-        settings::RefLayoutSetting,
+        launch::{
+            layout::{dim_order, strides_for},
+            output::may_permute_layout,
+        },
         trace::{FuseResources, RegisterTensor, block::FuseBlock},
     },
     strides_dyn_rank,
@@ -31,28 +33,26 @@ pub struct StorageTiling {
 impl StorageTiling {
     /// The tiles the trace walks, or `None` where it walks its logical dims: no input is a float
     /// stored in tiles at the blocks' shape, or a block does more than elementwise work.
-    pub fn new<'r>(
-        resources: &'r FuseResources,
+    pub fn new(
+        resources: &FuseResources,
         blocks: &[FuseBlock],
         context: &Context<CubeFusionHandle>,
     ) -> Option<Self> {
         let shape_ref = &blocks.first()?.shape_ref;
-        let at_shape_ref = |tensor: &'r RegisterTensor| match tensor {
-            RegisterTensor::Normal(tensor, _) => Some(tensor).filter(|t| &t.shape == shape_ref),
-            RegisterTensor::QuantValues(_) | RegisterTensor::QuantParams(_) => None,
-        };
 
-        let elementwise = blocks
-            .iter()
-            .all(|block| &block.shape_ref == shape_ref && walks_any_layout(block))
-            && resources.views.is_empty()
+        // A concatenation joins its operands along a logical axis, which the physical dims split.
+        let elementwise = blocks.iter().all(|block| {
+            &block.shape_ref == shape_ref
+                && may_permute_layout(&block.settings, &block.ops)
+                && !block.ops.iter().any(|op| matches!(op, FuseOp::Cat { .. }))
+        }) && resources.views.is_empty()
             && resources.indexed.is_empty()
             && resources.inputs_unhandled.is_empty()
             && resources.outputs_unhandled.is_empty()
-            && resources
-                .outputs
-                .iter()
-                .all(|output| at_shape_ref(output).is_some())
+            && resources.outputs.iter().all(|output| match output {
+                RegisterTensor::Normal(output, _) => &output.shape == shape_ref,
+                RegisterTensor::QuantValues(_) | RegisterTensor::QuantParams(_) => false,
+            })
             && resources
                 .inputs
                 .iter()
@@ -61,18 +61,19 @@ impl StorageTiling {
             return None;
         }
 
-        resources
-            .inputs
-            .iter()
-            .filter_map(at_shape_ref)
-            .find_map(|input| {
-                let global = context.tensors.get(&input.id)?;
-                let handle = context.handles.get_handle_ref(&global.id)?;
-                (handle.tiles.is_some() && handle.qparams.is_none()).then(|| Self {
+        resources.inputs.iter().find_map(|input| {
+            let RegisterTensor::Normal(input, _) = input else {
+                return None;
+            };
+            let global = context.tensors.get(&input.id)?;
+            let handle = context.handles.get_handle_ref(&global.id)?;
+            (&input.shape == shape_ref && handle.tiles.is_some() && handle.qparams.is_none()).then(
+                || Self {
                     stored: handle.metadata(global.shape.clone()),
                     logical: global.shape.clone(),
-                })
-            })
+                },
+            )
+        })
     }
 
     /// The physical shape every tensor of the trace is walked in.
@@ -103,7 +104,7 @@ impl StorageTiling {
             "an input stored in other tiles is laid back in rows first"
         );
         let leading = self.logical.rank() - shape.rank();
-        let broadcast = self
+        let broadcast: Strides = self
             .logical
             .iter()
             .enumerate()
@@ -111,18 +112,17 @@ impl StorageTiling {
                 Some(dim) if shape[dim] == extent => handle.strides[dim],
                 _ => 0,
             })
-            .collect::<Vec<_>>();
-        Metadata::new(self.logical.clone(), Strides::new(&broadcast))
+            .collect();
+        Metadata::new(self.logical.clone(), broadcast)
             .tiled_like(&self.stored)
             .expect("an input broadcast to the trace's shape splits into its tiles")
-            .strides()
-            .clone()
+            .strides
     }
 
     /// The strides an output is allocated with: the tiled input's order over the physical dims,
     /// so the output is stored as it is.
     pub fn output_strides(&self) -> Strides {
-        match dim_order(&self.stored.shape, self.stored.strides()) {
+        match dim_order(&self.stored.shape, &self.stored.strides) {
             Some(order) => strides_for(&self.stored.shape, &order),
             None => strides_dyn_rank(&self.stored.shape),
         }
@@ -135,20 +135,4 @@ impl StorageTiling {
             tiling: self.stored.tiling,
         }
     }
-}
-
-/// Whether a block reads and writes every operand through its reference alone, so it can walk
-/// any layout: it may choose its own, and no operation indexes an operand by its coordinates.
-fn walks_any_layout(block: &FuseBlock) -> bool {
-    matches!(block.settings.ref_layout, RefLayoutSetting::Any)
-        && block.settings.choose_output_layout
-        && block.ops.iter().all(|op| {
-            !matches!(
-                op,
-                FuseOp::Gather { .. }
-                    | FuseOp::Select { .. }
-                    | FuseOp::Cat { .. }
-                    | FuseOp::Dequantize { .. }
-            )
-        })
 }

@@ -46,24 +46,26 @@ impl<'a> InputPlanner<'a> {
                         handle = handle.untile(tensor_global.shape.clone());
                     }
 
-                    let mut new_strides = handle.strides.clone();
-
                     self.analyze(plan, pos, tensor_relative, &handle);
 
-                    match &plan.tiling {
+                    let new_strides = match &plan.tiling {
                         Some(tiling) => {
-                            new_strides = tiling.strides(&handle, &tensor_global.shape);
+                            let strides = tiling.strides(&handle, &tensor_global.shape);
                             tensor_global.shape = tiling.shape().clone();
+                            strides
                         }
-                        None if tensor_global.shape.rank() < plan.rank => {
-                            let num_elem: usize = tensor_global.shape.iter().product();
-                            for _ in 0..(plan.rank - tensor_global.shape.rank()) {
-                                tensor_global.shape.insert(0, 1);
-                                new_strides.insert(0, num_elem);
+                        None => {
+                            let mut strides = handle.strides.clone();
+                            if tensor_global.shape.rank() < plan.rank {
+                                let num_elem: usize = tensor_global.shape.iter().product();
+                                for _ in 0..(plan.rank - tensor_global.shape.rank()) {
+                                    tensor_global.shape.insert(0, 1);
+                                    strides.insert(0, num_elem);
+                                }
                             }
+                            strides
                         }
-                        None => {}
-                    }
+                    };
 
                     plan.handle_inputs
                         .push(HandleInput::Normal(NormalHandleInput::new(

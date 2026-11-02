@@ -985,7 +985,7 @@ impl<'a> OutputPlanner<'a> {
 /// longer is — it reaches the vectorization axis through
 /// [FuseBlockConfig::vector_axis](crate::engine::codegen::FuseBlockConfig::vector_axis),
 /// which follows a permuted reference.
-fn may_permute_layout(settings: &FuseSettings, ops: &[FuseOp]) -> bool {
+pub(super) fn may_permute_layout(settings: &FuseSettings, ops: &[FuseOp]) -> bool {
     if !matches!(settings.ref_layout, RefLayoutSetting::Any) || !settings.choose_output_layout {
         return false;
     }
