@@ -8,12 +8,15 @@ fn should_diff_log_sigmoid() {
 
     let device = AutodiffDevice::new();
     let tensor_1 = TestTensor::<2>::from_data(data, &device).require_grad();
-    let tensor_2 = activation::log_sigmoid(tensor_1.clone());
+    // A non-uniform weight makes the incoming gradient differ per element, so
+    // the backward pass must multiply by it: sigmoid(-x) * w.
+    let weight = TestTensor::<2>::from_data([[2.0, -3.0], [0.5, 4.0]], &device);
+    let tensor_2 = activation::log_sigmoid(tensor_1.clone()).mul(weight);
     let grads = tensor_2.backward();
 
     let grad = tensor_1.grad(&grads).unwrap();
 
-    let expected = TensorData::from([[0.293966, 0.535515], [1.000000, 0.000000]]);
+    let expected = TensorData::from([[0.587932, -1.606545], [0.500000, 0.000000]]);
     grad.to_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }

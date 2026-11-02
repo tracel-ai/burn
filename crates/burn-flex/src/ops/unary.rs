@@ -220,6 +220,11 @@ pub fn log(tensor: FlexTensor) -> FlexTensor {
 
 /// Natural logarithm of (1 + x): ln(1 + x)
 pub fn log1p(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Ln1p) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.ln_1p(), |x| x.ln_1p())
 }
 
@@ -338,6 +343,11 @@ pub fn atan(tensor: FlexTensor) -> FlexTensor {
 
 /// Inverse hyperbolic tangent
 pub fn atanh(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Atanh) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.atanh(), |x| x.atanh())
 }
 
