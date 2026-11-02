@@ -1,5 +1,6 @@
 use super::{RouterChannel, RouterClient, RouterGraph, RouterTensor, get_client};
 use alloc::{format, string::String, vec::Vec};
+use burn_backend::RandomKey;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceTelemetry,
     EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
@@ -50,6 +51,10 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
     fn seed(device: &Self::Device, seed: u64) {
         let client = get_client::<R>(device);
         client.seed(seed);
+    }
+
+    fn next_random_key(device: &Self::Device) -> RandomKey {
+        get_client::<R>(device).next_random_key()
     }
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {

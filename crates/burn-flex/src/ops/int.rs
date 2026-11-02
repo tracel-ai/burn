@@ -1,6 +1,7 @@
 //! Int tensor operations for the Flex backend.
 
 use alloc::vec::Vec;
+use burn_backend::RandomKey;
 use burn_backend::{
     DType, Distribution, ExecutionError, FloatDType, Scalar, TensorData, TensorMetadata,
     ops::IntTensorOps,
@@ -830,9 +831,10 @@ impl IntTensorOps<Flex> for Flex {
         distribution: Distribution,
         _device: &Device<Flex>,
         dtype: IntDType,
+        key: RandomKey,
     ) -> IntTensor<Flex> {
-        let mut seed = crate::backend::SEED.lock();
-        let mut rng = seed.take().unwrap_or_else(crate::backend::get_seeded_rng);
+        use burn_std::rand::SeedableRng;
+        let mut rng = crate::backend::FlexRng::seed_from_u64(key.seed());
         let data = match dtype {
             IntDType::I64 => TensorData::random::<i64, _, _>(shape, distribution, &mut rng),
             IntDType::I32 => TensorData::random::<i32, _, _>(shape, distribution, &mut rng),
@@ -843,7 +845,6 @@ impl IntTensorOps<Flex> for Flex {
             IntDType::U16 => TensorData::random::<u16, _, _>(shape, distribution, &mut rng),
             IntDType::U8 => TensorData::random::<u8, _, _>(shape, distribution, &mut rng),
         };
-        *seed = Some(rng);
         FlexTensor::from_data(data)
     }
 
@@ -1792,13 +1793,13 @@ mod tests {
 
     #[test]
     fn test_int_random_i32() {
-        use burn_backend::{DType, Distribution, ops::IntTensorOps};
+        use burn_backend::{DType, Distribution, RandomKey, ops::IntTensorOps};
         use burn_std::{IntDType, Shape};
 
         let shape = Shape::from(vec![100]);
         let dist = Distribution::Uniform(0.0, 10.0);
         let device = crate::FlexDevice;
-        let t = Flex::int_random(shape, dist, &device, IntDType::I32);
+        let t = Flex::int_random(shape, dist, &device, IntDType::I32, RandomKey::new(42));
         assert_eq!(t.dtype(), DType::I32);
         let data: Vec<i32> = t.into_data().try_into_vec().unwrap();
         assert!(data.iter().all(|&v| (0..=10).contains(&v)));
@@ -1806,13 +1807,13 @@ mod tests {
 
     #[test]
     fn test_int_random_u8() {
-        use burn_backend::{DType, Distribution, ops::IntTensorOps};
+        use burn_backend::{DType, Distribution, RandomKey, ops::IntTensorOps};
         use burn_std::{IntDType, Shape};
 
         let shape = Shape::from(vec![50]);
         let dist = Distribution::Uniform(0.0, 100.0);
         let device = crate::FlexDevice;
-        let t = Flex::int_random(shape, dist, &device, IntDType::U8);
+        let t = Flex::int_random(shape, dist, &device, IntDType::U8, RandomKey::new(42));
         assert_eq!(t.dtype(), DType::U8);
     }
 

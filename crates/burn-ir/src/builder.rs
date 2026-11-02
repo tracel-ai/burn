@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 use burn_backend::{
-    DType, Distribution, Shape, Slice, SliceOps, calculate_matmul_output,
+    DType, Distribution, RandomKey, Shape, Slice, SliceOps, calculate_matmul_output,
     ops::{
         conv::{
             calculate_conv_output_shape, calculate_conv_transpose_output_shape,
@@ -69,11 +69,16 @@ impl RandomOpIr {
         shape: Shape,
         dtype: DType,
         distribution: Distribution,
+        key: RandomKey,
         new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let out = TensorIr::uninit(new_id(), shape, dtype);
 
-        RandomOpIr { out, distribution }
+        RandomOpIr {
+            out,
+            distribution,
+            key: key.into(),
+        }
     }
 }
 

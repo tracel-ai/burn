@@ -11,6 +11,7 @@ use crate::{
         message::MessageSource,
     },
 };
+use burn_backend::RandomKey;
 use burn_backend::{
     DTypeUsageSet, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
     EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken,
@@ -81,6 +82,7 @@ const OPEN_DEADLINE: core::time::Duration = core::time::Duration::from_secs(5);
 /// All tokio work (connecting, the writer task, awaiting responses, the response-demux
 /// task) happens on Burn's own [`Executor`]. The caller never sees a runtime handle.
 pub struct RemoteService {
+    rng: burn_std::rand::StdRng,
     /// The device's registry entry, which holds its latest dialing hints.
     id: u32,
     executor: Executor,
@@ -152,6 +154,7 @@ impl DeviceService for RemoteService {
         // Instead we record the endpoint and open the sockets on the first real use, off the
         // lock and on the device-runner thread (see `try_connect`).
         Self {
+            rng: burn_std::rand::get_seeded_rng(),
             id,
             executor,
             endpoint,
@@ -547,7 +550,14 @@ impl RemoteService {
         self.send_batch();
     }
 
+    pub fn next_random_key(&mut self) -> RandomKey {
+        use burn_std::rand::RngExt;
+        RandomKey::new(self.rng.random())
+    }
+
     pub fn seed(&mut self, seed: u64) {
+        use burn_std::rand::SeedableRng;
+        self.rng = burn_std::rand::StdRng::seed_from_u64(seed);
         self.submit_task(Task::Seed(seed));
     }
 

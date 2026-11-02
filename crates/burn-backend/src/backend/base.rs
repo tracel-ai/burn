@@ -1,3 +1,4 @@
+use crate::RandomKey;
 use burn_std::DType;
 pub use burn_std::{ExecutionError, backtrace::BackTrace};
 
@@ -198,7 +199,14 @@ pub trait Backend:
     /// that at least the specified device will be seeded.
     ///
     /// In all cases, this should ensure deterministic execution for a single-threaded program.
+    /// Random operations already requested retain their reserved keys, even if not yet executed.
     fn seed(device: &Self::Device, seed: u64);
+
+    /// Reserves a key for one random operation in caller order.
+    ///
+    /// Call before queueing work. The returned key remains valid after reseeding, and
+    /// executing an explicitly keyed operation must not advance this generator.
+    fn next_random_key(device: &Self::Device) -> RandomKey;
 
     /// Sync the backend, ensure that all computation are finished.
     fn sync(_device: &Self::Device) -> Result<(), ExecutionError> {

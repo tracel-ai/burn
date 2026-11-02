@@ -1,4 +1,5 @@
 use alloc::string::String;
+use burn_backend::RandomKey;
 use burn_std::{BoolStore, DeviceSettings, QuantConfig, QuantMode, QuantScheme, QuantStore};
 
 use burn_backend::{
@@ -19,13 +20,7 @@ pub type FlexRng = StdRng;
 /// Uses Mutex for thread-safe RNG state management.
 pub(crate) static SEED: Mutex<Option<FlexRng>> = Mutex::new(None);
 
-/// Fallback RNG when `SEED` is empty (never set).
-///
-/// The seeding flow is: `Backend::seed()` stores a `FlexRng` in `SEED`. Random
-/// ops (`float_random`, `int_random`) `take()` it, draw from it, and store the
-/// advanced state back, so every draw after a `seed()` call is deterministic.
-/// This function seeds from burn_std's entropy source and is only reached when
-/// `seed()` has never been called.
+/// Initializes the generator used to reserve per-operation keys before explicit seeding.
 pub(crate) fn get_seeded_rng() -> FlexRng {
     burn_std::rand::get_seeded_rng()
 }
@@ -132,6 +127,11 @@ impl Backend for Flex {
         *seed_lock = Some(rng);
     }
 
+    fn next_random_key(_device: &Self::Device) -> RandomKey {
+        use burn_std::rand::RngExt;
+        RandomKey::new(SEED.lock().get_or_insert_with(get_seeded_rng).random())
+    }
+
     fn device_count(_type_id: u16) -> usize {
         1
     }
@@ -229,6 +229,49 @@ mod tests {
     use burn_std::{BoolStore, QuantValue};
 
     use super::*;
+
+    #[test]
+    fn keyed_draws_replay_without_advancing_the_default_generator() {
+        use burn_backend::{
+            Distribution, FloatDType, IntDType,
+            ops::{FloatTensorOps, IntTensorOps},
+        };
+
+        let device = FlexDevice;
+        let draw = |key| {
+            (
+                Flex::float_random(
+                    [32].into(),
+                    Distribution::Default,
+                    &device,
+                    FloatDType::F32,
+                    key,
+                )
+                .into_data(),
+                Flex::int_random(
+                    [32].into(),
+                    Distribution::Uniform(0.0, 1000.0),
+                    &device,
+                    IntDType::I32,
+                    key,
+                )
+                .into_data(),
+            )
+        };
+
+        Flex::seed(&device, 19);
+        let expected_next = Flex::next_random_key(&device);
+        Flex::seed(&device, 19);
+        let key = RandomKey::new(7);
+        let expected = draw(key);
+        assert_eq!(Flex::next_random_key(&device), expected_next);
+
+        Flex::seed(&device, 23);
+        assert_eq!(draw(key), expected);
+        let different = draw(RandomKey::new(11));
+        assert_ne!(different.0, expected.0);
+        assert_ne!(different.1, expected.1);
+    }
 
     #[test]
     fn supports_every_symmetric_quantized_scheme() {

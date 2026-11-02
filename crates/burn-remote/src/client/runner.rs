@@ -1,6 +1,7 @@
 use super::{DeviceQueryError, RemoteChannel, RemoteClient, service};
 use crate::shared::{DeviceQueryId, LocalTransferId, TensorRemote, TransferCapability};
 use crate::{PeerAddr, PeerId};
+use burn_backend::RandomKey;
 use burn_backend::{
     DeviceDescription, DeviceId, DeviceOps, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
     EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken,
@@ -212,6 +213,12 @@ impl RouterClient for RemoteClient {
 
     fn graph_release(&self, graph: CapturedGraphId) {
         self.handle.submit(move |s| s.graph_release(graph));
+    }
+
+    fn next_random_key(&self) -> RandomKey {
+        self.handle
+            .submit_blocking(|s| s.next_random_key())
+            .expect("Service call failed")
     }
 
     fn seed(&self, seed: u64) {

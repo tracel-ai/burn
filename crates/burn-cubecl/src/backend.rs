@@ -1,5 +1,6 @@
 use crate::execution::OPEN_MODES;
 use crate::{CubeDevice, tensor::CubeTensor};
+use burn_backend::RandomKey;
 use burn_backend::cubecl::{ThroughputKey, dtype_to_storage_type, measure_peak_throughput};
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceDescription,
@@ -116,6 +117,10 @@ impl Backend for CubeBackend {
 
     fn seed(_device: &Self::Device, seed: u64) {
         cubek::random::seed(seed);
+    }
+
+    fn next_random_key(_device: &Self::Device) -> RandomKey {
+        RandomKey::new(cubek::random::next_seed())
     }
 
     fn ad_enabled(_device: &Self::Device) -> bool {

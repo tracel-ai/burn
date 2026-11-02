@@ -403,6 +403,38 @@ fn transfer_client() {
 }
 
 #[test]
+fn random_requests_keep_their_seeds_across_remote_reseeding() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default(), Default::default()]),
+    );
+    let device = Device::remote_options(&host).init().unwrap();
+    let other = Device::remote_options(&host)
+        .device_index(1)
+        .init()
+        .unwrap();
+    let float = || Tensor::<1>::random([12], Distribution::Default, &device);
+    let int = || Tensor::<1, Int>::random([12], Distribution::Uniform(0., 1000.), &device);
+
+    device.seed(7);
+    let expected_float = float().into_data();
+    let expected_int = int().into_data();
+    device.seed(7);
+    let pending_float = float();
+    let pending_int = int();
+    // Both server devices share Flex's implicit RNG; neither reset may affect these draws.
+    other.seed(13);
+    device.seed(19);
+    pending_int.into_data().assert_eq(&expected_int, false);
+    pending_float.into_data().assert_eq(&expected_float, false);
+    rt.shutdown_background();
+}
+
+#[test]
 fn test_to_device_over_websocket() {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_io()

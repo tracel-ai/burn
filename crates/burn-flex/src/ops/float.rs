@@ -2,6 +2,7 @@
 
 use alloc::vec;
 use alloc::vec::Vec;
+use burn_backend::RandomKey;
 use burn_backend::{
     DType, Distribution, Element, ExecutionError, FloatDType, Scalar, TensorData, TensorMetadata,
     ops::{FloatTensorOps, GridSampleOptions, IntTensorOps},
@@ -56,9 +57,10 @@ impl FloatTensorOps<Flex> for Flex {
         distribution: Distribution,
         _device: &Device<Flex>,
         dtype: FloatDType,
+        key: RandomKey,
     ) -> FloatTensor<Flex> {
-        let mut seed = crate::backend::SEED.lock();
-        let mut rng = seed.take().unwrap_or_else(crate::backend::get_seeded_rng);
+        use burn_std::rand::SeedableRng;
+        let mut rng = crate::backend::FlexRng::seed_from_u64(key.seed());
         let data = match dtype {
             FloatDType::F64 => TensorData::random::<f64, _, _>(shape, distribution, &mut rng),
             FloatDType::F32 | FloatDType::Flex32 => {
@@ -67,7 +69,6 @@ impl FloatTensorOps<Flex> for Flex {
             FloatDType::F16 => TensorData::random::<f16, _, _>(shape, distribution, &mut rng),
             FloatDType::BF16 => TensorData::random::<bf16, _, _>(shape, distribution, &mut rng),
         };
-        *seed = Some(rng);
         FlexTensor::from_data(data)
     }
 
@@ -1437,12 +1438,12 @@ mod tests {
 
     #[test]
     fn test_float_random_f64() {
-        use burn_backend::{DType, FloatDType, ops::FloatTensorOps};
+        use burn_backend::{DType, FloatDType, RandomKey, ops::FloatTensorOps};
 
         let shape = burn_std::Shape::from(vec![100]);
         let dist = burn_backend::Distribution::Uniform(0.0, 1.0);
         let device = crate::FlexDevice;
-        let t = Flex::float_random(shape, dist, &device, FloatDType::F64);
+        let t = Flex::float_random(shape, dist, &device, FloatDType::F64, RandomKey::new(42));
         assert_eq!(t.dtype(), DType::F64);
         let data: Vec<f64> = t.into_data().try_into_vec().unwrap();
         assert!(data.iter().all(|&v| (0.0..=1.0).contains(&v)));
@@ -1450,12 +1451,12 @@ mod tests {
 
     #[test]
     fn test_float_random_f16() {
-        use burn_backend::{DType, FloatDType, ops::FloatTensorOps};
+        use burn_backend::{DType, FloatDType, RandomKey, ops::FloatTensorOps};
 
         let shape = burn_std::Shape::from(vec![100]);
         let dist = burn_backend::Distribution::Uniform(0.0, 1.0);
         let device = crate::FlexDevice;
-        let t = Flex::float_random(shape, dist, &device, FloatDType::F16);
+        let t = Flex::float_random(shape, dist, &device, FloatDType::F16, RandomKey::new(42));
         assert_eq!(t.dtype(), DType::F16);
     }
 }
