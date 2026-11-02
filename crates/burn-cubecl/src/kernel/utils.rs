@@ -1,3 +1,4 @@
+use alloc::borrow::Cow;
 use burn_backend::{Shape, TensorMetadata};
 use cubecl::prelude::SequenceArg;
 use cubecl::{
@@ -40,8 +41,14 @@ pub fn split_dim(mut tensor: CubeTensor, dim: usize, shape: &[usize]) -> CubeTen
 }
 
 /// The shape the logical shapes of `tensors` broadcast to.
-pub fn broadcast_shape(tensors: &[&CubeTensor]) -> Shape {
-    let shapes: Vec<Shape> = tensors.iter().map(|tensor| tensor.shape()).collect();
+pub fn broadcast_shape<const N: usize>(tensors: &[&CubeTensor; N]) -> Shape {
+    // Rows are read in place; only a storage-tiled tensor builds its logical shape.
+    let shapes = tensors
+        .each_ref()
+        .map(|tensor| match tensor.meta.is_tiled() {
+            false => Cow::Borrowed(tensor.meta.shape()),
+            true => Cow::Owned(tensor.shape()),
+        });
     let rank = shapes[0].num_dims();
     debug_assert!(
         shapes.iter().all(|shape| shape.num_dims() == rank),

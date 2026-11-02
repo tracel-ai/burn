@@ -291,25 +291,27 @@ pub(crate) fn expand(tensor: CubeTensor, target_shape: Shape) -> CubeTensor {
 pub fn reshape(mut tensor: CubeTensor, shape: Shape) -> CubeTensor {
     // A storage-tiled tensor keeps its tiles when only dims of one come or go: they are removed
     // and inserted through the metadata. Any other reshape reads it as rows.
-    let logical = tensor.shape();
-    let wide = |shape: &Shape| -> Vec<usize> {
-        shape
-            .iter()
-            .copied()
-            .filter(|&extent| extent != 1)
-            .collect()
-    };
-    if tensor.meta.is_tiled() && tensor.qparams.is_none() && wide(&logical) == wide(&shape) {
-        for dim in (0..logical.num_dims())
-            .rev()
-            .filter(|&dim| logical[dim] == 1)
-        {
-            tensor.meta.remove(dim);
+    if tensor.meta.is_tiled() && tensor.qparams.is_none() {
+        let logical = tensor.shape();
+        let wide = |shape: &Shape| -> Vec<usize> {
+            shape
+                .iter()
+                .copied()
+                .filter(|&extent| extent != 1)
+                .collect()
+        };
+        if wide(&logical) == wide(&shape) {
+            for dim in (0..logical.num_dims())
+                .rev()
+                .filter(|&dim| logical[dim] == 1)
+            {
+                tensor.meta.remove(dim);
+            }
+            for dim in (0..shape.num_dims()).filter(|&dim| shape[dim] == 1) {
+                tensor.meta.insert(dim, 1, 1);
+            }
+            return tensor;
         }
-        for dim in (0..shape.num_dims()).filter(|&dim| shape[dim] == 1) {
-            tensor.meta.insert(dim, 1, 1);
-        }
-        return tensor;
     }
     let mut tensor = crate::kernel::untile(tensor);
     let analysis = reshape_action(tensor.meta.shape(), tensor.meta.strides(), &shape);
