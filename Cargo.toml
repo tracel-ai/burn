@@ -227,7 +227,7 @@ cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false
 cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "04f7f7888c6809d247066f2ac12a3a50466b1ac6" }
 cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "04f7f7888c6809d247066f2ac12a3a50466b1ac6" }
 cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "04f7f7888c6809d247066f2ac12a3a50466b1ac6" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "cff0c67f7a0e299ddafe26b882fb139598cbd5c8" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "d4b3f082ed33d530794c2d5af413f27fbe44e685" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -240,9 +240,6 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 # cubecl-environment = { version = "0.12.0-pre.1", default-features = false }
 # cubecl-zspace = { version = "0.12.0-pre.1", default-features = false }
 # cubek = { version = "0.4.0-pre.1", default-features = false }
-
-# cubecl at cubecl dev (the flip pin plus cubecl#2025's tiled metadata), until cubek pins a
-# cubecl holding #2025. The host differs from the pin's so cargo takes it as a patch.
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
