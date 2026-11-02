@@ -4,13 +4,15 @@ use burn_tensor::{Device, StreamId};
 
 use super::{
     DistributedLayer, HeldStage, HiddenSignal, InputSignal, LayerParallelism, LayerPlacement,
-    OutputSignal, StagedLayers,
+    LayerSequence, OutputSignal, StagedLayers,
 };
 use crate::module::Module;
 
 /// A split model's layers cut where a pipeline hands work from one thread to the next: the input
 /// layer, the stages of hidden layers, and the output layer. An outer layer runs with the stage
 /// beside it when they share a device, and as a part of its own otherwise.
+///
+/// Each part keeps one stream across runs, since a runtime keeps a memory pool per stream.
 #[derive(Clone, Debug)]
 pub struct PipelineParts<M: LayerParallelism> {
     /// The input layer, and the first stage when it is on the same device.
@@ -62,20 +64,40 @@ impl<M: LayerParallelism> PipelineParts<M> {
         }
     }
 
-    /// The layers again, the hidden ones in their stages.
-    pub fn into_layers(self) -> StagedLayers<M> {
+    /// The layers in model order, cloned: what [`LayerParallelism::from_layers`] rebuilds the
+    /// model from.
+    pub fn layers(&self) -> LayerSequence<M> {
         let stages = self
             .input
             .stage
-            .into_iter()
-            .chain(self.middle.into_iter().map(|part| part.stage))
-            .chain(self.output.stage)
-            .collect();
-        StagedLayers {
-            input: self.input.layer,
-            stages,
-            output: self.output.layer,
+            .iter()
+            .chain(self.middle.iter().map(|part| &part.stage))
+            .chain(&self.output.stage);
+        LayerSequence {
+            input: self.input.layer.clone(),
+            hidden: stages
+                .flat_map(|stage| stage.layers.iter().cloned())
+                .collect(),
+            output: self.output.layer.clone(),
         }
+    }
+
+    /// `layers`, in model order, put back in their parts: each stage takes back as many hidden
+    /// layers as it holds.
+    pub fn set_layers(&mut self, layers: LayerSequence<M>) {
+        let mut hidden = layers.hidden.into_iter();
+        let stages = self
+            .input
+            .stage
+            .iter_mut()
+            .chain(self.middle.iter_mut().map(|part| &mut part.stage))
+            .chain(&mut self.output.stage);
+        for stage in stages {
+            let num_layers = stage.layers.len();
+            stage.layers = hidden.by_ref().take(num_layers).collect();
+        }
+        self.input.layer = layers.input;
+        self.output.layer = layers.output;
     }
 
     /// Whether every part runs on one device, so a pipeline has nothing to overlap.
@@ -120,8 +142,7 @@ pub struct InputPart<M: LayerParallelism> {
     pub stage: Option<HeldStage<M>>,
     /// Where the input layer runs.
     pub device: Device,
-    /// The stream the part submits on, kept across runs since a runtime keeps a memory pool per
-    /// stream.
+    /// The stream the part submits on.
     pub stream: StreamId,
 }
 
@@ -141,8 +162,7 @@ impl<M: LayerParallelism> InputPart<M> {
 pub struct MiddlePart<M: LayerParallelism> {
     /// The stage's layers and device.
     pub stage: HeldStage<M>,
-    /// The stream the part submits on, kept across runs since a runtime keeps a memory pool per
-    /// stream.
+    /// The stream the part submits on.
     pub stream: StreamId,
 }
 
@@ -165,8 +185,7 @@ pub struct OutputPart<M: LayerParallelism> {
     pub layer: M::OutputLayer,
     /// Where the output layer runs.
     pub device: Device,
-    /// The stream the part submits on, kept across runs since a runtime keeps a memory pool per
-    /// stream.
+    /// The stream the part submits on.
     pub stream: StreamId,
 }
 

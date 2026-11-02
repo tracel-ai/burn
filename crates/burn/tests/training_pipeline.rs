@@ -1,19 +1,17 @@
 //! A split model trained as a pipeline updates as one step on the whole batch does.
 //!
 //! Two fixed CPU backends stand in for two cards. Run with
-//! `cargo test -p burn-optim --features flex,cpu --test training_pipeline`.
-#![cfg(all(feature = "flex", feature = "cpu"))]
-
-use burn_core as burn;
+//! `cargo test -p burn --features flex,cpu --test training_pipeline`.
+#![cfg(all(feature = "flex", feature = "cpu", feature = "optim", feature = "std"))]
 
 use burn::module::parallel::{
     DistributedLayer, DistributedLayeredModel, LayerParallelism, LayerPlacement, LayerSequence,
     LayerStage, PipelineSchedule,
 };
-use burn::module::{Module, Param};
+use burn::module::{Module, Param, ParamGroup};
+use burn::optim::parallel::TrainingPipeline;
+use burn::optim::{AdamConfig, GradientsParams, ModuleOptimizer, SgdConfig};
 use burn::tensor::{Device, Distribution, Tensor, Tolerance};
-use burn_optim::parallel::TrainingPipeline;
-use burn_optim::{AdamConfig, GradientsParams, ModuleOptimizer, SgdConfig};
 
 const WIDTH: usize = 6;
 const ROWS: usize = 8;
@@ -38,6 +36,7 @@ fn placement<const N: usize>(stages: [(Device, usize); N]) -> LayerPlacement {
 }
 
 fn loss(output: Tensor<2>, target: Tensor<2>) -> Tensor<1> {
+    let target = target.to_device(&output.device());
     (output - target).powi_scalar(2).mean()
 }
 
@@ -105,6 +104,35 @@ fn a_pipelined_step_with_adam_updates_as_a_full_batch_step() {
             || AdamConfig::new().init(),
         );
     }
+}
+
+#[test]
+fn two_parts_with_no_stage_between_them_train_as_one_device() {
+    let (flex, cpu) = devices();
+    for schedule in SCHEDULES {
+        assert_trains_as_one_device(
+            &placement([(flex.clone(), 2), (cpu.clone(), 2)]),
+            schedule,
+            || SgdConfig::new().init(),
+        );
+    }
+}
+
+#[test]
+fn a_parameter_group_selected_by_path_matches_as_in_the_whole_model() {
+    let (flex, cpu) = devices();
+    let optimizer = || {
+        SgdConfig::new().init().with_group(
+            ParamGroup::from_path("hidden.0.linear.weight"),
+            AdamConfig::new().build(),
+            None,
+        )
+    };
+    assert_trains_as_one_device(
+        &placement([(flex.clone(), 2), (cpu, 1), (flex, 1)]),
+        PipelineSchedule::OneForwardOneBackward,
+        optimizer,
+    );
 }
 
 #[test]

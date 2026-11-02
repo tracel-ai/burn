@@ -165,7 +165,7 @@ exceed a single device's memory. The new `LayerParallelism` trait and `Distribut
 wrapper support sequential execution, transferring activations between devices.
 `InferencePipeline` streams several batches through such a model with a thread per stage, so the
 stages overlap, and `TrainingPipeline` trains it with the GPipe or 1F1B schedule. A signal
-passed between layers derives `BackwardSignal` to train through. `Learner` integration is not
+passed between layers derives `AutodiffSignal` to train through. `Learner` integration is not
 included.
 **Breaking:** `LayerParallelism` requires `from_layers`, which rebuilds the model from the
 `LayerSequence` that `into_layers` returns.

@@ -1,6 +1,6 @@
 use burn::{
     module::parallel::{
-        BackwardSignal, DistributedLayer, LayerParallelism, LayerPlacement, LayerSequence,
+        AutodiffSignal, DistributedLayer, LayerParallelism, LayerPlacement, LayerSequence,
     },
     nn::{
         Embedding, EmbeddingConfig, Linear, LinearConfig,
@@ -126,7 +126,7 @@ pub struct Tokens {
 
 /// What passes between the layers. The padding mask travels with the hidden states, since every
 /// encoder layer reads it.
-#[derive(Module, BackwardSignal, Debug)]
+#[derive(Module, AutodiffSignal, Debug)]
 pub struct Encoded {
     hidden: Tensor<3>,
     mask_pad: Tensor<2, Bool>,

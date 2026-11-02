@@ -1,22 +1,22 @@
-//! A derived `BackwardSignal` cuts, reads and weighs its float tensors and carries the rest.
+//! A derived `AutodiffSignal` cuts, reads and weighs its float tensors and carries the rest.
 //!
-//! Run with `cargo test -p burn-core --features flex,autodiff --test backward_signal`.
+//! Run with `cargo test -p burn-core --features flex,autodiff --test autodiff_signal`.
 #![cfg(all(feature = "flex", feature = "autodiff"))]
 
 use burn_core as burn;
 
-use burn::module::parallel::BackwardSignal;
+use burn::module::parallel::AutodiffSignal;
 use burn::tensor::{Bool, Device, Distribution, Tensor, Tolerance};
 
-#[derive(BackwardSignal, Clone, Debug)]
+#[derive(AutodiffSignal, Clone, Debug)]
 struct Encoded {
     hidden: Tensor<2>,
     mask: Tensor<2, Bool>,
-    #[backward_signal(skip)]
+    #[autodiff_signal(skip)]
     length: usize,
 }
 
-#[derive(BackwardSignal, Clone, Debug)]
+#[derive(AutodiffSignal, Clone, Debug)]
 struct Pair(Tensor<2>, Option<Tensor<2>>);
 
 fn device() -> Device {

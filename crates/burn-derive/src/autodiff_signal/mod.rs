@@ -16,13 +16,13 @@ impl SignalField {
         };
         let mut skip = false;
         for attr in &field.attrs {
-            if attr.path().is_ident("backward_signal") {
+            if attr.path().is_ident("autodiff_signal") {
                 attr.parse_nested_meta(|meta| {
                     if meta.path.is_ident("skip") {
                         skip = true;
                         Ok(())
                     } else {
-                        Err(meta.error("the only `backward_signal` attribute is `skip`"))
+                        Err(meta.error("the only `autodiff_signal` attribute is `skip`"))
                     }
                 })?;
             }
@@ -42,7 +42,7 @@ fn generate(input: &DeriveInput) -> syn::Result<TokenStream> {
     let Data::Struct(data) = &input.data else {
         return Err(syn::Error::new_spanned(
             &input.ident,
-            "`BackwardSignal` can only be derived for a struct",
+            "`AutodiffSignal` can only be derived for a struct",
         ));
     };
     let fields = match &data.fields {
@@ -51,7 +51,7 @@ fn generate(input: &DeriveInput) -> syn::Result<TokenStream> {
         Fields::Unit => {
             return Err(syn::Error::new_spanned(
                 &input.ident,
-                "`BackwardSignal` needs a struct with fields",
+                "`AutodiffSignal` needs a struct with fields",
             ));
         }
     };
@@ -61,7 +61,7 @@ fn generate(input: &DeriveInput) -> syn::Result<TokenStream> {
         .map(|(index, field)| SignalField::parse(index, field))
         .collect::<syn::Result<Vec<_>>>()?;
 
-    let signal = quote! { burn::module::parallel::BackwardSignal };
+    let signal = quote! { burn::module::parallel::AutodiffSignal };
     let detached = fields.iter().map(|SignalField { member, skip }| {
         if *skip {
             quote! { #member: self.#member }

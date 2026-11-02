@@ -50,21 +50,21 @@ impl PipelineSchedule {
 
         (0..shape.num_stages)
             .map(|stage| {
-                let warmup = self.warmup(stage, shape);
-                (0..warmup)
+                let leading_forwards = self.leading_forwards(stage, shape);
+                (0..leading_forwards)
                     .map(forward)
                     .chain(
-                        (warmup..num_microbatches)
-                            .flat_map(|next| [forward(next), backward(next - warmup)]),
+                        (leading_forwards..num_microbatches)
+                            .flat_map(|next| [forward(next), backward(next - leading_forwards)]),
                     )
-                    .chain((num_microbatches - warmup..num_microbatches).map(backward))
+                    .chain((num_microbatches - leading_forwards..num_microbatches).map(backward))
                     .collect()
             })
             .collect()
     }
 
     /// How many forwards `stage` runs before its first backward.
-    fn warmup(self, stage: usize, shape: PipelineShape) -> usize {
+    fn leading_forwards(self, stage: usize, shape: PipelineShape) -> usize {
         match self {
             Self::GPipe => shape.num_microbatches,
             Self::OneForwardOneBackward => {

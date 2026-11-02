@@ -3,16 +3,16 @@ use burn_core as burn;
 use alloc::{boxed::Box, collections::VecDeque, vec::Vec};
 use core::any::Any;
 use std::{
-    panic,
+    mem, panic,
     sync::mpsc::{self, Receiver, Sender},
-    thread::{self, ScopedJoinHandle},
+    thread::{self, Scope, ScopedJoinHandle},
 };
 
 use burn::module::Module;
 use burn::module::parallel::{
-    BackwardSignal, DistributedLayeredModel, HeldStage, HiddenSignal, InferencePipeline, InputPart,
-    InputSignal, LayerParallelism, LayerPlacement, LayerSequence, MiddlePart, OutputPart,
-    OutputSignal, PipelineParts, PipelineSchedule, PipelineShape, StagePass,
+    AutodiffSignal, DistributedLayeredModel, HeldStage, HiddenSignal, InferencePipeline, InputPart,
+    InputSignal, LayerParallelism, LayerPlacement, MiddlePart, OutputPart, OutputSignal,
+    PipelineParts, PipelineSchedule, PipelineShape, StagePass,
 };
 use burn::tensor::{Device, Gradients, Tensor};
 
@@ -41,7 +41,7 @@ pub struct TrainingPipeline<M: LayerParallelism> {
 
 impl<M: LayerParallelism> TrainingPipeline<M>
 where
-    HiddenSignal<M>: BackwardSignal,
+    HiddenSignal<M>: AutodiffSignal,
 {
     /// `model`, built on autodiff devices, trained in `schedule`'s order and updated by
     /// `optimizer`.
@@ -86,70 +86,53 @@ where
         };
         let passes = self.schedule.passes(shape);
         let scale = 1.0 / shape.num_microbatches as f32;
-        let mut links = Links::new(shape.num_stages - 1);
         let devices = signal_devices(&self.parts);
+        let mut links = devices.windows(2).map(|pair| Link::new(&pair[0], &pair[1]));
+        let mut losses = Vec::with_capacity(shape.num_microbatches);
 
         let gradients = thread::scope(|scope| {
-            let input = scope.spawn({
-                let worker = InputWorker {
-                    part: self.parts.input.clone(),
-                    to_next: links.to_next.next().unwrap(),
-                    from_next: links.from_next.next().unwrap(),
-                    next_device: devices[1].clone(),
-                };
-                let passes = &passes[0];
-                move || worker.part.stream.executes(|| worker.run(passes, inputs))
-            });
-            let middle: Vec<_> = self
+            let Link { next, mut previous } = links
+                .next()
+                .expect("a pipeline has at least two parts, so one link");
+            let input = InputWorker {
+                part: self.parts.input.clone(),
+                next,
+            }
+            .spawn(scope, &passes[0], inputs);
+            let middle = self
                 .parts
                 .middle
                 .iter()
                 .zip(&passes[1..])
-                .zip(devices.windows(3))
-                .map(|((part, passes), devices)| {
-                    let worker = MiddleWorker {
+                .map(|(part, passes)| {
+                    let link = links
+                        .next()
+                        .expect("every part before the output part links to the next");
+                    MiddleWorker {
                         part: part.clone(),
-                        from_previous: links.from_previous.next().unwrap(),
-                        to_next: links.to_next.next().unwrap(),
-                        to_previous: links.to_previous.next().unwrap(),
-                        from_next: links.from_next.next().unwrap(),
-                        previous_device: devices[0].clone(),
-                        next_device: devices[2].clone(),
-                    };
-                    scope.spawn(move || worker.part.stream.executes(|| worker.run(passes)))
+                        previous: mem::replace(&mut previous, link.previous),
+                        next: link.next,
+                    }
+                    .spawn(scope, passes)
                 })
                 .collect();
-            let output = scope.spawn({
-                let worker = OutputWorker {
-                    part: self.parts.output.clone(),
-                    from_previous: links.from_previous.next().unwrap(),
-                    to_previous: links.to_previous.next().unwrap(),
-                    previous_device: devices[shape.num_stages - 2].clone(),
-                };
-                let passes = &passes[shape.num_stages - 1];
-                let loss = &loss;
-                move || {
-                    worker
-                        .part
-                        .stream
-                        .executes(|| worker.run(passes, targets, loss, scale))
-                }
-            });
-            let mut joined = Joined::default();
-            let input = joined.join(input);
-            let middle: Vec<_> = middle.into_iter().map(|part| joined.join(part)).collect();
-            let output = joined.join(output);
-            let gradients = || {
-                Some(StepGradients {
-                    input: input?,
-                    middle: middle.into_iter().collect::<Option<_>>()?,
-                    output: output?,
-                })
-            };
-            gradients().unwrap_or_else(|| joined.resume())
+            let output = OutputWorker {
+                part: self.parts.output.clone(),
+                previous,
+                scale,
+            }
+            .spawn(
+                scope,
+                &passes[shape.num_stages - 1],
+                targets,
+                &loss,
+                &mut losses,
+            );
+            StepGradients::join(input, middle, output)
         });
 
-        self.apply(gradients, learning_rate)
+        self.apply(gradients, learning_rate);
+        losses
     }
 
     /// Run each of `batches` through the model as it stands, every part on a thread of its own,
@@ -158,41 +141,22 @@ where
         InferencePipeline::from_parts(self.parts.valid()).forward(batches)
     }
 
-    /// The model, its layers as training left them.
+    /// The model, its layers as training left them. The optimizer's state is not kept, so
+    /// training resumed from this model starts it afresh.
     pub fn into_model(self) -> DistributedLayeredModel<M> {
-        let layers = self.parts.into_layers();
-        let model = M::from_layers(LayerSequence {
-            input: layers.input,
-            hidden: layers
-                .stages
-                .into_iter()
-                .flat_map(|stage| stage.layers)
-                .collect(),
-            output: layers.output,
-        });
-        DistributedLayeredModel::new(model, &self.placement)
+        DistributedLayeredModel::new(M::from_layers(self.parts.layers()), &self.placement)
     }
 
-    /// Each part's layers stepped with the gradients its thread accumulated; the losses back.
-    fn apply(&mut self, gradients: StepGradients, learning_rate: LearningRate) -> Vec<Tensor<1>> {
-        let optimizer = &mut self.optimizer;
-        let parts = &mut self.parts;
-
-        let input = &mut parts.input;
-        input.layer = optimizer.step(learning_rate, input.layer.clone(), gradients.input.layer);
-        if let (Some(stage), Some(grads)) = (&mut input.stage, gradients.input.stage) {
-            stage.layers = optimizer.step(learning_rate, stage.layers.clone(), grads);
+    /// Steps the whole model at once: stepped apart, a part's parameter paths would be relative
+    /// to it, and a parameter group selected by path would not match them.
+    fn apply(&mut self, gradients: StepGradients, learning_rate: LearningRate) {
+        let model = M::from_layers(self.parts.layers());
+        let mut merged = GradientsAccumulator::new();
+        for grads in gradients.into_params() {
+            merged.accumulate(&model, grads);
         }
-        for (part, grads) in parts.middle.iter_mut().zip(gradients.middle) {
-            let stage = &mut part.stage;
-            stage.layers = optimizer.step(learning_rate, stage.layers.clone(), grads);
-        }
-        let output = &mut parts.output;
-        if let (Some(stage), Some(grads)) = (&mut output.stage, gradients.output.stage) {
-            stage.layers = optimizer.step(learning_rate, stage.layers.clone(), grads);
-        }
-        output.layer = optimizer.step(learning_rate, output.layer.clone(), gradients.output.layer);
-        gradients.output.losses
+        let model = self.optimizer.step(learning_rate, model, merged.grads());
+        self.parts.set_layers(model.into_layers());
     }
 }
 
@@ -230,30 +194,58 @@ impl Joined {
 /// How a part stops when a neighbour it waits on has stopped first.
 struct NeighbourStopped;
 
-/// The channels between consecutive parts, handed out in part order: activations go forward
-/// and their gradients come back. Unbounded, since a part that blocked on a send could deadlock
-/// the schedule; the schedule bounds how many wait.
-struct Links<S> {
-    to_next: alloc::vec::IntoIter<Sender<S>>,
-    from_previous: alloc::vec::IntoIter<Receiver<S>>,
-    to_previous: alloc::vec::IntoIter<Sender<S>>,
-    from_next: alloc::vec::IntoIter<Receiver<S>>,
+/// The two channels between consecutive parts, seen from each end: activations go forward and
+/// their gradients come back. Unbounded, since a part that blocked on a send could deadlock the
+/// schedule; the schedule bounds how many wait.
+struct Link<S> {
+    /// The later part, as the earlier one sees it.
+    next: Neighbour<S>,
+    /// The earlier part, as the later one sees it.
+    previous: Neighbour<S>,
 }
 
-impl<S> Links<S> {
-    fn new(boundaries: usize) -> Self {
-        let (to_next, from_previous) = (0..boundaries)
-            .map(|_| mpsc::channel())
-            .unzip::<_, _, Vec<_>, Vec<_>>();
-        let (to_previous, from_next) = (0..boundaries)
-            .map(|_| mpsc::channel())
-            .unzip::<_, _, Vec<_>, Vec<_>>();
+impl<S> Link<S> {
+    /// The link between a part taking its signal on `earlier` and the next, on `later`.
+    fn new(earlier: &Device, later: &Device) -> Self {
+        let (forward, forwarded) = mpsc::channel();
+        let (back, returned) = mpsc::channel();
         Self {
-            to_next: to_next.into_iter(),
-            from_previous: from_previous.into_iter(),
-            to_previous: to_previous.into_iter(),
-            from_next: from_next.into_iter(),
+            next: Neighbour {
+                to: forward,
+                from: returned,
+                device: later.clone(),
+            },
+            previous: Neighbour {
+                to: back,
+                from: forwarded,
+                device: earlier.clone(),
+            },
         }
+    }
+}
+
+/// A neighbouring part: where this part sends it signals, where it receives the ones it sends
+/// back, and the device it takes them on.
+struct Neighbour<S> {
+    to: Sender<S>,
+    from: Receiver<S>,
+    device: Device,
+}
+
+impl<S: Module> Neighbour<S> {
+    /// Moved to the neighbour's device by the sender, so the copy queues before the work this
+    /// part issues next. A send to a stopped part is dropped; only a panic stops one, and the step
+    /// re-raises it.
+    fn send(&self, signal: S) {
+        let _ = self.to.send(signal.to_device(&self.device));
+    }
+
+    /// What the neighbour sends next. A neighbour that stopped first has panicked, so this part
+    /// stops too, quietly, leaving that panic as the step's.
+    fn receive(&self) -> S {
+        self.from
+            .recv()
+            .unwrap_or_else(|_| panic::resume_unwind(Box::new(NeighbourStopped)))
     }
 }
 
@@ -261,7 +253,39 @@ impl<S> Links<S> {
 struct StepGradients {
     input: OuterGradients,
     middle: Vec<GradientsParams>,
-    output: OutputGradients,
+    output: OuterGradients,
+}
+
+impl StepGradients {
+    /// Every part's gradients, each keyed by its parameters' ids.
+    fn into_params(self) -> impl Iterator<Item = GradientsParams> {
+        [self.input.layer]
+            .into_iter()
+            .chain(self.input.stage)
+            .chain(self.middle)
+            .chain(self.output.stage)
+            .chain([self.output.layer])
+    }
+
+    /// Every part's thread joined, re-raising the panic that stopped the step if one did.
+    fn join(
+        input: ScopedJoinHandle<'_, OuterGradients>,
+        middle: Vec<ScopedJoinHandle<'_, GradientsParams>>,
+        output: ScopedJoinHandle<'_, OuterGradients>,
+    ) -> Self {
+        let mut joined = Joined::default();
+        let input = joined.join(input);
+        let middle: Vec<_> = middle.into_iter().map(|part| joined.join(part)).collect();
+        let output = joined.join(output);
+        let gradients = || {
+            Some(Self {
+                input: input?,
+                middle: middle.into_iter().collect::<Option<_>>()?,
+                output: output?,
+            })
+        };
+        gradients().unwrap_or_else(|| joined.resume())
+    }
 }
 
 /// An outer part's gradients: its layer's, and its stage's when it holds one.
@@ -270,25 +294,29 @@ struct OuterGradients {
     stage: Option<GradientsParams>,
 }
 
-/// The output part's gradients, with each microbatch's loss.
-struct OutputGradients {
-    layer: GradientsParams,
-    stage: Option<GradientsParams>,
-    losses: Vec<Tensor<1>>,
-}
-
 /// The input part: microbatches in, activations to the next part, gradients back from it.
 struct InputWorker<M: LayerParallelism> {
     part: InputPart<M>,
-    to_next: Sender<HiddenSignal<M>>,
-    from_next: Receiver<HiddenSignal<M>>,
-    next_device: Device,
+    next: Neighbour<HiddenSignal<M>>,
 }
 
 impl<M: LayerParallelism> InputWorker<M>
 where
-    HiddenSignal<M>: BackwardSignal,
+    HiddenSignal<M>: AutodiffSignal,
 {
+    /// `run` on a thread of its own and on the part's stream.
+    fn spawn<'scope>(
+        self,
+        scope: &'scope Scope<'scope, '_>,
+        passes: &'scope [StagePass],
+        inputs: Vec<InputSignal<M>>,
+    ) -> ScopedJoinHandle<'scope, OuterGradients>
+    where
+        M: 'scope,
+    {
+        scope.spawn(move || self.part.stream.executes(|| self.run(passes, inputs)))
+    }
+
     fn run(self, passes: &[StagePass], inputs: Vec<InputSignal<M>>) -> OuterGradients {
         let mut inputs = inputs.into_iter();
         let mut in_flight = VecDeque::new();
@@ -297,13 +325,19 @@ where
         for pass in passes {
             match pass {
                 StagePass::Forward { .. } => {
-                    let output = self.part.forward(inputs.next().unwrap());
-                    send(&self.to_next, output.clone(), &self.next_device);
+                    let output = self.part.forward(
+                        inputs
+                            .next()
+                            .expect("the schedule runs one forward per microbatch"),
+                    );
+                    self.next.send(output.clone());
                     in_flight.push_back(output);
                 }
                 StagePass::Backward { .. } => {
-                    let output: HiddenSignal<M> = in_flight.pop_front().unwrap();
-                    let grad = receive(&self.from_next);
+                    let output: HiddenSignal<M> = in_flight
+                        .pop_front()
+                        .expect("the schedule runs each backward after its forward");
+                    let grad = self.next.receive();
                     let mut grads = backward_from(output, grad);
                     accumulate(&mut layer, &self.part.layer, &mut grads);
                     if let Some(held) = &self.part.stage {
@@ -323,18 +357,26 @@ where
 /// their gradients the other way.
 struct MiddleWorker<M: LayerParallelism> {
     part: MiddlePart<M>,
-    from_previous: Receiver<HiddenSignal<M>>,
-    to_next: Sender<HiddenSignal<M>>,
-    to_previous: Sender<HiddenSignal<M>>,
-    from_next: Receiver<HiddenSignal<M>>,
-    previous_device: Device,
-    next_device: Device,
+    previous: Neighbour<HiddenSignal<M>>,
+    next: Neighbour<HiddenSignal<M>>,
 }
 
 impl<M: LayerParallelism> MiddleWorker<M>
 where
-    HiddenSignal<M>: BackwardSignal,
+    HiddenSignal<M>: AutodiffSignal,
 {
+    /// `run` on a thread of its own and on the part's stream.
+    fn spawn<'scope>(
+        self,
+        scope: &'scope Scope<'scope, '_>,
+        passes: &'scope [StagePass],
+    ) -> ScopedJoinHandle<'scope, GradientsParams>
+    where
+        M: 'scope,
+    {
+        scope.spawn(move || self.part.stream.executes(|| self.run(passes)))
+    }
+
     fn run(self, passes: &[StagePass]) -> GradientsParams {
         let mut in_flight = VecDeque::new();
         let mut layers = GradientsAccumulator::new();
@@ -342,16 +384,18 @@ where
             match pass {
                 StagePass::Forward { .. } => {
                     let stage = &self.part.stage;
-                    let input = receive(&self.from_previous).detach_require_grad();
+                    let input = self.previous.receive().detach_require_grad();
                     let output = stage.forward(input.clone());
-                    send(&self.to_next, output.clone(), &self.next_device);
+                    self.next.send(output.clone());
                     in_flight.push_back(Boundary { input, output });
                 }
                 StagePass::Backward { .. } => {
-                    let Boundary { input, output } = in_flight.pop_front().unwrap();
-                    let grad = receive(&self.from_next);
+                    let Boundary { input, output } = in_flight
+                        .pop_front()
+                        .expect("the schedule runs each backward after its forward");
+                    let grad = self.next.receive();
                     let mut grads = backward_from(output, grad);
-                    send(&self.to_previous, input.grad(&grads), &self.previous_device);
+                    self.previous.send(input.grad(&grads));
                     accumulate(&mut layers, &self.part.stage.layers, &mut grads);
                 }
             }
@@ -363,42 +407,66 @@ where
 /// The output part: activations from the previous part, the loss, and their gradients back.
 struct OutputWorker<M: LayerParallelism> {
     part: OutputPart<M>,
-    from_previous: Receiver<HiddenSignal<M>>,
-    to_previous: Sender<HiddenSignal<M>>,
-    previous_device: Device,
+    previous: Neighbour<HiddenSignal<M>>,
+    /// One over the number of microbatches, which each loss is scaled by.
+    scale: f32,
 }
 
 impl<M: LayerParallelism> OutputWorker<M>
 where
-    HiddenSignal<M>: BackwardSignal,
+    HiddenSignal<M>: AutodiffSignal,
 {
+    /// `run` on a thread of its own and on the part's stream.
+    fn spawn<'scope, T: Send + 'scope>(
+        self,
+        scope: &'scope Scope<'scope, '_>,
+        passes: &'scope [StagePass],
+        targets: Vec<T>,
+        loss: &'scope (impl Fn(OutputSignal<M>, T) -> Tensor<1> + Sync),
+        losses: &'scope mut Vec<Tensor<1>>,
+    ) -> ScopedJoinHandle<'scope, OuterGradients>
+    where
+        M: 'scope,
+    {
+        scope.spawn(move || {
+            self.part
+                .stream
+                .executes(|| self.run(passes, targets, loss, losses))
+        })
+    }
+
+    /// Each microbatch's loss, before scaling, goes in `losses`.
     fn run<T>(
         self,
         passes: &[StagePass],
         targets: Vec<T>,
         loss: &impl Fn(OutputSignal<M>, T) -> Tensor<1>,
-        scale: f32,
-    ) -> OutputGradients {
+        losses: &mut Vec<Tensor<1>>,
+    ) -> OuterGradients {
         let mut targets = targets.into_iter();
         let mut in_flight = VecDeque::new();
-        let mut losses = Vec::new();
         let mut layer = GradientsAccumulator::new();
         let mut stage = GradientsAccumulator::new();
         for pass in passes {
             match pass {
                 StagePass::Forward { .. } => {
-                    let input = receive(&self.from_previous).detach_require_grad();
-                    let value = loss(self.part.forward(input.clone()), targets.next().unwrap());
+                    let input = self.previous.receive().detach_require_grad();
+                    let target = targets
+                        .next()
+                        .expect("the schedule runs one forward per microbatch");
+                    let value = loss(self.part.forward(input.clone()), target);
                     losses.push(value.clone().detach());
                     in_flight.push_back(Scored {
                         input,
-                        loss: value * scale,
+                        loss: value * self.scale,
                     });
                 }
                 StagePass::Backward { .. } => {
-                    let Scored { input, loss } = in_flight.pop_front().unwrap();
+                    let Scored { input, loss } = in_flight
+                        .pop_front()
+                        .expect("the schedule runs each backward after its forward");
                     let mut grads = loss.backward();
-                    send(&self.to_previous, input.grad(&grads), &self.previous_device);
+                    self.previous.send(input.grad(&grads));
                     if let Some(held) = &self.part.stage {
                         accumulate(&mut stage, &held.layers, &mut grads);
                     }
@@ -406,10 +474,9 @@ where
                 }
             }
         }
-        OutputGradients {
+        OuterGradients {
             layer: layer.grads(),
             stage: self.part.stage.as_ref().map(|_| stage.grads()),
-            losses,
         }
     }
 }
@@ -427,7 +494,7 @@ struct Scored<S> {
 }
 
 /// The backward of the part that produced `output`, given the gradient the next part sent back.
-fn backward_from<S: BackwardSignal>(output: S, grad: S) -> Gradients {
+fn backward_from<S: AutodiffSignal>(output: S, grad: S) -> Gradients {
     output
         .grad_product(grad)
         .expect("the signal between stages carries no float tensor to train through")
@@ -455,20 +522,4 @@ fn signal_devices<M: LayerParallelism>(parts: &PipelineParts<M>) -> Vec<Device> 
             &parts.output.device,
         )))
         .collect()
-}
-
-/// `signal` moved to the receiving part's `device`, then sent. The sender moves it so the copy
-/// queues before the work it issues next; moved by the receiver, it would wait behind that work.
-///
-/// A send to a part that has already stopped, which only a panic there does, is dropped; the step
-/// re-raises that panic once every part has stopped.
-fn send<S: Module>(to: &Sender<S>, signal: S, device: &Device) {
-    let _ = to.send(signal.to_device(device));
-}
-
-/// What the neighbour sends next. A neighbour that stopped first has panicked, so this part stops
-/// too, quietly, leaving that panic as the step's.
-fn receive<S>(from: &Receiver<S>) -> S {
-    from.recv()
-        .unwrap_or_else(|_| panic::resume_unwind(Box::new(NeighbourStopped)))
 }

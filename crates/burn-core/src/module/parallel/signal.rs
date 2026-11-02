@@ -2,14 +2,14 @@ use alloc::vec::Vec;
 
 use burn_tensor::{Bool, Gradients, Int, Tensor};
 
-pub use burn_derive::BackwardSignal;
+pub use burn_derive::AutodiffSignal;
 
 /// A signal passed between the layers of a split model, which pipeline training runs backward
 /// through one stage at a time.
 ///
-/// `#[derive(BackwardSignal)]` implements it for a struct by calling it on each field; a field
-/// that is neither a tensor nor a signal takes `#[backward_signal(skip)]` and is cloned through.
-pub trait BackwardSignal: Sized {
+/// `#[derive(AutodiffSignal)]` implements it for a struct by calling it on each field; a field
+/// that is neither a tensor nor a signal takes `#[autodiff_signal(skip)]` and is cloned through.
+pub trait AutodiffSignal: Sized {
     /// `detach().require_grad()` on each float tensor: the stage receiving it starts a graph of
     /// its own.
     fn detach_require_grad(self) -> Self;
@@ -22,7 +22,7 @@ pub trait BackwardSignal: Sized {
     fn grad_product(self, grad: Self) -> Option<Tensor<1>>;
 }
 
-impl<const D: usize> BackwardSignal for Tensor<D> {
+impl<const D: usize> AutodiffSignal for Tensor<D> {
     fn detach_require_grad(self) -> Self {
         self.detach().require_grad()
     }
@@ -37,7 +37,7 @@ impl<const D: usize> BackwardSignal for Tensor<D> {
     }
 }
 
-impl<const D: usize> BackwardSignal for Tensor<D, Bool> {
+impl<const D: usize> AutodiffSignal for Tensor<D, Bool> {
     fn detach_require_grad(self) -> Self {
         self
     }
@@ -51,7 +51,7 @@ impl<const D: usize> BackwardSignal for Tensor<D, Bool> {
     }
 }
 
-impl<const D: usize> BackwardSignal for Tensor<D, Int> {
+impl<const D: usize> AutodiffSignal for Tensor<D, Int> {
     fn detach_require_grad(self) -> Self {
         self
     }
@@ -65,7 +65,7 @@ impl<const D: usize> BackwardSignal for Tensor<D, Int> {
     }
 }
 
-impl<T: BackwardSignal> BackwardSignal for Option<T> {
+impl<T: AutodiffSignal> AutodiffSignal for Option<T> {
     fn detach_require_grad(self) -> Self {
         self.map(T::detach_require_grad)
     }
@@ -80,7 +80,7 @@ impl<T: BackwardSignal> BackwardSignal for Option<T> {
     }
 }
 
-impl<T: BackwardSignal> BackwardSignal for Vec<T> {
+impl<T: AutodiffSignal> AutodiffSignal for Vec<T> {
     fn detach_require_grad(self) -> Self {
         self.into_iter().map(T::detach_require_grad).collect()
     }
