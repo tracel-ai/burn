@@ -1102,6 +1102,27 @@ fn per_lane<S: Simd>(x: Vector<S, f32>, f: fn(f32) -> f32) -> Vector<S, f32> {
     unsafe { vload_unaligned::<S, f32>(buf.as_ptr()) }
 }
 
+/// [`per_lane`] for a two-input `f`.
+#[inline(never)]
+fn per_lane2<S: Simd>(
+    x: Vector<S, f32>,
+    y: Vector<S, f32>,
+    f: fn(f32, f32) -> f32,
+) -> Vector<S, f32> {
+    let mut xs = [0.0f32; MAX_LANES];
+    let mut ys = [0.0f32; MAX_LANES];
+    // SAFETY: a vector has at most `MAX_LANES` f32 lanes.
+    unsafe {
+        vstore_unaligned::<S, f32>(xs.as_mut_ptr(), x);
+        vstore_unaligned::<S, f32>(ys.as_mut_ptr(), y);
+    }
+    for (v, &w) in xs[..f32::lanes::<S>()].iter_mut().zip(&ys) {
+        *v = f(*v, w);
+    }
+    // SAFETY: as above.
+    unsafe { vload_unaligned::<S, f32>(xs.as_ptr()) }
+}
+
 /// `sin(x)` for f32 lanes, on |x| with the sign restored. A vector with a lane
 /// beyond [`TRIG_MAX`] (inf included) goes through `libm::sinf`.
 #[derive(Clone, Copy)]
@@ -1309,8 +1330,11 @@ fn select_by_int_mask<S: Simd>(
 
 /// `hypot(x, y)` for f32 lanes, as `sqrt(x^2 + y^2)` after scaling both by a
 /// power of two from the larger exponent, so the larger square neither
-/// overflows nor underflows and scaling it is exact. An infinite input gives +inf, even
-/// against NaN, as IEEE specifies.
+/// overflows nor underflows and scaling it is exact. A vector with a lane of
+/// magnitude 2^127 or more (inf and NaN included) goes through
+/// `libm::hypotf`: only there can the result reach the overflow threshold,
+/// where the f32 rounding of the sum and the sqrt can land on the wrong side
+/// of it.
 #[derive(Clone, Copy)]
 pub struct Hypot;
 
@@ -1319,22 +1343,22 @@ impl LaneOp2<f32> for Hypot {
     fn apply<S: Simd>(self, x: Vector<S, f32>, y: Vector<S, f32>) -> Vector<S, f32> {
         let a = x.abs();
         let b = y.abs();
-        let inf = f32::INFINITY.splat::<S>();
+        let top = f32::from_bits(0x7f00_0000).splat::<S>();
+        // A NaN lane fails both comparisons and gives NaN below, unless the
+        // other input is inf, which takes this branch.
+        if (a.ge(top) | b.ge(top)).any() {
+            return per_lane2(x, y, libm::hypotf);
+        }
 
-        // The larger magnitude's biased exponent `e` picks the scale 2^(127 - e),
-        // which brings it near 1. Its biased exponent 254 - e is kept at 1 or
-        // more so it stays a normal number; the inputs in the top binade then
-        // land in [2, 4) instead, still far from overflow.
+        // The larger magnitude's biased exponent `e`, at most 253 here, picks
+        // the scale 2^(127 - e), which brings it near 1.
         let larger = a.ge(b).select(a, b);
         let e = larger.reinterpret::<i32>() >> 23;
-        let scale_exp = 254i32.splat::<S>() - e;
-        let scale_exp = scale_exp.lt(1i32.splat()).select(1i32.splat(), scale_exp);
-        let scale = (scale_exp << 23).reinterpret::<f32>();
+        let scale = ((254i32.splat::<S>() - e) << 23).reinterpret::<f32>();
 
         let sa = a * scale;
         let sb = b * scale;
-        let h = (sa * sa + sb * sb).sqrt() / scale;
-        (a.eq(inf) | b.eq(inf)).select(inf, h)
+        (sa * sa + sb * sb).sqrt() / scale
     }
 }
 
@@ -2535,17 +2559,52 @@ mod tests {
 
     #[test]
     fn hypot_f32_within_1_ulp_of_libm() {
-        let mut extra = special_pairs();
+        // Finite pairs only, so that every vector of them takes the SIMD path.
+        let mut extra: Vec<_> = special_pairs()
+            .into_iter()
+            .filter(|(x, y)| x.is_finite() && y.is_finite())
+            .collect();
         extra.extend([
             (f32::from_bits(0x0fb2_6aa6), f32::from_bits(0x13ba_2dc9)),
             (f32::from_bits(0xc0b2_87d6), f32::from_bits(0xc081_19b5)),
-            (f32::MAX, f32::MAX),
-            (f32::MAX, 1.0),
-            (3e38, 2e38),
+            (1.7e38, 1.7e38),
             (f32::from_bits(3), f32::from_bits(4)),
             (1e-30, 1e-30),
         ]);
         check_pairs(Hypot, libm::hypotf, 1, &extra);
+    }
+
+    #[test]
+    fn hypot_f32_matches_libm_at_the_overflow_edge() {
+        // The two pairs straddle the overflow threshold: libm gives MAX for the
+        // first and inf for the second, and f32 rounding gets both wrong.
+        let mut pairs = vec![
+            (f32::from_bits(0x7f01_47a9), f32::from_bits(0x7f5c_f566)),
+            (f32::from_bits(0x7f21_54d1), f32::from_bits(0x7f46_c447)),
+            (f32::MAX, f32::MAX),
+            (-f32::MAX, 1.0),
+        ];
+        pairs.extend(
+            special_pairs()
+                .into_iter()
+                .filter(|(x, y)| !x.is_finite() || !y.is_finite()),
+        );
+        let mut state = 0x2545_f491u32;
+        for _ in 0..100_000 {
+            state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            let x = f32::from_bits(0x7f00_0000 | (state >> 9));
+            state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            pairs.push((x, f32::from_bits(0x7e80_0000 + (state >> 8))));
+        }
+        let (xs, ys): (Vec<f32>, Vec<f32>) = pairs.into_iter().unzip();
+        let out = zip_map_to_vec(&xs, &ys, Hypot);
+        for ((&x, &y), &o) in xs.iter().zip(&ys).zip(&out) {
+            let e = libm::hypotf(x, y);
+            assert!(
+                o.to_bits() == e.to_bits() || (o.is_nan() && e.is_nan()),
+                "({x:e}, {y:e}) gives {o:e}, libm gives {e:e}"
+            );
+        }
     }
 
     #[test]
