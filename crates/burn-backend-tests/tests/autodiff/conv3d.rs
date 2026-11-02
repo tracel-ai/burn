@@ -600,9 +600,13 @@ fn test_conv3d_asymmetric_padding_matches_explicit_padding_backward() {
     let device = AutodiffDevice::new();
     let x_data = TestTensorInt::arange(0..120, &device)
         .reshape::<5, _>([1, 2, 3, 4, 5])
+        .float()
+        .div_scalar(128.0)
         .into_data();
     let weight_data = TestTensorInt::arange(0..108, &device)
         .reshape::<5, _>([3, 2, 2, 3, 3])
+        .float()
+        .div_scalar(128.0)
         .into_data();
     let bias_data = TestTensorInt::arange(0..3, &device).into_data();
     let padding = [(0, 1), (2, 0), (1, 2)];
