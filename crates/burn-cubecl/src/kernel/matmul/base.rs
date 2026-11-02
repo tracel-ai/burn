@@ -72,9 +72,10 @@ pub fn matmul(
     // single matmul: `[.., b, m, k] @ [.., 1, k, n]` runs as `[.., 1, b*m, k]`
     // instead of `b` matmuls that each re-read the whole rhs. Pure metadata —
     // the launch operands share the handles, the returned tensor keeps the
-    // broadcast shape.
+    // broadcast shape. The analysis reads row strides, which a storage-tiled
+    // operand does not have.
     let mut out_launch = out.clone();
-    if lhs.qparams.is_none() {
+    if lhs.qparams.is_none() && !lhs.meta.is_tiled() && !rhs.meta.is_tiled() {
         let analysis = MatmulTransformAnalysis::from_metadata(&lhs.meta, &rhs.meta, &out.meta);
         let action = MatmulTransformPolicy::default().action(&analysis);
         action.apply(&mut lhs.meta);

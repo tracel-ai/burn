@@ -236,17 +236,20 @@ fn run_crate_unit_tests(packages: &[&str], args: &TestCmdArgs) -> anyhow::Result
 /// Compile compatible Metal suites together instead of rebuilding their shared GPU stack
 /// for every package. Keep defaults out of the non-fusion group: the WGPU, core, and
 /// vision defaults enable fusion transitively.
+///
+/// The suites run on wgpu's Metal path: cubecl's own Metal runtime needs Metal 3, which the
+/// GitHub macOS runners' paravirtual device lacks.
 fn handle_macos_tests(release: bool) -> anyhow::Result<()> {
-    set_burn_device("metal");
+    set_burn_device("wgpu-msl");
 
     let packages = ["burn-backend-tests", "burn-linalg", "burn-signal"];
     let features = [
-        "burn-backend-tests/metal",
+        "burn-backend-tests/wgpu-msl",
         "burn-backend-tests/std",
-        "burn-linalg/metal",
+        "burn-linalg/wgpu-msl",
         "burn-linalg/std",
         "burn-linalg/autotune",
-        "burn-signal/metal",
+        "burn-signal/wgpu-msl",
         "burn-signal/std",
         "burn-signal/autodiff",
         "burn-signal/autotune",
@@ -259,16 +262,16 @@ fn handle_macos_tests(release: bool) -> anyhow::Result<()> {
         "burn-backend-tests/fusion",
         "burn-linalg/fusion",
         "burn-signal/fusion",
-        // Extension tests share this Metal/Fusion build and use BURN_DEVICE=metal.
+        // Extension tests share this Metal/Fusion build and use BURN_DEVICE=wgpu-msl.
         "burn-core/extension-tests",
         // Preserve the default-feature coverage of the former standalone crate tests.
         // Qualify every feature so adding a package cannot enable its namesake feature.
         "burn-wgpu/default",
-        "burn-wgpu/metal",
+        "burn-wgpu/wgpu-msl",
         "burn-core/default",
-        "burn-core/metal",
+        "burn-core/wgpu-msl",
         "burn-vision/default",
-        "burn-vision/metal",
+        "burn-vision/wgpu-msl",
     ]);
     run_test_group(
         &fusion_packages,
