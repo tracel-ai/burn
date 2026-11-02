@@ -1031,5 +1031,55 @@ pub fn wgrad_im2col<const N: usize>(
 }
 
 #[cfg(all(test, any(feature = "cuda", feature = "vulkan", feature = "metal")))]
-#[path = "im2col_tests.rs"]
-mod tests;
+mod tests {
+    use super::*;
+    use crate::{
+        kernel::into_contiguous,
+        ops::{from_data, into_data_sync},
+    };
+    use burn_backend::TensorData;
+
+    #[test]
+    fn forward_workspace_is_bounded_without_row_padding() {
+        let device = CubeDevice::default();
+        let input = empty_device_dtype(device.client(), device, Shape::new([1]), DType::F32);
+
+        // A 1x2 filter over a 4096x4097 image: pitched 16-byte rows would
+        // allocate 256 MiB even though the logical workspace is only 128 MiB.
+        let rows = 4096 * 4096;
+        let columns = forward_columns(&input, rows, 2).unwrap();
+        assert_eq!(&columns.meta.strides()[..], &[2, 1]);
+        assert_eq!(columns.handle.size(), 128 * 1024 * 1024);
+        assert!(forward_columns(&input, rows + 1, 2).is_none());
+    }
+
+    #[test]
+    fn slice_lowering_preserves_workspace_and_zeros_padding() {
+        let device = CubeDevice::default();
+        let input = from_data(
+            TensorData::new(vec![1.0f32, -2.0, 3.0, 5.0], [1, 4, 1]),
+            &device,
+        );
+        // Nonzero contents ensure omitted padding positions are actually cleared.
+        let columns = into_contiguous(from_data(
+            TensorData::new(vec![99.0f32; 12], [4, 3]),
+            &device,
+        ));
+        let workspace_bytes = columns.handle.size();
+        let columns = flatten_columns(im2col(
+            input,
+            columns,
+            &[4],
+            &[3],
+            &ConvOptions::new([1], [1], [1], 1),
+        ));
+        assert_eq!(&columns.meta.strides()[..], &[3, 1]);
+        assert_eq!(columns.handle.size(), workspace_bytes);
+        assert_eq!(
+            into_data_sync(columns).try_to_vec::<f32>().unwrap(),
+            [
+                0.0, 1.0, -2.0, 1.0, -2.0, 3.0, -2.0, 3.0, 5.0, 3.0, 5.0, 0.0
+            ]
+        );
+    }
+}
