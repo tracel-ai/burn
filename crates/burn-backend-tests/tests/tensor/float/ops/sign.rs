@@ -5,7 +5,12 @@ use burn_tensor::TensorData;
 fn should_support_sign_ops_float() {
     // Both float widths, since an implementation may build +-1 from each
     // width's own sign and exponent bits.
+    let device = burn_tensor::Device::default();
     for dtype in [burn_tensor::DType::F32, burn_tensor::DType::F64] {
+        if !device.supports_dtype(dtype) {
+            continue;
+        }
+
         let tensor = TestTensor::<2>::from([
             [-0.2, -1.0, 2.0, f32::INFINITY],
             [3.0, 0.0, -5.0, f32::NEG_INFINITY],
