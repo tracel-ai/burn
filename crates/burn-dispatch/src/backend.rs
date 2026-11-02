@@ -13,8 +13,9 @@ use alloc::vec;
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
 use burn_backend::{
     AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, DeviceDescription,
-    DeviceTelemetry, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
+    DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
+    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
+    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
 };
 
 /// A captured graph from one of the dispatched backends (see
@@ -234,6 +235,32 @@ impl Backend for Dispatch {
         token: ExecutionModeToken,
     ) -> Result<ExecutionStatistics, ExecutionError> {
         dispatch_device!(device, |device| B::execution_mode_close(device, token))
+    }
+
+    fn environment_create(
+        device: &Self::Device,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_create(device, name, origin))
+    }
+
+    fn environment_activate(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_activate(device, id))
+    }
+
+    fn environment_active(device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_active(device))
+    }
+
+    fn environment_save(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_save(device, id))
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
