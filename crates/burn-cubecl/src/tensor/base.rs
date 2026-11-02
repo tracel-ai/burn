@@ -390,6 +390,9 @@ impl CubeTensor {
         if strides.contains(&0) {
             return false;
         }
+        if shape.num_elements() == 0 {
+            return true;
+        }
         let rank = self.rank();
         if rank > 1 {
             let mut dims = shape.iter().zip(strides.iter()).collect::<Vec<_>>();
