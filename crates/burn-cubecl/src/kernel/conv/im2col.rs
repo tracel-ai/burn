@@ -25,7 +25,7 @@ use crate::{
         utils::{address_type, decompose_linear, shape_divmod, split_dim},
     },
     ops::{
-        numeric::{empty_device_dtype, zeros_client},
+        numeric::{empty_device_contiguous_dtype, empty_device_dtype, fill_device_dtype},
         reshape, swap_dims,
     },
     tensor::CubeTensor,
@@ -153,21 +153,16 @@ pub fn conv_im2col<const N: usize>(
     // Spatial sizes are bucketed in the tune key. A cached selection must
     // still work when a larger shape crosses this workspace limit, so run
     // direct convolution instead of declining on that cache hit.
-    const MAX_WORKSPACE_BYTES: usize = 128 * 1024 * 1024;
-    if rows
-        .checked_mul(cols)
-        .and_then(|elements| elements.checked_mul(input.dtype.size()))
-        .is_none_or(|bytes| bytes > MAX_WORKSPACE_BYTES)
-    {
+    let Some(columns) = forward_columns(&input, rows, cols) else {
         return super::conv_direct(input, weight, bias, options);
-    }
+    };
 
     let out_channels = weight.meta.shape()[0];
     let dtype = input.dtype;
     // Materialize a channel-contiguous input once, rather than gather a
     // channel-first view independently for every kernel tap.
     let input = into_contiguous_aligned(input);
-    let columns = im2col_matrix::<N>(input, &out_shape, &kernel_shape, &options);
+    let columns = im2col_matrix::<N>(input, columns, &out_shape, &kernel_shape, &options);
     let weight = swap_dims(reshape(weight, Shape::new([out_channels, cols])), 0, 1);
     let out = matmul(columns, weight, None, MatmulStrategy::default(), dtype)?;
     let mut out = split_dim(out, 0, &split_m);
@@ -177,6 +172,22 @@ pub fn conv_im2col<const N: usize>(
         out = launch_binop::<AddOp>(out, reshape(bias, bias_shape.into()));
     }
     Ok(out)
+}
+
+fn forward_columns(input: &CubeTensor, rows: usize, cols: usize) -> Option<CubeTensor> {
+    const MAX_WORKSPACE_BYTES: usize = 128 * 1024 * 1024;
+    let bytes = rows.checked_mul(cols)?.checked_mul(input.dtype.size())?;
+    if bytes > MAX_WORKSPACE_BYTES {
+        return None;
+    }
+    // The budget counts dense rows. A pitched allocator can double the size
+    // of narrow rows, so request contiguous storage explicitly.
+    Some(empty_device_contiguous_dtype(
+        input.client.clone(),
+        input.device.clone(),
+        Shape::new([rows, cols]),
+        input.dtype,
+    ))
 }
 
 /// Reshapes NHWC input to [(N, H, W), C]
@@ -588,9 +599,11 @@ fn flatten_columns(mut columns: CubeTensor) -> CubeTensor {
 }
 
 /// Prefer direct lowering into a matrix, and keep the slice implementation for
-/// unsupported types and runtimes. Either path preserves an existing row pitch.
+/// unsupported types and runtimes. Both paths write into the caller's allocation,
+/// preserving its row pitch and workspace bound.
 fn im2col_matrix<const N: usize>(
     input: CubeTensor,
+    columns: CubeTensor,
     out_shape: &[usize],
     kernel_shape: &[usize],
     options: &ConvOptions<N>,
@@ -602,14 +615,6 @@ fn im2col_matrix<const N: usize>(
         // In particular, weight gradients can receive an NCHW view. Convert it
         // once rather than gather that layout independently for every tap.
         let input = into_contiguous_aligned(input);
-        let rows = input.meta.shape()[0] * out_shape.iter().product::<usize>();
-        let width = input.meta.shape()[N + 1] * kernel_shape.iter().product::<usize>();
-        let columns = empty_device_dtype(
-            input.client.clone(),
-            input.device.clone(),
-            Shape::new([rows, width]),
-            input.dtype,
-        );
         let launched = cubek::convolution::launch_im2col::<N>(
             &input.client,
             cubek::convolution::Im2colTensors {
@@ -632,7 +637,13 @@ fn im2col_matrix<const N: usize>(
     } else {
         input
     };
-    flatten_columns(im2col::<N>(input, out_shape, kernel_shape, options))
+    flatten_columns(im2col::<N>(
+        input,
+        columns,
+        out_shape,
+        kernel_shape,
+        options,
+    ))
 }
 
 /// The windows [`im2col`] gathers. [`col2im_kernel`] re-derives the same
@@ -746,6 +757,7 @@ fn plan_taps<const N: usize>(
 /// and what buys the contraction a shape a matmul can hold.
 fn im2col<const N: usize>(
     input: CubeTensor,
+    columns: CubeTensor,
     out_shape: &[usize],
     kernel_shape: &[usize],
     options: &ConvOptions<N>,
@@ -757,34 +769,23 @@ fn im2col<const N: usize>(
     let channels = input.meta.shape()[dim_c];
     let in_shape = input.meta.shape()[1..dim_c].to_vec();
 
-    let taps: usize = kernel_shape.iter().product();
-
-    let mut columns_shape = vec![batch];
-    columns_shape.extend(out_shape.iter().copied());
-    columns_shape.push(taps * channels);
-
-    // Every tap is planned before anything is allocated, because whether *any*
-    // of them is clipped is what decides if the column matrix has to be zeroed.
+    // Any clipped tap leaves unwritten columns that must be zeroed first.
     let (blocks, clipped) =
         plan_taps::<N>(batch, channels, &in_shape, out_shape, kernel_shape, options);
 
     // Only a clipped tap leaves a hole, and with no padding there is none: the
     // taps together write every column, so the fill would be a full pass over
     // the largest buffer here that nothing reads back.
-    let mut columns = match clipped {
-        true => zeros_client(
-            input.client.clone(),
-            input.device.clone(),
-            columns_shape.into(),
-            input.dtype,
+    let columns = match clipped {
+        true => fill_device_dtype(
+            columns,
+            InputScalar::new(0u32, dtype_to_storage_type(input.dtype)),
         ),
-        false => empty_device_dtype(
-            input.client.clone(),
-            input.device.clone(),
-            columns_shape.into(),
-            input.dtype,
-        ),
+        false => columns,
     };
+    let mut row_shape = vec![batch];
+    row_shape.extend_from_slice(out_shape);
+    let mut columns = split_dim(columns, 0, &row_shape);
 
     for block in blocks {
         let gathered = slice_with_steps(input.clone(), &block.image);
@@ -973,7 +974,13 @@ pub fn wgrad_im2col<const N: usize>(
     let cols = kernel_shape.iter().product::<usize>() * in_channels;
     let rows = out_grad.meta.shape()[..dim_c].iter().product::<usize>();
 
-    let columns = im2col_matrix::<N>(input, &out_shape, &kernel_shape, &options);
+    let columns = empty_device_dtype(
+        input.client.clone(),
+        input.device.clone(),
+        Shape::new([rows, cols]),
+        input.dtype,
+    );
+    let columns = im2col_matrix::<N>(input, columns, &out_shape, &kernel_shape, &options);
 
     let out_grad = reshape_input(out_grad); // [m, c_out]
     let dtype = out_grad.dtype;
@@ -1022,3 +1029,7 @@ pub fn wgrad_im2col<const N: usize>(
     // order the columns were laid out in.
     Ok(reshape(grad, weight_shape))
 }
+
+#[cfg(all(test, any(feature = "cuda", feature = "vulkan", feature = "metal")))]
+#[path = "im2col_tests.rs"]
+mod tests;

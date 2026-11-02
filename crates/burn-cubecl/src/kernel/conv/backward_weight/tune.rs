@@ -276,3 +276,42 @@ fn stride_align(strides: &[usize], elem: ElemType) -> u8 {
 fn pow2_factor(axis: usize) -> u8 {
     axis.trailing_zeros().min(4) as u8
 }
+
+#[cfg(all(test, any(feature = "cuda", feature = "vulkan", feature = "metal")))]
+mod tests {
+    use super::*;
+    use crate::{CubeDevice, ops::numeric::empty_device_dtype};
+    use burn_backend::DType;
+
+    #[test]
+    fn weight_gradient_key_preserves_depthwise_eligibility() {
+        let device = CubeDevice::default();
+        let empty = |shape: [usize; 4]| {
+            empty_device_dtype(device.client(), device.clone(), shape.into(), DType::F32)
+        };
+        let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 7);
+        let grad = empty([1, 1, 1, 14]);
+        // Minimal anchoring maps both channel counts to 16. Only the first
+        // problem is depthwise; reusing its candidate for the second panics.
+        let depthwise = create_key(&(
+            empty([1, 3, 3, 7]),
+            grad.clone(),
+            Shape::new([14, 3, 3, 1]),
+            options.clone(),
+        ));
+        let grouped = create_key(&(
+            empty([1, 3, 3, 14]),
+            grad,
+            Shape::new([14, 3, 3, 2]),
+            options,
+        ));
+        let (CubeAutotuneKey::Conv(depthwise), CubeAutotuneKey::Conv(grouped)) =
+            (depthwise, grouped)
+        else {
+            panic!("expected convolution keys");
+        };
+        assert_eq!(depthwise.in_channels, 7);
+        assert_eq!(grouped.in_channels, 14);
+        assert_ne!(depthwise, grouped);
+    }
+}

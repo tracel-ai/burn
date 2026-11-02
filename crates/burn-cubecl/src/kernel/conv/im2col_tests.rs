@@ -1,4 +1,4 @@
-use super::im2col::conv_im2col;
+use super::{conv_im2col, flatten_columns, forward_columns, im2col};
 use crate::{CubeDevice, ops::into_data_sync, tensor::CubeTensor};
 use burn_backend::{
     DType,
@@ -6,6 +6,46 @@ use burn_backend::{
 };
 use burn_std::{Metadata, Shape};
 use cubecl::prelude::CubeElement;
+
+#[test]
+fn forward_workspace_is_bounded_without_row_padding() {
+    let device = CubeDevice::default();
+    let input = upload(&device, &[1], &[0.0], false);
+    let columns = forward_columns(&input, 3, 2).unwrap();
+    assert_eq!(&columns.meta.strides()[..], &[2, 1]);
+
+    // A 1x2 filter over a 4096x4097 image: pitched 16-byte rows would
+    // allocate 256 MiB even though the logical workspace is only 128 MiB.
+    let rows = 4096 * 4096;
+    let columns = forward_columns(&input, rows, 2).unwrap();
+    assert_eq!(columns.handle.size(), 128 * 1024 * 1024);
+    assert!(forward_columns(&input, rows + 1, 2).is_none());
+    assert!(forward_columns(&input, usize::MAX, 2).is_none());
+}
+
+#[test]
+fn slice_lowering_preserves_workspace_and_zeros_padding() {
+    let device = CubeDevice::default();
+    let input = upload(&device, &[1, 4, 1], &[1.0, -2.0, 3.0, 5.0], false);
+    // Nonzero contents ensure omitted padding positions are actually cleared.
+    let columns = upload(&device, &[4, 3], &[99.0; 12], false);
+    let workspace_bytes = columns.handle.size();
+    let columns = flatten_columns(im2col(
+        input,
+        columns,
+        &[4],
+        &[3],
+        &ConvOptions::new([1], [1], [1], 1),
+    ));
+    assert_eq!(&columns.meta.strides()[..], &[3, 1]);
+    assert_eq!(columns.handle.size(), workspace_bytes);
+    assert_eq!(
+        into_data_sync(columns).try_to_vec::<f32>().unwrap(),
+        [
+            0.0, 1.0, -2.0, 1.0, -2.0, 3.0, -2.0, 3.0, 5.0, 3.0, 5.0, 0.0
+        ]
+    );
+}
 
 fn upload(device: &CubeDevice, shape: &[usize], values: &[f32], permuted: bool) -> CubeTensor {
     let rank = shape.len();
@@ -43,15 +83,18 @@ fn check<const N: usize>(
     device: &CubeDevice,
     spatial: [usize; N],
     kernel: [usize; N],
-    stride: [usize; N],
-    dilation: [usize; N],
-    padding: [(usize, usize); N],
+    options: ConvOptions<N>,
     permuted: bool,
     with_bias: bool,
 ) {
     let (batch, ci, co) = (2, 3, 5);
-    let options = ConvOptions::new_with_padding(stride, padding, dilation, 1);
-    let out_spatial = calculate_conv_output_sizes(&kernel, &stride, &padding, &dilation, &spatial);
+    let out_spatial = calculate_conv_output_sizes(
+        &kernel,
+        &options.stride,
+        &options.padding,
+        &options.dilation,
+        &spatial,
+    );
     let mut in_shape = vec![batch];
     in_shape.extend(spatial);
     in_shape.push(ci);
@@ -85,8 +128,9 @@ fn check<const N: usize>(
                     for axis in (0..N).rev() {
                         let k = rem % kernel[axis];
                         rem /= kernel[axis];
-                        let p = (out_pos[axis] * stride[axis] + k * dilation[axis]) as isize
-                            - padding[axis].0 as isize;
+                        let p = (out_pos[axis] * options.stride[axis] + k * options.dilation[axis])
+                            as isize
+                            - options.padding[axis].0 as isize;
                         valid &= p >= 0 && p < spatial[axis] as isize;
                         pos[axis] = p.max(0) as usize;
                     }
@@ -127,14 +171,19 @@ fn check<const N: usize>(
 fn suite(device: CubeDevice) {
     for permuted in [false, true] {
         for bias in [false, true] {
-            check(&device, [17], [3], [2], [2], [(1, 2)], permuted, bias);
+            check(
+                &device,
+                [17],
+                [3],
+                ConvOptions::new_with_padding([2], [(1, 2)], [2], 1),
+                permuted,
+                bias,
+            );
             check(
                 &device,
                 [13, 17],
                 [3, 3],
-                [1, 1],
-                [1, 1],
-                [(1, 1), (1, 1)],
+                ConvOptions::new([1, 1], [1, 1], [1, 1], 1),
                 permuted,
                 bias,
             );
@@ -142,9 +191,7 @@ fn suite(device: CubeDevice) {
                 &device,
                 [9, 11],
                 [2, 3],
-                [2, 1],
-                [2, 2],
-                [(0, 1), (3, 0)],
+                ConvOptions::new_with_padding([2, 1], [(0, 1), (3, 0)], [2, 2], 1),
                 permuted,
                 bias,
             );
@@ -152,9 +199,7 @@ fn suite(device: CubeDevice) {
                 &device,
                 [5, 7, 9],
                 [2, 2, 3],
-                [1, 2, 1],
-                [1, 1, 2],
-                [(1, 0), (0, 1), (2, 0)],
+                ConvOptions::new_with_padding([1, 2, 1], [(1, 0), (0, 1), (2, 0)], [1, 1, 2], 1),
                 permuted,
                 bias,
             );

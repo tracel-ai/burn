@@ -11,7 +11,7 @@ use cubek::{
         ConvolutionArgs, ConvolutionInputs, Strategy, UnitStrategy, components::ConvSetupError,
         launch_ref,
     },
-    matmul::definition::MatmulElems,
+    matmul::definition::{MatmulAvailabilityError, MatmulElems, MatmulSetupError},
     std::InputBinding,
 };
 
@@ -88,12 +88,9 @@ pub(crate) fn conv_unit<const N: usize>(
         args(&options),
         MatmulElems::from_single_dtype(dtype_to_storage_type(input.dtype)),
     );
-    if result.is_ok() {
-        return Ok(output);
-    }
-    // A cached candidate can see a different shape/layout in the same bucket.
-    // Keep a fully general fallback when that shape cannot use this tiling.
-    conv_direct(input, weight, bias, options)
+    with_shape_fallback(result.map(|()| output), || {
+        conv_direct(input, weight, bias, options)
+    })
 }
 
 pub(crate) fn dgrad_unit<const N: usize>(
@@ -121,10 +118,9 @@ pub(crate) fn dgrad_unit<const N: usize>(
         args(&options),
         MatmulElems::from_single_dtype(dtype_to_storage_type(out_grad.dtype)),
     );
-    if result.is_ok() {
-        return Ok(output);
-    }
-    conv_data_backward_fallback(out_grad, weight, shape, options)
+    with_shape_fallback(result.map(|()| output), || {
+        conv_data_backward_fallback(out_grad, weight, shape, options)
+    })
 }
 
 pub(crate) fn wgrad_unit<const N: usize>(
@@ -152,8 +148,79 @@ pub(crate) fn wgrad_unit<const N: usize>(
         args(&options),
         MatmulElems::from_single_dtype(dtype_to_storage_type(input.dtype)),
     );
-    if result.is_ok() {
-        return Ok(output);
+    with_shape_fallback(result.map(|()| output), || {
+        conv_weight_backward_fallback(input, out_grad, shape, options)
+    })
+}
+
+fn with_shape_fallback<T>(
+    result: Result<T, ConvSetupError>,
+    fallback: impl FnOnce() -> Result<T, ConvSetupError>,
+) -> Result<T, ConvSetupError> {
+    match result {
+        // After Burn's shape validation and `check`, CubeK's unit launcher uses
+        // Unknown for empty/oversized or tiled tensors, u32 matrix dimensions,
+        // and the split-K workspace limit. These can vary within an anchored key.
+        // Narrow this arm when CubeK exposes distinct errors for those limits.
+        Err(ConvSetupError::Unknown)
+        | Err(ConvSetupError::Matmul(MatmulSetupError::Unavailable(
+            MatmulAvailabilityError::CubeCountTooBig(_),
+        ))) => fallback(),
+        // Hardware/configuration and launch errors must reject the candidate,
+        // rather than benchmark the existing fallback under a unit label.
+        result => result,
     }
-    conv_weight_backward_fallback(input, out_grad, shape, options)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cubecl::{CubeCount, server::LaunchError};
+
+    #[test]
+    fn shape_limits_use_fallback() {
+        for error in [
+            ConvSetupError::Unknown,
+            MatmulAvailabilityError::CubeCountTooBig(CubeCount::Static(65536, 1, 1)).into(),
+        ] {
+            assert_eq!(with_shape_fallback(Err(error), || Ok(7)).unwrap(), 7);
+        }
+    }
+
+    #[test]
+    fn rejected_candidates_preserve_the_error() {
+        let hardware = MatmulAvailabilityError::PlaneOpsUnavailable.into();
+        assert!(matches!(
+            with_shape_fallback::<()>(Err(hardware), || panic!("hardware errors must propagate")),
+            Err(ConvSetupError::Matmul(MatmulSetupError::Unavailable(
+                MatmulAvailabilityError::PlaneOpsUnavailable
+            )))
+        ));
+        let config =
+            ConvSetupError::Matmul(MatmulSetupError::InvalidConfig(Box::new("invalid tiling")));
+        assert!(matches!(
+            with_shape_fallback::<()>(Err(config), || panic!(
+                "configuration errors must propagate"
+            )),
+            Err(ConvSetupError::Matmul(MatmulSetupError::InvalidConfig(_)))
+        ));
+        let launch = LaunchError::Unknown {
+            reason: "launch failed".into(),
+            backtrace: Default::default(),
+        };
+        assert!(matches!(
+            with_shape_fallback::<()>(Err(ConvSetupError::Launch(launch)), || panic!(
+                "launch errors must propagate"
+            )),
+            Err(ConvSetupError::Launch(_))
+        ));
+    }
+
+    #[test]
+    fn successful_launch_skips_fallback() {
+        assert_eq!(
+            with_shape_fallback(Ok(3), || panic!("already launched")).unwrap(),
+            3
+        );
+    }
 }
