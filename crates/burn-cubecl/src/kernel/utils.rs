@@ -133,3 +133,25 @@ macro_rules! address_type {
     };
 }
 pub(crate) use address_type;
+
+/// The threads it takes to keep every core of `tensor`'s device busy: one per CPU core, or a full
+/// cube on each multiprocessor of a GPU (cubecl's estimate where the runtime reports no count).
+pub(crate) fn device_threads(tensor: &CubeTensor) -> usize {
+    let hardware = &tensor.client.properties().hardware;
+    match hardware.num_cpu_cores {
+        Some(cores) => cores as usize,
+        None => {
+            let multiprocessors = hardware
+                .num_streaming_multiprocessors
+                .unwrap_or(cubecl::std::tensor::NUM_SM_APPROX);
+            multiprocessors as usize * hardware.max_units_per_cube as usize
+        }
+    }
+}
+
+/// Whether `outputs` values, each reduced over `length` terms, are too few to fill a device that runs
+/// `threads` at once with a thread each while their terms are not: a thread per output would leave
+/// cores idle.
+pub(crate) fn few_outputs_over_a_long_axis(threads: usize, outputs: usize, length: usize) -> bool {
+    outputs < threads && threads <= outputs.saturating_mul(length)
+}
