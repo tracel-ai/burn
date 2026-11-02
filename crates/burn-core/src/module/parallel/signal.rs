@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use burn_tensor::{Bool, Gradients, Int, Tensor};
+use burn_tensor::{Bool, FloatDType, Gradients, Int, Tensor};
 
 pub use burn_derive::AutodiffSignal;
 
@@ -23,8 +23,10 @@ pub trait AutodiffSignal: Sized {
 }
 
 impl<const D: usize> AutodiffSignal for Tensor<D> {
+    /// A tensor made without autodiff, such as an attention bias, keeps it off when moved onto an
+    /// autodiff device, so it is turned on here.
     fn detach_require_grad(self) -> Self {
-        self.detach().require_grad()
+        self.detach().autodiff().require_grad()
     }
 
     /// Zeros when the stage never read the tensor, so nothing flows back through it.
@@ -99,10 +101,14 @@ impl<T: AutodiffSignal> AutodiffSignal for Vec<T> {
 }
 
 /// The sum of the products that exist, or `None` when none does: what a derived signal returns.
+///
+/// Each is cast to f32 first, so fields of different float types add up. The sum only seeds the
+/// backward, which runs from a gradient of one whatever its type.
 #[doc(hidden)]
 pub fn sum_products(products: impl IntoIterator<Item = Option<Tensor<1>>>) -> Option<Tensor<1>> {
     products
         .into_iter()
         .flatten()
+        .map(|product| product.cast(FloatDType::F32))
         .reduce(|sum, product| sum + product)
 }

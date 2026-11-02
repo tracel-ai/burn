@@ -85,7 +85,7 @@ where
             num_microbatches: inputs.len(),
         };
         let passes = self.schedule.passes(shape);
-        let scale = 1.0 / shape.num_microbatches as f32;
+        let scale = 1.0 / shape.num_microbatches as f64;
         let devices = signal_devices(&self.parts);
         let mut links = devices.windows(2).map(|pair| Link::new(&pair[0], &pair[1]));
         let mut losses = Vec::with_capacity(shape.num_microbatches);
@@ -338,10 +338,11 @@ where
                         .pop_front()
                         .expect("the schedule runs each backward after its forward");
                     let grad = self.next.receive();
-                    let mut grads = backward_from(output, grad);
-                    accumulate(&mut layer, &self.part.layer, &mut grads);
-                    if let Some(held) = &self.part.stage {
-                        accumulate(&mut stage, &held.layers, &mut grads);
+                    if let Some(mut grads) = backward_from(output, grad) {
+                        accumulate(&mut layer, &self.part.layer, &mut grads);
+                        if let Some(held) = &self.part.stage {
+                            accumulate(&mut stage, &held.layers, &mut grads);
+                        }
                     }
                 }
             }
@@ -394,7 +395,8 @@ where
                         .pop_front()
                         .expect("the schedule runs each backward after its forward");
                     let grad = self.next.receive();
-                    let mut grads = backward_from(output, grad);
+                    let mut grads = backward_from(output, grad)
+                        .expect("a stage's input requires grad, so its output is tracked");
                     self.previous.send(input.grad(&grads));
                     accumulate(&mut layers, &self.part.stage.layers, &mut grads);
                 }
@@ -409,7 +411,7 @@ struct OutputWorker<M: LayerParallelism> {
     part: OutputPart<M>,
     previous: Neighbour<HiddenSignal<M>>,
     /// One over the number of microbatches, which each loss is scaled by.
-    scale: f32,
+    scale: f64,
 }
 
 impl<M: LayerParallelism> OutputWorker<M>
@@ -458,7 +460,7 @@ where
                     losses.push(value.clone().detach());
                     in_flight.push_back(Scored {
                         input,
-                        loss: value * self.scale,
+                        loss: value.mul_scalar(self.scale),
                     });
                 }
                 StagePass::Backward { .. } => {
@@ -493,12 +495,13 @@ struct Scored<S> {
     loss: Tensor<1>,
 }
 
-/// The backward of the part that produced `output`, given the gradient the next part sent back.
-fn backward_from<S: AutodiffSignal>(output: S, grad: S) -> Gradients {
-    output
+/// The backward of the part that produced `output`, given the gradient the next part sent back;
+/// `None` when nothing that part ran is trained, as in a frozen input part.
+fn backward_from<S: AutodiffSignal>(output: S, grad: S) -> Option<Gradients> {
+    let product = output
         .grad_product(grad)
-        .expect("the signal between stages carries no float tensor to train through")
-        .backward()
+        .expect("the signal between stages carries no float tensor to train through");
+    product.is_tracked().then(|| product.backward())
 }
 
 fn accumulate<T: Module>(

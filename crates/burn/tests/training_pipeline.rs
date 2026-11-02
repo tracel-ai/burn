@@ -47,8 +47,16 @@ fn assert_trains_as_one_device(
     schedule: PipelineSchedule,
     optimizer: impl Fn() -> ModuleOptimizer,
 ) {
+    assert_stack_trains_as_one_device(Stack::new(placement), placement, schedule, optimizer);
+}
+
+fn assert_stack_trains_as_one_device(
+    stack: Stack,
+    placement: &LayerPlacement,
+    schedule: PipelineSchedule,
+    optimizer: impl Fn() -> ModuleOptimizer,
+) {
     let device = placement.input.clone();
-    let stack = Stack::new(placement);
     let mut reference = stack.clone().fork(&device);
     let mut reference_optimizer = optimizer();
     let mut training = TrainingPipeline::new(
@@ -132,6 +140,22 @@ fn a_parameter_group_selected_by_path_matches_as_in_the_whole_model() {
         &placement([(flex.clone(), 2), (cpu, 1), (flex, 1)]),
         PipelineSchedule::OneForwardOneBackward,
         optimizer,
+    );
+}
+
+#[test]
+fn a_frozen_input_part_leaves_the_rest_to_train_as_one_device() {
+    let (flex, cpu) = devices();
+    let placement = placement([(flex.clone(), 1), (cpu, 1), (flex, 1)]);
+    let mut stack = Stack::new(&placement);
+    stack.input = stack.input.no_grad();
+    stack.hidden[0] = stack.hidden[0].clone().no_grad();
+
+    assert_stack_trains_as_one_device(
+        stack,
+        &placement,
+        PipelineSchedule::OneForwardOneBackward,
+        || SgdConfig::new().init(),
     );
 }
 

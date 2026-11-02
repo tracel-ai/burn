@@ -6,7 +6,7 @@
 use burn_core as burn;
 
 use burn::module::parallel::AutodiffSignal;
-use burn::tensor::{Bool, Device, Distribution, Tensor, Tolerance};
+use burn::tensor::{Bool, Device, Distribution, FloatDType, Tensor, Tolerance};
 
 #[derive(AutodiffSignal, Clone, Debug)]
 struct Encoded {
@@ -61,6 +61,41 @@ fn a_signal_weighs_each_float_tensor_by_its_gradient() {
         .expect("the pair holds float tensors");
 
     // 6 elements of 2 * 5 and 6 of 3 * 7.
+    product.into_data().assert_approx_eq::<f32>(
+        &Tensor::<1>::from_floats([186.0], &device).into_data(),
+        Tolerance::default(),
+    );
+}
+
+#[test]
+fn a_tensor_made_without_autodiff_is_cut_into_a_tracked_one() {
+    let device = device();
+    let cut = Tensor::<2>::ones([2, 3], &Device::flex())
+        .to_device(&device)
+        .detach_require_grad();
+
+    let grads = (cut.clone() * 2.0).sum().backward();
+
+    AutodiffSignal::grad(&cut, &grads)
+        .into_data()
+        .assert_approx_eq::<f32>(
+            &Tensor::<2>::full([2, 3], 2.0, &device).into_data(),
+            Tolerance::default(),
+        );
+}
+
+#[test]
+fn a_signal_of_two_float_types_weighs_both() {
+    let device = device();
+    let ones = || Tensor::<2>::ones([2, 3], &device);
+    let double = |tensor: Tensor<2>| tensor.cast(FloatDType::F64);
+    let pair = Pair(ones() * 2.0, Some(double(ones() * 3.0)));
+    let grad = Pair(ones() * 5.0, Some(double(ones() * 7.0)));
+
+    let product = pair
+        .grad_product(grad)
+        .expect("the pair holds float tensors");
+
     product.into_data().assert_approx_eq::<f32>(
         &Tensor::<1>::from_floats([186.0], &device).into_data(),
         Tolerance::default(),
