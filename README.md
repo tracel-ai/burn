@@ -1,23 +1,21 @@
 <div align="center">
-<img src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/logo-burn-neutral.webp" width="350px"/>
+  <img src="assets/burn-symbol-colour.svg" alt="The Burn logo" height="200"/>
+  <br /><br />
 
-[![Discord](https://img.shields.io/discord/1038839012602941528.svg?color=7289da&&logo=discord)](https://discord.gg/uPEBbYYDB6)
-[![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg)](https://crates.io/crates/burn)
-[![Minimum Supported Rust Version](https://img.shields.io/crates/msrv/burn)](https://crates.io/crates/burn)
-[![Documentation](https://img.shields.io/badge/docs-latest-blue)](https://burn.dev/docs/burn)
-[![Test Status](https://github.com/tracel-ai/burn/actions/workflows/test.yml/badge.svg)](https://github.com/tracel-ai/burn/actions/workflows/test.yml)
-[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
-[![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue)](https://deepwiki.com/tracel-ai/burn)
+[![Rust 1.95 or later](https://img.shields.io/badge/Rust-1.95%2B-f15a24?style=flat-square&logo=rust&logoColor=white)](https://crates.io/crates/burn)
+[![License](https://img.shields.io/badge/License-MIT%2FApache--2.0-f15a24?style=flat-square)](#license)
+[![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg?style=flat-square&color=f15a24)](https://crates.io/crates/burn)
+[![Test Status](https://img.shields.io/github/actions/workflow/status/tracel-ai/burn/test.yml?branch=main&label=CI&style=flat-square)](https://github.com/tracel-ai/burn/actions/workflows/test.yml)
+<br />
+[![Discord](https://img.shields.io/discord/1038839012602941528.svg?label=Chat&style=flat-square&color=f15a24&logo=discord&logoColor=white)](https://discord.gg/uPEBbYYDB6)
+[![Documentation](https://img.shields.io/badge/docs-latest-f15a24?style=flat-square)](https://burn.dev/docs/burn)
+[![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-f15a24?style=flat-square)](https://deepwiki.com/tracel-ai/burn)
+[![Blaze: macOS CI](assets/ci-powered-by-blaze.svg)](https://runblaze.dev)
 
-[<img src="https://www.runblaze.dev/ci-blaze-powered.png" width="125px"/>](https://www.runblaze.dev)
+  <p><b>A tensor library and deep learning framework for numerical computing, training and inference.</b></p>
+</div>
 
 ---
-
-**Burn is both a tensor library and a deep learning framework, optimized for <br /> numerical
-computing, training and inference.**
-
-<br/>
-</div>
 
 <div align="left">
 
@@ -551,7 +549,7 @@ Loading Model Records From Previous Versions ⚠️
 Burn 0.22 uses burnpack for native records and cannot directly read legacy `Recorder` formats such
 as `.mpk`, `.bin`, or JSON. Load the checkpoint in a compatible older Burn project, export the model
 weights through `burn-store`, and import them into your 0.22 model. See
-[Migrating checkpoints](https://github.com/tracel-ai/burn/blob/main/burn-book/src/migrating-to-0.22.md#migrating-checkpoints) for an example and
+[Migrating checkpoints](https://github.com/tracel-ai/burn/blob/release/0.22/burn-book/src/migrating-to-0.22.md#migrating-checkpoints) for an example and
 the distinction between transferring weights and resuming training state.
 
 For records saved before `0.14.0`, an earlier migration step may also be needed: use Burn `0.14`,
@@ -588,8 +586,16 @@ issues are likely to be easy to fix, there are no guarantees at this stage.
 
 ## License
 
-Burn is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
-See [LICENSE-APACHE](https://github.com/tracel-ai/burn/blob/main/LICENSE-APACHE) and [LICENSE-MIT](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT) for details. Opening a pull
-request is assumed to signal agreement with these licensing terms.
+Burn is distributed under the terms of either the
+[MIT License](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT) or the
+[Apache License, Version 2.0](https://github.com/tracel-ai/burn/blob/main/LICENSE-APACHE).
+Unless otherwise noted, this applies to all contents of this repository, including source code,
+examples, documentation, and code snippets in the Burn Book and Contributor Book. See the licenses
+for details.
+
+Third-party materials and externally downloaded datasets or models remain subject to their respective
+licenses.
+
+Opening a pull request is assumed to signal agreement with these licensing terms.
 
 </div>

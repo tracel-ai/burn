@@ -12,10 +12,6 @@ mod collective;
 #[path = "../tensor/multi_threads.rs"]
 mod multi_threads;
 
-#[cfg(feature = "distributed")]
-#[path = "../tensor/distributed.rs"]
-mod distributed;
-
 #[path = "../tensor/extract_inplace.rs"]
 mod extract_inplace;
 

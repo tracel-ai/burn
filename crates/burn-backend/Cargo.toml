@@ -17,7 +17,7 @@ workspace = true
 [features]
 default = ["std"]
 doc = ["default"]
-std = ["rand/std", "num-traits/std", "burn-std/std", "cubecl?/std", "dep:oneshot"]
+std = ["rand/std", "num-traits/std", "burn-std/std", "cubecl?/std", "dep:oneshot", "dep:log"]
 
 tracing = ["burn-std/tracing", "cubecl?/tracing"]
 
@@ -37,6 +37,7 @@ cubecl-cuda = ["cubecl-device", "cubecl/cuda"]
 cubecl-hip = ["cubecl-device", "cubecl/hip"]
 cubecl-wgpu = ["cubecl-device", "cubecl/wgpu"]
 cubecl-metal = ["cubecl-device", "cubecl/metal"]
+cubecl-metal-native = ["cubecl-device", "cubecl/metal-native"]
 cubecl-vulkan = ["cubecl-device", "cubecl/vulkan"]
 cubecl-webgpu = ["cubecl-device", "cubecl/webgpu"]
 cubecl-cpu = ["cubecl-device", "cubecl/cpu"]
@@ -48,6 +49,7 @@ cubecl = { workspace = true, optional = true, default-features = false }
 derive-new = { workspace = true }
 enumset = { workspace = true }
 hashbrown = { workspace = true }
+log = { workspace = true, optional = true }
 num-traits = { workspace = true }
 rand = { workspace = true, default-features = false }
 rand_distr = { workspace = true }

@@ -69,6 +69,17 @@ fn test_var_mean_bias() {
 }
 
 #[test]
+fn test_var_empty_axis_is_nan() {
+    let tensor = TestTensor::<2>::empty([0, 3], &Default::default());
+
+    for output in [tensor.clone().var(0), tensor.var_bias(0)] {
+        assert_eq!(output.dims(), [1, 3]);
+        let values = output.into_data().convert::<f32>();
+        assert!(values.as_slice::<f32>().unwrap().iter().all(|v| v.is_nan()));
+    }
+}
+
+#[test]
 fn test_variance_negative_dim() {
     let tensor = TestTensor::<2>::from_data(
         [[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]],

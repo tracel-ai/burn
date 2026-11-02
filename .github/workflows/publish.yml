@@ -91,6 +91,20 @@ jobs:
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
+  publish-burn-group:
+    needs:
+      - publish-burn-flex
+      - publish-burn-backend
+      - publish-burn-ir
+      - publish-burn-router
+      - publish-burn-std
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v12
+    with:
+      crate: burn-group
+      dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
   publish-burn-remote:
     needs:
       - publish-burn-ir
@@ -348,8 +362,41 @@ jobs:
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
+  publish-burn-instrument-macros:
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v12
+    with:
+      crate: burn-instrument-macros
+      dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
+  publish-burn-instrument:
+    needs:
+      - publish-burn-instrument-macros
+      - publish-burn-tensor
+      - publish-burn-fusion
+      - publish-burn-ir
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v12
+    with:
+      crate: burn-instrument
+      dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
+  publish-burn-instrument-report:
+    needs:
+      - publish-burn-instrument
+      - publish-burn-tensor
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v12
+    with:
+      crate: burn-instrument-report
+      dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
   publish-burn-core:
     needs:
+      - publish-burn-instrument
       - publish-burn-dataset
       - publish-burn-std
       - publish-burn-derive
@@ -416,6 +463,7 @@ jobs:
       - publish-burn-flex
       - publish-burn-remote
       - publish-burn-capture
+      - publish-burn-group
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v12
     with:
       crate: burn-dispatch

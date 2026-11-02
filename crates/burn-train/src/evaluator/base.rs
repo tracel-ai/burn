@@ -67,16 +67,16 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
         for (name, dataloader) in splits {
             let dataloader = dataloader.to_device(self.model.devices().first().unwrap());
             let name = EvaluationName::new(name);
-            let total_items = dataloader.num_items();
             let mut iterator = dataloader.iter();
             let mut iteration = 0;
 
             self.interrupter.fail_on_error(
                 self.event_processor
-                    .process_test(EvaluatorEvent::StartTest(name.clone(), total_items)),
+                    .process_test(EvaluatorEvent::StartTest(name.clone(), iterator.progress())),
             );
 
-            while let Some(item) = iterator.next() {
+            while !self.interrupter.should_stop() {
+                let Some(item) = iterator.next() else { break };
                 let item = match item {
                     Ok(item) => item,
                     Err(err) => {
@@ -101,10 +101,16 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
                 }
             }
 
-            self.interrupter
-                .fail_on_error(self.event_processor.process_test(EvaluatorEvent::EndTest));
+            self.interrupter.fail_on_error(self.event_processor.flush());
 
-            // The remaining datasets are not evaluated once interrupted.
+            let mut progress = iterator.progress();
+            if !self.interrupter.should_stop() {
+                progress.resolve_total();
+            }
+            self.interrupter.fail_on_error(
+                self.event_processor
+                    .process_test(EvaluatorEvent::EndTest { progress }),
+            );
             if self.interrupter.should_stop() {
                 break;
             }

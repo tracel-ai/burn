@@ -54,13 +54,20 @@ where
     /// Create from a json rows file (one json per line).
     ///
     /// [Supported field types](https://docs.rs/serde_json/latest/serde_json/value/enum.Value.html)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be opened or read. Invalid UTF-8 or a line that
+    /// cannot be deserialized into `I` returns [`std::io::ErrorKind::InvalidData`].
     pub fn from_json_rows<P: AsRef<Path>>(path: P) -> Result<Self, std::io::Error> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
         let mut items = Vec::new();
 
         for line in reader.lines() {
-            let item = serde_json::from_str(line.unwrap().as_str()).unwrap();
+            let line = line?;
+            let item = serde_json::from_str(&line)
+                .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
             items.push(item);
         }
 
@@ -167,6 +174,34 @@ mod tests {
 
         assert_eq!(dataset.get(record_index).unwrap().column_str, "HI2");
         assert!(!dataset.get(record_index).unwrap().column_bool);
+    }
+
+    #[test]
+    pub fn from_json_rows_with_malformed_json_returns_error() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(file.path(), "[\"valid\"]\nthis is not valid JSON\n").unwrap();
+
+        let result = InMemDataset::<Vec<String>>::from_json_rows(file.path());
+
+        let error = match result {
+            Ok(_) => panic!("malformed JSON should return an error"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+        assert!(error.get_ref().unwrap().is::<serde_json::Error>());
+    }
+
+    #[test]
+    pub fn from_json_rows_with_invalid_utf8_returns_error() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(file.path(), [0xff, b'\n']).unwrap();
+
+        let result = InMemDataset::<Vec<String>>::from_json_rows(file.path());
+
+        assert!(matches!(
+            result,
+            Err(error) if error.kind() == std::io::ErrorKind::InvalidData
+        ));
     }
 
     #[test]

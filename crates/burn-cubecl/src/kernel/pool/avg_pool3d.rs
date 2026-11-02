@@ -22,6 +22,9 @@ struct AvgPool3dArgs {
     pad_d: usize,
     pad_h: usize,
     pad_w: usize,
+    dilation_d: usize,
+    dilation_h: usize,
+    dilation_w: usize,
 }
 
 #[cube(launch, address_type = "dynamic")]
@@ -58,6 +61,10 @@ fn avg_pool3d_forward_kernel<F: Float>(
     let kernel_h = args.kernel_h;
     let kernel_w = args.kernel_w;
 
+    let dilation_d = args.dilation_d;
+    let dilation_h = args.dilation_h;
+    let dilation_w = args.dilation_w;
+
     let mut sum = F::new(0.0);
     let mut count = 0usize;
 
@@ -67,17 +74,17 @@ fn avg_pool3d_forward_kernel<F: Float>(
     let in_stride_w = input.stride(4);
 
     for kd in 0..kernel_d {
-        let id_val = od * stride_d + kd;
+        let id_val = od * stride_d + kd * dilation_d;
         if id_val >= pad_d {
             let id = id_val - pad_d;
             if id < in_d_len {
                 for kh in 0..kernel_h {
-                    let ih_val = oh * stride_h + kh;
+                    let ih_val = oh * stride_h + kh * dilation_h;
                     if ih_val >= pad_h {
                         let ih = ih_val - pad_h;
                         if ih < in_h_len {
                             for kw in 0..kernel_w {
-                                let iw_val = ow * stride_w + kw;
+                                let iw_val = ow * stride_w + kw * dilation_w;
                                 if iw_val >= pad_w {
                                     let iw = iw_val - pad_w;
                                     if iw < in_w_len {
@@ -102,16 +109,9 @@ fn avg_pool3d_forward_kernel<F: Float>(
     let w_start = ow * stride_w;
 
     let divisor = if comptime!(count_include_pad) {
-        let padded_d_end = clamp_max(d_start + kernel_d, in_d_len + 2 * pad_d);
-        let padded_d = padded_d_end.saturating_sub(d_start);
-
-        let padded_h_end = clamp_max(h_start + kernel_h, in_h_len + 2 * pad_h);
-        let padded_h = padded_h_end.saturating_sub(h_start);
-
-        let padded_w_end = clamp_max(w_start + kernel_w, in_w_len + 2 * pad_w);
-        let padded_w = padded_w_end.saturating_sub(w_start);
-
-        padded_d * padded_h * padded_w
+        padded_taps(d_start, kernel_d, dilation_d, in_d_len + 2 * pad_d)
+            * padded_taps(h_start, kernel_h, dilation_h, in_h_len + 2 * pad_h)
+            * padded_taps(w_start, kernel_w, dilation_w, in_w_len + 2 * pad_w)
     } else {
         count
     };
@@ -127,6 +127,35 @@ fn avg_pool3d_forward_kernel<F: Float>(
     } else {
         output[out_idx] = F::new(0.0);
     }
+}
+
+/// The number of kernel taps, starting at `start` in the padded input, that land before
+/// `padded_len`. Taps past the end padding, from a ceil-mode window, are not counted.
+#[cube]
+fn padded_taps(start: usize, kernel: usize, dilation: usize, padded_len: usize) -> usize {
+    let span = padded_len.saturating_sub(start);
+    clamp_max(span.div_ceil(dilation), kernel)
+}
+
+/// The number of kernel taps, starting at `start` in the padded input, that land in the
+/// input rather than its padding.
+#[cube]
+fn valid_taps(start: usize, kernel: usize, dilation: usize, pad: usize, in_len: usize) -> usize {
+    let first = pad.saturating_sub(start).div_ceil(dilation);
+    let end = padded_taps(start, kernel, dilation, in_len + pad);
+    end.saturating_sub(first)
+}
+
+/// Whether the padded position `pos` is one of the taps of the window that starts at `start`
+/// and spans `extent` positions.
+#[cube]
+fn is_tap(pos: usize, start: usize, extent: usize, dilation: usize) -> bool {
+    let mut tap = false;
+    if pos >= start {
+        let offset = pos - start;
+        tap = offset < extent && offset.is_multiple_of(dilation);
+    }
+    tap
 }
 
 #[cube(launch, address_type = "dynamic")]
@@ -167,22 +196,30 @@ fn avg_pool3d_backward_kernel<F: Float>(
     let kernel_h = args.kernel_h;
     let kernel_w = args.kernel_w;
 
-    let od_min = if id + pad_d >= kernel_d {
-        (id + pad_d - kernel_d + 1) / stride_d
+    let dilation_d = args.dilation_d;
+    let dilation_h = args.dilation_h;
+    let dilation_w = args.dilation_w;
+
+    let extent_d = (kernel_d - 1) * dilation_d + 1;
+    let extent_h = (kernel_h - 1) * dilation_h + 1;
+    let extent_w = (kernel_w - 1) * dilation_w + 1;
+
+    let od_min = if id + pad_d >= extent_d {
+        (id + pad_d - extent_d + 1) / stride_d
     } else {
         0usize
     };
     let od_max = clamp_max((id + pad_d) / stride_d + 1, out_d_len);
 
-    let oh_min = if ih + pad_h >= kernel_h {
-        (ih + pad_h - kernel_h + 1) / stride_h
+    let oh_min = if ih + pad_h >= extent_h {
+        (ih + pad_h - extent_h + 1) / stride_h
     } else {
         0usize
     };
     let oh_max = clamp_max((ih + pad_h) / stride_h + 1, out_h_len);
 
-    let ow_min = if iw + pad_w >= kernel_w {
-        (iw + pad_w - kernel_w + 1) / stride_w
+    let ow_min = if iw + pad_w >= extent_w {
+        (iw + pad_w - extent_w + 1) / stride_w
     } else {
         0usize
     };
@@ -197,53 +234,31 @@ fn avg_pool3d_backward_kernel<F: Float>(
 
     for od in od_min..od_max {
         let d_start = od * stride_d;
-        if id + pad_d >= d_start && id + pad_d < d_start + kernel_d {
+        if is_tap(id + pad_d, d_start, extent_d, dilation_d) {
             for oh in oh_min..oh_max {
                 let h_start = oh * stride_h;
-                if ih + pad_h >= h_start && ih + pad_h < h_start + kernel_h {
+                if is_tap(ih + pad_h, h_start, extent_h, dilation_h) {
                     for ow in ow_min..ow_max {
                         let w_start = ow * stride_w;
-                        if iw + pad_w >= w_start && iw + pad_w < w_start + kernel_w {
+                        if is_tap(iw + pad_w, w_start, extent_w, dilation_w) {
                             let divisor = if comptime!(count_include_pad) {
-                                let padded_d_end =
-                                    clamp_max(d_start + kernel_d, in_d_len + 2 * pad_d);
-                                let padded_d = padded_d_end.saturating_sub(d_start);
-
-                                let padded_h_end =
-                                    clamp_max(h_start + kernel_h, in_h_len + 2 * pad_h);
-                                let padded_h = padded_h_end.saturating_sub(h_start);
-
-                                let padded_w_end =
-                                    clamp_max(w_start + kernel_w, in_w_len + 2 * pad_w);
-                                let padded_w = padded_w_end.saturating_sub(w_start);
-
-                                padded_d * padded_h * padded_w
+                                padded_taps(d_start, kernel_d, dilation_d, in_d_len + 2 * pad_d)
+                                    * padded_taps(
+                                        h_start,
+                                        kernel_h,
+                                        dilation_h,
+                                        in_h_len + 2 * pad_h,
+                                    )
+                                    * padded_taps(
+                                        w_start,
+                                        kernel_w,
+                                        dilation_w,
+                                        in_w_len + 2 * pad_w,
+                                    )
                             } else {
-                                let valid_d_start = d_start.saturating_sub(pad_d);
-                                let valid_d_end = if d_start + kernel_d >= pad_d {
-                                    clamp_max(d_start + kernel_d - pad_d, in_d_len)
-                                } else {
-                                    0usize
-                                };
-                                let valid_d = valid_d_end.saturating_sub(valid_d_start);
-
-                                let valid_h_start = h_start.saturating_sub(pad_h);
-                                let valid_h_end = if h_start + kernel_h >= pad_h {
-                                    clamp_max(h_start + kernel_h - pad_h, in_h_len)
-                                } else {
-                                    0usize
-                                };
-                                let valid_h = valid_h_end.saturating_sub(valid_h_start);
-
-                                let valid_w_start = w_start.saturating_sub(pad_w);
-                                let valid_w_end = if w_start + kernel_w >= pad_w {
-                                    clamp_max(w_start + kernel_w - pad_w, in_w_len)
-                                } else {
-                                    0usize
-                                };
-                                let valid_w = valid_w_end.saturating_sub(valid_w_start);
-
-                                valid_d * valid_h * valid_w
+                                valid_taps(d_start, kernel_d, dilation_d, pad_d, in_d_len)
+                                    * valid_taps(h_start, kernel_h, dilation_h, pad_h, in_h_len)
+                                    * valid_taps(w_start, kernel_w, dilation_w, pad_w, in_w_len)
                             };
 
                             if divisor > 0 {
@@ -274,17 +289,17 @@ pub fn avg_pool3d(
     kernel_size: [usize; 3],
     stride: [usize; 3],
     padding: [usize; 3],
+    dilation: [usize; 3],
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> CubeTensor {
     let [batch_size, channels, in_d, in_h, in_w] = x.meta.shape().dims();
-    let dilation = 1;
 
     let size_0 = calculate_pool_output_size(
         kernel_size[0],
         stride[0],
         padding[0],
-        dilation,
+        dilation[0],
         in_d,
         ceil_mode,
     );
@@ -292,7 +307,7 @@ pub fn avg_pool3d(
         kernel_size[1],
         stride[1],
         padding[1],
-        dilation,
+        dilation[1],
         in_h,
         ceil_mode,
     );
@@ -300,7 +315,7 @@ pub fn avg_pool3d(
         kernel_size[2],
         stride[2],
         padding[2],
-        dilation,
+        dilation[2],
         in_w,
         ceil_mode,
     );
@@ -333,6 +348,9 @@ pub fn avg_pool3d(
             padding[0],
             padding[1],
             padding[2],
+            dilation[0],
+            dilation[1],
+            dilation[2],
         ),
         count_include_pad,
         dtype_to_storage_type(dtype),
@@ -341,12 +359,14 @@ pub fn avg_pool3d(
     output
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn avg_pool3d_backward(
     x: CubeTensor,
     grad: CubeTensor,
     kernel_size: [usize; 3],
     stride: [usize; 3],
     padding: [usize; 3],
+    dilation: [usize; 3],
     count_include_pad: bool,
     _ceil_mode: bool,
 ) -> CubeTensor {
@@ -384,6 +404,9 @@ pub fn avg_pool3d_backward(
             padding[0],
             padding[1],
             padding[2],
+            dilation[0],
+            dilation[1],
+            dilation[2],
         ),
         count_include_pad,
         dtype_to_storage_type(dtype),

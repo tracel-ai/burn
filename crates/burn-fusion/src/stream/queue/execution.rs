@@ -1,4 +1,3 @@
-use burn_backend::ExecutionError;
 use burn_ir::{HandleContainer, OperationIr, TensorError, TensorStatus};
 use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 use std::sync::Arc;
@@ -10,7 +9,6 @@ use crate::{
         Context, ContextGuard, Executed, OperationConverter, OrderedExecution, RelativeOps,
         StreamId,
         execution::log_execution_table,
-        panic_message,
         store::{ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy},
     },
 };
@@ -158,7 +156,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
             log::warn!(
                 "an operation failed: {}; the tensors it was going to write hold that error, \
                  and reading one of them reports it",
-                panic_message(panic.as_ref()),
+                TensorError::from_panic(panic.as_ref()).root(),
             );
         }
 
@@ -258,7 +256,7 @@ fn run_strategy<R: FusionRuntime>(
         // nothing has claimed anything and nothing says which operation it came
         // from. So the sweep claims only what nothing wrote and nothing else
         // already claims, which is the set no scope can account for.
-        let error = TensorError::new(ExecutionError::generic(panic_message(escaped.as_ref())));
+        let error = TensorError::from_panic(escaped.as_ref());
         for op in executed.ir.iter().take(executed.num_executed) {
             for node in op.outputs() {
                 handles.claim_unwritten(node.id, error.clone());

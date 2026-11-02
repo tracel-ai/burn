@@ -326,11 +326,7 @@ mod tests {
         let mut runner = setup(0, false, false);
         let mut processor = AsyncProcessorTraining::new(MockProcessor);
         let interrupter = Interrupter::new();
-        let mut progress = Progress {
-            items_processed: 0,
-            items_total: 1,
-            unit: Some("steps".to_string()),
-        };
+        let mut progress = Progress::new(0, 1, Some("steps".to_string()));
 
         let steps = runner.run_steps(1, &mut processor, &interrupter, &mut progress);
         assert_eq!(steps.len(), 1);
@@ -343,11 +339,7 @@ mod tests {
         let mut runner = setup(0, false, false);
         let mut processor = AsyncProcessorTraining::new(MockProcessor);
         let interrupter = Interrupter::new();
-        let mut progress = Progress {
-            items_processed: 0,
-            items_total: 1,
-            unit: Some("steps".to_string()),
-        };
+        let mut progress = Progress::new(0, 1, Some("steps".to_string()));
 
         let trajectories = runner.run_episodes(1, &mut processor, &interrupter, &mut progress);
         assert_eq!(trajectories.len(), 1);

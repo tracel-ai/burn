@@ -177,6 +177,8 @@ pub(crate) fn handle_backend_tests(
                     "--test",
                     "lazy_param_device",
                     "--test",
+                    "layer_placement",
+                    "--test",
                     "backend_extension_runtime",
                 ],
                 args.release,
@@ -468,6 +470,12 @@ pub(crate) fn handle_command(
                     let metadata = cargo_metadata::MetadataCommand::new().no_deps().exec()?;
                     let (_, features) = feature_test_group(&metadata, "flex", &args.exclude);
                     args.features.get_or_insert_with(Vec::new).extend(features);
+                    // The linalg-backed layers are opt-in; keep their tests covered.
+                    if !args.exclude.iter().any(|name| name == "burn-nn") {
+                        args.features
+                            .get_or_insert_with(Vec::new)
+                            .push("burn-nn/linalg".to_string());
+                    }
                     set_burn_device("flex"); // default device for base tests
                     base_commands::test::handle_command(
                         args.clone().try_into().unwrap(),

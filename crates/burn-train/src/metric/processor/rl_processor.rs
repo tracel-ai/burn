@@ -1,3 +1,4 @@
+use burn_core::data::dataloader::Progress;
 use std::sync::Arc;
 
 use crate::{
@@ -36,7 +37,10 @@ pub enum AgentEvaluationEvent<T> {
     /// Signal an episode end.
     EpisodeEnd(EvaluationItem<EpisodeSummary>),
     /// Signal the end of the process (e.g., training end).
-    End,
+    End {
+        /// The final progress measurements.
+        progress: Progress,
+    },
 }
 
 /// An [event processor](EventProcessorTraining) that handles:
@@ -151,10 +155,10 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 self.process_update_train(update);
 
                 if let Some(logger) = &mut self.training_progress_logger {
-                    logger.update_split(item.progress.items_processed);
+                    logger.update_split(&item.progress);
                     logger.log_event_training("EnvStep".to_string());
                 }
-                self.renderer.update_split(item.progress.items_processed);
+                self.renderer.update_split(&item.progress);
                 self.renderer.log_event_training("EnvStep".to_string());
             }
             RLEvent::EpisodeEnd(item) => {
@@ -191,10 +195,15 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
         let mut failures = Vec::new();
         match event {
             AgentEvaluationEvent::Start(num_episodes) => {
+                let progress = burn_core::data::dataloader::Progress::new(
+                    0,
+                    num_episodes,
+                    Some("episodes".to_string()),
+                );
                 if let Some(logger) = &mut self.training_progress_logger {
-                    logger.start_split("valid", num_episodes);
+                    logger.start_split("valid", &progress);
                 }
-                self.renderer.start_split("valid", num_episodes);
+                self.renderer.start_split("valid", &progress);
             }
             AgentEvaluationEvent::EnvStep(item) => {
                 let item = match item.sync() {
@@ -224,17 +233,17 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 self.process_update_valid(update);
 
                 if let Some(logger) = &mut self.training_progress_logger {
-                    logger.update_split(item.progress.items_processed);
+                    logger.update_split(&item.progress);
                     logger.log_event_training("EpisodeEnd".to_string());
                 }
-                self.renderer.update_split(item.progress.items_processed);
+                self.renderer.update_split(&item.progress);
                 self.renderer.log_event_training("EpisodeEnd".to_string());
             }
-            AgentEvaluationEvent::End => {
+            AgentEvaluationEvent::End { progress } => {
                 if let Some(logger) = &mut self.training_progress_logger {
-                    logger.end_split();
+                    logger.end_split(&progress);
                 }
-                self.renderer.end_split();
+                self.renderer.end_split(&progress);
             }
         }
         EventProcessorError::from_errors(failures)

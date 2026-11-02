@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use burn_backend::{
     AutodiffBackend, Scalar, TensorData, TensorMetadata,
-    ops::{BoolTensorOps, TransactionPrimitive},
+    ops::{BoolTensorOps, CollectiveOps, TransactionPrimitive},
 };
 use burn_dispatch::Dispatch;
 use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
@@ -247,6 +247,32 @@ impl BasicOps for Bool {
 
     fn unfold(tensor: BridgeTensor, dim: usize, size: usize, step: usize) -> BridgeTensor {
         BridgeTensor::bool(Dispatch::bool_unfold(tensor.into(), dim, size, step))
+    }
+
+    fn all_gather(tensors: Vec<BridgeTensor>, dim: usize) -> Vec<BridgeTensor> {
+        BridgeTensor::bools(Dispatch::bool_all_gather(
+            BridgeTensor::into_dispatch_vec(tensors),
+            dim,
+        ))
+    }
+
+    fn all_to_all(
+        tensors: Vec<BridgeTensor>,
+        split_dim: usize,
+        concat_dim: usize,
+    ) -> Vec<BridgeTensor> {
+        BridgeTensor::bools(Dispatch::bool_all_to_all(
+            BridgeTensor::into_dispatch_vec(tensors),
+            split_dim,
+            concat_dim,
+        ))
+    }
+
+    fn broadcast(tensor: BridgeTensor, devices: &[Device]) -> Vec<BridgeTensor> {
+        BridgeTensor::bools(Dispatch::bool_broadcast(
+            tensor.into(),
+            &Device::as_dispatch_vec(devices),
+        ))
     }
 }
 

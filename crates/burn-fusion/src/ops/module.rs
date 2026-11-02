@@ -4,9 +4,10 @@ use crate::{
 };
 use burn_backend::{
     ops::{
-        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
-        InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
-        MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
+        AttentionBackward, AttentionModuleOptions, ConvOptions, ConvTransposeOptions,
+        DeformConv2dBackward, DeformConvOptions, InterpolateOptions, MaxPool1dBackward,
+        MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward,
+        MaxPool3dWithIndices, ModuleOps,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -775,6 +776,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -788,6 +790,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.kernel_size,
                     args.stride,
                     args.padding,
+                    args.dilation,
                     args.count_include_pad,
                     args.ceil_mode,
                 );
@@ -803,6 +806,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),
@@ -822,6 +826,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -835,6 +840,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.kernel_size,
                     args.stride,
                     args.padding,
+                    args.dilation,
                     args.count_include_pad,
                     args.ceil_mode,
                 );
@@ -851,6 +857,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),
@@ -870,6 +877,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -883,6 +891,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.kernel_size,
                     args.stride,
                     args.padding,
+                    args.dilation,
                     args.count_include_pad,
                     args.ceil_mode,
                 );
@@ -899,6 +908,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),
@@ -919,6 +929,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -934,6 +945,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.kernel_size,
                     args.stride,
                     args.padding,
+                    args.dilation,
                     args.count_include_pad,
                     args.ceil_mode,
                 );
@@ -951,6 +963,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),
@@ -971,6 +984,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -986,6 +1000,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.kernel_size,
                     args.stride,
                     args.padding,
+                    args.dilation,
                     args.count_include_pad,
                     args.ceil_mode,
                 );
@@ -1003,6 +1018,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),
@@ -1023,6 +1039,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -1038,6 +1055,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.kernel_size,
                     args.stride,
                     args.padding,
+                    args.dilation,
                     args.count_include_pad,
                     args.ceil_mode,
                 );
@@ -1055,6 +1073,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),
@@ -1857,6 +1876,107 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                 AttentionOps::<B>::new(desc),
             )
             .output()
+    }
+
+    fn has_attention_backward() -> bool {
+        B::has_attention_backward()
+    }
+
+    fn attention_with_logsumexp(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        options: AttentionModuleOptions,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        make_ops!(
+            AttentionWithLogsumexpOps,
+            AttentionWithLogsumexpOpIr,
+            |args: &AttentionWithLogsumexpOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let query = handles.get_float_tensor::<B>(&args.query);
+                let key = handles.get_float_tensor::<B>(&args.key);
+                let value = handles.get_float_tensor::<B>(&args.value);
+                let (out, logsumexp) =
+                    B::attention_with_logsumexp(query, key, value, args.options.clone().into());
+                handles.register_float_tensor::<B>(&args.out.id, out);
+                handles.register_float_tensor::<B>(&args.logsumexp.id, logsumexp);
+            }
+        );
+
+        let streams = StreamId::current();
+        let client = query.client.clone();
+        let desc = AttentionWithLogsumexpOpIr::create(
+            query.into_ir(),
+            key.into_ir(),
+            value.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        let [out, logsumexp] = client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::AttentionWithLogsumexp(desc.clone())),
+                AttentionWithLogsumexpOps::<B>::new(desc),
+            )
+            .outputs();
+        (out, logsumexp)
+    }
+
+    fn attention_backward(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        out: FloatTensor<Self>,
+        logsumexp: FloatTensor<Self>,
+        out_grad: FloatTensor<Self>,
+        options: AttentionModuleOptions,
+    ) -> AttentionBackward<Self> {
+        make_ops!(
+            AttentionBackwardOps,
+            AttentionBackwardOpIr,
+            |args: &AttentionBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let query = handles.get_float_tensor::<B>(&args.query);
+                let key = handles.get_float_tensor::<B>(&args.key);
+                let value = handles.get_float_tensor::<B>(&args.value);
+                let out = handles.get_float_tensor::<B>(&args.out);
+                let logsumexp = handles.get_float_tensor::<B>(&args.logsumexp);
+                let out_grad = handles.get_float_tensor::<B>(&args.out_grad);
+                let gradients = B::attention_backward(
+                    query,
+                    key,
+                    value,
+                    out,
+                    logsumexp,
+                    out_grad,
+                    args.options.clone().into(),
+                );
+                handles.register_float_tensor::<B>(&args.query_grad.id, gradients.query_grad);
+                handles.register_float_tensor::<B>(&args.key_grad.id, gradients.key_grad);
+                handles.register_float_tensor::<B>(&args.value_grad.id, gradients.value_grad);
+            }
+        );
+
+        let streams = StreamId::current();
+        let client = query.client.clone();
+        let desc = AttentionBackwardOpIr::create(
+            query.into_ir(),
+            key.into_ir(),
+            value.into_ir(),
+            out.into_ir(),
+            logsumexp.into_ir(),
+            out_grad.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        let [query_grad, key_grad, value_grad] = client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::AttentionBackward(Box::new(desc.clone()))),
+                AttentionBackwardOps::<B>::new(desc),
+            )
+            .outputs();
+        AttentionBackward::new(query_grad, key_grad, value_grad)
     }
 
     fn has_ctc_loss_backward() -> bool {

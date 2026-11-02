@@ -38,7 +38,7 @@ tracing = [
 ]
 
 # Enables cubecl-facing APIs (e.g. throughput measurement) on cubecl-backed devices.
-cubecl = ["dep:burn-cubecl", "burn-backend/cubecl"]
+cubecl = ["burn-backend/cubecl"]
 
 # Backends
 cuda = ["cubecl", "burn-cubecl/cuda"]
@@ -47,16 +47,19 @@ rocm = ["cubecl", "burn-cubecl/hip"]
 vulkan = ["wgpu", "burn-cubecl/vulkan"]
 webgpu = ["wgpu", "burn-cubecl/webgpu"]
 metal = ["wgpu", "burn-cubecl/metal"]
+metal-native = ["cubecl", "burn-cubecl/metal-native"]
 wgpu = ["cubecl", "burn-cubecl/wgpu"]
 cpu = ["cubecl", "burn-cubecl/cpu"]
 autodiff = ["burn-autodiff"]
 # Remote compute client over Iroh.
-remote = ["std", "burn-remote", "burn-remote/iroh"]
+remote = ["std", "burn-remote", "burn-remote/iroh", "dep:rmp-serde"]
 # Host a remote compute server over Iroh.
 remote-server = ["remote", "burn-remote/server"]
 # Add the legacy WebSocket transport.
 remote-websocket = ["remote", "burn-remote/websocket"]
 capture = ["burn-capture"]
+# Experimental: tensors split over a group of devices.
+group = ["std", "burn-group"]
 
 # Backend features
 persistence = ["burn-cubecl?/persistence"]
@@ -89,7 +92,10 @@ burn-cubecl = { workspace = true, optional = true }
 burn-flex = { workspace = true, optional = true }
 
 burn-remote = { workspace = true, optional = true, features = ["client"] }
+# Encodes a device's cubecl capabilities for the device query a server answers them with.
+rmp-serde = { workspace = true, optional = true }
 burn-capture = { workspace = true, optional = true }
+burn-group = { workspace = true, optional = true }
 
 # Op macros with `.as_$inner_kind()`
 paste = { workspace = true }

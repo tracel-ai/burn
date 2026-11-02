@@ -1,3 +1,5 @@
+use crate::modules::bounds::{self, Windows};
+use burn::instrument::{Bounds, compute};
 use burn_core as burn;
 
 use super::output_size;
@@ -67,11 +69,30 @@ impl LpPool1dConfig {
 }
 
 impl LpPool1d {
+    /// The floor for an Lp pool alone: a resampling to the length its windows cover, reading the
+    /// positions they read. None where the pool rejects its input or its windows.
+    fn bounds(&self, input: &Tensor<3>) -> Option<Bounds> {
+        let [length] = bounds::spatial(input);
+        let overhangs = !self.ceil_mode && self.kernel_size > length;
+        if length == 0 || self.kernel_size == 0 || self.stride == 0 || overhangs {
+            return None;
+        }
+        let output_length = output_size(length, self.kernel_size, self.stride, self.ceil_mode);
+        let windows = Windows {
+            kernel_size: [self.kernel_size],
+            stride: [self.stride],
+            padding_begin: [0],
+            dilation: [1],
+        };
+        Some(windows.over(input, [output_length]).resampling(input))
+    }
+
     /// Applies Lp pooling over the last input dimension.
     ///
     /// The input shape is `[batch_size, channels, length_in]`; the output shape is
     /// `[batch_size, channels, length_out]`. For partial windows in ceil mode,
     /// only input elements are included in the norm.
+    #[compute(bounds = Self::bounds)]
     pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
         assert!(
             self.p.is_finite() && self.p > 0.0,

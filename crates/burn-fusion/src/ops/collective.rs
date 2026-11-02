@@ -9,10 +9,12 @@ use burn_backend::{
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_ir::TensorError;
+use burn_std::device_handle::SpawnedCall;
 use core::marker::PhantomData;
 
 use crate::{
-    Client, Fusion, FusionBackend, FusionRuntime, FusionTensor, get_client, stream::StreamId,
+    Client, Fusion, FusionBackend, FusionRuntime, FusionTensor, backend::server_error, get_client,
+    stream::StreamId,
 };
 
 impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
@@ -181,8 +183,9 @@ impl<B: FusionBackend> InnerCollectives<B> {
         )
     }
 
-    /// Runs `inner` on what every member's stream resolves to. When a member's tensor carries a
-    /// failure, `emulated` runs on Fusion's own tensors instead, so every output carries it.
+    /// Runs `inner` on what every member's stream resolves to, every member's server resolving at
+    /// once. When a member's tensor carries a failure, `emulated` runs on Fusion's own tensors
+    /// instead, so every output carries it.
     fn run<T, R, H, I, E>(
         tensors: Vec<FusionTensor<B::FusionRuntime>>,
         resolve: R,
@@ -192,12 +195,12 @@ impl<B: FusionBackend> InnerCollectives<B> {
     ) -> Vec<FusionTensor<B::FusionRuntime>>
     where
         T: TensorMetadata<Device = Device<B>>,
-        R: Fn(FusionTensor<B::FusionRuntime>) -> Result<T, TensorError>,
+        R: Fn(FusionTensor<B::FusionRuntime>) -> SpawnedCall<Result<T, TensorError>>,
         H: Fn(T) -> B::Handle,
         I: FnOnce(Vec<T>) -> Vec<T>,
         E: FnOnce(Vec<FusionTensor<B::FusionRuntime>>) -> Vec<FusionTensor<B::FusionRuntime>>,
     {
-        let resolved: Vec<_> = tensors
+        let resolving: Vec<_> = tensors
             .into_iter()
             .map(|tensor| {
                 let metadata = MemberMetadata {
@@ -206,6 +209,15 @@ impl<B: FusionBackend> InnerCollectives<B> {
                     client: tensor.client.clone(),
                 };
                 (resolve(tensor), metadata)
+            })
+            .collect();
+        let resolved: Vec<_> = resolving
+            .into_iter()
+            .map(|(call, metadata)| {
+                let resolved = call
+                    .join()
+                    .unwrap_or_else(|err| Err(TensorError::new(server_error(err))));
+                (resolved, metadata)
             })
             .collect();
         if resolved.iter().all(|(resolved, _)| resolved.is_ok()) {

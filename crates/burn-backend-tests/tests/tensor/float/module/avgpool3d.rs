@@ -209,3 +209,43 @@ impl AvgPool3dTestCase {
         );
     }
 }
+
+#[test]
+fn test_avg_pool3d_dilation() {
+    // Input 4x3x4 (values 0..48), kernel 2, dilation [2, 1, 2], stride [1, 2, 2], padding 1.
+    let x = TestTensor::<5>::from(
+        TestTensorInt::arange(0..48, &Default::default())
+            .reshape::<5, _>([1, 1, 4, 3, 4])
+            .into_data(),
+    );
+    let options = AvgPoolOptions::new([2, 2, 2])
+        .with_stride([1, 2, 2])
+        .with_padding([1, 1, 1])
+        .with_dilation([2, 1, 2]);
+
+    let output = avg_pool3d(x.clone(), options.clone());
+    TestTensor::<5>::from([[[
+        [[1.625, 3.5], [4.75, 10.0]],
+        [[3.25, 7.0], [9.5, 20.0]],
+        [[6.25, 13.0], [15.5, 32.0]],
+        [[3.125, 6.5], [7.75, 16.0]],
+    ]]])
+    .to_data()
+    .assert_approx_eq::<FloatElem>(
+        &output.into_data(),
+        Tolerance::default().set_half_precision_relative(1e-3),
+    );
+
+    let output = avg_pool3d(x, options.with_count_include_pad(false));
+    TestTensor::<5>::from([[[
+        [[13.0, 14.0], [19.0, 20.0]],
+        [[13.0, 14.0], [19.0, 20.0]],
+        [[25.0, 26.0], [31.0, 32.0]],
+        [[25.0, 26.0], [31.0, 32.0]],
+    ]]])
+    .to_data()
+    .assert_approx_eq::<FloatElem>(
+        &output.into_data(),
+        Tolerance::default().set_half_precision_relative(1e-3),
+    );
+}

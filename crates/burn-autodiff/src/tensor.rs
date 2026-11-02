@@ -10,6 +10,8 @@ use crate::{distributed::DistributedGradientRegistration, grads::GradSyncContext
 use alloc::{boxed::Box, vec};
 use burn_backend::{Backend, BackendTypes, TensorMetadata};
 use burn_std::sync::Arc;
+#[cfg(feature = "std")]
+use {alloc::rc::Rc, core::cell::Cell};
 
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
 
@@ -212,32 +214,8 @@ impl<B: Backend> AutodiffTensor<B> {
         requirement: Requirement,
         computing_properties: ComputingProperty,
     ) -> Self {
-        let order = parent_nodes
-            .iter()
-            .map(|node| node.order)
-            .reduce(usize::max)
-            .unwrap_or(0)
-            + 1;
-
-        let client = parent_nodes
-            .first()
-            .map(|node| node.client.clone())
-            .unwrap_or_else(AutodiffClientImpl::new);
-
-        let node: NodeRef = Node::new(
-            parent_nodes
-                .iter()
-                .filter_map(|node| node.clone_if_require_grad())
-                .map(|node| Parent::new(node.id, node.order == 0))
-                .collect(),
-            order,
-            NodeId::new(),
-            requirement,
-            computing_properties,
-            client,
-            None,
-        )
-        .into();
+        let node: NodeRef =
+            Node::from_parents(parent_nodes, requirement, computing_properties).into();
 
         Self {
             rc: Arc::new(node.id),
@@ -312,18 +290,26 @@ impl<B: Backend> AutodiffTensor<B> {
         let device = self.primitive.device();
         let device_cloned = device.clone();
         let client = self.node.client.clone();
+        let registered = Rc::new(Cell::new(false));
 
-        let mode = BackwardMode::Distributed(Box::new(|ctx: GradSyncContext| {
-            let registration = DistributedGradientRegistration::<B>::new(
-                ctx.n_required_map,
-                ctx.distributed_params,
-                device_cloned,
-            );
-            Box::new(registration)
+        let mode = BackwardMode::Distributed(Box::new({
+            let registered = registered.clone();
+            move |ctx: GradSyncContext| {
+                registered.set(!ctx.distributed_params.is_empty());
+                let registration = DistributedGradientRegistration::<B>::new(
+                    ctx.n_required_map,
+                    ctx.distributed_params,
+                    device_cloned,
+                );
+                Box::new(registration)
+            }
         }));
 
         let grads = AutodiffClient::backward::<B>(&client, self, mode);
-        B::submit_sync_collective(&device);
+        // A backward that registered nothing has no gradient to wait for.
+        if registered.get() {
+            B::submit_sync_collective(&device);
+        }
         grads
     }
 }

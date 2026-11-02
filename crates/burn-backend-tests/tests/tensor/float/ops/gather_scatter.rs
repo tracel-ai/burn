@@ -252,9 +252,7 @@ fn should_scatter_add_2d_dim0() {
 fn should_scatter_add_many_values_into_few_slots() {
     let device = Default::default();
     let tensor = TestTensor::<2>::zeros([2, 4], &device);
-    let indices: Vec<i32> = (0..2 * 1000)
-        .map(|position| (position % 4) as i32)
-        .collect();
+    let indices: Vec<i32> = (0..2 * 1000).map(|position| position % 4).collect();
     let indices = TestTensorInt::<2>::from_data(TensorData::new(indices, [2, 1000]), &device);
     let values = TestTensor::<2>::ones([2, 1000], &device);
 

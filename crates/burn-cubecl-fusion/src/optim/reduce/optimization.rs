@@ -3,6 +3,8 @@ use super::args::{
 };
 #[cfg(feature = "autotune")]
 use super::tune::fused_reduce_autotune;
+#[cfg(feature = "autotune")]
+use crate::tune::TunedTrace;
 use crate::{
     CubeFusionHandle, FallbackOperation,
     engine::{
@@ -17,7 +19,6 @@ use crate::{
         trace::{FuseTrace, TraceError, TuneOutput},
     },
     optim::{FusedOperation, elemwise::ElemwiseRunner, reduce::args::FusedReduceArgs},
-    tune::TunedTrace,
 };
 use burn_backend::cubecl::{dtype_to_storage_type, elem_type_to_dtype};
 use burn_fusion::stream::Context;
@@ -111,6 +112,7 @@ impl Clone for ReduceOptimizationTuneArg {
     }
 }
 
+#[cfg(feature = "autotune")]
 impl TunedTrace for ReduceOptimizationTuneArg {
     fn trace(&self) -> &FuseTrace {
         &self.info.trace

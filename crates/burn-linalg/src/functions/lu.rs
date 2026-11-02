@@ -86,7 +86,7 @@ pub fn lu<const D: usize, const D1: usize>(
         tensor = tensor.cast(FloatDType::F32)
     }
 
-    let (lu_tensor, p_compact) = compute_lu_decomposition::<D, D1>(tensor);
+    let (lu_tensor, p_compact) = compute_lu_decomposition(tensor);
 
     let u;
     let temp_l;
@@ -114,7 +114,7 @@ pub fn lu<const D: usize, const D1: usize>(
 
 /// Dispatches the LU decomposition to either the block or standard algorithm based on
 /// the size of the matrix.
-pub(super) fn compute_lu_decomposition<const D: usize, const D1: usize>(
+pub(super) fn compute_lu_decomposition<const D: usize>(
     tensor: Tensor<D>,
 ) -> (Tensor<D>, Tensor<D>) {
     let device = tensor.device();
@@ -123,19 +123,17 @@ pub(super) fn compute_lu_decomposition<const D: usize, const D1: usize>(
     let n_cols = dims[D - 1];
     let size = n_rows.min(n_cols);
     if size < 256 {
-        return standard_lu_with_partial_piv::<D, D1>(tensor, &device);
+        return standard_lu_with_partial_piv(tensor, &device);
     }
 
-    block_lu_with_partial_piv::<D, D1>(tensor)
+    block_lu_with_partial_piv(tensor)
 }
 
 /// Performs block LU decomposition with partial pivoting.
 ///
 /// This algorithm divides the matrix into blocks to maximize matrix-matrix multiplications (GEMM),
 /// which are highly optimized on modern hardware, compared to vector-vector operations.
-fn block_lu_with_partial_piv<const D: usize, const D1: usize>(
-    mut tensor: Tensor<D>,
-) -> (Tensor<D>, Tensor<D>) {
+fn block_lu_with_partial_piv<const D: usize>(mut tensor: Tensor<D>) -> (Tensor<D>, Tensor<D>) {
     let device = tensor.device();
     let dims = tensor.dims();
     let n_rows = dims[D - 2];
@@ -163,7 +161,7 @@ fn block_lu_with_partial_piv<const D: usize, const D1: usize>(
             .clone()
             .slice_dim(D - 2, k_start..)
             .slice_dim(D - 1, k_start..k_end);
-        let (block_column, local_piv) = standard_lu_with_partial_piv::<D, D1>(sub_tensor, &device);
+        let (block_column, local_piv) = standard_lu_with_partial_piv(sub_tensor, &device);
         slices[D - 2] = Slice::from(k_start..);
         slices[D - 1] = Slice::from(k_start..k_end);
         tensor = tensor.slice_assign(&slices, block_column);
@@ -242,7 +240,7 @@ fn block_lu_with_partial_piv<const D: usize, const D1: usize>(
 /// Performs standard LU decomposition (outer product LU) with partial pivoting.
 ///
 /// This is an iterative, unblocked algorithm that processes the matrix column by column.
-fn standard_lu_with_partial_piv<const D: usize, const D1: usize>(
+fn standard_lu_with_partial_piv<const D: usize>(
     mut tensor: Tensor<D>,
     device: &Device,
 ) -> (Tensor<D>, Tensor<D>) {
@@ -276,7 +274,7 @@ fn standard_lu_with_partial_piv<const D: usize, const D1: usize>(
 
             // If there still exists columns to right of the k-th pivot
             if k < piv_nums - 1 {
-                tensor = update_trailing_submatrix::<D, D1>(tensor, k);
+                tensor = update_trailing_submatrix(tensor, k);
             }
         }
     }
@@ -334,7 +332,7 @@ fn create_permutation_tensor<const D: usize>(
 }
 
 /// Swaps the `k`-th row with the rows specified in `swap_target_row_tensor`.
-fn swap_tensor_rows<const D: usize>(
+pub(super) fn swap_tensor_rows<const D: usize>(
     tensor: Tensor<D>,
     mut swap_target_row_tensor: Tensor<D, Int>,
     k: usize,
@@ -395,10 +393,7 @@ fn update_kth_column<const D: usize>(tensor: Tensor<D>, k: usize) -> Tensor<D> {
 }
 
 /// Updates the trailing submatrix: A_{k+1:, k+1:} -= A_{k+1:, k} * A_{k, k+1:}.
-fn update_trailing_submatrix<const D: usize, const D1: usize>(
-    tensor: Tensor<D>,
-    k: usize,
-) -> Tensor<D> {
+fn update_trailing_submatrix<const D: usize>(tensor: Tensor<D>, k: usize) -> Tensor<D> {
     let a_rho_k = tensor.clone().slice_dim(D - 2, k + 1..).slice_dim(D - 1, k);
     let a_k_rho = tensor.clone().slice_dim(D - 2, k).slice_dim(D - 1, k + 1..);
     let outer_product = a_rho_k.matmul(a_k_rho);

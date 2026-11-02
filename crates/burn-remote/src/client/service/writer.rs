@@ -44,12 +44,12 @@ pub(crate) struct SubmitWriter {
 
 impl SubmitWriter {
     /// Spawn the writer task on `runtime`, taking ownership of the submit `channel`, which must be
-    /// past the handshake. A failed send runs `end_session`, so readers fail instead of waiting for
-    /// replies to frames never sent.
+    /// past the handshake. A failed send runs `end_session` with its reason, so readers fail instead
+    /// of waiting for replies to frames never sent.
     pub(crate) fn spawn(
         runtime: &Executor,
         channel: SubmitChannel,
-        end_session: impl FnOnce() + Send + 'static,
+        end_session: impl FnOnce(String) + Send + 'static,
     ) -> Self {
         #[cfg(not(target_family = "wasm"))]
         let (tx, mut rx) = mpsc::channel::<Vec<RemoteMessage>>(WRITE_QUEUE_CAP);
@@ -68,7 +68,7 @@ impl SubmitWriter {
                 };
                 if let Err(err) = channel.send(message).await {
                     log::warn!("Remote submit writer send failed: {err:?}; closing writer");
-                    end_session();
+                    end_session(format!("sending to the server failed: {err:?}"));
                     return;
                 }
             }
@@ -180,7 +180,7 @@ mod tests {
 
         let (ended, session_end) = tokio::sync::oneshot::channel();
         let executor = Executor::Tokio(tokio::runtime::Handle::current());
-        let writer = SubmitWriter::spawn(&executor, SubmitChannel::Iroh(submit), move || {
+        let writer = SubmitWriter::spawn(&executor, SubmitChannel::Iroh(submit), move |_| {
             let _ = ended.send(());
         });
         writer.send(&executor, Vec::new());

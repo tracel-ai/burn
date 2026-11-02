@@ -3,7 +3,9 @@ use burn_core as burn;
 
 use crate::GateController;
 use crate::activation::{Activation, ActivationConfig};
+use crate::modules::role::Role;
 use burn::config::Config;
+use burn::instrument::compute;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::Device;
 use burn::tensor::Tensor;
@@ -178,6 +180,7 @@ impl Rnn {
         (output, state)
     }
 
+    #[compute]
     fn forward_iter<I: Iterator<Item = (Tensor<3>, usize)>>(
         &self,
         input_timestep_iter: I,
@@ -320,6 +323,7 @@ impl BiRnn {
     ///   - `[sequence_length, batch_size, hidden_size * 2]` if `batch_first` is false
     /// - state: A `RnnState` represents the final forward and reverse states.
     ///   The `state.hidden` have the shape `[2, batch_size, hidden_size]`.
+    #[compute]
     pub fn forward(
         &self,
         batched_input: Tensor<3>,
@@ -356,18 +360,21 @@ impl BiRnn {
         };
 
         // forward direction
-        let (batched_hidden_state_forward, final_state_forward) = self
-            .forward
-            .forward(batched_input.clone(), init_state_forward);
+        let (batched_hidden_state_forward, final_state_forward) = Role::FORWARD.run(|| {
+            self.forward
+                .forward(batched_input.clone(), init_state_forward)
+        });
 
         // reverse direction
-        let (batched_hidden_state_reverse, final_state_reverse) = self.reverse.forward_iter(
-            batched_input.iter_dim(1).rev().zip((0..seq_length).rev()),
-            init_state_reverse,
-            batch_size,
-            seq_length,
-            &device,
-        );
+        let (batched_hidden_state_reverse, final_state_reverse) = Role::REVERSE.run(|| {
+            self.reverse.forward_iter(
+                batched_input.iter_dim(1).rev().zip((0..seq_length).rev()),
+                init_state_reverse,
+                batch_size,
+                seq_length,
+                &device,
+            )
+        });
 
         let output = Tensor::cat(
             [batched_hidden_state_forward, batched_hidden_state_reverse].to_vec(),

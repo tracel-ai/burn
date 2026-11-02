@@ -1,3 +1,4 @@
+use burn_tensor::kind::Basic;
 use burn_tensor::quantization::ScaleDtype;
 use burn_tensor::{DType, Tensor};
 
@@ -16,9 +17,10 @@ use burn_tensor::{DType, Tensor};
 /// children's in each direction ([`moves_within`](Self::moves_within)), and the gap is the
 /// intermediate traffic a perfect fuser would remove.
 ///
-/// Leave bounds off where a component will be fused into its neighbour, or where its floor
-/// depends on values the host does not have: a floor no achievable kernel can meet is worse than
-/// none.
+/// A floor that depends on the values, such as the distinct rows a lookup selects, may read them
+/// back: the `Instrument` evaluates bounds in a pricing run of their own, and
+/// the run it times evaluates none. Leave bounds off where a component will be fused into its
+/// neighbour: a floor no achievable kernel can meet is worse than none.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "std", serde(deny_unknown_fields))]
@@ -79,11 +81,12 @@ impl core::iter::Sum for Bounds {
 }
 
 /// The bytes a tensor occupies **as it is stored**: for a quantized tensor, its packed values
-/// plus its scales, not the width its elements read back as.
+/// plus its scales, not the width its elements read back as. Any kind of tensor: indices and
+/// masks are traffic too.
 ///
 /// Why [`Bounds`] are declared by the component rather than computed for it: the component holds
 /// the tensor and so knows its scheme, and no caller has to restate it.
-pub fn tensor_bytes<const D: usize>(tensor: &Tensor<D>) -> u64 {
+pub fn tensor_bytes<const D: usize, K: Basic>(tensor: &Tensor<D, K>) -> u64 {
     let elements: u64 = tensor.dims().iter().map(|dim| *dim as u64).product();
     match tensor.dtype() {
         DType::QFloat(scheme) => {
@@ -108,6 +111,17 @@ pub fn tensor_bytes<const D: usize>(tensor: &Tensor<D>) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An index or mask tensor is priced as stored too: its elements at their width.
+    #[test]
+    fn an_index_tensor_occupies_its_elements_at_their_width() {
+        let device = Default::default();
+        let indices = Tensor::<2, burn_tensor::Int>::zeros([3, 4], &device);
+        let mask = indices.clone().equal_elem(1);
+
+        assert_eq!(tensor_bytes(&indices), 12 * indices.dtype().size() as u64);
+        assert_eq!(tensor_bytes(&mask), 12 * mask.dtype().size() as u64);
+    }
 
     /// A declaration that moved traffic from reads to writes inside one unchanged total is
     /// rejected; held on the total, it would pass with a floor above its parts'.

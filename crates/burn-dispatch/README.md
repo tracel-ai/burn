@@ -25,6 +25,7 @@ enable the matching dispatch features, and a `Device` constructor picks the back
 | `Flex`     | `flex`                                                     | [burn-flex](https://github.com/tracel-ai/burn/tree/main/crates/burn-flex), pure Rust CPU                      |
 | `Remote`   | `remote`                                                   | [burn-remote](https://github.com/tracel-ai/burn/tree/main/crates/burn-remote), devices on another server      |
 | `Capture`  | `capture`                                                  | [burn-capture](https://github.com/tracel-ai/burn/tree/main/crates/burn-capture), records instead of executing |
+| `Group`    | `group`                                                    | [burn-group](https://github.com/tracel-ai/burn/tree/main/crates/burn-group), experimental: tensors split over several devices |
 
 `autodiff` wraps any of them in [burn-autodiff](https://github.com/tracel-ai/burn/tree/main/crates/burn-autodiff), and `fusion` turns on kernel
 fusion for the CubeCL and remote backends. Features combine freely.

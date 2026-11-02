@@ -29,6 +29,23 @@ No execution backend is enabled by default when depending on this crate directly
 `wgpu` or another backend feature on it. Enabling only `burn/flex` does not enable this crate's
 backend implementations.
 
+### Median blur on CPU
+
+`median` and `MedianBlur` accept float and integer images in `[N, C, H, W]` layout.
+Flex accelerates F16, BF16, F32, F64, and signed/unsigned integer dtypes, including
+floating-point autodiff. Filtering preserves the input dtype and replicates edge pixels.
+
+```rust
+use burn::tensor::{DType, Device, Int, Tensor};
+use burn::vision::median;
+
+let images = Tensor::<4, Int>::from_data(
+    [[[[1, 255], [3, 2]]]],
+    (&Device::flex(), DType::U8),
+);
+let blurred = median(images, 3);
+```
+
 <!-- burn-crate-footer -->
 
 ---

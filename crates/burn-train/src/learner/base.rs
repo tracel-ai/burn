@@ -66,6 +66,10 @@ impl<M: LearnerModel> Learner<M> {
         self.lr_module.clone()
     }
 
+    pub(crate) fn lr_num_groups(&self) -> usize {
+        self.lr_scheduler.num_groups()
+    }
+
     /// Executes a step of the learning rate scheduler.
     pub fn lr_step(&mut self) {
         self.lr_module = self.lr_scheduler.step();

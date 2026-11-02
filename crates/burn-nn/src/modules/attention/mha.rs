@@ -3,8 +3,11 @@ use burn_core as burn;
 
 use crate::activation::Gelu;
 use crate::cache::{CacheState, TensorCache};
+use crate::modules::bounds;
+use crate::modules::role::Role;
 use crate::{Dropout, DropoutConfig, Linear, LinearConfig};
 use burn::config::Config;
+use burn::instrument::{Bounds, compute};
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::{Bool, Device, Tensor, assert_shape};
 
@@ -217,6 +220,7 @@ impl MultiHeadAttention {
     /// Panics if the last axis of `query`, `key` or `value` is not `d_model`, if the batch size
     /// of `key` or `value` differs from `query`, or if the sequence length of `value` differs
     /// from `key`.
+    #[compute]
     pub fn forward(&self, input: MhaInput) -> MhaOutput {
         let [batch_size, seq_length_1, d_model] = input.query.dims();
         let [_, seq_length_2, _] = input.key.dims();
@@ -224,18 +228,15 @@ impl MultiHeadAttention {
         assert_shape!(input.key, [batch_size, _, self.d_model]);
         assert_shape!(input.value, [batch_size, seq_length_2, self.d_model]);
 
-        let query = self.attention_linear(input.query, &self.query);
-        let key = self.attention_linear(input.key, &self.key);
-        let value = self.attention_linear(input.value, &self.value);
+        let query = self.attention_linear(input.query, Role::QUERY, &self.query);
+        let key = self.attention_linear(input.key, Role::KEY, &self.key);
+        let value = self.attention_linear(input.value, Role::VALUE, &self.value);
 
-        let attn_scores = self.attn_scores(query, key);
-        let weights = self.attn_weights(attn_scores, input.mask_pad, input.mask_attn);
-
-        let context = weights.clone().matmul(value);
+        let (weights, context) = self.attend(query, key, value, input.mask_pad, input.mask_attn);
         let context = context
             .swap_dims(1, 2)
             .reshape([batch_size, seq_length_1, d_model]);
-        let context = self.output.forward(context);
+        let context = Role::OUTPUT.run(|| self.output.forward(context));
 
         MhaOutput { weights, context }
     }
@@ -294,6 +295,7 @@ impl MultiHeadAttention {
             .context
     }
 
+    #[compute]
     fn forward_cache_inner(
         &self,
         mut input: MhaInput,
@@ -306,15 +308,15 @@ impl MultiHeadAttention {
         assert_shape!(input.key, [batch_size, _, self.d_model]);
         assert_shape!(input.value, [batch_size, seq_length_2, self.d_model]);
 
-        let mut query = cache
-            .query
-            .forward(input.query, |t| self.attention_linear(t, &self.query));
-        let key = cache
-            .key
-            .forward(input.key, |t| self.attention_linear(t, &self.key));
-        let value = cache
-            .value
-            .forward(input.value, |t| self.attention_linear(t, &self.value));
+        let mut query = cache.query.forward(input.query, |t| {
+            self.attention_linear(t, Role::QUERY, &self.query)
+        });
+        let key = cache.key.forward(input.key, |t| {
+            self.attention_linear(t, Role::KEY, &self.key)
+        });
+        let value = cache.value.forward(input.value, |t| {
+            self.attention_linear(t, Role::VALUE, &self.value)
+        });
 
         if last_query_only {
             assert_shape!(query, [batch_size, self.n_heads, seq_length_1, self.d_k]);
@@ -334,17 +336,75 @@ impl MultiHeadAttention {
         }
 
         let seq_length_1 = if last_query_only { 1 } else { seq_length_1 };
-        let attn_scores = self.attn_scores(query, key);
-        let weights = self.attn_weights(attn_scores, input.mask_pad, input.mask_attn);
-
-        let context = weights.clone().matmul(value);
+        let (weights, context) = self.attend(query, key, value, input.mask_pad, input.mask_attn);
         let context = context
             .swap_dims(1, 2)
             .reshape([batch_size, seq_length_1, d_model]);
 
-        let context = cache.output.forward(context, |t| self.output.forward(t));
+        let context = cache
+            .output
+            .forward(context, |t| Role::OUTPUT.run(|| self.output.forward(t)));
 
         MhaOutput { weights, context }
+    }
+
+    /// The arithmetic of attending from `query` over `key` and a value shaped like it, both
+    /// `[batch_size, seq_length, d_model]`: the four projections and the scaled dot product
+    /// between them. What a composite holding this attention declares of it.
+    pub(crate) fn flops(&self, query: &Tensor<3>, key: &Tensor<3>) -> u64 {
+        let [batch_size, seq_length_1, _] = query.dims();
+        let [_, seq_length_2, _] = key.dims();
+        // The output projection's input is the context, shaped like the query.
+        let projections = self.query.bounds(query).flops
+            + self.key.bounds(key).flops
+            + self.value.bounds(key).flops
+            + self.output.bounds(query).flops;
+        let attention = bounds::ScaledDotProduct {
+            query_rows: (batch_size * self.n_heads * seq_length_1) as u64,
+            key_length: seq_length_2 as u64,
+            key_width: self.d_k as u64,
+            value_width: self.d_k as u64,
+        };
+        projections + attention.flops()
+    }
+
+    /// Weigh `value` by how well `query` matches `key`, returning the attention weights and the
+    /// context, `[batch_size, n_heads, seq_length_1, d_k]`.
+    #[compute(label = "scaled dot product", bounds = Self::attend_bounds)]
+    fn attend(
+        &self,
+        query: Tensor<4>,
+        key: Tensor<4>,
+        value: Tensor<4>,
+        mask_pad: Option<Tensor<2, Bool>>,
+        mask_attn: Option<Tensor<3, Bool>>,
+    ) -> (Tensor<4>, Tensor<4>) {
+        let attn_scores = self.attn_scores(query, key);
+        let weights = self.attn_weights(attn_scores, mask_pad, mask_attn);
+        let context = weights.clone().matmul(value);
+        (weights, context)
+    }
+
+    /// The floor for [`attend`](Self::attend) alone: scaled dot-product attention's, reading the
+    /// masks besides and writing the weights, which are returned.
+    fn attend_bounds(
+        &self,
+        query: &Tensor<4>,
+        key: &Tensor<4>,
+        value: &Tensor<4>,
+        mask_pad: &Option<Tensor<2, Bool>>,
+        mask_attn: &Option<Tensor<3, Bool>>,
+    ) -> Bounds {
+        let attention = bounds::attention(query, key, value);
+        let masks = bounds::masks(mask_pad, mask_attn);
+        let [batch_size, n_heads, seq_length_1, _] = query.dims().map(|dim| dim as u64);
+        let seq_length_2 = key.dims()[2] as u64;
+        let weights = batch_size * n_heads * seq_length_1 * seq_length_2;
+        Bounds {
+            read: attention.read + masks,
+            write: attention.write + weights * query.dtype().size() as u64,
+            ..attention
+        }
     }
 
     fn attn_scores(&self, query: Tensor<4>, key: Tensor<4>) -> Tensor<4> {
@@ -395,10 +455,9 @@ impl MultiHeadAttention {
         self.dropout.forward(weights)
     }
 
-    fn attention_linear(&self, x: Tensor<3>, linear: &Linear) -> Tensor<4> {
+    fn attention_linear(&self, x: Tensor<3>, role: Role, linear: &Linear) -> Tensor<4> {
         let [batch_size, seq_length, _d_model] = x.dims();
-        linear
-            .forward(x)
+        role.run(|| linear.forward(x))
             .reshape([batch_size, seq_length, self.n_heads, self.d_k])
             .swap_dims(1, 2)
     }
@@ -478,6 +537,48 @@ mod tests {
     use burn::tensor::{DType, TensorData};
     use burn::tensor::{Distribution, Shape};
     use rstest::rstest;
+
+    /// Each projection runs under its role, so the four do not merge into one, and the
+    /// attention between them is priced on its own: reading the heads, writing the context and
+    /// the weights it returns.
+    #[cfg(feature = "std")]
+    #[test]
+    fn attention_names_its_projections_and_prices_its_core() {
+        let device = Default::default();
+        let mha = MultiHeadAttentionConfig::new(8, 2).init(&device);
+        let input = MhaInput::self_attn(Tensor::<3>::zeros([2, 3, 8], &device));
+
+        let recorded = crate::recording::recorded(|| {
+            mha.forward(input);
+        });
+
+        assert_eq!(
+            recorded.lines(),
+            [
+                "multi head attention (unpriced)",
+                "  query (unpriced)",
+                "    linear",
+                "  key (unpriced)",
+                "    linear",
+                "  value (unpriced)",
+                "    linear",
+                "  scaled dot product",
+                "  output (unpriced)",
+                "    linear",
+            ]
+        );
+        // Two heads of four over three positions: each of the query, key and value heads is
+        // `[2, 2, 3, 4]`, and the weights `[2, 2, 3, 3]`.
+        let heads = 2 * 2 * 3 * 4;
+        assert_eq!(
+            recorded.declared("scaled dot product"),
+            Some(Bounds {
+                read: 3 * heads * 4,
+                write: (heads + 2 * 2 * 3 * 3) * 4,
+                flops: 2 * (2 * 2 * 3) * 3 * (4 + 4),
+            })
+        );
+    }
 
     #[rstest]
     #[case(DType::F16)]

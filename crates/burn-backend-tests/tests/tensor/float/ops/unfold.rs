@@ -66,3 +66,15 @@ fn test_unfold_reshape_overlap() {
 
     data.assert_eq(&expected, false);
 }
+
+#[test]
+fn test_unfold_unaligned_rows() {
+    let device = Default::default();
+    let input = TestTensor::<2>::from_data([[0., 1., 2., 3., 4.], [5., 6., 7., 8., 9.]], &device);
+
+    // The windows advance by 2 elements, but the second row starts at element 5.
+    let actual = input.unfold::<3, _>(1, 2, 2);
+    let expected = TensorData::from([[[0., 1.], [2., 3.]], [[5., 6.], [7., 8.]]]);
+
+    actual.into_data().assert_eq(&expected, false);
+}

@@ -21,11 +21,7 @@ impl MetricMetadata {
     #[cfg(test)]
     pub fn fake() -> Self {
         Self {
-            progress: Progress {
-                items_processed: 1,
-                items_total: 1,
-                unit: Some("items".to_string()),
-            },
+            progress: Progress::new(1, 1, Some("items".to_string())),
             iteration: Some(0),
             lr: None,
         }
@@ -133,8 +129,9 @@ pub type MetricName = Arc<String>;
 
 /// Adaptor are used to transform types so that they can be used by metrics.
 ///
-/// This should be implemented by a model's output type for all [metric inputs](Metric::Input) that are
-/// registered with the specific learning paradigm (i.e. [SupervisedTraining](crate::SupervisedTraining)).
+/// Implement this for the registered event source, such as a model output or
+/// [`OptimizerStepOutput`](crate::metric::OptimizerStepOutput), to provide each
+/// [metric input](Metric::Input).
 pub trait Adaptor<T> {
     /// Adapt the type to be passed to a [metric](Metric).
     fn adapt(&self) -> T;

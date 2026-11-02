@@ -1,515 +1,174 @@
-//! Lower backend extension methods to opaque Fusion operations.
+//! Emit an extension trait's `Fusion<B>` implementation from its parsed [`LazyTrait`], and the
+//! Fusion adapters of derived extension values.
 //!
 //! Metadata runs on the calling thread before registration; the inner backend call is deferred.
 //! Tuples are traversed here, while tensors and derived extension values delegate to the runtime's
 //! `FusionValueAdapter` trait for metadata flattening, validation, handle publication, and reconstruction.
-use crate::ir::{OperationOutput, TensorKind, with_backend};
+use crate::ir::{TensorKind, with_backend};
+use crate::parse::{ArgumentKind, DecodeCheck, LazyMethod, LazyTrait, unsupported};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{Expr, FnArg, GenericParam, ItemTrait, Pat, ReturnType, TraitItem, Type};
+use syn::{GenericParam, Type};
 
-#[allow(clippy::large_enum_variant)]
-enum FusionBehavior {
-    Default,
-    Meta(Expr),
-    Tensor { dtype: Expr, shape: Expr },
-}
-
-fn unsupported(item: impl quote::ToTokens) -> syn::Error {
-    syn::Error::new_spanned(
-        item,
-        "unsupported lazy Fusion signature; use #[fusion(default)] or omit Fusion from #[backend_extension] and implement the trait manually",
-    )
-}
-
-pub(crate) fn expand(item: &ItemTrait) -> syn::Result<TokenStream> {
-    let trait_name = &item.ident;
-    let mut methods = Vec::new();
-    let mut diagnostics = Vec::new();
-    for item in &item.items {
-        let TraitItem::Fn(method) = item else {
-            continue;
-        };
-        match expand_method(trait_name, method) {
-            Ok(Some(method)) => methods.push(method),
-            Ok(None) => {}
-            Err(error) => {
-                // A disabled method must not cause a Fusion diagnostic in this configuration.
-                let gates: Vec<_> = method
-                    .attrs
-                    .iter()
-                    .filter(|a| a.path().is_ident("cfg") || a.path().is_ident("cfg_attr"))
-                    .collect();
-                if gates.is_empty() {
-                    return Err(error);
-                }
-                let error = error.into_compile_error();
-                diagnostics.push(quote!(#(#gates)* #error));
-            }
-        }
-    }
-    Ok(quote! {
+/// The `Fusion<B>` implementation of `model`, which reports the errors of its malformed methods.
+/// `remote` is the remote backend's gate, when it is generated.
+pub fn expand(model: &LazyTrait<'_>, remote: Option<&TokenStream>) -> TokenStream {
+    let trait_name = model.name;
+    let methods = model.methods.iter().map(|method| match method {
+        Ok(method) => FusionMethod::new(method, remote).implementation(trait_name),
+        Err(malformed) => malformed.reported(),
+    });
+    quote! {
         impl<B: burn::backend::fusion::FusionBackend + #trait_name> #trait_name for burn::backend::fusion::Fusion<B> {
-            #(#diagnostics)*
             #(#methods)*
         }
-    })
+    }
 }
 
-/// Emit one implementation method, or omit it to inherit the trait's default body.
-fn expand_method(
-    trait_name: &syn::Ident,
-    method: &syn::TraitItemFn,
-) -> syn::Result<Option<TokenStream>> {
-    let annotations: Vec<_> = method
-        .attrs
-        .iter()
-        .filter(|a| a.path().is_ident("fusion"))
-        .collect();
-    if annotations.len() != 1 {
-        return Err(syn::Error::new_spanned(
-            method,
-            "each Fusion method requires exactly one #[fusion(dtype = ..., shape = ...)], #[fusion(meta = callable)], or #[fusion(default)]",
-        ));
+/// A lazily executed method as the `Fusion<B>` implementation registers it.
+struct FusionMethod<'a> {
+    method: &'a LazyMethod<'a>,
+    /// The remote backend's gate, when it is generated: the IR then also carries each extension
+    /// argument's variant and ordinary fields and each enum output's variant, so a graph fused for
+    /// the remote backend reaches the server complete.
+    remote: Option<&'a TokenStream>,
+}
+
+impl<'a> FusionMethod<'a> {
+    fn new(method: &'a LazyMethod<'a>, remote: Option<&'a TokenStream>) -> Self {
+        Self { method, remote }
     }
-    let mut behavior = None;
-    let mut dtype = None;
-    let mut shape = None;
-    let mut id = None;
-    annotations[0].parse_nested_meta(|meta| {
-        if meta.path.is_ident("id") {
-            if id.is_some() {
-                return Err(meta.error("duplicate Fusion id"));
+
+    /// The `Fusion<B>` method: register the operation and defer the inner backend call.
+    fn implementation(&self, trait_name: &syn::Ident) -> TokenStream {
+        let method = self.method;
+        let mut metadata_args = Vec::new();
+        let mut prepare = Vec::new();
+        let mut retrieve = Vec::new();
+        let mut invoke = Vec::new();
+        let mut inputs = Vec::new();
+        let mut metadata_inputs = Vec::new();
+        let mut input_counts = Vec::new();
+        let mut visits = Vec::new();
+        for argument in &method.arguments {
+            let name = argument.name;
+            match argument.adapter(quote!(B)) {
+                Some(adapter) => {
+                    let borrowed =
+                        matches!(argument.kind, ArgumentKind::Tensor { borrowed: true, .. });
+                    let adapter =
+                        quote!(<#adapter as burn::backend::fusion::custom::FusionValueAdapter<B>>);
+                    let meta = format_ident!("__metadata_{name}");
+                    let input = format_ident!("__input_{name}");
+                    input_counts.push(quote!(#adapter::tensor_count(&#meta)));
+                    metadata_inputs.push(quote!(let #meta = #adapter::to_metadata(&#name);));
+                    metadata_args.push(quote!(&#meta));
+                    visits.push(quote!(#adapter::visit_fused_tensors(&#name, &mut __visit);));
+                    retrieve
+                        .push(quote!(let #name = #adapter::resolve_inputs(&#input, __handles);));
+                    invoke.push(if borrowed {
+                        quote!(&#name)
+                    } else {
+                        quote!(#name)
+                    });
+                    let value = if borrowed {
+                        quote!((*#name).clone())
+                    } else {
+                        quote!(#name)
+                    };
+                    inputs.push(
+                        quote!(let #input = #adapter::append_input_ir(#value, &mut __inputs);),
+                    );
+                }
+                None => {
+                    metadata_args.push(quote!(&#name));
+                    // Operation::execute borrows the closure, so the backend receives cloned options.
+                    invoke.push(quote!(#name.clone()));
+                    prepare.push(quote!(__capture(&#name);));
+                }
             }
-            id = Some(meta.value()?.parse::<syn::LitStr>()?);
-            return Ok(());
         }
-        if meta.path.is_ident("dtype") || meta.path.is_ident("shape") {
-            if behavior.is_some() {
-                return Err(meta.error("dtype and shape cannot be combined with meta or default"));
-            }
-            let slot = if meta.path.is_ident("dtype") {
-                &mut dtype
-            } else {
-                &mut shape
-            };
-            if slot.is_some() {
-                return Err(meta.error("duplicate Fusion metadata field"));
-            }
-            *slot = Some(meta.value()?.parse::<Expr>()?);
-            return Ok(());
-        }
-        if behavior.is_some() || dtype.is_some() || shape.is_some() {
-            return Err(meta.error("conflicting Fusion behaviors"));
-        }
-        behavior = Some(if meta.path.is_ident("default") {
-            FusionBehavior::Default
-        } else if meta.path.is_ident("meta") {
-            FusionBehavior::Meta(meta.value()?.parse()?)
-        } else {
-            return Err(meta.error("expected dtype, shape, meta, default, or id"));
+        let scalars = method.scalars(DecodeCheck::Skip);
+        let remote_scalars = self.remote.map(|gate| {
+            let inputs = method.extension_scalars(quote!(B));
+            let outputs = method.output_variants(&quote!(B));
+            quote!(#gate { #(#inputs)* #(#outputs)* })
         });
-        Ok(())
-    })?;
-    let behavior = match (behavior, dtype, shape) {
-        (Some(behavior), None, None) => behavior,
-        (None, Some(dtype), Some(shape)) => FusionBehavior::Tensor { dtype, shape },
-        (None, _, _) => {
-            return Err(syn::Error::new_spanned(
-                annotations[0],
-                "provide both dtype and shape, or use meta or default",
-            ));
-        }
-        _ => unreachable!("conflicting behaviors are rejected while parsing"),
-    };
-    let sig = &method.sig;
-    let mut signature = sig.clone();
-    for arg in &mut signature.inputs {
-        if let FnArg::Typed(arg) = arg {
-            arg.attrs
-                .retain(|a| !a.path().is_ident("extension_type") && !a.path().is_ident("fusion"));
-        }
-    }
-    let name = &sig.ident;
-    let attrs = method.attrs.iter().filter(|a| !a.path().is_ident("fusion"));
-    let args: Vec<_> = sig
-        .inputs
-        .iter()
-        .map(|a| match a {
-            FnArg::Typed(p) => match p.pat.as_ref() {
-                Pat::Ident(i) => Ok((&i.ident, p)),
-                _ => Err(unsupported(a)),
-            },
-            _ => Err(unsupported(a)),
-        })
-        .collect::<syn::Result<_>>()?;
-    let mut expr = match behavior {
-        FusionBehavior::Default => {
-            if id.is_some() {
-                return Err(syn::Error::new_spanned(
-                    annotations[0],
-                    "default does not register an operation; id does not apply",
-                ));
-            }
-            if method.default.is_none() {
-                return Err(syn::Error::new_spanned(
-                    method,
-                    "#[fusion(default)] requires a default body",
-                ));
-            }
-            return Ok(None);
-        }
-        FusionBehavior::Meta(expr) => expr,
-        FusionBehavior::Tensor { dtype, shape } => {
-            if !matches!(&sig.output, ReturnType::Type(_, ty) if TensorKind::from_type(ty).is_some())
-            {
-                return Err(syn::Error::new_spanned(
-                    &sig.output,
-                    "dtype and shape require a single tensor output; use #[fusion(meta = callable)] for structured outputs",
-                ));
-            }
-            tensor_metadata(dtype, shape, &args)?
-        }
-    };
-    if !matches!(expr, Expr::Path(_) | Expr::Closure(_)) {
-        return Err(unsupported(expr));
-    }
-    if sig.asyncness.is_some() || !sig.generics.params.is_empty() {
-        return Err(unsupported(sig));
-    }
-    let mut metadata_args = Vec::new();
-    let mut prepare = Vec::new();
-    let mut retrieve = Vec::new();
-    let mut invoke = Vec::new();
-    let mut inputs = Vec::new();
-    let mut metadata_inputs = Vec::new();
-    let mut input_counts = Vec::new();
-    let mut visits = Vec::new();
-    let mut scalars = Vec::new();
-    for (name, arg) in &args {
-        let scalar = scalar_argument(name, arg)?;
-        let is_ext = arg
-            .attrs
-            .iter()
-            .any(|a| a.path().is_ident("extension_type"));
-        let borrowed = matches!(arg.ty.as_ref(), Type::Reference(_));
-        if matches!(arg.ty.as_ref(), Type::Reference(r) if r.mutability.is_some()) {
-            return Err(unsupported(arg));
-        }
-        let ty = match arg.ty.as_ref() {
-            Type::Reference(r) => r.elem.as_ref(),
-            ty => ty,
-        };
-        let adapter = field_adapter(ty, is_ext)?;
-        if let Some(adapter) = adapter {
-            if scalar.is_some() {
-                return Err(syn::Error::new_spanned(
-                    arg,
-                    "#[fusion(scalar)] applies to ordinary arguments, not tensor or extension inputs",
-                ));
-            }
-            if is_ext && borrowed {
-                return Err(unsupported(arg));
-            }
-            let adapter = if is_ext {
-                with_backend(ty, quote!(B))
-            } else {
-                adapter
-            };
+        let mut output_counts = Vec::new();
+        let mut validate = Vec::new();
+        let mut publish = Vec::new();
+        // Validation and publication are separate phases so no handles are published until all
+        // outputs pass.
+        let output_state = method.output.map_leaves(&quote!(B), &mut |adapter, member| {
             let adapter =
                 quote!(<#adapter as burn::backend::fusion::custom::FusionValueAdapter<B>>);
-            let meta = format_ident!("__metadata_{name}");
-            let input = format_ident!("__input_{name}");
-            input_counts.push(quote!(#adapter::tensor_count(&#meta)));
-            metadata_inputs.push(quote!(let #meta = #adapter::to_metadata(&#name);));
-            metadata_args.push(quote!(&#meta));
-            visits.push(quote!(#adapter::visit_fused_tensors(&#name, &mut __visit);));
-            retrieve.push(quote!(let #name = #adapter::resolve_inputs(&#input, __handles);));
-            invoke.push(if borrowed {
-                quote!(&#name)
-            } else {
-                quote!(#name)
-            });
-            let value = if borrowed {
-                quote!((*#name).clone())
-            } else {
-                quote!(#name)
-            };
-            inputs.push(quote!(let #input = #adapter::append_input_ir(#value, &mut __inputs);));
-        } else {
-            if borrowed
-                || matches!(arg.ty.as_ref(), Type::ImplTrait(_))
-                || crate::ir::type_contains_self(&arg.ty)
-            {
-                return Err(unsupported(arg));
-            }
-            if let Some(value) = scalar {
-                scalars.push(quote!(burn::backend::fusion::custom::ScalarIr::from(
-                    burn::backend::Scalar::from((#value).clone())
-                )));
-            }
-            metadata_args.push(quote!(&#name));
-            // Operation::execute borrows the closure, so the backend receives cloned options.
-            invoke.push(quote!(#name.clone()));
-            prepare.push(quote!(__capture(&#name);));
-        }
-    }
-    if inputs.is_empty() {
-        return Err(unsupported(sig));
-    }
-    // An immediately invoked closure needs explicit parameter types for expressions like x.shape.
-    if let Expr::Closure(closure) = &mut expr {
-        if closure.inputs.len() != args.len() {
-            return Err(syn::Error::new_spanned(
-                closure,
-                "metadata must accept every argument in declaration order",
-            ));
-        }
-        for (pat, (_, arg)) in closure.inputs.iter_mut().zip(&args) {
-            if !matches!(pat, Pat::Type(_)) {
-                let ty = if TensorKind::from_type(&arg.ty).is_some() {
-                    quote!(burn::backend::fusion::custom::TensorSpec)
-                } else if arg
-                    .attrs
-                    .iter()
-                    .any(|a| a.path().is_ident("extension_type"))
-                {
-                    let ty = with_backend(&arg.ty, quote!(B));
-                    quote!(<#ty as burn::backend::fusion::custom::ExtensionMetadata>::Metadata)
-                } else {
-                    let ty = &arg.ty;
-                    quote!(#ty)
+            output_counts.push(quote!(#adapter::tensor_count(&__meta #member)));
+            validate.push(quote!(#adapter::validate_outputs(&__output #member, &__output_state #member, {
+                #[cfg(debug_assertions)] { Some(&__device) }
+                #[cfg(not(debug_assertions))] { None }
+            })?;));
+            publish.push(quote!(#adapter::register_output_handles(__output #member, &__output_state #member, __handles);));
+            quote!(#adapter::append_output_ir(&__meta #member, &mut __outputs, &mut || __client.create_empty_handle()))
+        });
+        let reconstruct = method.output.map_leaves(&quote!(B), &mut |adapter, member| {
+            quote!(<#adapter as burn::backend::fusion::custom::FusionValueAdapter<B>>::build_fused_output(&__meta #member, &mut __tensors))
+        });
+        let call = method.call(trait_name, quote!(B), &invoke);
+        let expr = method.metadata(quote!(B));
+        let id = &method.id;
+        let signature = &method.signature;
+        let attrs = method.attrs();
+        quote! {
+            #(#attrs)* #signature {
+                use burn::backend::fusion::custom as __fusion;
+                fn __capture<T: Clone + Send + Sync + 'static>(_: &T) {}
+                let mut __client = None;
+                #[cfg(debug_assertions)]
+                let mut __device_id = None;
+                let mut __visit = |tensor: &burn::backend::fusion::FusionTensor<B::FusionRuntime>| {
+                    #[cfg(debug_assertions)] {
+                        let id = burn::backend::Device::to_id(tensor.client.device());
+                        assert_eq!(*__device_id.get_or_insert(id), id, "Fusion custom inputs must share a device");
+                    }
+                    __client.get_or_insert_with(|| tensor.client.clone());
                 };
-                *pat = Pat::Type(syn::PatType {
-                    attrs: Vec::new(),
-                    pat: Box::new(pat.clone()),
-                    colon_token: Default::default(),
-                    ty: Box::new(syn::parse_quote!(&#ty)),
+                #(#visits)*
+                let __client = __client.expect("Fusion custom operation requires at least one input tensor");
+                #[cfg(debug_assertions)]
+                let __device = __client.device().clone();
+                #(#prepare)*
+                #(#metadata_inputs)*
+                let __meta = (#expr)(#(#metadata_args),*);
+                #[allow(unused_mut)]
+                let mut __scalars = vec![#(#scalars),*];
+                #remote_scalars
+                let mut __inputs = Vec::with_capacity(0 #(+ #input_counts)*);
+                #(#inputs)*
+                let mut __outputs = Vec::with_capacity(0 #(+ #output_counts)*);
+                let __output_state = #output_state;
+                let __desc = __fusion::CustomOpIr {
+                    id: (#id).into(),
+                    inputs: __inputs,
+                    outputs: __outputs,
+                    scalars: __scalars,
+                };
+                let __op = __fusion::OperationFn(move |__handles: &mut __fusion::HandleContainer<<B::FusionRuntime as burn::backend::fusion::FusionRuntime>::FusionHandle>| {
+                    #(#retrieve)*
+                    let __output = #call;
+                    #(#validate)*
+                    #(#publish)*
+                    Ok(())
                 });
+                let mut __tensors = __client.register(__fusion::StreamId::current(), __fusion::OperationIr::Custom(__desc), __op).into_iter();
+                #reconstruct
             }
         }
     }
-    let ReturnType::Type(_, ty) = &sig.output else {
-        return Err(unsupported(sig));
-    };
-    reject_borrowed_output(ty)?;
-    let output = OperationOutput::extension(ty);
-    let mut output_counts = Vec::new();
-    let mut validate = Vec::new();
-    let mut publish = Vec::new();
-    let (output_state, reconstruct) = walk_output(
-        &output,
-        quote!(__meta),
-        quote!(__output),
-        quote!(__output_state),
-        &mut output_counts,
-        &mut validate,
-        &mut publish,
-    )?;
-    let call = quote!(<B as #trait_name>::#name(#(#invoke),*));
-    let call = if matches!(sig.safety, syn::Safety::Unsafe(_)) {
-        quote!(unsafe { #call })
-    } else {
-        call
-    };
-    let id = id
-        .map(|id| quote!(#id))
-        .unwrap_or_else(|| quote!(stringify!(#name)));
-    Ok(Some(quote! {
-        #(#attrs)* #signature {
-            use burn::backend::fusion::custom as __fusion;
-            fn __capture<T: Clone + Send + Sync + 'static>(_: &T) {}
-            let mut __client = None;
-            #[cfg(debug_assertions)]
-            let mut __device_id = None;
-            let mut __visit = |tensor: &burn::backend::fusion::FusionTensor<B::FusionRuntime>| {
-                #[cfg(debug_assertions)] {
-                    let id = burn::backend::Device::to_id(tensor.client.device());
-                    assert_eq!(*__device_id.get_or_insert(id), id, "Fusion custom inputs must share a device");
-                }
-                __client.get_or_insert_with(|| tensor.client.clone());
-            };
-            #(#visits)*
-            let __client = __client.expect("Fusion custom operation requires at least one input tensor");
-            #[cfg(debug_assertions)]
-            let __device = __client.device().clone();
-            #(#prepare)*
-            #(#metadata_inputs)*
-            let __meta = (#expr)(#(#metadata_args),*);
-            let __scalars = vec![#(#scalars),*];
-            let mut __inputs = Vec::with_capacity(0 #(+ #input_counts)*);
-            #(#inputs)*
-            let mut __outputs = Vec::with_capacity(0 #(+ #output_counts)*);
-            let __output_state = #output_state;
-            let __desc = __fusion::CustomOpIr {
-                id: (#id).into(),
-                inputs: __inputs,
-                outputs: __outputs,
-                scalars: __scalars,
-            };
-            let __op = __fusion::OperationFn(move |__handles: &mut __fusion::HandleContainer<<B::FusionRuntime as burn::backend::fusion::FusionRuntime>::FusionHandle>| {
-                #(#retrieve)*
-                let __output = #call;
-                #(#validate)*
-                #(#publish)*
-                Ok(())
-            });
-            let mut __tensors = __client.register(__fusion::StreamId::current(), __fusion::OperationIr::Custom(__desc), __op).into_iter();
-            #reconstruct
-        }
-    }))
 }
 
-/// Primitive parameters are scalar IR inputs; custom types can opt in or provide an encoding.
-/// The macro cannot resolve aliases or inspect a type declared in another crate.
-fn scalar_argument(name: &syn::Ident, arg: &syn::PatType) -> syn::Result<Option<Expr>> {
-    let attrs: Vec<_> = arg
-        .attrs
-        .iter()
-        .filter(|a| a.path().is_ident("fusion"))
-        .collect();
-    if attrs.len() > 1 {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "expected one #[fusion(scalar)] or #[fusion(scalar = expression)]",
-        ));
-    }
-    if let Some(attr) = attrs.first() {
-        let mut value = None;
-        attr.parse_nested_meta(|meta| {
-            if !meta.path.is_ident("scalar") || value.is_some() {
-                return Err(meta.error("expected scalar or scalar = expression"));
-            }
-            value = Some(if meta.input.peek(syn::Token![=]) {
-                meta.value()?.parse()?
-            } else {
-                syn::parse_quote!(#name)
-            });
-            Ok(())
-        })?;
-        return value.map(Some).ok_or_else(|| {
-            syn::Error::new_spanned(attr, "expected scalar or scalar = expression")
-        });
-    }
-    let Type::Path(ty) = arg.ty.as_ref() else {
-        return Ok(None);
-    };
-    let segments: Vec<_> = ty.path.segments.iter().collect();
-    let primitive_path = segments.len() == 1
-        || (segments.len() == 3
-            && (segments[0].ident == "core" || segments[0].ident == "std")
-            && segments[1].ident == "primitive");
-    let primitive = ty.qself.is_none()
-        && primitive_path
-        && segments
-            .iter()
-            .all(|s| matches!(s.arguments, syn::PathArguments::None))
-        && segments.last().is_some_and(|s| {
-            matches!(
-                s.ident.to_string().as_str(),
-                "bool"
-                    | "f32"
-                    | "f64"
-                    | "i8"
-                    | "i16"
-                    | "i32"
-                    | "i64"
-                    | "isize"
-                    | "u8"
-                    | "u16"
-                    | "u32"
-                    | "u64"
-                    | "usize"
-            )
-        });
-    Ok(primitive.then(|| syn::parse_quote!(#name)))
-}
-
-/// Lower field expressions to the same metadata callback used by `meta`.
-/// Separate scopes give tensor names their dtype or borrowed shape without rewriting expressions.
-fn tensor_metadata(
-    dtype: Expr,
-    shape: Expr,
-    args: &[(&syn::Ident, &syn::PatType)],
-) -> syn::Result<Expr> {
-    let names: Vec<_> = args.iter().map(|(name, _)| name).collect();
-    let tensors: Vec<_> = args
-        .iter()
-        .filter(|(_, arg)| TensorKind::from_type(&arg.ty).is_some())
-        .map(|(name, _)| *name)
-        .collect();
-    // A bare operand borrows its shape; computed expressions already return an owned Shape.
-    let shape = if matches!(&shape, Expr::Path(path) if tensors.iter().any(|name| path.path.is_ident(*name)))
-    {
-        quote!((#shape).clone())
-    } else {
-        quote!(#shape)
-    };
-    syn::parse2(quote! {
-        |#(#names),*| {
-            let _ = (#(#names),*);
-            let __dtype = { #(#[allow(unused_variables)] let #tensors = #tensors.dtype;)* #dtype };
-            let __shape = { #(#[allow(unused_variables)] let #tensors = &#tensors.shape;)* #shape };
-            burn::backend::fusion::custom::TensorSpec::new(__shape, __dtype)
-        }
-    })
-}
-
-/// Build each output phase in the same tensor-leaf order, returning the reconstruction expression.
-/// Keep validation and publication separate so no handles are published until all outputs pass.
-fn walk_output(
-    out: &OperationOutput,
-    meta: TokenStream,
-    value: TokenStream,
-    state: TokenStream,
-    counts: &mut Vec<TokenStream>,
-    validate: &mut Vec<TokenStream>,
-    publish: &mut Vec<TokenStream>,
-) -> syn::Result<(TokenStream, TokenStream)> {
-    if let OperationOutput::Tuple(items) = out {
-        let (states, reconstructed): (Vec<_>, Vec<_>) = items
-            .iter()
-            .enumerate()
-            .map(|(i, o)| {
-                let i = syn::Index::from(i);
-                walk_output(
-                    o,
-                    quote!(#meta.#i),
-                    quote!(#value.#i),
-                    quote!(#state.#i),
-                    counts,
-                    validate,
-                    publish,
-                )
-            })
-            .collect::<syn::Result<Vec<_>>>()?
-            .into_iter()
-            .unzip();
-        return Ok((quote!((#(#states,)*)), quote!((#(#reconstructed,)*))));
-    }
-    let adapter = match out {
-        OperationOutput::Tensor(kind) => {
-            let kind = kind.variant();
-            quote!(burn::backend::fusion::custom::#kind)
-        }
-        OperationOutput::Extension(ty) => with_backend(ty, quote!(B)),
-        _ => return Err(unsupported(quote!(output))),
-    };
-    let adapter = quote!(<#adapter as burn::backend::fusion::custom::FusionValueAdapter<B>>);
-    counts.push(quote!(#adapter::tensor_count(&#meta)));
-    validate.push(quote!(#adapter::validate_outputs(&#value, &#state, {
-        #[cfg(debug_assertions)] { Some(&__device) }
-        #[cfg(not(debug_assertions))] { None }
-    })?;));
-    publish.push(quote!(#adapter::register_output_handles(#value, &#state, __handles);));
-    Ok((
-        quote!(#adapter::append_output_ir(&#meta, &mut __outputs, &mut || __client.create_empty_handle())),
-        quote!(#adapter::build_fused_output(&#meta, &mut __tensors)),
-    ))
-}
-
-pub(crate) fn derive(input: &syn::DeriveInput) -> syn::Result<TokenStream> {
+pub fn derive(input: &syn::DeriveInput) -> syn::Result<TokenStream> {
     let mut enabled = false;
+    let mut remote = false;
     let mut cfg = None;
     for attr in input
         .attrs
@@ -517,8 +176,12 @@ pub(crate) fn derive(input: &syn::DeriveInput) -> syn::Result<TokenStream> {
         .filter(|a| a.path().is_ident("extension_type"))
     {
         attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("remote") && !remote {
+                remote = true;
+                return Ok(());
+            }
             if !meta.path.is_ident("fusion") || enabled {
-                return Err(meta.error("expected fusion or fusion: cfg(...)"));
+                return Err(meta.error("expected fusion, fusion: cfg(...), or remote"));
             }
             enabled = true;
             if meta.input.peek(syn::Token![:]) {
@@ -528,11 +191,19 @@ pub(crate) fn derive(input: &syn::DeriveInput) -> syn::Result<TokenStream> {
             Ok(())
         })?;
     }
+    if remote && !enabled {
+        return Err(syn::Error::new_spanned(
+            &input.ident,
+            "remote extends the Fusion metadata; enable fusion beside it: \
+             #[extension_type(fusion, remote)]",
+        ));
+    }
+    reject_unread_scalar_encodings(input, remote)?;
     if !enabled {
         return Ok(quote!());
     }
     let gate = cfg.map(|c| quote!(#[#c]));
-    let result = derive_adapter(input, &gate).unwrap_or_else(|e| {
+    let result = derive_adapter(input, &gate, remote).unwrap_or_else(|e| {
         let e = e.into_compile_error();
         quote!(#gate #e)
     });
@@ -584,10 +255,7 @@ fn fusion_type_definition(
         _ => return Err(unsupported(input)),
     };
     for field in fields {
-        let is_ext = field
-            .attrs
-            .iter()
-            .any(|a| a.path().is_ident("extension_type"));
+        let is_ext = crate::derive::is_nested_extension(&field.attrs);
         if field_adapter(&field.ty, is_ext)?.is_some() {
             field.ty = if TensorKind::from_type(&field.ty).is_some() {
                 match kind {
@@ -621,6 +289,7 @@ fn fusion_type_definition(
 fn derive_adapter(
     input: &syn::DeriveInput,
     gate: &Option<TokenStream>,
+    remote: bool,
 ) -> syn::Result<TokenStream> {
     use crate::derive::{collect_cases, gen_case_ctor, gen_case_pattern};
     if input.generics.params.len() != 1 {
@@ -660,6 +329,8 @@ fn derive_adapter(
     let mut validate = Vec::new();
     let mut publish = Vec::new();
     let mut reconstruct = Vec::new();
+    let is_enum = matches!(input.data, syn::Data::Enum(_));
+    let mut remote = remote.then(|| crate::remote::RemoteAdapterDerive::new(name, b, is_enum));
     for (((case, meta_case), input_case), output_case) in cases
         .iter()
         .zip(&meta_cases)
@@ -686,6 +357,9 @@ fn derive_adapter(
             let value = &field.bind;
             let state = &meta_field.bind;
             if let Some(adapter) = field_adapter(&field.ty, field.is_ext)? {
+                if let Some(remote) = &mut remote {
+                    remote.adapted_field(&adapter, value, state);
+                }
                 let adapter =
                     quote!(<#adapter as burn::backend::fusion::custom::FusionValueAdapter<#b>>);
                 descriptions.push(quote!(#adapter::to_metadata(#value)));
@@ -699,6 +373,9 @@ fn derive_adapter(
                     .push(quote!(#adapter::register_output_handles(#value, #state, handles);));
                 reconstructions.push(quote!(#adapter::build_fused_output(#state, tensors)));
             } else {
+                if let Some(remote) = &mut remote {
+                    remote.ordinary_field(field, value, state)?;
+                }
                 descriptions.push(quote!(#value.clone()));
                 inputs.push(quote!(#value));
                 reads.push(quote!(#state.clone()));
@@ -720,8 +397,10 @@ fn derive_adapter(
         validate.push(quote!((#tensor_pattern, #output_pattern) => { #(#checks)* Ok(()) }));
         publish.push(quote!((#tensor_pattern, #output_pattern) => { #(#publications)* }));
         reconstruct.push(quote!(#meta_pattern => #reconstructed));
+        if let Some(remote) = &mut remote {
+            remote.end_case(case, meta_case);
+        }
     }
-    let is_enum = matches!(input.data, syn::Data::Enum(_));
     let mismatch = is_enum.then(|| quote! {
         _ => Err(burn::backend::fusion::ExecutionError::generic("Fusion custom output variant differs from its metadata")),
     });
@@ -729,7 +408,9 @@ fn derive_adapter(
         is_enum.then(|| quote! { _ => unreachable!("output variants were validated"), });
     let bounds = &backend.bounds;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let remote = remote.map(|remote| remote.finish(input, backend, &metadata, gate));
     Ok(quote! {
+        #remote
         #gate
         #[doc = "Tensor metadata and ordinary fields for the corresponding backend extension value."]
         #[derive(Clone, Debug)]
@@ -768,24 +449,39 @@ fn derive_adapter(
     })
 }
 
-fn reject_borrowed_output(ty: &Type) -> syn::Result<()> {
-    match ty {
-        Type::Reference(_) => Err(unsupported(ty)),
-        Type::Tuple(tuple) => {
-            for ty in &tuple.elems {
-                reject_borrowed_output(ty)?;
+/// Reject `#[extension_type(scalar ..)]` where nothing reads it: on a tensor or nested field,
+/// which travels as IR inputs, or on any field of a type without `remote`.
+fn reject_unread_scalar_encodings(input: &syn::DeriveInput, remote: bool) -> syn::Result<()> {
+    for case in crate::derive::collect_cases(input)? {
+        for field in &case.fields {
+            let Some(annotation) = field.scalar_annotation() else {
+                continue;
+            };
+            if !remote {
+                return Err(syn::Error::new_spanned(
+                    annotation,
+                    "a scalar encoding sends the field to the remote backend; opt the type in \
+                     with #[extension_type(fusion, remote)]",
+                ));
             }
-            Ok(())
+            if field.is_ext || field.tensor_kind.is_some() {
+                return Err(syn::Error::new_spanned(
+                    annotation,
+                    "a scalar encoding applies to ordinary fields; tensor and nested extension \
+                     fields travel as the operation's input tensors",
+                ));
+            }
         }
-        _ => Ok(()),
     }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     fn expand_trait(tokens: TokenStream) -> String {
-        expand(&syn::parse2(tokens).unwrap()).unwrap().to_string()
+        let item = syn::parse2(tokens).unwrap();
+        expand(&LazyTrait::new(&item), None).to_string()
     }
     #[test]
     fn lowers_closure_borrowed_and_tuple_outputs() {
@@ -795,7 +491,7 @@ mod tests {
                 fn op(x: &FloatTensor<Self>, option: usize) -> (FloatTensor<Self>, FloatTensor<Self>);
             }
         });
-        assert!(out.contains("id : (stringify ! (op))"));
+        assert!(out.contains("id : (concat ! (stringify ! (Ext) , \"::\" , stringify ! (op)))"));
         assert!(out.contains("TensorSpec"));
         assert!(out.contains(":: resolve_inputs"));
         assert!(out.contains("validate_outputs"));
@@ -807,40 +503,23 @@ mod tests {
         let out = expand_trait(quote! {
             trait Ext: Backend {
                 #[fusion(id = "matmul", dtype = lhs, shape = lhs)]
-                fn op(lhs: FloatTensor<Self>, #[fusion(scalar = strategy.to_code())] strategy: Strategy, flag: bool,
+                fn op(lhs: FloatTensor<Self>, #[fusion(scalar = mode.to_code())] mode: Mode, flag: bool,
                     #[extension_type] rhs: Operand<Self>) -> FloatTensor<Self>;
             }
         });
         assert!(out.contains("id : (\"matmul\")"));
-        let strategy = out
-            .find("Scalar :: from ((strategy . to_code ()) . clone ())")
+        let mode = out
+            .find("Scalar :: from ((mode . to_code ()) . clone ())")
             .unwrap();
         let flag = out.find("Scalar :: from ((flag) . clone ())").unwrap();
-        assert!(strategy < flag);
+        assert!(mode < flag);
         assert!(!out.contains("fusion (scalar"));
         assert!(out.contains("ExtensionMetadata"));
         syn::parse_str::<syn::ItemImpl>(&out).unwrap();
     }
 
     #[test]
-    fn scalar_parameter_annotations_are_validated_and_stripped() {
-        for argument in [
-            quote!(#[fusion()] value: f32),
-            quote!(#[fusion(other)] value: f32),
-            quote!(#[fusion(scalar, scalar)] value: f32),
-            quote!(#[fusion(scalar)] #[fusion(scalar)] value: f32),
-            quote!(#[fusion(scalar)] value: FloatTensor<Self>),
-            quote!(#[fusion(scalar)] #[extension_type] value: Options<Self>),
-        ] {
-            let item = syn::parse2(quote! {
-                trait Ext: Backend {
-                    #[fusion(dtype = x, shape = x)]
-                    fn op(x: FloatTensor<Self>, #argument) -> FloatTensor<Self>;
-                }
-            })
-            .unwrap();
-            assert!(expand(&item).is_err(), "accepted {argument}");
-        }
+    fn strips_scalar_parameter_annotations() {
         for backends in [quote!(Cube), quote!(Cube, Fusion: cfg(feature = "fusion"))] {
             let output = crate::extension::expand(backends, quote! {
                 trait Ext: Backend {
@@ -854,33 +533,6 @@ mod tests {
     }
 
     #[test]
-    fn detects_primitive_scalars_and_requires_alias_opt_in() {
-        for (ty, expected) in [
-            (quote!(f32), true),
-            (quote!(f64), true),
-            (quote!(bool), true),
-            (quote!(usize), true),
-            (quote!(isize), true),
-            (quote!(u64), true),
-            (quote!(core::primitive::i16), true),
-            (quote!(std::primitive::u8), true),
-            (quote!(Amount), false),
-            (quote!(options::u32), false),
-            (quote!(String), false),
-            (quote!(i128), false),
-        ] {
-            let arg = syn::parse2(quote!(value: #ty)).unwrap();
-            assert_eq!(
-                scalar_argument(&syn::parse_quote!(value), &arg)
-                    .unwrap()
-                    .is_some(),
-                expected,
-                "{ty}"
-            );
-        }
-    }
-
-    #[test]
     fn inherits_defaults() {
         let out = expand_trait(quote! {
             trait Ext: Backend {
@@ -890,92 +542,6 @@ mod tests {
         });
         assert!(!out.contains("fn default_op"));
         syn::parse_str::<syn::ItemImpl>(&out).unwrap();
-    }
-    #[test]
-    fn rejects_incomplete_duplicate_and_conflicting_fields() {
-        for attr in [
-            quote!(dtype = x),
-            quote!(shape = x),
-            quote!(dtype = x, dtype = x, shape = x),
-            quote!(shape = x, shape = x, dtype = x),
-            quote!(meta = metadata, dtype = x, shape = x),
-            quote!(dtype = x, shape = x, meta = metadata),
-            quote!(default, dtype = x, shape = x),
-            quote!(shape = x, default),
-            quote!(default, id = "op"),
-            quote!(default, scalars = []),
-            quote!(dtype = x, shape = x, id = "a", id = "b"),
-            quote!(dtype = x, shape = x, scalars = [], scalars = []),
-        ] {
-            let item = syn::parse2(quote! {
-                trait Ext: Backend {
-                    #[fusion(#attr)]
-                    fn op(x: FloatTensor<Self>) -> FloatTensor<Self> { x }
-                }
-            })
-            .unwrap();
-            assert!(expand(&item).is_err(), "accepted {attr}");
-        }
-        let item = syn::parse2(quote! {
-            trait Ext: Backend {
-                #[fusion(dtype = x, shape = x)]
-                fn op(x: FloatTensor<Self>) -> (FloatTensor<Self>, FloatTensor<Self>);
-            }
-        })
-        .unwrap();
-        assert!(
-            expand(&item)
-                .unwrap_err()
-                .to_string()
-                .contains("single tensor output")
-        );
-    }
-    #[test]
-    fn rejects_missing_conflicting_and_unsupported_behaviors() {
-        for method in [
-            quote!(
-                #[fusion(custom = helper)]
-                fn op(x: FloatTensor<Self>) -> FloatTensor<Self>;
-            ),
-            quote!(
-                fn op(x: FloatTensor<Self>) -> FloatTensor<Self>;
-            ),
-            quote!(
-                #[fusion(default)]
-                fn op(x: FloatTensor<Self>) -> FloatTensor<Self>;
-            ),
-            quote!(
-                #[fusion(meta = meta, default)]
-                fn op(x: FloatTensor<Self>) -> FloatTensor<Self>;
-            ),
-            quote!(
-                #[fusion(meta = meta)]
-                async fn op(x: FloatTensor<Self>) -> FloatTensor<Self>;
-            ),
-            quote!(
-                #[fusion(meta = meta)]
-                fn op<T>(x: FloatTensor<Self>) -> FloatTensor<Self>;
-            ),
-            quote!(
-                #[fusion(meta = meta)]
-                fn op(x: FloatTensor<Self>, v: &usize) -> FloatTensor<Self>;
-            ),
-            quote!(
-                #[fusion(dtype = x, shape = x)]
-                fn op(x: &mut FloatTensor<Self>) -> FloatTensor<Self>;
-            ),
-            quote!(
-                #[fusion(meta = meta)]
-                fn op(x: FloatTensor<Self>) -> Vec<FloatTensor<Self>>;
-            ),
-            quote!(
-                #[fusion(meta = meta)]
-                fn op(x: usize) -> FloatTensor<Self>;
-            ),
-        ] {
-            let item = syn::parse2(quote!(trait Ext: Backend { #method })).unwrap();
-            assert!(expand(&item).is_err());
-        }
     }
     #[test]
     fn gates_missing_annotations_and_named_metadata() {
@@ -996,5 +562,57 @@ mod tests {
         let out = derive(&input).unwrap();
         syn::parse2::<syn::File>(out.clone()).unwrap();
         assert!(out.to_string().contains("ExtensionMetadata"));
+    }
+
+    #[test]
+    fn rejects_scalar_encodings_nothing_reads() {
+        for (input, message) in [
+            (
+                quote! {
+                    #[extension_type(fusion)]
+                    pub struct Store<B: Backend> {
+                        buffer: FloatTensor<B>,
+                        #[extension_type(scalar = bits.to_code(), decode = Bits::from_code)]
+                        bits: Bits,
+                    }
+                },
+                "opt the type in",
+            ),
+            (
+                quote! {
+                    pub struct Store<B: Backend>(
+                        FloatTensor<B>,
+                        #[extension_type(scalar = value.0, decode = Factor)] Factor,
+                    );
+                },
+                "opt the type in",
+            ),
+            (
+                quote! {
+                    #[extension_type(fusion, remote)]
+                    pub struct Store<B: Backend> {
+                        #[extension_type(scalar = 0u64, decode = |_| unreachable!())]
+                        buffer: FloatTensor<B>,
+                    }
+                },
+                "applies to ordinary fields",
+            ),
+            (
+                quote! {
+                    #[extension_type(fusion, remote)]
+                    pub enum Store<B: Backend> {
+                        Nested {
+                            #[extension_type]
+                            #[extension_type(scalar = 0u64, decode = |_| unreachable!())]
+                            inner: Inner<B>,
+                        },
+                    }
+                },
+                "applies to ordinary fields",
+            ),
+        ] {
+            let error = derive(&syn::parse2(input.clone()).unwrap()).unwrap_err();
+            assert!(error.to_string().contains(message), "{input}: {error}");
+        }
     }
 }

@@ -2,6 +2,7 @@ use crate::Initializer;
 use alloc::format;
 use burn::tensor::ops::DeformConvOptions;
 
+use burn::instrument::compute;
 use burn_core as burn;
 
 use crate::PaddingConfig2d;
@@ -171,6 +172,9 @@ impl DeformConv2d {
     /// - offset: `[batch_size, 2 * offset_groups * kernel_height * kernel_width, height_out, width_out]`
     /// - mask: `[batch_size, offset_groups * kernel_height * kernel_width, height_out, width_out]`
     /// - output: `[batch_size, channels_out, height_out, width_out]`
+    ///
+    /// Timed without bounds: the input positions it samples depend on the offsets' values.
+    #[compute]
     pub fn forward(
         &self,
         input: Tensor<4>,
@@ -209,6 +213,22 @@ mod tests {
 
     use super::*;
     use burn::tensor::TensorData;
+
+    /// A deformable convolution is timed but declares no bounds.
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_deformable_convolution_declares_no_bounds() {
+        let device = Default::default();
+        let conv = DeformConv2dConfig::new([2, 4], [3, 3]).init(&device);
+        let input = Tensor::<4>::zeros([1, 2, 5, 5], &device);
+        let offset = Tensor::<4>::zeros([1, 2 * 3 * 3, 3, 3], &device);
+
+        let recorded = crate::recording::recorded(|| {
+            conv.forward(input, offset, None);
+        });
+
+        assert_eq!(recorded.lines(), ["deform conv2d (unpriced)"]);
+    }
 
     #[test]
     fn initializer_default() {

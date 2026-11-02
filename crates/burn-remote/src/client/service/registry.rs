@@ -1,16 +1,17 @@
 //! Process-global registry connecting Burn's compact `DeviceId` to rich remote endpoints.
 
 use burn_ir::TensorId;
-use burn_std::DeviceSettings;
+use burn_std::{DeviceSettings, ExecutionError};
 use std::{
     collections::HashMap,
     sync::{
         Arc, Mutex, OnceLock,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicU64, Ordering},
     },
 };
 
 use super::conn::{EndpointKey, RemoteEndpoint};
+use crate::shared::SessionId;
 
 static TENSOR_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -18,20 +19,41 @@ pub(crate) fn new_tensor_id() -> TensorId {
     TensorId::new(TENSOR_ID_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
-/// Whether a device's session has ended: its response stream closed, or its writer failed. An
-/// ended session is never reopened; the next connect registers a new device.
+/// Whether a device's session has ended, and why: its response stream closed, its writer failed,
+/// or it could not be opened for work already queued on it. An ended session is never reopened;
+/// the next connect registers a new device.
 #[derive(Default)]
 pub(crate) struct SessionEnd {
-    ended: AtomicBool,
+    reason: OnceLock<String>,
 }
 
 impl SessionEnd {
-    pub(crate) fn end(&self) {
-        self.ended.store(true, Ordering::Release);
+    /// End the session. The first reason given is the one reported.
+    pub(crate) fn end(&self, reason: impl Into<String>) {
+        let _ = self.reason.set(reason.into());
     }
 
     pub(crate) fn has_ended(&self) -> bool {
-        self.ended.load(Ordering::Acquire)
+        self.reason.get().is_some()
+    }
+
+    /// The error every flush, sync and read reports once the session has ended.
+    ///
+    /// A [poisoned device](ExecutionError::DevicePoisoned): the tensors the session held are gone
+    /// with it, so nothing queued on it can run again, and a later connect is a new device.
+    pub(crate) fn error(&self) -> Option<ExecutionError> {
+        self.reason.get().map(|reason| {
+            ExecutionError::device_poisoned(format!("The remote session ended: {reason}"))
+        })
+    }
+
+    /// Why a request on this session was never answered.
+    ///
+    /// Only an ended session drops a request unanswered, so this is [`error`](Self::error).
+    pub(crate) fn unanswered(&self) -> ExecutionError {
+        self.error().unwrap_or_else(|| {
+            ExecutionError::device_poisoned("The remote session dropped a request unanswered")
+        })
     }
 }
 
@@ -47,6 +69,8 @@ struct EndpointEntry {
     device_index: u32,
     settings: Arc<OnceLock<DeviceSettings>>,
     device_count: Arc<OnceLock<u32>>,
+    /// The one session this device opens, named before it opens so a collective can name it.
+    session_id: SessionId,
     session: Arc<SessionEnd>,
 }
 
@@ -94,6 +118,7 @@ pub(crate) fn register_endpoint(endpoint: RemoteEndpoint, device_index: u32) -> 
             device_index,
             settings: Arc::new(OnceLock::new()),
             device_count: Arc::new(OnceLock::new()),
+            session_id: SessionId::new(),
             session: Arc::default(),
         },
     );
@@ -146,4 +171,8 @@ pub(crate) fn device_count_for(id: u32) -> Option<u32> {
 
 pub(crate) fn session_end(id: u32) -> Arc<SessionEnd> {
     with_entry(id, |entry| entry.session.clone())
+}
+
+pub(crate) fn session_of(id: u32) -> SessionId {
+    with_entry(id, |entry| entry.session_id)
 }

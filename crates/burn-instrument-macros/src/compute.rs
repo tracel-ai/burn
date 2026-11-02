@@ -112,7 +112,13 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                 label: #label,
                 variant: #variant,
                 site: #site,
-                bounds: #bounds,
+                bounds: match __burn_instrument_observing.prices() {
+                    true => {
+                        let __burn_instrument_suspended = __burn_instrument_observing.suspend();
+                        #bounds
+                    },
+                    false => None,
+                },
                 },
             )),
         };

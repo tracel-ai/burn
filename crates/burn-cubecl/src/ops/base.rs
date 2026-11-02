@@ -40,14 +40,19 @@ pub(crate) async fn into_data(tensor: CubeTensor) -> Result<TensorData, Executio
     let elem_size = tensor.elem_size();
     let shape = tensor.meta.shape().clone();
     let strides = tensor.meta.strides().clone();
-    let binding = CopyDescriptor::new(tensor.handle.binding(), shape, strides, elem_size);
     // Under an async runtime (e.g. a remote server), a lazy read defers the device→host
     // copy to first access, where a blocking read would run on — and starve — an executor
     // worker. Read eagerly there so the copy happens inside this awaited future. On a
     // sync/threaded runtime the lazy read keeps the streaming optimization.
     let read = match burn_std::runtime_kind() {
-        burn_std::RuntimeKind::Async => tensor.client.read_one_tensor_async(binding).await,
-        _ => tensor.client.read_lazy_async(binding).await,
+        burn_std::RuntimeKind::Async => {
+            let binding = CopyDescriptor::new(tensor.handle.binding(), shape, strides, elem_size);
+            tensor.client.read_one_tensor_async(binding).await
+        }
+        _ => {
+            let source = CopyDescriptor::new(tensor.handle, shape, strides, elem_size);
+            tensor.client.read_lazy_async(source).await
+        }
     };
     let bytes = read.map_err(crate::backend::server_err)?;
 

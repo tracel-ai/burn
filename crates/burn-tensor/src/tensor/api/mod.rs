@@ -5,10 +5,13 @@ mod base;
 mod bool;
 mod cartesian_grid;
 mod cast;
+mod collective;
 mod einsum;
 mod float;
 mod fmod;
 mod graph;
+#[cfg(feature = "group")]
+mod group;
 mod int;
 mod numeric;
 mod options;
