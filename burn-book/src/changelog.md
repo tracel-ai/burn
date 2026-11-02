@@ -554,6 +554,8 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
 - Fix CPU and WGPU reads on one stream returning a tensor's old values while another stream's
   in-place write to it was still queued. ([#6332](https://github.com/tracel-ai/burn/pull/6332),
   [CubeCL #2002](https://github.com/tracel-ai/cubecl/pull/2002))
+- Fix in-place CubeCL operations panicking in debug builds on tensors with a zero-sized dimension.
+  ([#6348](https://github.com/tracel-ai/burn/pull/6348))
 
 ### Checkpoints and interoperability
 
