@@ -397,6 +397,150 @@ mod storage_tiled {
         );
     }
 
+    /// The same tensors through fusion: a fused elementwise block walks the tiles as the eager
+    /// ops do, and any other fused kernel reads them as rows.
+    #[cfg(feature = "fusion")]
+    mod fused {
+        use super::{assert_close, tensor, tiled, values};
+        use crate::{
+            CubeBackend, CubeDevice, fusion::FusionCubeRuntime, ops::into_data_sync,
+            tensor::CubeTensor,
+        };
+        use burn_backend::{Scalar, ops::FloatTensorOps};
+        use burn_cubecl_fusion::CubeFusionHandle;
+        use burn_fusion::{
+            ExecutionError, Fusion, FusionTensor,
+            custom::{
+                CustomOpIr, HandleContainer, Operation, OperationIr, OperationOutput, StreamId,
+                TensorIr,
+            },
+        };
+
+        type Fused = Fusion<CubeBackend>;
+
+        /// `w * 2 + 1`, then `exp`, fuse into one elementwise block: it walks the weight's
+        /// tiles and writes its output in them.
+        #[test]
+        fn a_fused_elementwise_chain_keeps_the_tiles() {
+            let device = CubeDevice::default();
+            let rhs = tensor(&[64, 96], &device, 9);
+            let chain = |w| {
+                let w = Fused::float_mul_scalar(w, Scalar::from(2.0f32));
+                let w = Fused::float_add_scalar(w, Scalar::from(1.0f32));
+                Fused::float_exp(w)
+            };
+
+            let out = resolve(chain(stored_in_tiles(fused(&rhs, &device))));
+            assert!(out.meta.is_tiled(), "the output is written in the tiles");
+            assert_close(
+                &values(out),
+                &values(resolve(chain(fused(&rhs, &device)))),
+                "exp(2w + 1)",
+            );
+        }
+
+        /// A bias broadcast along the rows is split into the weight's tiles by strides.
+        #[test]
+        fn a_fused_broadcast_operand_is_split_into_the_tiles() {
+            let device = CubeDevice::default();
+            let rhs = tensor(&[64, 96], &device, 10);
+            let bias = tensor(&[1, 96], &device, 11);
+            let step = |w| {
+                let w = Fused::float_add(w, fused(&bias, &device));
+                Fused::float_mul_scalar(w, Scalar::from(0.5f32))
+            };
+
+            let out = resolve(step(stored_in_tiles(fused(&rhs, &device))));
+            assert!(out.meta.is_tiled(), "the output is written in the tiles");
+            assert_close(
+                &values(out),
+                &values(resolve(step(fused(&rhs, &device)))),
+                "(w + bias) / 2",
+            );
+        }
+
+        /// A fused reduce indexes its input by coordinates: it reads the tiles as rows.
+        #[test]
+        fn a_fused_reduce_reads_the_tiles_as_rows() {
+            let device = CubeDevice::default();
+            let rhs = tensor(&[64, 96], &device, 12);
+            let reduce = |w| Fused::float_sum_dim(Fused::float_mul_scalar(w, 2.0f32.into()), 1);
+
+            assert_close(
+                &values(resolve(reduce(stored_in_tiles(fused(&rhs, &device))))),
+                &values(resolve(reduce(fused(&rhs, &device)))),
+                "sum of 2w along a row",
+            );
+        }
+
+        /// A transpose fused into an elementwise block is a view: the block reads the tiles as
+        /// rows.
+        #[test]
+        fn a_fused_view_reads_the_tiles_as_rows() {
+            let device = CubeDevice::default();
+            let rhs = tensor(&[64, 96], &device, 13);
+            let view = |w| Fused::float_mul_scalar(Fused::float_swap_dims(w, 0, 1), 3.0f32.into());
+
+            assert_close(
+                &values(resolve(view(stored_in_tiles(fused(&rhs, &device))))),
+                &values(resolve(view(fused(&rhs, &device)))),
+                "3 wᵀ",
+            );
+        }
+
+        /// Stores a tensor in `(16, 32)` tiles inside the fusion stream, as a backend extension
+        /// that lays a weight out does.
+        #[derive(Debug)]
+        struct StoreInTiles {
+            desc: CustomOpIr,
+        }
+
+        impl Operation<FusionCubeRuntime> for StoreInTiles {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<CubeFusionHandle>,
+            ) -> Result<(), ExecutionError> {
+                let ([input], [output]) = self.desc.as_fixed();
+                let rows = handles.get_float_tensor::<CubeBackend>(input);
+                handles.register_float_tensor::<CubeBackend>(&output.id, tiled(&rows, (16, 32)));
+                Ok(())
+            }
+        }
+
+        fn stored_in_tiles(
+            tensor: FusionTensor<FusionCubeRuntime>,
+        ) -> FusionTensor<FusionCubeRuntime> {
+            let client = tensor.client.clone();
+            let input = tensor.into_ir();
+            let output = TensorIr::uninit(
+                client.create_empty_handle(),
+                input.shape.clone(),
+                input.dtype,
+            );
+            let desc = CustomOpIr::new("test::store_in_tiles", &[input], &[output]);
+            client
+                .register(
+                    StreamId::current(),
+                    OperationIr::Custom(desc.clone()),
+                    StoreInTiles { desc },
+                )
+                .output()
+        }
+
+        fn fused(tensor: &CubeTensor, device: &CubeDevice) -> FusionTensor<FusionCubeRuntime> {
+            Fused::float_from_data(into_data_sync(tensor.clone()), device)
+        }
+
+        /// Runs the stream up to `tensor` and hands back the tensor it holds.
+        fn resolve(tensor: FusionTensor<FusionCubeRuntime>) -> CubeTensor {
+            tensor
+                .client
+                .clone()
+                .resolve_tensor_float::<CubeBackend>(tensor)
+                .unwrap()
+        }
+    }
+
     /// Every strategy a product may run under: cubek's rules, and autotune where it is built.
     fn strategies() -> Vec<MatmulStrategy> {
         vec![
