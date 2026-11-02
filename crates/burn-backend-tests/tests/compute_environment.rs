@@ -152,3 +152,65 @@ fn a_bundle_that_does_not_read_replaces_nothing() {
     );
     assert_eq!(kept.save().unwrap().bytes.len(), held);
 }
+
+/// An environment the device's work wrote into, with its save's size.
+fn built(device: &Device, name: &str, [m, k, n]: [usize; 3]) -> (ComputeEnvironment, usize) {
+    let built = ComputeEnvironment::new(device, name).unwrap();
+    let previous = built.activate(device).unwrap();
+    let lhs = TestTensor::<2>::ones([m, k], device);
+    let rhs = TestTensor::<2>::ones([k, n], device);
+    lhs.matmul(rhs).into_data();
+    previous.activate(device).unwrap();
+    let size = built.save().unwrap().bytes.len();
+    (built, size)
+}
+
+/// A merge brings what another environment holds in beside what this one
+/// already held, and leaves the other as it was.
+#[test]
+#[serial]
+fn a_merge_keeps_what_the_environment_held_beside_what_it_brings() {
+    let device = device();
+    let (target, target_size) = built(&device, "merge-target", [43, 61, 23]);
+    let (source, source_size) = built(&device, "merge-source", [47, 67, 19]);
+
+    target.merge(&source).unwrap();
+
+    let merged = target.save().unwrap().bytes.len();
+    assert!(
+        merged > target_size && merged > source_size,
+        "the merge holds both: {merged} bytes, {target_size} and {source_size} apart"
+    );
+    assert_eq!(source.save().unwrap().bytes.len(), source_size);
+}
+
+/// A bundle merges as the environment it was saved from does, into the
+/// active environment too.
+#[test]
+#[serial]
+fn a_bundle_merges_into_the_active_environment() {
+    let device = device();
+    let (source, _) = built(&device, "bundle-source", [53, 71, 17]);
+    let active = ComputeEnvironment::new(&device, "bundle-target").unwrap();
+    let empty = active.save().unwrap().bytes.len();
+    let previous = active.activate(&device).unwrap();
+
+    let merged = active.merge_bundle(source.save().unwrap());
+    let size = active.save().unwrap().bytes.len();
+    previous.activate(&device).unwrap();
+
+    merged.unwrap();
+    assert!(size > empty, "{size} bytes, {empty} empty");
+}
+
+/// Merging an environment into itself changes nothing.
+#[test]
+#[serial]
+fn an_environment_merged_into_itself_is_unchanged() {
+    let device = device();
+    let (itself, size) = built(&device, "merge-itself", [59, 73, 13]);
+
+    itself.merge(&itself).unwrap();
+
+    assert_eq!(itself.save().unwrap().bytes.len(), size);
+}

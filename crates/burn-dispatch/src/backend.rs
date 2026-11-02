@@ -263,6 +263,14 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::environment_save(device, id))
     }
 
+    fn environment_merge(
+        device: &Self::Device,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_merge(device, id, origin))
+    }
+
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::graph_prepare(device))
     }

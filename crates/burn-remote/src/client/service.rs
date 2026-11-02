@@ -800,6 +800,23 @@ impl RemoteService {
         )
     }
 
+    /// Bring what `origin` holds into the environment `id` where `stream_id` stands, after every
+    /// task sent before.
+    pub fn environment_merge(
+        &mut self,
+        stream_id: StreamId,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        self.environment_request(
+            |request| Task::EnvironmentMerge(request, stream_id, id, origin),
+            |answer| match answer {
+                TaskResponseContent::EnvironmentMerged(res) => Ok(res),
+                other => Err(other),
+            },
+        )
+    }
+
     /// Send an environment request and wait on the server's answer, which `answer` takes out of
     /// the response, handing back a response of another kind.
     fn environment_request<Answer>(

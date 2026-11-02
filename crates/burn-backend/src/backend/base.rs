@@ -428,6 +428,25 @@ pub trait Backend:
         Err(EnvironmentError::unsupported())
     }
 
+    /// Bring what `origin` holds into the compute environment `id`, after
+    /// every operation registered so far on the calling stream: an entry of
+    /// `origin` replaces the one `id` holds under the same key, and every
+    /// other entry of `id` stays. When `id` is active, the work after the
+    /// merge reads the merged entries. Merging an environment into itself
+    /// changes nothing.
+    ///
+    /// # Errors
+    ///
+    /// The backend keeps no compute environment, `id` or a fork's source lives
+    /// in a storage `device` does not reach, or the storage refused the write.
+    fn environment_merge(
+        _device: &Self::Device,
+        _id: EnvironmentId,
+        _origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        Err(EnvironmentError::unsupported())
+    }
+
     /// Prepare `device` for an upcoming graph capture: route allocations into a
     /// stable pool so every buffer allocated before graph_stop_capture can
     /// be pinned. Call before the warmup run. No-op by default.

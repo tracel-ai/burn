@@ -25,7 +25,7 @@ use crate::{
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 10;
+pub const PROTOCOL_VERSION: u16 = 11;
 
 /// Routing id for a task whose result is fetched back.
 ///
@@ -409,6 +409,9 @@ pub enum Task {
     EnvironmentActive(RequestId),
     /// Serialize an environment where `stream_id` stands, after every earlier task.
     EnvironmentSave(RequestId, StreamId, EnvironmentId),
+    /// Bring what the origin holds into an environment where `stream_id` stands, after every
+    /// earlier task.
+    EnvironmentMerge(RequestId, StreamId, EnvironmentId, EnvironmentOrigin),
     /// What the session's device is, as its driver states it.
     DeviceDescription(RequestId),
     /// One reading of the counters of the session's device.
@@ -508,6 +511,8 @@ pub enum TaskResponseContent {
     Environment(Result<EnvironmentId, EnvironmentError>),
     /// The answer to [`EnvironmentSave`](Task::EnvironmentSave).
     EnvironmentSaved(Result<EnvironmentBundle, EnvironmentError>),
+    /// The answer to [`EnvironmentMerge`](Task::EnvironmentMerge).
+    EnvironmentMerged(Result<(), EnvironmentError>),
     /// The answer to [`DeviceDescription`](Task::DeviceDescription).
     DeviceDescription(Option<DeviceDescription>),
     /// The answer to [`MeasureTelemetry`](Task::MeasureTelemetry).

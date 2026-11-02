@@ -28,7 +28,10 @@ use burn_dispatch::Dispatch;
 ///
 /// // Later, or elsewhere: run in what the build kept.
 /// let bundle = EnvironmentBundle { bytes: Bytes::from_bytes_vec(std::fs::read(path)?) };
-/// ComputeEnvironment::load(&device, "model", bundle)?.activate(&device)?;
+/// ComputeEnvironment::load(&device, "model", bundle.clone())?.activate(&device)?;
+///
+/// // Or run in what it kept beside what the application already holds.
+/// ComputeEnvironment::active(&device)?.merge_bundle(bundle)?;
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct ComputeEnvironment {
@@ -122,9 +125,41 @@ impl ComputeEnvironment {
         Dispatch::environment_save(self.home.as_dispatch(), self.id.clone())
     }
 
+    /// Bring what `other` holds now into this environment, after every
+    /// operation registered so far on the calling stream: an entry of `other`
+    /// replaces the one this environment holds under the same key, and every
+    /// other entry stays. When this environment is active, the work after the
+    /// merge reads the merged entries. Merging an environment into itself
+    /// changes nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`IncompatibleDevice`](EnvironmentError::IncompatibleDevice) when
+    /// `other` lives in another storage than this one: carry it over with
+    /// [`merge_bundle`](Self::merge_bundle) of its [saved](Self::save) bundle.
+    /// The storage refused the write, or the device could not be reached.
+    pub fn merge(&self, other: &ComputeEnvironment) -> Result<(), EnvironmentError> {
+        self.merge_from(EnvironmentOrigin::Fork(other.id.clone()))
+    }
+
+    /// Bring what `bundle` holds into this environment, as
+    /// [`merge`](Self::merge) brings another environment's entries.
+    ///
+    /// # Errors
+    ///
+    /// The bundle does not read, the storage refused the write, or the device
+    /// could not be reached.
+    pub fn merge_bundle(&self, bundle: EnvironmentBundle) -> Result<(), EnvironmentError> {
+        self.merge_from(EnvironmentOrigin::Bundle(bundle))
+    }
+
     /// The environment's name in the storage it lives in.
     pub fn name(&self) -> &str {
         &self.id.name
+    }
+
+    fn merge_from(&self, origin: EnvironmentOrigin) -> Result<(), EnvironmentError> {
+        Dispatch::environment_merge(self.home.as_dispatch(), self.id.clone(), origin)
     }
 
     fn create(

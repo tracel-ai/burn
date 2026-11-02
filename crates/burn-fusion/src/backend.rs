@@ -202,6 +202,18 @@ impl<B: FusionBackend> Backend for Fusion<B> {
             .map_err(server_error)?
     }
 
+    fn environment_merge(
+        device: &Self::Device,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::environment_merge(&device, id, origin))
+            .map_err(server_error)?
+    }
+
     fn ad_enabled(_device: &Self::Device) -> bool {
         false
     }
