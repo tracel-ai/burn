@@ -129,6 +129,8 @@ positions when sequence lengths differ.
 
 #### Compilation and autotuning
 
+- Include the preceding `CompileOnly` pass's statistics in the following
+  `CompileAndAutotune` pass on CubeCL backends, so deferred completions appear in its snapshot.
 - Compile autotuning candidates in parallel, including CUDA binary assembly, to reduce startup time.
   ([#5996](https://github.com/tracel-ai/burn/pull/5996),
   [#6074](https://github.com/tracel-ai/burn/pull/6074))
