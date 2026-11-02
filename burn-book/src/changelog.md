@@ -119,9 +119,12 @@ positions when sequence lengths differ.
   run F32/F64 `round`, `floor`, `ceil`, and `trunc` with SIMD rounding. Flex `round` now returns
   `-0.0` for `-0.5` on every layout, as IEEE ties-to-even does. F32 `log`, `tanh`, `erf`, `gelu`,
   and the GELU backward pass also run with SIMD; `log` matches the `libm` crate bit for bit, `tanh`
-  is within 2 ulp of libm, and `erf` within 1 ulp.
+  is within 2 ulp of libm, and `erf` within 1 ulp. F32 `log1p`, `atanh`, `log_sigmoid`, and the
+  log-sigmoid backward pass also run with SIMD; `log1p` and `atanh` match the `libm` crate bit for
+  bit.
   ([#6313](https://github.com/tracel-ai/burn/pull/6313),
-  [#6341](https://github.com/tracel-ai/burn/pull/6341)) [@antimora](https://github.com/antimora)
+  [#6341](https://github.com/tracel-ai/burn/pull/6341),
+  [#6345](https://github.com/tracel-ai/burn/pull/6345)) [@antimora](https://github.com/antimora)
 - Run GELU and sigmoid forward and backward operations in single CubeCL kernels.
   ([#6114](https://github.com/tracel-ai/burn/pull/6114)) [@ssoj13](https://github.com/ssoj13)
 - Allow more CubeCL slices to share their source buffer, avoiding copies of KV-cache prefixes.
@@ -430,6 +433,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 - Fix CPU non-maximum-suppression results and restore GPU acceleration for connected components.
   ([#6019](https://github.com/tracel-ai/burn/pull/6019),
   [#6003](https://github.com/tracel-ai/burn/pull/6003))
+- Accept asymmetric padding in `conv3d`, and stop `Conv3d` with `PaddingConfig3d::Same` from
+  panicking when the padding is asymmetric, for example with a stride above 1.
+  ([#4837](https://github.com/tracel-ai/burn/issues/4837), [#6289](https://github.com/tracel-ai/burn/pull/6289))
 
 ### Tensors and backends
 
