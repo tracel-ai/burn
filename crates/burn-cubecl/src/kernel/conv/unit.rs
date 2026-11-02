@@ -178,37 +178,50 @@ mod tests {
     use cubecl::{CubeCount, server::LaunchError};
 
     #[test]
-    fn shape_limits_use_fallback() {
-        for error in [
-            ConvSetupError::Unknown,
-            MatmulAvailabilityError::CubeCountTooBig(CubeCount::Static(65536, 1, 1)).into(),
-        ] {
-            assert_eq!(with_shape_fallback(Err(error), || Ok(7)).unwrap(), 7);
-        }
+    fn unknown_shape_limit_uses_fallback() {
+        assert_eq!(
+            with_shape_fallback(Err(ConvSetupError::Unknown), || Ok(7)).unwrap(),
+            7
+        );
     }
 
     #[test]
-    fn rejected_candidates_preserve_the_error() {
-        let fallback = || panic!("unsupported candidates must not execute fallback");
-        let hardware = MatmulAvailabilityError::PlaneOpsUnavailable.into();
+    fn excessive_cube_count_uses_fallback() {
+        let error = MatmulAvailabilityError::CubeCountTooBig(CubeCount::Static(65536, 1, 1));
+        assert_eq!(with_shape_fallback(Err(error.into()), || Ok(7)).unwrap(), 7);
+    }
+
+    #[test]
+    fn hardware_error_rejects_candidate() {
+        let error = MatmulAvailabilityError::PlaneOpsUnavailable.into();
         assert!(matches!(
-            with_shape_fallback::<()>(Err(hardware), fallback),
+            with_shape_fallback::<()>(Err(error), || panic!("hardware error must propagate")),
             Err(ConvSetupError::Matmul(MatmulSetupError::Unavailable(
                 MatmulAvailabilityError::PlaneOpsUnavailable
             )))
         ));
-        let config =
+    }
+
+    #[test]
+    fn configuration_error_rejects_candidate() {
+        let error =
             ConvSetupError::Matmul(MatmulSetupError::InvalidConfig(Box::new("invalid tiling")));
         assert!(matches!(
-            with_shape_fallback::<()>(Err(config), fallback),
+            with_shape_fallback::<()>(Err(error), || panic!("configuration error must propagate")),
             Err(ConvSetupError::Matmul(MatmulSetupError::InvalidConfig(_)))
         ));
-        let launch = LaunchError::Unknown {
+    }
+
+    #[test]
+    fn launch_error_rejects_candidate() {
+        let error = LaunchError::Unknown {
             reason: "launch failed".into(),
             backtrace: Default::default(),
         };
         assert!(matches!(
-            with_shape_fallback::<()>(Err(ConvSetupError::Launch(launch)), fallback),
+            with_shape_fallback::<()>(Err(ConvSetupError::Launch(error)), || panic!(
+                "launch error must propagate"
+            )),
             Err(ConvSetupError::Launch(_))
         ));
     }

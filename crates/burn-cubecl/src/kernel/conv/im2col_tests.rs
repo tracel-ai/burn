@@ -157,60 +157,78 @@ fn check<const N: usize>(
     }
 }
 
-fn suite(device: CubeDevice) {
-    // Cover each layout/bias combination once across the distinct geometries.
-    check(
-        &device,
-        [17],
-        [3],
-        ConvOptions::new_with_padding([2], [(1, 2)], [2], 1),
-        false,
-        false,
-    );
-    check(
-        &device,
-        [13, 17],
-        [3, 3],
-        ConvOptions::new([1, 1], [1, 1], [1, 1], 1),
-        false,
-        true,
-    );
-    check(
-        &device,
-        [9, 11],
-        [2, 3],
-        ConvOptions::new_with_padding([2, 1], [(0, 1), (3, 0)], [2, 2], 1),
-        true,
-        false,
-    );
-    check(
-        &device,
-        [5, 7, 9],
-        [2, 2, 3],
-        ConvOptions::new_with_padding([1, 2, 1], [(1, 0), (0, 1), (2, 0)], [1, 1, 2], 1),
-        true,
-        true,
-    );
+macro_rules! backend_tests {
+    ($module:ident, $device:expr) => {
+        mod $module {
+            use super::*;
+
+            #[test]
+            fn contiguous_1d_without_bias() {
+                check(
+                    &$device,
+                    [17],
+                    [3],
+                    ConvOptions::new_with_padding([2], [(1, 2)], [2], 1),
+                    false,
+                    false,
+                );
+            }
+
+            #[test]
+            fn contiguous_2d_with_bias() {
+                check(
+                    &$device,
+                    [13, 17],
+                    [3, 3],
+                    ConvOptions::new([1, 1], [1, 1], [1, 1], 1),
+                    false,
+                    true,
+                );
+            }
+
+            #[test]
+            fn permuted_2d_without_bias() {
+                check(
+                    &$device,
+                    [9, 11],
+                    [2, 3],
+                    ConvOptions::new_with_padding([2, 1], [(0, 1), (3, 0)], [2, 2], 1),
+                    true,
+                    false,
+                );
+            }
+
+            #[test]
+            fn permuted_3d_with_bias() {
+                check(
+                    &$device,
+                    [5, 7, 9],
+                    [2, 2, 3],
+                    ConvOptions::new_with_padding(
+                        [1, 2, 1],
+                        [(1, 0), (0, 1), (2, 0)],
+                        [1, 1, 2],
+                        1,
+                    ),
+                    true,
+                    true,
+                );
+            }
+        }
+    };
 }
 
 #[cfg(feature = "cuda")]
-#[test]
-fn cuda_dense_im2col_matches_reference() {
-    suite(CubeDevice::Cuda(Default::default()));
-}
+backend_tests!(cuda, CubeDevice::Cuda(Default::default()));
 
 #[cfg(feature = "vulkan")]
-#[test]
-fn vulkan_dense_im2col_matches_reference() {
-    suite(CubeDevice::Wgpu(
-        cubecl::wgpu::WgpuDevice::default().on(cubecl::wgpu::WgpuBackend::Vulkan),
-    ));
-}
+backend_tests!(
+    vulkan,
+    CubeDevice::Wgpu(cubecl::wgpu::WgpuDevice::default().on(cubecl::wgpu::WgpuBackend::Vulkan))
+);
 
 #[cfg(feature = "metal")]
-#[test]
-fn metal_dense_im2col_matches_reference() {
-    suite(CubeDevice::Wgpu(
-        cubecl::wgpu::WgpuDevice::default().on(cubecl::wgpu::WgpuBackend::Metal),
-    ));
-}
+backend_tests!(
+    metal,
+    CubeDevice::Wgpu(cubecl::wgpu::WgpuDevice::default().on(cubecl::wgpu::WgpuBackend::Metal))
+);

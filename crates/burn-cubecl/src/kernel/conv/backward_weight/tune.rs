@@ -283,26 +283,32 @@ mod tests {
     use crate::{CubeDevice, ops::numeric::empty_device_dtype};
     use burn_backend::DType;
 
+    // Minimal anchoring maps both channel counts to 16. Keeping the exact
+    // count prevents a depthwise candidate from serving the grouped problem.
     #[test]
-    fn weight_gradient_key_preserves_depthwise_eligibility() {
+    fn weight_gradient_key_preserves_depthwise_channels() {
+        assert_eq!(weight_gradient_key(7).in_channels, 7);
+    }
+
+    #[test]
+    fn weight_gradient_key_preserves_grouped_channels() {
+        assert_eq!(weight_gradient_key(14).in_channels, 14);
+    }
+
+    fn weight_gradient_key(channels: usize) -> ConvAutotuneKey {
         let device = CubeDevice::default();
         let empty = |shape: [usize; 4]| {
             empty_device_dtype(device.client(), device.clone(), shape.into(), DType::F32)
         };
         let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 7);
-        let grad = empty([1, 1, 1, 14]);
-        // Minimal anchoring maps both channel counts to 16. Only the first
-        // problem is depthwise; reusing its candidate for the second panics.
-        for channels in [7, 14] {
-            let CubeAutotuneKey::Conv(key) = create_key(&(
-                empty([1, 3, 3, channels]),
-                grad.clone(),
-                Shape::new([14, 3, 3, channels / options.groups]),
-                options.clone(),
-            )) else {
-                panic!("expected convolution key");
-            };
-            assert_eq!(key.in_channels, channels);
-        }
+        let CubeAutotuneKey::Conv(key) = create_key(&(
+            empty([1, 3, 3, channels]),
+            empty([1, 1, 1, 14]),
+            Shape::new([14, 3, 3, channels / options.groups]),
+            options,
+        )) else {
+            panic!("expected convolution key");
+        };
+        key
     }
 }
