@@ -5,6 +5,18 @@ Changes for the next release. For published releases, see
 
 ## Unreleased
 
+### Weights laid out for matmul
+
+`burn::tensor::module::lay_out_for_matmul(weight)` lays a `[..., k, n]` weight out the way the
+device's matmul reads it best for `x.matmul(weight)`, so a weight used in many products is laid
+out once, at load. The result holds the same values and every operation takes it, training
+included. On CubeCL backends, it's stored in the tiles the device's matmul reads, where a tile
+divides `k` and `n`; other backends return it as it lies, and so do quantized weights.
+
+**Breaking for backend implementors:** `ModuleOps` gains the required method
+`lay_out_for_matmul`. Returning the weight unchanged is a correct implementation.
+([#PR](https://github.com/tracel-ai/burn/pull/PR)) [@louisfd](https://github.com/louisfd)
+
 ### Interpolation options
 
 **Breaking:** `InterpolateMode` variants now own their coordinate transform and cubic coefficient

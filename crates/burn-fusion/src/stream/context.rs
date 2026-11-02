@@ -264,6 +264,12 @@ impl RelativeOps for ModuleOperationIr {
                     out: desc.out.to_relative(converter),
                 })
             }
+            ModuleOperationIr::LayOutForMatmul(desc) => {
+                ModuleOperationIr::LayOutForMatmul(UnaryOpIr {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             ModuleOperationIr::Conv1d(desc) => ModuleOperationIr::Conv1d(Conv1dOpIr {
                 x: desc.x.to_relative(converter),
                 weight: desc.weight.to_relative(converter),

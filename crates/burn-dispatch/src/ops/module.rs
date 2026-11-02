@@ -374,6 +374,10 @@ impl ModuleOps<Self> for Dispatch {
         B::embedding_backward(weights, output_grad, indices)
     }
 
+    fn lay_out_for_matmul(weight: FloatTensor<Self>) -> FloatTensor<Self> {
+        B::lay_out_for_matmul(weight)
+    }
+
     fn conv1d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,

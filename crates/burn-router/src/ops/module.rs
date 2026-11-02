@@ -245,6 +245,17 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             .output()
     }
 
+    fn lay_out_for_matmul(weight: FloatTensor<Self>) -> FloatTensor<Self> {
+        let client = weight.client.clone();
+        let desc = UnaryOpIr::create(weight.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::LayOutForMatmul(
+                desc,
+            )))
+            .output()
+    }
+
     fn layer_norm(
         tensor: FloatTensor<Self>,
         gamma: FloatTensor<Self>,

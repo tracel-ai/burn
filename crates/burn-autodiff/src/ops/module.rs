@@ -291,6 +291,30 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         panic!("Can't differentiate linear_bias_backward.");
     }
 
+    fn lay_out_for_matmul(weight: AutodiffTensor<B>) -> AutodiffTensor<B> {
+        #[derive(Debug)]
+        struct LayOutForMatmul;
+
+        impl<B: Backend> Backward<B, 1> for LayOutForMatmul {
+            type State = ();
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                // The values are unchanged, so the gradient passes through.
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| grad);
+            }
+        }
+
+        LayOutForMatmul
+            .prepare::<C>([weight.node()])
+            .compute_bound()
+            .stateless(B::lay_out_for_matmul(weight.primitive))
+    }
+
     fn conv1d(
         x: AutodiffTensor<B>,
         weight: AutodiffTensor<B>,

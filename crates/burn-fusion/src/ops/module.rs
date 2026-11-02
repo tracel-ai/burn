@@ -38,6 +38,32 @@ macro_rules! make_ops {
 }
 
 impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
+    fn lay_out_for_matmul(weight: FloatTensor<Self>) -> FloatTensor<Self> {
+        make_ops!(
+            LayOutForMatmulOps,
+            UnaryOpIr,
+            |args: &UnaryOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let weight = handles.get_float_tensor::<B>(&args.input);
+                let output = B::lay_out_for_matmul(weight);
+
+                handles.register_float_tensor::<B>(&args.out.id, output);
+            }
+        );
+
+        let streams = StreamId::current();
+
+        let client = weight.client.clone();
+        let desc = UnaryOpIr::create(weight.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::LayOutForMatmul(desc.clone())),
+                LayOutForMatmulOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     // linear and its backward ops fall back to the default ModuleOps impl,
     // which decomposes into matmul + add / matmul + sum. This preserves
     // downstream fusion in burn-cubecl-fusion, which matches on those

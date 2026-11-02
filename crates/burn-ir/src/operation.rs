@@ -237,6 +237,8 @@ pub enum ModuleOperationIr {
     LinearWeightBackward(LinearWeightBackwardOpIr),
     /// Operation corresponding to [linear_bias_backward](burn_backend::ops::ModuleOps::linear_bias_backward).
     LinearBiasBackward(LinearBiasBackwardOpIr),
+    /// Operation corresponding to [lay_out_for_matmul](burn_backend::ops::ModuleOps::lay_out_for_matmul).
+    LayOutForMatmul(UnaryOpIr),
     /// Operation corresponding to [conv1d](burn_backend::ops::ModuleOps::conv1d).
     Conv1d(Conv1dOpIr),
     /// Operation corresponding to [conv1d_x_backward](burn_backend::ops::ModuleOps::conv1d_x_backward).
@@ -4022,6 +4024,7 @@ impl ModuleOperationIr {
             ModuleOperationIr::LinearBiasBackward(repr) => {
                 Box::new([&repr.output_grad].into_iter())
             }
+            ModuleOperationIr::LayOutForMatmul(repr) => Box::new([&repr.input].into_iter()),
             ModuleOperationIr::Conv1d(repr) => {
                 if let Some(bias) = &repr.bias {
                     Box::new([&repr.x, &repr.weight, bias].into_iter())
@@ -4248,6 +4251,7 @@ impl ModuleOperationIr {
             ModuleOperationIr::LinearXBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::LinearWeightBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::LinearBiasBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::LayOutForMatmul(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Conv1d(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Conv1dXBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Conv1dWeightBackward(repr) => Box::new([&repr.out].into_iter()),
@@ -4404,6 +4408,9 @@ impl ModuleOperationIr {
             }
             ModuleOperationIr::LinearBiasBackward(repr) => {
                 repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::LayOutForMatmul(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
             }
             ModuleOperationIr::Conv1d(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);
@@ -4733,6 +4740,10 @@ impl ModuleOperationIr {
             }
             ModuleOperationIr::LinearBiasBackward(repr) => {
                 v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::LayOutForMatmul(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
                 v.visit_tensor_mut(&mut repr.out);
             }
             ModuleOperationIr::Conv1d(repr) => {

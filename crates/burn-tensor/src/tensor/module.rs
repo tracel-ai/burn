@@ -1042,6 +1042,28 @@ pub fn max_pool3d_with_indices(
         drop_end_padding_windows(indices, dims, stride, padding, ceil_mode),
     )
 }
+/// Lays out `weight`, `[..., k, n]`, the way the device's matmul reads it best for
+/// `x.matmul(weight)`, so that a weight used in many products is laid out once.
+///
+/// The values are unchanged and every operation takes the result. The backend may copy the
+/// weight into a storage layout its matmul reads faster, or return it as it lies. Either way,
+/// its shape, dtype and device are those of `weight`. A quantized weight comes back as it lies.
+///
+/// # Panics
+///
+/// If `weight` has fewer than 2 dimensions.
+pub fn lay_out_for_matmul<const D: usize>(weight: Tensor<D>) -> Tensor<D> {
+    check!(TensorCheck::lay_out_for_matmul::<D>());
+
+    if let DType::QFloat(_) = weight.dtype() {
+        return weight;
+    }
+
+    Tensor::new(BridgeTensor::float(Dispatch::lay_out_for_matmul(
+        weight.primitive.into_float(),
+    )))
+}
+
 /// Applies a [2D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool2d).
 pub fn adaptive_avg_pool2d(x: Tensor<4>, output_size: [usize; 2]) -> Tensor<4> {
     Tensor::new(BridgeTensor::float(Dispatch::adaptive_avg_pool2d(
