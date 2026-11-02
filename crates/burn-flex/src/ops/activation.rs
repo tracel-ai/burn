@@ -148,6 +148,11 @@ impl ActivationOps<Flex> for Flex {
         // Numerically stable: -softplus(-x) = -log(1 + exp(-x))
         // For x >= 0: -log(1 + exp(-x))  (standard form, exp(-x) is small)
         // For x < 0: x - log(1 + exp(x))  (avoids exp of large positive)
+        #[cfg(feature = "simd")]
+        let tensor = match crate::ops::unary::simd_map::<f32, _>(tensor, crate::simd::LogSigmoid) {
+            Ok(out) => return out,
+            Err(tensor) => tensor,
+        };
         unary_op(
             tensor,
             |x: f32| {
@@ -170,6 +175,11 @@ impl ActivationOps<Flex> for Flex {
     fn log_sigmoid_backward(x: FloatTensor<Flex>, grad: FloatTensor<Flex>) -> FloatTensor<Flex> {
         // d/dx[log_sigmoid(x)] = sigmoid(-x) * (-1) * (-1) = 1 - sigmoid(x) = sigmoid(-x)
         // So: grad * sigmoid(-x)
+        #[cfg(feature = "simd")]
+        let x = match crate::ops::unary::simd_map::<f32, _>(x, crate::simd::LogSigmoidGrad) {
+            Ok(dx) => return Flex::float_mul(dx, grad),
+            Err(x) => x,
+        };
         binary_op(
             x,
             grad,
