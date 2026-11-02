@@ -49,6 +49,7 @@ mod gelu;
 mod gradients;
 mod graph_reuse;
 mod hypot;
+mod lay_out_for_matmul;
 mod linear;
 mod log;
 mod log1p;

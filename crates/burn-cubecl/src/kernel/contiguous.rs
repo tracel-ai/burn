@@ -194,7 +194,7 @@ mod storage_tiled {
         CubeBackend, CubeDevice,
         kernel::{
             into_contiguous,
-            matmul::{MatmulStrategy, matmul},
+            matmul::{MatmulStrategy, lay_out_for_matmul, matmul},
             slice, untile,
         },
         ops::{expand, from_data, into_data_sync, permute, reshape, swap_dims},
@@ -254,6 +254,47 @@ mod storage_tiled {
                 "transposed tiled weight",
             );
         }
+    }
+
+    /// The weight lies in the tiles the device's matmul reads where it stores any, split at the
+    /// device's vector read rather than in a hand-picked tile, and every routine reads them, for
+    /// a decode row and for many rows.
+    #[test]
+    fn a_weight_laid_out_for_matmul_computes_the_same_product() {
+        use cubek::matmul::tiled::storage::{StoredValues, stored_tile};
+        use cubek::microkernel::matmul::MatmulOperand;
+        use cubek::std::Hardware;
+
+        let device = CubeDevice::default();
+        let rhs = tensor(&[256, 512], &device, 2);
+        let weight = lay_out_for_matmul(rhs.clone());
+        let element = dtype_to_storage_type(DType::F32);
+        let stores_tiles = stored_tile(
+            &Hardware::from_client(&rhs.client),
+            MatmulOperand::Rhs,
+            StoredValues::Elements(element),
+            element,
+        )
+        .is_some();
+        assert_eq!(weight.meta.is_tiled(), stores_tiles);
+
+        for m in [1, 64] {
+            let lhs = tensor(&[m, 256], &device, 1);
+            let plain = matmul(lhs.clone(), rhs.clone(), None, MatmulStrategy::Cube, DType::F32);
+            let plain = values(plain.unwrap());
+            for strategy in strategies() {
+                let laid = matmul(lhs.clone(), weight.clone(), None, strategy, DType::F32);
+                assert_close(&values(laid.unwrap()), &plain, "weight laid out for matmul");
+            }
+        }
+    }
+
+    /// A tile that doesn't divide the weight would change its logical shape.
+    #[test]
+    fn a_weight_no_tile_divides_lies_as_it_is() {
+        let device = CubeDevice::default();
+        let weight = lay_out_for_matmul(tensor(&[3, 5], &device, 2));
+        assert!(!weight.meta.is_tiled());
     }
 
     #[test]

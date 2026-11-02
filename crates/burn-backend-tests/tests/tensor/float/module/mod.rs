@@ -21,6 +21,7 @@ mod deform_conv2d;
 mod fold4d;
 mod forward;
 mod lanczos3_interpolate;
+mod lay_out_for_matmul;
 mod linear;
 mod maxpool1d;
 mod maxpool2d;
