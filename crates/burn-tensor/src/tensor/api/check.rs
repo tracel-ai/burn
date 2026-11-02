@@ -1701,6 +1701,7 @@ impl TensorCheck {
         value: &Tensor<4, K>,
         mask: Option<&Tensor<4, Bool>>,
         attn_bias: Option<&Tensor<4, K>>,
+        sliding_window: Option<u32>,
     ) -> Self {
         let mut check = Self::Ok
             .binary_ops_device(ops, &query.device(), &key.device())
@@ -1715,6 +1716,14 @@ impl TensorCheck {
         if let Some(attn_bias) = attn_bias {
             check = check.binary_ops_device(ops, &query.device(), &attn_bias.device());
             check = check.binary_ops_float_dtype(ops, query, attn_bias);
+        }
+
+        if sliding_window == Some(0) {
+            check = check.register(
+                ops,
+                TensorError::new("The sliding window must span at least one key.")
+                    .details("Got sliding_window = Some(0); use None to disable the window."),
+            );
         }
 
         check

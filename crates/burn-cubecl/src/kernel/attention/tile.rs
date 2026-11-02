@@ -1,6 +1,8 @@
 //! Attention's forward pass through cubek's autotune over its tile-DSL routines
 //! ([`launch_tuned`]), for the attentions [`forward_serves`] admits.
 
+use core::num::NonZeroUsize;
+
 use crate::{
     ops::{expand, numeric::full_device_dtype, swap_dims},
     tensor::CubeTensor,
@@ -34,17 +36,10 @@ pub(crate) fn routines_take(query: &CubeTensor, key: &CubeTensor, value: &CubeTe
 }
 
 /// How `options` score an attention whose query heads are `head_dim` wide: the keys a query sees,
-/// the causal diagonal placed by their alignment, and the scale, standard where they give none.
+/// placed by their window and causal alignment, and the scale, standard where they give none.
 pub(crate) fn scoring(options: &AttentionModuleOptions, head_dim: usize) -> AttentionScoring {
     AttentionScoring {
-        visibility: AttentionVisibility::new(
-            options.is_causal,
-            None,
-            match options.causal_alignment {
-                CausalAlignment::BottomRight => QueryPlacement::Last,
-                CausalAlignment::TopLeft => QueryPlacement::First,
-            },
-        ),
+        visibility: visibility(options),
         scale: match options.scale {
             Some(scale) => ScoreScale::Custom(scale as f32),
             None => ScoreScale::standard(head_dim),
@@ -52,9 +47,45 @@ pub(crate) fn scoring(options: &AttentionModuleOptions, head_dim: usize) -> Atte
     }
 }
 
+/// Which keys `options` let a query see. A window is bottom-right aligned and owns both edges,
+/// while a causal edge without one sits where [`causal_alignment`](AttentionModuleOptions::causal_alignment)
+/// places it.
+pub(crate) fn visibility(options: &AttentionModuleOptions) -> AttentionVisibility {
+    match options.sliding_window {
+        Some(window) => AttentionVisibility::Windowed {
+            window: NonZeroUsize::new(window as usize)
+                .expect("attention sliding_window must be at least one key"),
+            queries: QueryPlacement::Last,
+        },
+        None => AttentionVisibility::new(
+            options.is_causal,
+            None,
+            match options.causal_alignment {
+                CausalAlignment::BottomRight => QueryPlacement::Last,
+                CausalAlignment::TopLeft => QueryPlacement::First,
+            },
+        ),
+    }
+}
+
+/// Whether the tile routines can state `options`' visibility as one query placement: a window is
+/// always bottom-right aligned, so a top-left causal edge over different query and key lengths
+/// would need both edges at once, which a single placement cannot express.
+pub(crate) fn visibility_serves(
+    options: &AttentionModuleOptions,
+    seq_q: usize,
+    seq_k: usize,
+) -> bool {
+    options.sliding_window.is_none()
+        || !options.is_causal
+        || options.causal_alignment == CausalAlignment::BottomRight
+        || seq_q == seq_k
+}
+
 /// Whether the tile routines serve the forward pass of an attention of `query` against `key` and
 /// `value` with `options`: operands they [take](routines_take), no additive bias and no softcap.
-/// A mask, a custom scale and a causal mask anchored at either corner they read.
+/// A mask, a custom scale, a causal mask anchored at either corner and a sliding window they read,
+/// except a top-left causal edge combined with a window over different query and key lengths.
 pub fn forward_serves(
     query: &CubeTensor,
     key: &CubeTensor,
@@ -62,7 +93,10 @@ pub fn forward_serves(
     has_bias: bool,
     options: &AttentionModuleOptions,
 ) -> bool {
-    routines_take(query, key, value) && !has_bias && options.softcap.is_none()
+    routines_take(query, key, value)
+        && !has_bias
+        && options.softcap.is_none()
+        && visibility_serves(options, query.meta.shape()[2], key.meta.shape()[2])
 }
 
 /// Executes attention through cubek's autotune over its tile-DSL routines.

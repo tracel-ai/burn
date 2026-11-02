@@ -1224,10 +1224,11 @@ fn linear_impl(
 
 /// Computes scaled dot-product attention: softmax(QKᵗ * scale) · V,
 /// where scale defaults to 1/sqrt(head_dim) (configurable via `options.scale`).
-/// Optionally applies masking, additive bias, causal masking, and softcap.
+/// Optionally applies masking, additive bias, causal masking, sliding-window
+/// masking, and softcap.
 ///
-/// Scores are computed as `softcap(QKᵗ · scale)`, then masked (`mask` and causal) to
-/// `-inf`, then `attn_bias` is added, then softmax is taken; see
+/// Scores are computed as `softcap(QKᵗ · scale)`, then masked (`mask`, causal and
+/// sliding-window) to `-inf`, then `attn_bias` is added, then softmax is taken; see
 /// [`ModuleOps::attention`](burn_backend::ops::ModuleOps::attention) for the full contract.
 ///
 /// # Arguments
@@ -1241,7 +1242,8 @@ fn linear_impl(
 ///   where `true` indicates positions to mask (i.e. set to -inf before softmax).
 /// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
 ///   added to the attention scores before softmax (e.g. ALiBi, relative position biases).
-/// - `options`: Additional attention options (custom scale, softcap, causal masking).
+/// - `options`: Additional attention options (custom scale, softcap, causal and
+///   sliding-window masking). `sliding_window` must be at least one key when set.
 ///
 /// # Returns
 /// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`
@@ -1270,6 +1272,7 @@ pub fn attention(
         &value,
         mask.as_ref(),
         attn_bias.as_ref(),
+        options.sliding_window,
     ));
     Tensor::new(BridgeTensor::float(Dispatch::attention(
         query.primitive.into_float(),
@@ -1290,6 +1293,15 @@ pub fn attention_fallback(
     attn_bias: Option<Tensor<4>>,
     options: AttentionModuleOptions,
 ) -> Tensor<4> {
+    check!(TensorCheck::attention(
+        "attention_fallback",
+        &query,
+        &key,
+        &value,
+        mask.as_ref(),
+        attn_bias.as_ref(),
+        options.sliding_window,
+    ));
     Tensor::new(BridgeTensor::float(
         burn_backend::ops::attention::attention_fallback::<Dispatch>(
             query.primitive.into_float(),
@@ -1876,6 +1888,20 @@ mod tests {
         let key = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::F32);
         let value = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::BF16);
         let options = AttentionModuleOptions::default();
+        attention(query, key, value, None, None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "sliding window must span at least one key")]
+    fn test_attention_zero_sliding_window_panics() {
+        let device = Default::default();
+        let query = Tensor::<4>::ones([1, 1, 2, 4], &device);
+        let key = Tensor::<4>::ones([1, 1, 2, 4], &device);
+        let value = Tensor::<4>::ones([1, 1, 2, 4], &device);
+        let options = AttentionModuleOptions {
+            sliding_window: Some(0),
+            ..Default::default()
+        };
         attention(query, key, value, None, None, options);
     }
 

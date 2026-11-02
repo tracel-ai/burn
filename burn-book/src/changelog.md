@@ -63,10 +63,16 @@ Reports also include the measured cost of a kernel launch.
 
 ### Execution performance
 
-#### Grouped-query attention and causal masks
+#### Grouped-query attention, sliding window and causal masks
 
-Grouped-query attention now works across backends and autodiff, with native CubeCL acceleration.
-Query heads can share fewer key/value heads; invalid head counts are rejected.
+Grouped-query and sliding-window attention now work across backends and autodiff, with native
+CubeCL acceleration. Query heads can share fewer key/value heads; invalid head counts and a
+zero-length sliding window are rejected.
+
+**Breaking:** `AttentionModuleOptions` gains `sliding_window: Option<u32>`. Add
+`sliding_window: None` to struct literals to preserve existing behavior, or use
+`..Default::default()`. The window is always bottom-right aligned; `Some(0)` is rejected, use
+`None` to disable it.
 
 **Breaking:** `AttentionModuleOptions` gains `causal_alignment`. Add
 `causal_alignment: CausalAlignment::BottomRight` to struct literals to preserve existing behavior,
