@@ -234,18 +234,18 @@ impl Default for DispatchDevice {
                     }
                     "metal" => {
                         #[cfg(feature = "metal")]
-                        return Self::Cube(CubeDevice::Wgpu(
-                            WgpuDevice::default().on(WgpuBackend::Metal),
-                        ));
+                        return Self::Cube(CubeDevice::Metal(Default::default()));
                         panic!(
                             "BURN_DEVICE=metal requested, but the 'metal' feature is not enabled."
                         );
                     }
-                    "metal-native" => {
-                        #[cfg(feature = "metal-native")]
-                        return Self::Cube(CubeDevice::Metal(Default::default()));
+                    "wgpu-msl" => {
+                        #[cfg(feature = "wgpu-msl")]
+                        return Self::Cube(CubeDevice::Wgpu(
+                            WgpuDevice::default().on(WgpuBackend::Metal),
+                        ));
                         panic!(
-                            "BURN_DEVICE=metal-native requested, but the 'metal-native' feature is not enabled."
+                            "BURN_DEVICE=wgpu-msl requested, but the 'wgpu-msl' feature is not enabled."
                         );
                     }
                     "vulkan" => {
@@ -305,10 +305,10 @@ impl Default for DispatchDevice {
         #[cfg(feature = "cuda")]
         return Self::Cube(CubeDevice::Cuda(Default::default()));
 
-        #[cfg(feature = "metal-native")]
+        #[cfg(feature = "metal")]
         return Self::Cube(CubeDevice::Metal(Default::default()));
 
-        #[cfg(feature = "metal")]
+        #[cfg(feature = "wgpu-msl")]
         return Self::Cube(CubeDevice::Wgpu(Default::default()));
 
         #[cfg(feature = "rocm")]
@@ -666,7 +666,7 @@ impl From<RocmDevice> for DispatchDevice {
     }
 }
 
-#[cfg(feature = "metal-native")]
+#[cfg(feature = "metal")]
 impl From<MetalDevice> for DispatchDevice {
     fn from(device: MetalDevice) -> Self {
         DispatchDevice::Cube(CubeDevice::Metal(device))
@@ -675,7 +675,7 @@ impl From<MetalDevice> for DispatchDevice {
 
 #[cfg(any(
     feature = "wgpu",
-    feature = "metal",
+    feature = "wgpu-msl",
     feature = "vulkan",
     feature = "webgpu"
 ))]

@@ -264,7 +264,7 @@ fn handle_macos_tests(release: bool) -> anyhow::Result<()> {
         // Preserve the default-feature coverage of the former standalone crate tests.
         // Qualify every feature so adding a package cannot enable its namesake feature.
         "burn-wgpu/default",
-        "burn-wgpu/metal",
+        "burn-wgpu/wgpu-msl",
         "burn-core/default",
         "burn-core/metal",
         "burn-vision/default",
