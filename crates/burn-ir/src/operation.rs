@@ -2092,6 +2092,8 @@ pub struct AttentionOptionsIr {
     /// Missing in IR recorded before the field existed; that IR was bottom-right aligned.
     #[serde(default)]
     pub causal_alignment: CausalAlignment,
+    #[serde(default)]
+    pub sliding_window: Option<u32>,
 }
 
 impl From<AttentionOptionsIr> for AttentionModuleOptions {
@@ -2101,6 +2103,7 @@ impl From<AttentionOptionsIr> for AttentionModuleOptions {
             softcap: ir.softcap.map(|s| s.elem()),
             is_causal: ir.is_causal,
             causal_alignment: ir.causal_alignment,
+            sliding_window: ir.sliding_window,
         }
     }
 }
@@ -2112,6 +2115,7 @@ impl From<AttentionModuleOptions> for AttentionOptionsIr {
             softcap: ir.softcap.map(ScalarIr::Float),
             is_causal: ir.is_causal,
             causal_alignment: ir.causal_alignment,
+            sliding_window: ir.sliding_window,
         }
     }
 }

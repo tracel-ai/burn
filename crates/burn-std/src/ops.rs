@@ -649,6 +649,20 @@ pub struct AttentionModuleOptions {
     /// [`BottomRight`](CausalAlignment::BottomRight), the alignment burn used until then.
     #[serde(default)]
     pub causal_alignment: CausalAlignment,
+
+    /// Sliding window over the key axis: each query attends to at most this many keys,
+    /// ending at its own position. `None` disables the window; `Some(0)` is invalid.
+    ///
+    /// The window is always bottom-right aligned: query `i` sees the keys in
+    /// `[i + seq_kv - seq_q - (w - 1), i + seq_kv - seq_q]`. This alignment does not depend on
+    /// [`causal_alignment`](Self::causal_alignment), which only places the causal edge.
+    ///
+    /// With [`CausalAlignment::BottomRight`], the window subsumes the causal edge, so enabling
+    /// `is_causal` does not change the visible set. With [`CausalAlignment::TopLeft`] and
+    /// `seq_q != seq_k`, the masks intersect: the causal edge can hide keys the window keeps and,
+    /// when the window starts after the query's own position, every key of a row.
+    #[serde(default)]
+    pub sliding_window: Option<u32>,
 }
 
 /// Anchor of the causal diagonal for [`AttentionModuleOptions::is_causal`].

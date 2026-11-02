@@ -1045,12 +1045,12 @@ pub trait ModuleOps<B: Backend> {
 
     /// Computes scaled dot-product attention: softmax(QKᵗ * scale) · V,
     /// where scale defaults to 1/sqrt(head_dim). Optionally applies masking,
-    /// additive bias, causal masking, and softcap to the attention scores.
+    /// additive bias, causal and sliding-window masking, and softcap to the attention scores.
     ///
     /// The scores are computed in this order, which every backend must follow:
     /// 1. `s = Q·Kᵗ · scale`
     /// 2. `s = softcap · tanh(s / softcap)` if `options.softcap` is set
-    /// 3. `s = -inf` where `mask` is `true` or the causal mask hides the key
+    /// 3. `s = -inf` where `mask` is `true` or the causal or sliding-window mask hides the key
     /// 4. `s = s + attn_bias`
     /// 5. `p = softmax(s)` over keys; a row with every key hidden yields `p = 0`
     /// 6. `out = p · V`
@@ -1070,7 +1070,8 @@ pub trait ModuleOps<B: Backend> {
     /// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
     ///   added to the attention scores before softmax (e.g. ALiBi, relative position biases).
     /// - `options`: Additional attention options (custom scale, softcap, causal masking
-    ///   and its [alignment](crate::ops::CausalAlignment)).
+    ///   and its [alignment](crate::ops::CausalAlignment), and sliding-window masking). A
+    ///   sliding window must span at least one key when set.
     ///
     /// # Returns
     /// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`
