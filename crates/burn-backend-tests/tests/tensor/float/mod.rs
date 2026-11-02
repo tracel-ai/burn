@@ -6,6 +6,7 @@ mod grid;
 mod module;
 mod ops;
 mod primitive;
+mod propagation;
 mod stats;
 
 #[cfg(feature = "quantization")]

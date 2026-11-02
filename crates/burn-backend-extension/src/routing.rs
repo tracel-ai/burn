@@ -212,6 +212,12 @@ pub fn wrap_tensor_kind(
                 ).into()
             )
         }
+    } else if kind == TensorKind::Quantized && matches!(route, OutputRoute::Autodiff) {
+        quote! {
+            #dispatch_root::DispatchTensorKind::#backend(
+                #dispatch_root::BackendTensor::AutodiffQuantized(#value)
+            )
+        }
     } else if kind == TensorKind::Float && matches!(route, OutputRoute::ConcreteEnabled) {
         quote! {
             #dispatch_root::DispatchTensorKind::Autodiff(
@@ -344,8 +350,9 @@ pub fn operation_routing_tensor(
 /// Generate the autodiff routing state for every active tensor input.
 ///
 /// `__ad_ctx` determines the output association and validates checkpointing compatibility;
-/// `__has_autodiff_float_input` determines whether execution needs the autodiff backend. Computing
-/// them together avoids walking tensor containers twice.
+/// `__has_autodiff_float_input` determines whether execution needs the autodiff backend: a float or
+/// quantized input in an enabled context, the two kinds autodiff tracks. Computing them together
+/// avoids walking tensor containers twice.
 pub fn operation_autodiff_routing(
     operation: &Operation,
     paths: &RoutingPaths,
@@ -359,7 +366,8 @@ pub fn operation_autodiff_routing(
         let name = &input.name;
         match &input.kind {
             InputKind::Tensor { kind, .. } => {
-                let float = (*kind == TensorKind::Float).then(|| {
+                // Autodiff tracks floats and quantized tensors alike.
+                let float = matches!(kind, TensorKind::Float | TensorKind::Quantized).then(|| {
                     can_have_float = true;
                     quote! {
                         __has_autodiff_float_input |= matches!(__input_context, #enabled);
@@ -372,7 +380,8 @@ pub fn operation_autodiff_routing(
                 })
             }
             InputKind::OptionTensor(kind) => {
-                let float = (*kind == TensorKind::Float).then(|| {
+                // Autodiff tracks floats and quantized tensors alike.
+                let float = matches!(kind, TensorKind::Float | TensorKind::Quantized).then(|| {
                     can_have_float = true;
                     quote! {
                         __has_autodiff_float_input |= matches!(__input_context, #enabled);
@@ -387,7 +396,8 @@ pub fn operation_autodiff_routing(
                 })
             }
             InputKind::VecTensor(kind) => {
-                let float = (*kind == TensorKind::Float).then(|| {
+                // Autodiff tracks floats and quantized tensors alike.
+                let float = matches!(kind, TensorKind::Float | TensorKind::Quantized).then(|| {
                     can_have_float = true;
                     quote! {
                         __has_autodiff_float_input |= matches!(__input_context, #enabled);
@@ -567,7 +577,7 @@ fn extract_selected_input(
     let context = quote!(#dispatch_root::DispatchAutodiffContext);
     assert!(
         kind == TensorKind::Float || !autodiff_variant,
-        "only a float input can directly select an autodiff primitive"
+        "only a float input can directly select a boxed autodiff primitive"
     );
     let validate_context = if kind == TensorKind::Float && autodiff_variant {
         quote! {
@@ -599,6 +609,18 @@ fn extract_selected_input(
                 #validate_context
                 let #name = <#backend_alias as #autodiff_trait>::from_inner(#selected.float());
             }
+        }
+    } else if kind == TensorKind::Quantized && extraction.autodiff {
+        // A quantized input reaches the autodiff backend tracked, or lifted to an untracked leaf.
+        if borrowed {
+            let lifted = format_ident!("__lifted_{name}");
+            quote! {
+                #validate_context
+                let #lifted = #selected.to_autodiff_quantized();
+                let #name = &#lifted;
+            }
+        } else {
+            quote!(#validate_context let #name = #selected.autodiff_quantized();)
         }
     } else {
         let accessor = if kind == TensorKind::Float && extraction.autodiff {
@@ -739,6 +761,25 @@ fn extract_tensor(
                 };
             }
         }
+    } else if kind == TensorKind::Quantized && extraction.autodiff {
+        // A quantized input reaches the autodiff backend tracked, or lifted to an untracked leaf.
+        if borrowed {
+            let lifted = format_ident!("__lifted_{name}");
+            quote! {
+                let #lifted = match &#name.kind {
+                    #dispatch_kind::#backend(__inner) => __inner.to_autodiff_quantized(),
+                    _ => panic!("input tensor `{}` is on the wrong backend", stringify!(#name)),
+                };
+                let #name = &#lifted;
+            }
+        } else {
+            quote! {
+                let #name = match #name.kind {
+                    #dispatch_kind::#backend(__inner) => __inner.autodiff_quantized(),
+                    _ => panic!("input tensor `{}` is on the wrong backend", stringify!(#name)),
+                };
+            }
+        }
     } else if kind == TensorKind::Float {
         if borrowed {
             quote! {
@@ -809,7 +850,10 @@ fn extract_extension(
                         };
                         match tensor {
                             #backend_tensor::Autodiff(tensor) => #backend_tensor::Float(tensor),
-                            _ => panic!("only float tensors may use an autodiff primitive"),
+                            #backend_tensor::AutodiffQuantized(tensor) => {
+                                #backend_tensor::Quantized(tensor)
+                            }
+                            _ => panic!("only float and quantized tensors may use an autodiff primitive"),
                         }
                     }
                     #dispatch_kind::#backend(tensor) => match tensor {
@@ -823,7 +867,10 @@ fn extract_extension(
                         }
                         #backend_tensor::Int(tensor) => #backend_tensor::Int(tensor),
                         #backend_tensor::Bool(tensor) => #backend_tensor::Bool(tensor),
-                        #backend_tensor::Quantized(tensor) => #backend_tensor::Quantized(tensor),
+                        #backend_tensor::Quantized(tensor) => #backend_tensor::Quantized(
+                            <#backend_alias as #autodiff_trait>::q_from_inner(tensor)
+                        ),
+                        #backend_tensor::AutodiffQuantized(tensor) => #backend_tensor::Quantized(tensor),
                         #backend_tensor::Autodiff(_) => {
                             panic!("autodiff float input reached concrete dispatch")
                         }

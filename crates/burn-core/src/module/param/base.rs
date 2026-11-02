@@ -71,7 +71,7 @@ impl<T: ParameterValue> LazyInitState<T> {
     /// Create a new parameter state that is already initialized.
     fn initialized(value: T) -> Arc<Self> {
         Arc::new(Self {
-            value: SyncOnceCell::initialized(value),
+            value: SyncOnceCell::initialized(value.into_stored()),
             initialization: None,
         })
     }
@@ -93,7 +93,7 @@ impl<T: ParameterValue> LazyInitState<T> {
                 .expect("Should have an initialization when no state provided.")
                 .write();
             let state = init.take().expect("Should exist when not initialized");
-            state.initialize()
+            state.initialize().into_stored()
         })
     }
 }
@@ -208,6 +208,13 @@ pub(crate) mod sealed {
     pub trait Sealed: Sized {
         /// Whether this value currently participates in the module's training behavior.
         fn is_active(&self) -> bool;
+
+        /// This value as a parameter stores it: a float tensor
+        /// [inhibits](burn_tensor::DTypePropagation::Inhibit), so a weight never decides the
+        /// dtype of the activations it meets.
+        fn into_stored(self) -> Self {
+            self
+        }
 
         /// Materialize a parameter with an attached reparameterization.
         ///
@@ -728,6 +735,26 @@ mod tests {
             _assert_sync::<Param<Tensor<2>>>();
         }
         check();
+    }
+
+    /// A weight never decides the dtype of the activations it meets: whether the parameter was
+    /// built initialized or lazily, its value inhibits.
+    #[test]
+    fn a_float_parameter_inhibits() {
+        use burn_tensor::DTypePropagation;
+
+        let device = Default::default();
+        let initialized = Param::from_tensor(Tensor::<2>::zeros([2, 2], &device));
+        assert_eq!(initialized.val().propagation(), DTypePropagation::Inhibit);
+
+        let lazy = Param::uninitialized(
+            ParamId::new(),
+            move |device, _| Tensor::<2>::zeros([2, 2], device),
+            device,
+            false,
+            [2, 2].into(),
+        );
+        assert_eq!(lazy.val().propagation(), DTypePropagation::Inhibit);
     }
 
     #[test]

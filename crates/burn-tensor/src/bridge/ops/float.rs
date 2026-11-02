@@ -13,35 +13,50 @@ use burn_std::{DType, ExecutionError, IndexingUpdateOp, PadMode, Shape, Slice};
 use crate::{
     Device, Float,
     bridge::{BasicAutodiffOps, BasicOps, FloatMathOps, Numeric, Ordered, TransactionOp},
-    ops::{BridgeKind, BridgeTensor},
+    ops::{BridgeKind, BridgeTensor, ResolvedOutput},
 };
 
-fn from_q_primitive(prim: TensorPrimitive<Dispatch>) -> BridgeTensor {
-    match prim {
-        TensorPrimitive::Float(out) => BridgeTensor::float(out),
-        TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-    }
-}
-
-macro_rules! q_bin_ops {
+/// A combining operation over two operands, resolved from both: the backend's quantized `$q_op`
+/// takes two quantized operands as they are stored, `$op` everything else in the precision the
+/// output resolves to.
+macro_rules! combine_binary {
     ($lhs:ident, $rhs:ident, $op:ident, $q_op:ident) => {{
-        let (lkind, lhs) = $lhs.into_parts();
-        let (rkind, rhs) = $rhs.into_parts();
-        match (lkind, rkind) {
-            (BridgeKind::Float, BridgeKind::Float) => BridgeTensor::float(Dispatch::$op(lhs, rhs)),
-            (BridgeKind::QFloat, BridgeKind::QFloat) => from_q_primitive(Dispatch::$q_op(lhs, rhs)),
-            (BridgeKind::QFloat, BridgeKind::Float) => {
-                let dtype = rhs.dtype();
-                BridgeTensor::float(Dispatch::$op(Dispatch::dequantize(lhs, dtype.into()), rhs))
-            }
-            (BridgeKind::Float, BridgeKind::QFloat) => {
-                let dtype = lhs.dtype();
-                BridgeTensor::float(Dispatch::$op(lhs, Dispatch::dequantize(rhs, dtype.into())))
-            }
-            _ => panic!("Should be Float primitive kind"),
+        let resolved = ResolvedOutput::combine([&$lhs, &$rhs]);
+        match ResolvedOutput::all_quantized([&$lhs, &$rhs]) {
+            true => resolved.primitive(Dispatch::$q_op($lhs.into_parts().1, $rhs.into_parts().1)),
+            false => resolved.output(Dispatch::$op(
+                resolved.operand($lhs),
+                resolved.operand($rhs),
+            )),
         }
     }};
 }
+
+/// A one-operand operation, its output keeping the operand's type: `$quant` runs on a quantized
+/// operand as it is stored and returns a [`TensorPrimitive`], `$float` on a float one.
+macro_rules! unary {
+    ($tensor:ident, |$float_arg:ident| $float:expr, |$quant_arg:ident| $quant:expr) => {{
+        let resolved = ResolvedOutput::combine([&$tensor]);
+        match $tensor.is_qfloat() {
+            true => {
+                let $quant_arg = $tensor.into_parts().1;
+                resolved.primitive($quant)
+            }
+            false => {
+                let $float_arg = resolved.operand($tensor);
+                resolved.output($float)
+            }
+        }
+    }};
+    // An operation with no quantized form: a quantized operand is decoded, and the output
+    // quantized again when the operand's type is.
+    ($tensor:ident, |$float_arg:ident| $float:expr) => {{
+        let resolved = ResolvedOutput::combine([&$tensor]);
+        let $float_arg = resolved.operand($tensor);
+        resolved.output($float)
+    }};
+}
+
 impl TransactionOp for Float {
     fn register_transaction(tr: &mut TransactionPrimitive<Dispatch>, tensor: BridgeTensor) {
         let (kind, tensor) = tensor.into_parts();
@@ -86,61 +101,52 @@ impl BasicOps for Float {
     }
 
     fn reshape(tensor: BridgeTensor, shape: Shape) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_reshape(tensor, shape)),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_reshape(tensor, shape)),
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_reshape(tensor, shape),
+            |tensor| TensorPrimitive::QFloat(Dispatch::q_reshape(tensor, shape))
+        )
     }
 
     fn transpose(tensor: BridgeTensor) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_transpose(tensor)),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_transpose(tensor)),
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_transpose(tensor),
+            |tensor| TensorPrimitive::QFloat(Dispatch::q_transpose(tensor))
+        )
     }
 
     fn swap_dims(tensor: BridgeTensor, dim1: usize, dim2: usize) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_swap_dims(tensor, dim1, dim2)),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_swap_dims(tensor, dim1, dim2)),
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_swap_dims(tensor, dim1, dim2),
+            |tensor| TensorPrimitive::QFloat(Dispatch::q_swap_dims(tensor, dim1, dim2))
+        )
     }
 
     fn slice(tensor: BridgeTensor, slices: &[Slice]) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_slice(tensor, slices)),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_slice(tensor, slices)),
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_slice(tensor, slices),
+            |tensor| TensorPrimitive::QFloat(Dispatch::q_slice(tensor, slices))
+        )
     }
 
     fn slice_assign(tensor: BridgeTensor, slices: &[Slice], value: BridgeTensor) -> BridgeTensor {
-        // Slice assign is ambiguous for QFloat, so both operands are dequantized first.
-        BridgeTensor::float(Dispatch::float_slice_assign(
-            tensor.into_float(),
+        let resolved = ResolvedOutput::into(&tensor);
+        resolved.output(Dispatch::float_slice_assign(
+            resolved.operand(tensor),
             slices,
-            value.into_float(),
+            resolved.operand(value),
         ))
     }
 
     fn select(tensor: BridgeTensor, dim: usize, indices: BridgeTensor) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => {
-                BridgeTensor::float(Dispatch::float_select(tensor, dim, indices.into()))
-            }
-            BridgeKind::QFloat => {
-                BridgeTensor::qfloat(Dispatch::q_select(tensor, dim, indices.into()))
-            }
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_select(tensor, dim, indices.into()),
+            |tensor| TensorPrimitive::QFloat(Dispatch::q_select(tensor, dim, indices.into()))
+        )
     }
 
     fn select_assign(
@@ -150,35 +156,37 @@ impl BasicOps for Float {
         values: BridgeTensor,
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
-        // Select assign is ambiguous for QFloat
-        BridgeTensor::float(Dispatch::float_select_assign(
-            tensor.into_float(),
+        let resolved = ResolvedOutput::into(&tensor);
+        resolved.output(Dispatch::float_select_assign(
+            resolved.operand(tensor),
             dim,
             indices.into(),
-            values.into_float(),
+            resolved.operand(values),
             update,
         ))
     }
 
     fn mask_where(tensor: BridgeTensor, mask: BridgeTensor, source: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_mask_where(
-            tensor.into_float(),
+        let resolved = ResolvedOutput::combine([&tensor, &source]);
+        resolved.output(Dispatch::float_mask_where(
+            resolved.operand(tensor),
             mask.into(),
-            source.into_float(),
+            resolved.operand(source),
         ))
     }
 
     fn mask_fill(tensor: BridgeTensor, mask: BridgeTensor, value: Scalar) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_mask_fill(
-            tensor.into_float(),
+        unary!(tensor, |tensor| Dispatch::float_mask_fill(
+            tensor,
             mask.into(),
-            value,
+            value
         ))
     }
 
     async fn mask_select(tensor: BridgeTensor, mask: BridgeTensor) -> BridgeTensor {
+        let propagation = tensor.propagation();
         let (kind, tensor) = tensor.into_parts();
-        match kind {
+        let out = match kind {
             BridgeKind::Float => {
                 BridgeTensor::float(Dispatch::float_mask_select(tensor, mask.into()).await)
             }
@@ -196,20 +204,16 @@ impl BasicOps for Float {
                 BridgeTensor::qfloat(Dispatch::q_select(tensor, 0, indices))
             }
             _ => panic!("Should be Float primitive kind"),
-        }
+        };
+        out.with_propagation(propagation)
     }
 
     fn gather(dim: usize, tensor: BridgeTensor, indices: BridgeTensor) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => {
-                BridgeTensor::float(Dispatch::float_gather(dim, tensor, indices.into()))
-            }
-            BridgeKind::QFloat => {
-                BridgeTensor::qfloat(Dispatch::q_gather(dim, tensor, indices.into()))
-            }
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_gather(dim, tensor, indices.into()),
+            |tensor| TensorPrimitive::QFloat(Dispatch::q_gather(dim, tensor, indices.into()))
+        )
     }
 
     fn scatter(
@@ -219,11 +223,12 @@ impl BasicOps for Float {
         values: BridgeTensor,
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_scatter(
+        let resolved = ResolvedOutput::into(&tensor);
+        resolved.output(Dispatch::float_scatter(
             dim,
-            tensor.into_float(),
+            resolved.operand(tensor),
             indices.into(),
-            values.into_float(),
+            resolved.operand(values),
             update,
         ))
     }
@@ -234,16 +239,17 @@ impl BasicOps for Float {
         values: BridgeTensor,
         reduction: IndexingUpdateOp,
     ) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_scatter_nd(
-            data.into_float(),
+        let resolved = ResolvedOutput::into(&data);
+        resolved.output(Dispatch::float_scatter_nd(
+            resolved.operand(data),
             indices.into(),
-            values.into_float(),
+            resolved.operand(values),
             reduction,
         ))
     }
 
     fn gather_nd(data: BridgeTensor, indices: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_gather_nd(data.into_float(), indices.into()))
+        unary!(data, |data| Dispatch::float_gather_nd(data, indices.into()))
     }
 
     fn device(tensor: &BridgeTensor) -> Device {
@@ -256,16 +262,11 @@ impl BasicOps for Float {
     }
 
     fn to_device(tensor: BridgeTensor, device: &Device) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => {
-                BridgeTensor::float(Dispatch::float_to_device(tensor, device.as_dispatch()))
-            }
-            BridgeKind::QFloat => {
-                BridgeTensor::qfloat(Dispatch::q_to_device(tensor, device.as_dispatch()))
-            }
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_to_device(tensor, device.as_dispatch()),
+            |tensor| TensorPrimitive::QFloat(Dispatch::q_to_device(tensor, device.as_dispatch()))
+        )
     }
 
     async fn into_data_async(tensor: BridgeTensor) -> Result<TensorData, ExecutionError> {
@@ -292,40 +293,52 @@ impl BasicOps for Float {
     }
 
     fn repeat_dim(tensor: BridgeTensor, dim: usize, times: usize) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => {
-                BridgeTensor::float(Dispatch::float_repeat_dim(tensor, dim, times))
-            }
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_repeat_dim(tensor, dim, times)),
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_repeat_dim(tensor, dim, times),
+            |tensor| TensorPrimitive::QFloat(Dispatch::q_repeat_dim(tensor, dim, times))
+        )
     }
 
     fn cat(vectors: Vec<BridgeTensor>, dim: usize) -> BridgeTensor {
-        match vectors.first().unwrap().kind() {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_cat(
+        let resolved = ResolvedOutput::combine(&vectors);
+        // Quantized parts concatenate as stored only when they share one scheme.
+        let one_scheme = vectors
+            .first()
+            .is_some_and(|first| vectors.iter().all(|part| part.dtype() == first.dtype()));
+        match ResolvedOutput::all_quantized(&vectors) && one_scheme {
+            true => resolved.primitive(TensorPrimitive::QFloat(Dispatch::q_cat(
                 BridgeTensor::into_dispatch_vec(vectors),
                 dim,
-            )),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_cat(
-                BridgeTensor::into_dispatch_vec(vectors),
+            ))),
+            false => resolved.output(Dispatch::float_cat(
+                vectors
+                    .into_iter()
+                    .map(|part| resolved.operand(part))
+                    .collect(),
                 dim,
             )),
-            _ => panic!("Should be Float primitive kind"),
         }
     }
 
     fn equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
-        let lhs = lhs.into_float();
-        BridgeTensor::bool(Dispatch::float_equal(lhs, rhs.into_float(), bool_dtype))
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
+        BridgeTensor::bool(Dispatch::float_equal(
+            resolved.operand(lhs),
+            resolved.operand(rhs),
+            bool_dtype,
+        ))
     }
 
     fn not_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
-        let lhs = lhs.into_float();
-        BridgeTensor::bool(Dispatch::float_not_equal(lhs, rhs.into_float(), bool_dtype))
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
+        BridgeTensor::bool(Dispatch::float_not_equal(
+            resolved.operand(lhs),
+            resolved.operand(rhs),
+            bool_dtype,
+        ))
     }
 
     fn equal_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
@@ -365,29 +378,29 @@ impl BasicOps for Float {
     }
 
     fn permute(tensor: BridgeTensor, axes: &[usize]) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_permute(tensor, axes)),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_permute(tensor, axes)),
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_permute(tensor, axes),
+            |tensor| TensorPrimitive::QFloat(Dispatch::q_permute(tensor, axes))
+        )
     }
 
     fn expand(tensor: BridgeTensor, shape: Shape) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_expand(tensor.into_float(), shape))
+        unary!(tensor, |tensor| Dispatch::float_expand(tensor, shape))
     }
 
     fn flip(tensor: BridgeTensor, axes: &[usize]) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_flip(tensor, axes)),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_flip(tensor, axes)),
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_flip(tensor, axes),
+            |tensor| TensorPrimitive::QFloat(Dispatch::q_flip(tensor, axes))
+        )
     }
 
     fn unfold(tensor: BridgeTensor, dim: usize, size: usize, step: usize) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_unfold(tensor.into_float(), dim, size, step))
+        unary!(tensor, |tensor| Dispatch::float_unfold(
+            tensor, dim, size, step
+        ))
     }
 
     fn all_gather(tensors: Vec<BridgeTensor>, dim: usize) -> Vec<BridgeTensor> {
@@ -428,227 +441,147 @@ impl BasicOps for Float {
 
 impl Numeric for Float {
     fn pad(tensor: BridgeTensor, padding: &[(usize, usize)], mode: PadMode) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_pad(tensor.into_float(), padding, mode))
+        unary!(tensor, |tensor| Dispatch::float_pad(tensor, padding, mode))
     }
 
     fn add(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        q_bin_ops!(lhs, rhs, float_add, q_add)
+        combine_binary!(lhs, rhs, float_add, q_add)
     }
 
     fn add_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-        let (kind, lhs) = lhs.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_add_scalar(lhs, rhs)),
-            BridgeKind::QFloat => match Dispatch::q_add_scalar(lhs, rhs) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(lhs, |lhs| Dispatch::float_add_scalar(lhs, rhs), |lhs| {
+            Dispatch::q_add_scalar(lhs, rhs)
+        })
     }
 
     fn sub(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        q_bin_ops!(lhs, rhs, float_sub, q_sub)
+        combine_binary!(lhs, rhs, float_sub, q_sub)
     }
 
     fn sub_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-        let (kind, lhs) = lhs.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_sub_scalar(lhs, rhs)),
-            BridgeKind::QFloat => match Dispatch::q_sub_scalar(lhs, rhs) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(lhs, |lhs| Dispatch::float_sub_scalar(lhs, rhs), |lhs| {
+            Dispatch::q_sub_scalar(lhs, rhs)
+        })
     }
 
     fn div(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        q_bin_ops!(lhs, rhs, float_div, q_div)
+        combine_binary!(lhs, rhs, float_div, q_div)
     }
 
     fn div_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-        let (kind, lhs) = lhs.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_div_scalar(lhs, rhs)),
-            BridgeKind::QFloat => match Dispatch::q_div_scalar(lhs, rhs) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(lhs, |lhs| Dispatch::float_div_scalar(lhs, rhs), |lhs| {
+            Dispatch::q_div_scalar(lhs, rhs)
+        })
     }
     fn remainder(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_remainder(
-            lhs.into_float(),
-            rhs.into_float(),
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
+        resolved.output(Dispatch::float_remainder(
+            resolved.operand(lhs),
+            resolved.operand(rhs),
         ))
     }
 
     fn remainder_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_remainder_scalar(lhs.into_float(), rhs))
+        unary!(lhs, |lhs| Dispatch::float_remainder_scalar(lhs, rhs))
     }
 
     fn mul(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        q_bin_ops!(lhs, rhs, float_mul, q_mul)
+        combine_binary!(lhs, rhs, float_mul, q_mul)
     }
 
     fn mul_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-        let (kind, lhs) = lhs.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_mul_scalar(lhs, rhs)),
-            BridgeKind::QFloat => match Dispatch::q_mul_scalar(lhs, rhs) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(lhs, |lhs| Dispatch::float_mul_scalar(lhs, rhs), |lhs| {
+            Dispatch::q_mul_scalar(lhs, rhs)
+        })
     }
     fn neg(tensor: BridgeTensor) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_neg(tensor)),
-            BridgeKind::QFloat => match Dispatch::q_neg(tensor) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(tensor, |tensor| Dispatch::float_neg(tensor), |tensor| {
+            Dispatch::q_neg(tensor)
+        })
     }
 
     fn sum(tensor: BridgeTensor) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_sum(tensor)),
-            BridgeKind::QFloat => match Dispatch::q_sum(tensor) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(tensor, |tensor| Dispatch::float_sum(tensor), |tensor| {
+            Dispatch::q_sum(tensor)
+        })
     }
 
     fn sum_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_sum_dim(tensor, dim)),
-            BridgeKind::QFloat => match Dispatch::q_sum_dim(tensor, dim) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_sum_dim(tensor, dim),
+            |tensor| Dispatch::q_sum_dim(tensor, dim)
+        )
     }
 
     fn sum_dims(tensor: BridgeTensor, dims: &[usize]) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_sum_dims(tensor, dims)),
+        match tensor.is_qfloat() {
             // Quantized reductions have no multi-dimension form; one at a time.
-            BridgeKind::QFloat => dims
+            true => dims
                 .iter()
-                .fold(BridgeTensor::qfloat(tensor), |tensor, &dim| {
-                    Self::sum_dim(tensor, dim)
-                }),
-            _ => panic!("Should be Float primitive kind"),
+                .fold(tensor, |tensor, &dim| Self::sum_dim(tensor, dim)),
+            false => unary!(tensor, |tensor| Dispatch::float_sum_dims(tensor, dims)),
         }
     }
 
     fn prod(tensor: BridgeTensor) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_prod(tensor)),
-            BridgeKind::QFloat => match Dispatch::q_prod(tensor) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(tensor, |tensor| Dispatch::float_prod(tensor), |tensor| {
+            Dispatch::q_prod(tensor)
+        })
     }
 
     fn prod_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_prod_dim(tensor, dim)),
-            BridgeKind::QFloat => match Dispatch::q_prod_dim(tensor, dim) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_prod_dim(tensor, dim),
+            |tensor| Dispatch::q_prod_dim(tensor, dim)
+        )
     }
 
     fn mean(tensor: BridgeTensor) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_mean(tensor)),
-            BridgeKind::QFloat => match Dispatch::q_mean(tensor) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(tensor, |tensor| Dispatch::float_mean(tensor), |tensor| {
+            Dispatch::q_mean(tensor)
+        })
     }
 
     fn mean_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_mean_dim(tensor, dim)),
-            BridgeKind::QFloat => match Dispatch::q_mean_dim(tensor, dim) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_mean_dim(tensor, dim),
+            |tensor| Dispatch::q_mean_dim(tensor, dim)
+        )
     }
 
     fn cumsum(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_cumsum(tensor, dim)),
-            BridgeKind::QFloat => match Dispatch::q_cumsum(tensor, dim) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_cumsum(tensor, dim),
+            |tensor| Dispatch::q_cumsum(tensor, dim)
+        )
     }
 
     fn cumprod(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_cumprod(tensor, dim)),
-            BridgeKind::QFloat => match Dispatch::q_cumprod(tensor, dim) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_cumprod(tensor, dim),
+            |tensor| Dispatch::q_cumprod(tensor, dim)
+        )
     }
 
     fn abs(tensor: BridgeTensor) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_abs(tensor)),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_abs(tensor)),
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(tensor, |tensor| Dispatch::float_abs(tensor), |tensor| {
+            TensorPrimitive::QFloat(Dispatch::q_abs(tensor))
+        })
     }
 
     fn powi(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        q_bin_ops!(lhs, rhs, float_powf, q_powf)
+        combine_binary!(lhs, rhs, float_powf, q_powf)
     }
 
     fn powi_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-        let (kind, lhs) = lhs.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_powi_scalar(lhs, rhs)),
-            BridgeKind::QFloat => match Dispatch::q_powi_scalar(lhs, rhs) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(lhs, |lhs| Dispatch::float_powi_scalar(lhs, rhs), |lhs| {
+            Dispatch::q_powi_scalar(lhs, rhs)
+        })
     }
 
     fn random(
@@ -666,36 +599,33 @@ impl Numeric for Float {
     }
 
     fn sign(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_sign(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_sign(tensor))
     }
 
     /// Applies the matrix multiplication operation.
     ///
     /// `C = AB`
     ///
+    /// A quantized operand reaches the backend as it is stored, so its kernel reads the packed
+    /// values; a float operand is read in the precision the output resolves to, or as it is
+    /// beside a quantized one, whose kernel names the precision it multiplies in.
+    ///
     /// # Panics
     ///
     /// If the two tensors don't have a compatible shape.
     fn matmul(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        let (lkind, lhs) = lhs.into_parts();
-        let (rkind, rhs) = rhs.into_parts();
-        match (lkind, rkind) {
-            (BridgeKind::Float, BridgeKind::Float) => {
-                BridgeTensor::float(Dispatch::float_matmul(lhs, rhs))
-            }
-            (BridgeKind::Float, BridgeKind::QFloat) => from_q_primitive(Dispatch::q_matmul(
-                TensorPrimitive::Float(lhs),
-                TensorPrimitive::QFloat(rhs),
-            )),
-            (BridgeKind::QFloat, BridgeKind::Float) => from_q_primitive(Dispatch::q_matmul(
-                TensorPrimitive::QFloat(lhs),
-                TensorPrimitive::Float(rhs),
-            )),
-            (BridgeKind::QFloat, BridgeKind::QFloat) => from_q_primitive(Dispatch::q_matmul(
-                TensorPrimitive::QFloat(lhs),
-                TensorPrimitive::QFloat(rhs),
-            )),
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
+        let operand = |operand: BridgeTensor| match operand.into_parts() {
+            (BridgeKind::Float, operand) => TensorPrimitive::Float(operand),
+            (BridgeKind::QFloat, operand) => TensorPrimitive::QFloat(operand),
             _ => panic!("Should be Float primitive kind"),
+        };
+        match lhs.is_qfloat() || rhs.is_qfloat() {
+            true => resolved.primitive(Dispatch::q_matmul(operand(lhs), operand(rhs))),
+            false => resolved.output(Dispatch::float_matmul(
+                resolved.operand(lhs),
+                resolved.operand(rhs),
+            )),
         }
     }
 
@@ -726,12 +656,11 @@ impl Numeric for Float {
 }
 impl Ordered for Float {
     fn sort(tensor: BridgeTensor, dim: usize, descending: bool) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_sort(tensor, dim, descending)),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_sort(tensor, dim, descending)),
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_sort(tensor, dim, descending),
+            |tensor| TensorPrimitive::QFloat(Dispatch::q_sort(tensor, dim, descending))
+        )
     }
 
     fn sort_with_indices(
@@ -740,20 +669,21 @@ impl Ordered for Float {
         descending: bool,
     ) -> (BridgeTensor, BridgeTensor) {
         let settings = tensor.device_settings();
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => {
+        let resolved = ResolvedOutput::combine([&tensor]);
+        let (values, indices) = match tensor.into_parts() {
+            (BridgeKind::Float, tensor) => {
                 let (values, indices) =
                     Dispatch::float_sort_with_indices(tensor, dim, descending, settings.int_dtype);
-                (BridgeTensor::float(values), BridgeTensor::int(indices))
+                (TensorPrimitive::Float(values), indices)
             }
-            BridgeKind::QFloat => {
+            (BridgeKind::QFloat, tensor) => {
                 let (values, indices) =
                     Dispatch::q_sort_with_indices(tensor, dim, descending, settings.int_dtype);
-                (BridgeTensor::qfloat(values), BridgeTensor::int(indices))
+                (TensorPrimitive::QFloat(values), indices)
             }
             _ => panic!("Should be Float primitive kind"),
-        }
+        };
+        (resolved.primitive(values), BridgeTensor::int(indices))
     }
 
     fn argsort(tensor: BridgeTensor, dim: usize, descending: bool) -> BridgeTensor {
@@ -777,33 +707,29 @@ impl Ordered for Float {
     }
 
     fn cummin(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_cummin(tensor, dim)),
-            BridgeKind::QFloat => match Dispatch::q_cummin(tensor, dim) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_cummin(tensor, dim),
+            |tensor| Dispatch::q_cummin(tensor, dim)
+        )
     }
 
     fn cummax(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_cummax(tensor, dim)),
-            BridgeKind::QFloat => match Dispatch::q_cummax(tensor, dim) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_cummax(tensor, dim),
+            |tensor| Dispatch::q_cummax(tensor, dim)
+        )
     }
 
     fn greater(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
-        let lhs = lhs.into_float();
-        BridgeTensor::bool(Dispatch::float_greater(lhs, rhs.into_float(), bool_dtype))
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
+        BridgeTensor::bool(Dispatch::float_greater(
+            resolved.operand(lhs),
+            resolved.operand(rhs),
+            bool_dtype,
+        ))
     }
 
     fn greater_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
@@ -814,10 +740,10 @@ impl Ordered for Float {
 
     fn greater_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
-        let lhs = lhs.into_float();
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
         BridgeTensor::bool(Dispatch::float_greater_equal(
-            lhs,
-            rhs.into_float(),
+            resolved.operand(lhs),
+            resolved.operand(rhs),
             bool_dtype,
         ))
     }
@@ -830,8 +756,12 @@ impl Ordered for Float {
 
     fn lower(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
-        let lhs = lhs.into_float();
-        BridgeTensor::bool(Dispatch::float_lower(lhs, rhs.into_float(), bool_dtype))
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
+        BridgeTensor::bool(Dispatch::float_lower(
+            resolved.operand(lhs),
+            resolved.operand(rhs),
+            bool_dtype,
+        ))
     }
 
     fn lower_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
@@ -842,10 +772,10 @@ impl Ordered for Float {
 
     fn lower_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
-        let lhs = lhs.into_float();
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
         BridgeTensor::bool(Dispatch::float_lower_equal(
-            lhs,
-            rhs.into_float(),
+            resolved.operand(lhs),
+            resolved.operand(rhs),
             bool_dtype,
         ))
     }
@@ -899,30 +829,25 @@ impl Ordered for Float {
     }
 
     fn max(tensor: BridgeTensor) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_max(tensor)),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_max(tensor)),
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(tensor, |tensor| Dispatch::float_max(tensor), |tensor| {
+            TensorPrimitive::QFloat(Dispatch::q_max(tensor))
+        })
     }
 
     fn max_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_max_dim(tensor, dim)),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_max_dim(tensor, dim)),
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_max_dim(tensor, dim),
+            |tensor| TensorPrimitive::QFloat(Dispatch::q_max_dim(tensor, dim))
+        )
     }
 
     fn topk(tensor: BridgeTensor, dim: usize, k: usize) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_topk(tensor, dim, k)),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_topk(tensor, dim, k)),
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_topk(tensor, dim, k),
+            |tensor| TensorPrimitive::QFloat(Dispatch::q_topk(tensor, dim, k))
+        )
     }
 
     fn topk_with_indices(
@@ -931,219 +856,213 @@ impl Ordered for Float {
         k: usize,
     ) -> (BridgeTensor, BridgeTensor) {
         let settings = tensor.device_settings();
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => {
+        let resolved = ResolvedOutput::combine([&tensor]);
+        let (values, indices) = match tensor.into_parts() {
+            (BridgeKind::Float, tensor) => {
                 let (values, indices) =
                     Dispatch::float_topk_with_indices(tensor, dim, k, settings.int_dtype);
-                (BridgeTensor::float(values), BridgeTensor::int(indices))
+                (TensorPrimitive::Float(values), indices)
             }
-            BridgeKind::QFloat => {
+            (BridgeKind::QFloat, tensor) => {
                 let (values, indices) =
                     Dispatch::q_topk_with_indices(tensor, dim, k, settings.int_dtype);
-                (BridgeTensor::qfloat(values), BridgeTensor::int(indices))
+                (TensorPrimitive::QFloat(values), indices)
             }
             _ => panic!("Should be Float primitive kind"),
-        }
+        };
+        (resolved.primitive(values), BridgeTensor::int(indices))
     }
 
     fn max_dim_with_indices(tensor: BridgeTensor, dim: usize) -> (BridgeTensor, BridgeTensor) {
         let settings = tensor.device_settings();
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => {
+        let resolved = ResolvedOutput::combine([&tensor]);
+        let (values, indices) = match tensor.into_parts() {
+            (BridgeKind::Float, tensor) => {
                 let (values, indices) =
                     Dispatch::float_max_dim_with_indices(tensor, dim, settings.int_dtype);
-                (BridgeTensor::float(values), BridgeTensor::int(indices))
+                (TensorPrimitive::Float(values), indices)
             }
-            BridgeKind::QFloat => {
+            (BridgeKind::QFloat, tensor) => {
                 let (values, indices) =
                     Dispatch::q_max_dim_with_indices(tensor, dim, settings.int_dtype);
-                (BridgeTensor::qfloat(values), BridgeTensor::int(indices))
+                (TensorPrimitive::QFloat(values), indices)
             }
             _ => panic!("Should be Float primitive kind"),
-        }
+        };
+        (resolved.primitive(values), BridgeTensor::int(indices))
     }
 
     fn min(tensor: BridgeTensor) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_min(tensor)),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_min(tensor)),
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(tensor, |tensor| Dispatch::float_min(tensor), |tensor| {
+            TensorPrimitive::QFloat(Dispatch::q_min(tensor))
+        })
     }
 
     fn min_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_min_dim(tensor, dim)),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_min_dim(tensor, dim)),
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_min_dim(tensor, dim),
+            |tensor| TensorPrimitive::QFloat(Dispatch::q_min_dim(tensor, dim))
+        )
     }
 
     fn min_dim_with_indices(tensor: BridgeTensor, dim: usize) -> (BridgeTensor, BridgeTensor) {
         let settings = tensor.device_settings();
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => {
+        let resolved = ResolvedOutput::combine([&tensor]);
+        let (values, indices) = match tensor.into_parts() {
+            (BridgeKind::Float, tensor) => {
                 let (values, indices) =
                     Dispatch::float_min_dim_with_indices(tensor, dim, settings.int_dtype);
-                (BridgeTensor::float(values), BridgeTensor::int(indices))
+                (TensorPrimitive::Float(values), indices)
             }
-            BridgeKind::QFloat => {
+            (BridgeKind::QFloat, tensor) => {
                 let (values, indices) =
                     Dispatch::q_min_dim_with_indices(tensor, dim, settings.int_dtype);
-                (BridgeTensor::qfloat(values), BridgeTensor::int(indices))
+                (TensorPrimitive::QFloat(values), indices)
             }
             _ => panic!("Should be Float primitive kind"),
-        }
+        };
+        (resolved.primitive(values), BridgeTensor::int(indices))
     }
 
     fn clamp(tensor: BridgeTensor, min: Scalar, max: Scalar) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_clamp(tensor, min, max)),
-            BridgeKind::QFloat => match Dispatch::q_clamp(tensor, min, max) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_clamp(tensor, min, max),
+            |tensor| Dispatch::q_clamp(tensor, min, max)
+        )
     }
 
     fn clamp_min(tensor: BridgeTensor, min: Scalar) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_clamp_min(tensor, min)),
-            BridgeKind::QFloat => match Dispatch::q_clamp_min(tensor, min) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_clamp_min(tensor, min),
+            |tensor| Dispatch::q_clamp_min(tensor, min)
+        )
     }
 
     fn clamp_max(tensor: BridgeTensor, max: Scalar) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_clamp_max(tensor, max)),
-            BridgeKind::QFloat => match Dispatch::q_clamp_max(tensor, max) {
-                TensorPrimitive::Float(out) => BridgeTensor::float(out),
-                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-            },
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_clamp_max(tensor, max),
+            |tensor| Dispatch::q_clamp_max(tensor, max)
+        )
     }
 
     fn max_abs(tensor: BridgeTensor) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_max_abs(tensor)),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_max_abs(tensor)),
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(tensor, |tensor| Dispatch::float_max_abs(tensor), |tensor| {
+            TensorPrimitive::QFloat(Dispatch::q_max_abs(tensor))
+        })
     }
 
     fn max_abs_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_max_abs_dim(tensor, dim)),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_max_abs_dim(tensor, dim)),
-            _ => panic!("Should be Float primitive kind"),
-        }
+        unary!(
+            tensor,
+            |tensor| Dispatch::float_max_abs_dim(tensor, dim),
+            |tensor| TensorPrimitive::QFloat(Dispatch::q_max_abs_dim(tensor, dim))
+        )
     }
 }
 
 impl FloatMathOps for Float {
     fn square(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_powi_scalar(tensor.into_float(), 2.into()))
+        unary!(tensor, |tensor| Dispatch::float_powi_scalar(
+            tensor,
+            2.into()
+        ))
     }
     fn sqrt(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_sqrt(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_sqrt(tensor))
     }
     fn cos(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_cos(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_cos(tensor))
     }
 
     fn sin(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_sin(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_sin(tensor))
     }
 
     fn tan(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_tan(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_tan(tensor))
     }
 
     fn cosh(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_cosh(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_cosh(tensor))
     }
 
     fn sinh(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_sinh(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_sinh(tensor))
     }
 
     fn tanh(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_tanh(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_tanh(tensor))
     }
 
     fn acos(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_acos(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_acos(tensor))
     }
 
     fn acosh(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_acosh(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_acosh(tensor))
     }
 
     fn asin(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_asin(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_asin(tensor))
     }
 
     fn asinh(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_asinh(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_asinh(tensor))
     }
 
     fn atan(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_atan(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_atan(tensor))
     }
 
     fn atanh(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_atanh(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_atanh(tensor))
     }
 
     fn atan2(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_atan2(lhs.into_float(), rhs.into_float()))
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
+        resolved.output(Dispatch::float_atan2(
+            resolved.operand(lhs),
+            resolved.operand(rhs),
+        ))
     }
 
     fn exp(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_exp(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_exp(tensor))
     }
 
     fn log(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_log(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_log(tensor))
     }
 
     fn log1p(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_log1p(tensor.into_float()))
+        unary!(tensor, |tensor| Dispatch::float_log1p(tensor))
     }
 }
 
 impl BasicAutodiffOps for Float {
     fn inner(tensor: BridgeTensor) -> BridgeTensor {
+        let propagation = tensor.propagation();
         let (kind, tensor) = tensor.into_parts();
-        match kind {
+        let inner = match kind {
             BridgeKind::Float => BridgeTensor::float(Dispatch::inner(tensor)),
             BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_inner(tensor)),
             _ => panic!("Should be Float primitive kind"),
-        }
+        };
+        inner.with_propagation(propagation)
     }
 
     fn from_inner(inner: BridgeTensor) -> BridgeTensor {
+        let propagation = inner.propagation();
         let (kind, tensor) = inner.into_parts();
-        match kind {
+        let tensor = match kind {
             BridgeKind::Float => BridgeTensor::float(Dispatch::from_inner(tensor)),
             BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_from_inner(tensor)),
             _ => panic!("Should be Float primitive kind"),
-        }
+        };
+        tensor.with_propagation(propagation)
     }
 }

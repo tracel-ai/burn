@@ -341,8 +341,92 @@ pub fn reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
     out
 }
 
+/// `tensor` sliced to `ranges` as a view of its stored values and its block scales, or `None`
+/// where a view cannot express it: a range cutting the packed axis, which would split words; a
+/// range cutting an axis a block spans, which would split blocks; or a view that would start
+/// where the device cannot bind it. The caller then decodes, slices and quantizes again.
+///
+/// The values bound a region of the allocation and the scales name theirs by offset into it, so
+/// each region narrows on its own, by the same rule a float slice narrows its one.
+pub fn q_slice(tensor: CubeTensor, ranges: &[core::ops::Range<usize>]) -> Option<CubeTensor> {
+    let mut tensor = crate::kernel::untile(tensor);
+    let scheme = tensor.scheme();
+    let shape = tensor.shape();
+    let rank = shape.rank();
+    let packed_axis = match scheme.store {
+        QuantStore::PackedU32(packed) | QuantStore::PackedNative(packed) => Some(rank - packed - 1),
+        QuantStore::Native => None,
+    };
+    let blocks = scheme.block_size().map(|block| block.to_dim_vec(rank));
+    let cut = |axis: usize| ranges[axis].start != 0 || ranges[axis].end != shape[axis];
+    let splits = (0..ranges.len()).filter(|&axis| cut(axis)).any(|axis| {
+        packed_axis == Some(axis) || blocks.as_ref().is_some_and(|block| block[axis] != 1)
+    });
+    if splits {
+        return None;
+    }
+
+    let alignment = tensor.client.properties().memory.alignment;
+    // As a float slice: only the start moves the base pointer a kernel binds.
+    let end_alignment = alignment.min(32);
+    let narrowed = |strides: &[usize], size: usize| {
+        let (start, end) = ranges
+            .iter()
+            .enumerate()
+            .fold((0, 0), |(start, end), (axis, range)| {
+                (
+                    start + strides[axis] * range.start,
+                    end + strides[axis] * (shape[axis] - range.end),
+                )
+            });
+        ((start * size) as u64, (end * size) as u64)
+    };
+
+    let (values, scales) = tensor.quantized_handles()?;
+    let (values_start, values_end) = narrowed(values.meta.strides(), values.dtype.size());
+    let scale_offsets = match blocks {
+        Some(_) => Some(narrowed(scales.meta.strides(), scales.dtype.size())),
+        None => None,
+    };
+    let qparams = tensor.qparams.as_mut()?;
+    let aligned = |base: u64, start: u64, end: u64| {
+        (base + start).is_multiple_of(alignment) && end.is_multiple_of(end_alignment)
+    };
+    let values_base = tensor.handle.offset_start.unwrap_or(0);
+    if !aligned(values_base, values_start, values_end) {
+        return None;
+    }
+    if let Some((start, end)) = scale_offsets {
+        if !aligned(qparams.scales.offset_start as u64, start, end) {
+            return None;
+        }
+        let mut scales_shape = qparams.scales.metadata.shape().clone();
+        for (axis, range) in ranges.iter().enumerate() {
+            scales_shape[axis] = range.end - range.start;
+        }
+        qparams.scales.offset_start += start as usize;
+        qparams.scales.offset_end += end as usize;
+        qparams.scales.metadata =
+            Metadata::new(scales_shape, qparams.scales.metadata.strides().clone());
+    }
+
+    let mut sliced_shape = shape.clone();
+    for (axis, range) in ranges.iter().enumerate() {
+        sliced_shape[axis] = range.end - range.start;
+    }
+    tensor.handle = tensor
+        .handle
+        .clone()
+        .offset_start(values_start)
+        .offset_end(values_end);
+    *tensor.meta = Metadata::new(sliced_shape, tensor.meta.strides().clone());
+    Some(tensor)
+}
+
 /// Reshape a jit tensor to a new shape
-pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
+/// `tensor` reshaped to `shape` without touching its values, or `None` where its blocks or its
+/// packing cannot follow the reshape as metadata: the values then have to be quantized again.
+pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> Option<CubeTensor> {
     let mut tensor = crate::kernel::untile(tensor);
     let scheme = tensor.scheme();
     let curr_shape = tensor.meta.shape();
@@ -356,10 +440,7 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
             let num_quants = scheme.num_quants();
 
             if !shape[packed_d].is_multiple_of(num_quants) {
-                unimplemented!(
-                    "Cannot reshape packed tensor: inner dimension {} is not aligned with packing factor {num_quants}",
-                    shape[packed_d]
-                );
+                return None;
             }
 
             shape[packed_d] = shape[packed_d].div_ceil(num_quants);
@@ -389,7 +470,7 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
                 {
                     // General reshape (e.g. [32, 4] -> [16, 8]): only valid if
                     // reshaped dimension is aligned with the block boundaries.
-                    unimplemented!("Reshape of ND block-quantized tensor is not yet supported.");
+                    return None;
                 }
             }
             ReshapeAnalysis::Broadcasted => {} // only preprends unit dims
@@ -399,9 +480,7 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
                 {
                     // Split reshape (e.g. [32, 4] -> [32, 2, 2]): only valid if
                     // reshaped dimension is aligned with the block boundaries.
-                    unimplemented!(
-                        "Split reshape of ND block-quantized tensor is not yet supported."
-                    );
+                    return None;
                 }
             }
             other => unreachable!("Reshape analysis {other:?} should not update strides."),
@@ -417,14 +496,12 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
             // If the new last dimension is smaller than the block size,
             // it means a single block now spans across multiple rows.
             if scales.meta.shape().num_elements() > 1 {
-                unimplemented!("Reshape would split a block across multiple rows.");
+                return None;
             }
             // A lone block is still fine as a single row (e.g. an unsqueeze), but spread over
             // several rows the per-row block index points past the one scale.
             if shape.num_elements() > shape_last {
-                unimplemented!(
-                    "Cannot reshape block-quantized tensor to {shape:?}: not a whole number of {block_size:?} blocks"
-                );
+                return None;
             }
             scales.meta.shape().clone()
         }
@@ -471,16 +548,12 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
                     QuantValue::Q4S | QuantValue::Q4F | QuantValue::Q2S | QuantValue::Q2F
                 )
             {
-                todo!(
-                    "Reshape with sub-byte values is not supported when the buffer must be recomputed"
-                )
+                return None;
             }
 
             if scheme.block_size().is_some() && shape_scales.num_elements() > 1 {
                 // Original block boundaries no longer align with the layout, would have to be recomputed
-                unimplemented!(
-                    "Cannot reshape a block-quantized tensor when the reshape requires recomputing the buffer."
-                );
+                return None;
             }
 
             tensor = kernel::into_contiguous(tensor);
@@ -494,7 +567,7 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
         (ReshapeAction::NoChange, ReshapeAction::NoChange) => {}
     }
 
-    tensor
+    Some(tensor)
 }
 
 pub(crate) fn max_vector_size(tensor: &CubeTensor) -> VectorSize {

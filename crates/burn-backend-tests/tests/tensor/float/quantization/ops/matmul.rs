@@ -51,9 +51,13 @@ fn test_matmul_2d_aligned() {
         [24.0, 19.0, 19.0, 8.0],
         [40.0, 31.0, 31.0, 12.0],
     ]);
+    let expected = requantized(expected, &tensor_3);
+    // Two int8 steps of the output's range: one for the rounded inputs, one for the output.
+    let step = 40.0 / 127.0;
     tensor_3
+        .dequantize()
         .into_data()
-        .assert_approx_eq::<FloatElem>(&expected, Tolerance::relative(2e-2));
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::absolute(2.0 * step));
 }
 
 #[test]
@@ -77,9 +81,13 @@ fn test_matmul_2d_aligned_fused() {
         [12.0, 9.5, 9.5, 4.0],
         [20.0, 15.5, 15.5, 6.0],
     ]);
+    let expected = requantized(expected, &tensor_4);
+    // Two int8 steps of the output's range: one for the rounded inputs, one for the output.
+    let step = 20.0 / 127.0;
     tensor_4
+        .dequantize()
         .into_data()
-        .assert_approx_eq::<FloatElem>(&expected, Tolerance::relative(2e-2));
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::absolute(2.0 * step));
 }
 
 #[test]

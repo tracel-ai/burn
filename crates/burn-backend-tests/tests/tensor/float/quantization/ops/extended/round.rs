@@ -10,7 +10,9 @@ fn should_support_round_ops() {
     let output = tensor.round();
     let expected = TensorData::from([[24., 88., 76.], [60., 44., 95.]]);
 
+    let expected = requantized(expected, &output);
     output
+        .dequantize()
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::absolute(1e-1));
 }
@@ -25,7 +27,9 @@ fn should_round_ties_even() {
     let output = tensor.round();
     let expected = TensorData::from([6.]);
 
+    let expected = requantized(expected, &output);
     output
+        .dequantize()
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::absolute(1e-1));
 }

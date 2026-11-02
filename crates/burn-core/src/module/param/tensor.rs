@@ -4,11 +4,15 @@ use crate::module::{
     Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper, ModuleVisitor,
 };
 use alloc::{boxed::Box, format, string::ToString, vec::Vec};
-use burn_tensor::{Bool, Device, Float, Int, Tensor, TensorData};
+use burn_tensor::{Bool, DTypePropagation, Device, Float, Int, Tensor, TensorData};
 
 impl<const D: usize> super::sealed::Sealed for Tensor<D, Float> {
     fn is_active(&self) -> bool {
         Tensor::is_require_grad(self)
+    }
+
+    fn into_stored(self) -> Self {
+        self.with_propagation(DTypePropagation::Inhibit)
     }
 
     fn apply_reparameterization(self, reparameterization: &dyn DynReparameterization) -> Self {

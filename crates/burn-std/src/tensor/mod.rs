@@ -6,6 +6,8 @@ pub mod dtype;
 pub mod layout;
 /// Batched matmul transformation utilities.
 pub mod matmul;
+/// How a tensor's dtype decides the dtype of the operations it enters.
+pub mod propagation;
 /// Quantization data representation.
 pub mod quantization;
 /// Tensor shape utilities.
@@ -16,6 +18,7 @@ pub mod slice;
 pub use dtype::*;
 pub use layout::*;
 pub use matmul::*;
+pub use propagation::*;
 pub use quantization::*;
 pub use shape::*;
 pub use slice::*;

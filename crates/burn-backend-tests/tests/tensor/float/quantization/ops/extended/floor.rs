@@ -10,7 +10,9 @@ fn should_support_floor_ops() {
     let output = tensor.floor();
     let expected = TensorData::from([[24., 87., 76.], [59., 43., 95.]]);
 
+    let expected = requantized(expected, &output);
     output
+        .dequantize()
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(1e-1, 1e-1));
 }

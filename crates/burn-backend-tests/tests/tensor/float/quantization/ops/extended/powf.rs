@@ -11,10 +11,14 @@ fn should_support_powf_ops() {
     let output = tensor.powf(tensor_pow);
     let expected = TensorData::from([[1.0, 1.0, 4.0], [27.0, 256.0, 25.0]]);
 
+    let expected = requantized(expected, &output);
+    // Two int8 steps of the output's range, one for the rounded inputs and one for the output,
+    // and the rounded exponent's share, which the power amplifies.
+    let step = 256.0 / 127.0;
     output
         .dequantize()
         .into_data()
-        .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(4e-2, 1e-2));
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(2e-2, 2.0 * step));
 }
 
 #[test]
@@ -25,6 +29,7 @@ fn should_support_neg_power() {
     let output = tensor.powf(tensor_pow);
     let expected = TensorData::from([[1., 1., 0.73204285], [0.76822936, 0.5, 0.38073079]]);
 
+    let expected = requantized(expected, &output);
     output
         .dequantize()
         .into_data()
@@ -39,6 +44,7 @@ fn should_support_neg_values_with_even_power() {
     let output = tensor.powf(tensor_pow);
     let expected = TensorData::from([[0.0, 1.0, 4.0], [9.0, 16.0, 25.0]]);
 
+    let expected = requantized(expected, &output);
     output
         .dequantize()
         .into_data()
@@ -53,6 +59,7 @@ fn should_support_neg_values_with_odd_power() {
     let output = tensor.powf(tensor_pow);
     let expected = TensorData::from([[0.0, -1.0, -8.0], [-27.0, -64.0, -64.0]]);
 
+    let expected = requantized(expected, &output);
     output
         .dequantize()
         .into_data()

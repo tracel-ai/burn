@@ -8,10 +8,14 @@ use crate::{
     },
     grads::Gradients,
     graph::{ComputingProperty, NodeId, NodeRef, Parent, Requirement, Step},
+    qtensor::AutodiffQTensor,
     tensor::{AutodiffTensor, NodeRefCount},
 };
 use alloc::{boxed::Box, vec::Vec};
-use burn_backend::{Backend, TensorMetadata, tensor::FloatTensor};
+use burn_backend::{
+    Backend, TensorMetadata,
+    tensor::{FloatTensor, QuantizedTensor},
+};
 use burn_std::Shape;
 use core::marker::PhantomData;
 
@@ -278,6 +282,41 @@ where
             .checkpoint(tensor, ActionType::Explicit);
 
         tensor.node.id
+    }
+}
+
+impl<BO, B, S, C, const N: usize> OpsPrep<BO, B, S, C, N, ComputePropertyDone>
+where
+    B: Backend,
+    S: Clone + Send + core::fmt::Debug + 'static,
+    BO: Backward<B, N, State = S>,
+{
+    /// Finish an operation whose output is quantized, with the `state` its backward reads.
+    ///
+    /// The output's gradient is float like every other: the backward registers it on this
+    /// operation's inputs as a float operation's does.
+    pub fn quantized(self, state: S, output: QuantizedTensor<B>) -> AutodiffQTensor<B> {
+        let nodes = self.nodes.each_ref().map(|guard| guard.node.clone());
+        let output =
+            AutodiffQTensor::from_parents(output, &nodes, self.requirement, self.compute_property);
+        let parents = self
+            .nodes
+            .each_ref()
+            .map(|guard| guard.node.clone_if_require_grad());
+        let node = output.node.clone();
+        let output = match self.requirement.is_none() {
+            true => output.register_step(
+                UntrackedOpsStep::new(Ops::new(parents, node, ())),
+                self.checkpointer_builder,
+            ),
+            false => output.register_step(
+                OpsStep::new(Ops::new(parents, node, state), self.backward),
+                self.checkpointer_builder,
+            ),
+        };
+        // Registration publishes the dependency before its input references are released.
+        drop(self.nodes);
+        output
     }
 }
 

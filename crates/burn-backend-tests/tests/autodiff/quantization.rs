@@ -119,8 +119,7 @@ fn should_diff_matmul_with_quantized_rhs() {
 }
 
 /// The round trip itself on an autodiff device: quantize a tracked tensor,
-/// dequantize it back, and read the values. Quantization detaches, so this
-/// neither panics nor grows the graph.
+/// dequantize it back, and read the values.
 #[test]
 fn should_quantize_dequantize_on_autodiff_device() {
     let device = AutodiffDevice::new();
@@ -138,4 +137,71 @@ fn should_quantize_dequantize_on_autodiff_device() {
     dequantized
         .to_data()
         .assert_approx_eq::<FloatElem>(&data, Tolerance::rel_abs(1e-1, 1e-1));
+}
+
+/// Quantizing a tracked tensor passes its gradient straight through: the rounding
+/// is not differentiated, so `x` receives the gradient its decoded values would.
+#[test]
+fn should_pass_gradients_straight_through_quantization() {
+    let device = AutodiffDevice::new();
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S);
+
+    let x = TestTensor::<2>::from_data([[-1.8, -1.0, 0.0, 0.5], [0.25, 1.0, 1.5, -0.75]], &device)
+        .require_grad();
+    let c = TestTensor::<2>::from_data([[1.0, 2.0, 3.0, 4.0], [-1.0, -2.0, 0.5, 0.25]], &device);
+
+    let y = x.clone().quantize_dynamic(&scheme).dequantize() * c.clone();
+    let grads = y.sum().backward();
+
+    x.grad(&grads)
+        .expect("the gradient passes through the quantization")
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&c.to_data(), Tolerance::default());
+}
+
+/// A quantized signal stays quantized through the operations it enters — a
+/// layout operation and a product here — and the gradient still reaches the
+/// float tensor it was quantized from, as the float form of the same operations
+/// computes it.
+#[test]
+fn should_diff_through_a_quantized_signal() {
+    let device = AutodiffDevice::new();
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S);
+
+    let x_data = TensorData::from([[1.0, -2.0, 0.5, 1.5], [0.0, 1.0, -1.0, 2.0]]);
+    // A weight, as a module parameter holds it: it never decides the product's dtype.
+    let w = TestTensor::<2>::from_data([[0.5, -1.0, 0.25], [1.5, 0.0, -0.75]], &device)
+        .with_propagation(burn_tensor::DTypePropagation::Inhibit);
+
+    let x = TestTensor::<2>::from_data(x_data.clone(), &device).require_grad();
+    let y = x
+        .clone()
+        .quantize_dynamic(&scheme)
+        .swap_dims(0, 1)
+        .matmul(w.clone());
+    assert!(
+        matches!(y.dtype(), burn_tensor::DType::QFloat(_)),
+        "the product of a quantized signal stays quantized, got {:?}",
+        y.dtype()
+    );
+    let grads = y.dequantize().sum().backward();
+    let grad_x = x
+        .grad(&grads)
+        .expect("x is tracked through the quantized signal");
+
+    let x_ref = TestTensor::<2>::from_data(x_data, &device).require_grad();
+    let grads_ref = x_ref.clone().swap_dims(0, 1).matmul(w).sum().backward();
+
+    grad_x.to_data().assert_approx_eq::<FloatElem>(
+        &x_ref.grad(&grads_ref).unwrap().to_data(),
+        Tolerance::default(),
+    );
 }

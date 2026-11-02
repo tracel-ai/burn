@@ -15,7 +15,11 @@ impl<B: Backend, C: CheckpointStrategy> TransactionOps<Self> for Autodiff<B, C> 
                 .into_iter()
                 .map(|t| t.primitive)
                 .collect(),
-            transaction.read_qfloats,
+            transaction
+                .read_qfloats
+                .into_iter()
+                .map(|t| t.primitive)
+                .collect(),
             transaction.read_ints,
             transaction.read_bools,
         ))

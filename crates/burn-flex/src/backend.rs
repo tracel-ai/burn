@@ -52,10 +52,7 @@ impl DeviceOps for FlexDevice {
             DType::F32,
             DType::I32,
             DType::Bool(BoolStore::Native),
-            QuantConfig::new(
-                QuantScheme::default().with_store(QuantStore::Native),
-                Default::default(),
-            ),
+            QuantConfig::new(QuantScheme::default().with_store(QuantStore::Native)),
         )
     }
 }

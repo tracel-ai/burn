@@ -53,6 +53,7 @@ pub mod ops;
 pub(crate) mod graph;
 // Exported for backend extension
 pub use graph::NodeId;
+pub(crate) mod qtensor;
 pub(crate) mod tensor;
 pub(crate) mod utils;
 

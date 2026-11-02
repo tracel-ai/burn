@@ -10,6 +10,7 @@ fn should_support_exp_ops() {
     let output = tensor.exp();
     let expected = TensorData::from([[1.0, 2.71830, 7.3891], [20.0855, 54.5981, 148.4132]]);
 
+    let expected = requantized(expected, &output);
     output
         .dequantize()
         .into_data()

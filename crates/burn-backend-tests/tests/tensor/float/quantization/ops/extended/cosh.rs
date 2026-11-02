@@ -10,6 +10,7 @@ fn should_support_cosh_ops() {
     let output = tensor.cosh();
     let expected = TensorData::from([[1.0000, 1.5431, 3.7622], [10.0677, 27.3082, 74.2100]]);
 
+    let expected = requantized(expected, &output);
     output
         .dequantize()
         .into_data()

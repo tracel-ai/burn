@@ -6,8 +6,9 @@ pub use api::*;
 
 // Re-exported types
 pub use burn_std::{
-    BoolDType, BoolStore, DType, DataError, FloatDType, IndexingUpdateOp, IntDType, TensorData,
-    TensorReadError, Tolerance, distribution::*, element::*, indexing::*, s, shape::*, slice::*,
+    BoolDType, BoolStore, DType, DTypeConflict, DTypePropagation, DTypeResolution, DataError,
+    FloatDType, IndexingUpdateOp, IntDType, TensorData, TensorReadError, TensorType, Tolerance,
+    distribution::*, element::*, indexing::*, s, shape::*, slice::*,
 };
 
 /// The tensor kind module.
@@ -33,6 +34,7 @@ pub mod module;
 
 /// Operations on tensors module.
 pub mod ops {
+    pub use crate::bridge::ResolvedOutput;
     pub(crate) use crate::bridge::*;
     pub use burn_std::ops::*;
 }

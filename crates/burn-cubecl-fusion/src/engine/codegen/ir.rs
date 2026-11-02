@@ -672,6 +672,9 @@ pub enum FuseType {
     U32,
     U16,
     U8,
+    /// `ue8m0`, a power-of-two exponent byte: a block-quantized tensor's scales, read where a
+    /// fused kernel decodes it and never held as a local.
+    UE8M0,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -900,6 +903,7 @@ impl From<ElemType> for FuseType {
                 FloatKind::F32 => Self::F32,
                 FloatKind::F64 => Self::F64,
                 FloatKind::Flex32 => Self::Flex32,
+                FloatKind::UE8M0 => Self::UE8M0,
                 _ => panic!("Unsupported precision for fusion: {value}"),
             },
             ElemType::Int(kind) => match kind {
@@ -931,7 +935,10 @@ impl FuseType {
             ScaleDtype::F32 => Some(Self::F32),
             ScaleDtype::F16 => Some(Self::F16),
             ScaleDtype::BF16 => Some(Self::BF16),
-            ScaleDtype::UE8M0 | ScaleDtype::UE4M3 => None,
+            ScaleDtype::UE8M0 => Some(Self::UE8M0),
+            // Read as `e4m3`, the fused decode reconstructs a different value than the unfused
+            // one does.
+            ScaleDtype::UE4M3 => None,
         }
     }
 
@@ -980,6 +987,7 @@ impl FuseType {
             FuseType::U16 => ElemType::UInt(UIntKind::U16),
             FuseType::U8 => ElemType::UInt(UIntKind::U8),
             FuseType::F64 => ElemType::Float(FloatKind::F64),
+            FuseType::UE8M0 => ElemType::Float(FloatKind::UE8M0),
         }
     }
 
@@ -1066,6 +1074,7 @@ mod tests {
             FuseType::U32,
             FuseType::U16,
             FuseType::U8,
+            FuseType::UE8M0,
         ];
         for ft in all {
             assert_eq!(

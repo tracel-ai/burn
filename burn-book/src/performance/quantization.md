@@ -37,6 +37,33 @@ operations in floating point precision.
 
 </div>
 
+## Dtype Propagation
+
+A tensor carries whether its dtype decides the dtype of the operations it enters. When an operation
+combines tensors of different dtypes, its output takes the dtype of the inputs that _propagate_,
+the widest of them on a tie (two different dtypes as wide promote to `f32`), and an input that
+_inhibits_ never decides it. Module parameters inhibit; inputs, created tensors and the output of
+every cast propagate. An operation's output inhibits only when all its inputs do, and an operation
+writing into a tensor (`slice_assign`, `scatter`) keeps that tensor's type.
+
+So a weight never lends its format, and a quantized activation keeps every output it reaches
+quantized:
+
+```rust, ignore
+// `x` is cast to a quantized dtype, so it propagates; `weight` is a parameter, so it inhibits.
+let x = x.cast(DType::QFloat(mxfp8));
+let y = x.matmul(weight.val()).exp(); // Both quantized under `mxfp8`.
+let float = y.dequantize(); // Float: a cast propagates its own dtype.
+```
+
+An operation on a quantized input decodes it, computes in `f32`, and quantizes its output again;
+a backend that computes an operation on quantized values natively returns the quantized output
+itself. A custom operation resolves its output the same way through
+[`ResolvedOutput`](https://docs.rs/burn/latest/burn/tensor/ops/struct.ResolvedOutput.html), and
+`DTypeResolution::set_current(DTypeResolution::Strict)` turns a tie between propagating inputs of
+different dtypes into a panic, for a test suite that holds its components to the dtype of their
+signal. Under autodiff, quantizing and decoding pass the gradient straight through.
+
 ## Module Quantization
 
 Quantizing the weights of your model after training is quite simple. We have access to the weight

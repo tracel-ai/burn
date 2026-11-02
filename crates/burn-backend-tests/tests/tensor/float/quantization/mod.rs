@@ -11,11 +11,33 @@ pub mod qtensor {
     use super::TestTensor;
 
     use burn_tensor::{
-        TensorData,
+        DType, TensorData,
         quantization::{QuantValue, ScaleDtype},
     };
 
     pub struct QTensor<const D: usize>;
+
+    /// `expected` as an operation on a quantized tensor returns it: quantized again under the
+    /// scheme of `output`, since an operation's output keeps its quantized input's format.
+    ///
+    /// # Panics
+    ///
+    /// If `output` is not quantized.
+    pub fn requantized<const D: usize>(
+        expected: impl Into<TensorData>,
+        output: &TestTensor<D>,
+    ) -> TensorData {
+        let DType::QFloat(scheme) = output.dtype() else {
+            panic!(
+                "an operation on a quantized tensor stays quantized, got {:?}",
+                output.dtype()
+            )
+        };
+        TestTensor::<D>::from_data(expected.into(), &output.device())
+            .quantize_dynamic(&scheme)
+            .dequantize()
+            .into_data()
+    }
 
     impl<const D: usize> QTensor<D> {
         /// Creates a quantized int8 tensor from the floating point data using the default quantization scheme

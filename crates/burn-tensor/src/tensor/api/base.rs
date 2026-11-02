@@ -3806,7 +3806,8 @@ impl<const D: usize, K: Basic> burn_capture::CaptureTensor for Tensor<D, K> {
                 burn_dispatch::BackendTensor::Bool(tensor) => tensor.id(),
                 burn_dispatch::BackendTensor::Quantized(tensor) => tensor.id(),
                 #[cfg(feature = "autodiff")]
-                burn_dispatch::BackendTensor::Autodiff(_) => {
+                burn_dispatch::BackendTensor::Autodiff(_)
+                | burn_dispatch::BackendTensor::AutodiffQuantized(_) => {
                     panic!("Capture tensors do not support autodiff")
                 }
             },

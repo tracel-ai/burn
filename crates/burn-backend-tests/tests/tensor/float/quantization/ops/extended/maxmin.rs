@@ -142,8 +142,10 @@ fn test_minimum_pair() {
     let output = a.min_pair(b);
     let expected = TensorData::from([1.0, 1.0, 3.0, 4.0]);
 
+    // Rounded twice: each input on its own scale, then the output again on its own, which a
+    // value at the bottom of the range can stack to a step of the coarser input's.
     output
         .dequantize()
         .into_data()
-        .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(2e-2, 1e-2));
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(2e-2, 4e-2));
 }

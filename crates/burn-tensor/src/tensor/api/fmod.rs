@@ -4,7 +4,10 @@ use burn_dispatch::Dispatch;
 
 use crate::check;
 use crate::check::TensorCheck;
-use crate::{Float, Tensor, ops::BridgeTensor};
+use crate::{
+    Float, Tensor,
+    ops::{BridgeTensor, ResolvedOutput},
+};
 
 impl<const D: usize> Tensor<D, Float> {
     /// Computes the floating-point remainder of dividing `self` by `other`.
@@ -82,9 +85,14 @@ impl<const D: usize> Tensor<D, Float> {
 }
 
 fn fmod_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::float_fmod(lhs.into_float(), rhs.into_float()))
+    let resolved = ResolvedOutput::combine([&lhs, &rhs]);
+    resolved.output(Dispatch::float_fmod(
+        resolved.operand(lhs),
+        resolved.operand(rhs),
+    ))
 }
 
 fn fmod_scalar_impl(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::float_fmod_scalar(lhs.into_float(), rhs))
+    let resolved = ResolvedOutput::combine([&lhs]);
+    resolved.output(Dispatch::float_fmod_scalar(resolved.operand(lhs), rhs))
 }

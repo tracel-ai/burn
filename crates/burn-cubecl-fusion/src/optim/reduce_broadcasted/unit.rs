@@ -113,6 +113,7 @@ fn set_polyfill_block(block: &ReduceFuseBlock) {
         FuseType::U32 => FuseType::U32,
         FuseType::U16 => FuseType::U32,
         FuseType::U8 => FuseType::U32,
+        FuseType::UE8M0 => unreachable!("a block scale is never reduced"),
     });
 
     set_polyfill::<In, InSize>(comptime!(
