@@ -67,6 +67,62 @@ fn test_ctc_loss_uniform() {
 }
 
 #[test]
+fn test_ctc_loss_mixed_lengths_custom_blank() {
+    let probabilities = TestTensor::<3>::from([
+        [[0.25, 0.5, 0.25], [0.5, 0.25, 0.25], [0.25, 0.25, 0.5]],
+        [[0.5, 0.25, 0.25], [0.25, 0.25, 0.5], [0.5, 0.25, 0.25]],
+        [[0.25, 0.5, 0.25], [0.25, 0.5, 0.25], [0.25, 0.25, 0.5]],
+        [[0.25, 0.25, 0.5], [0.5, 0.25, 0.25], [0.5, 0.25, 0.25]],
+    ]);
+    let targets = TestTensorInt::<2>::from([[1, 1, 0], [0, 1, 0], [0, 1, 1]]);
+    let input_lengths = TestTensorInt::<1>::from([4, 3, 2]);
+    let target_lengths = TestTensorInt::<1>::from([2, 1, 0]);
+
+    let loss = ctc_loss(
+        probabilities.log(),
+        targets,
+        input_lengths,
+        target_lengths,
+        2,
+    );
+
+    // Enumerating collapsed paths gives five alignments for [1, 1], six
+    // for [0], and one for the empty target. Padding contributes to none.
+    let expected = burn_tensor::TensorData::from([
+        -(17.0f32 / 256.0).ln(),
+        -(3.0f32 / 16.0).ln(),
+        -(1.0f32 / 8.0).ln(),
+    ]);
+    // Allow rounding at each timestep for lower-precision recurrences.
+    let tolerance = (4.0 * loss.dtype().finfo().unwrap().epsilon).max(1e-5);
+    loss.into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(tolerance, tolerance));
+}
+
+#[test]
+fn test_ctc_loss_negative_infinity_emissions() {
+    let neg_inf = f32::NEG_INFINITY;
+    let half = (0.5f32).ln();
+    let log_probs = TestTensor::<3>::from([
+        [[neg_inf, half, half], [neg_inf, 0.0, neg_inf]],
+        [[0.0, neg_inf, neg_inf], [neg_inf, 0.0, neg_inf]],
+        [[half, neg_inf, half], [0.0, neg_inf, neg_inf]],
+    ]);
+    let targets = TestTensorInt::<2>::from([[1, 2], [1, 2]]);
+    let input_lengths = TestTensorInt::<1>::from([3, 3]);
+    let target_lengths = TestTensorInt::<1>::from([2, 2]);
+
+    let loss = ctc_loss(log_probs, targets, input_lengths, target_lengths, 0);
+    let tolerance = (4.0 * loss.dtype().finfo().unwrap().epsilon).max(1e-5);
+    let values: Vec<f32> = loss.into_data().iter::<f32>().collect();
+
+    // Only (1, 0, 2) can align the first sample, with probability 1/4.
+    // The second sample cannot emit label 2 at any timestep.
+    assert!((values[0] - 4.0f32.ln()).abs() as f64 <= tolerance * 4.0f64.ln());
+    assert!(values[1].is_infinite() && values[1].is_sign_positive());
+}
+
+#[test]
 fn test_ctc_loss_long_sequence() {
     // T=400, N=2, C=36, target_lengths=[60, 40]. Exercises the alpha
     // recursion at training-realistic sequence lengths where numerical
