@@ -1047,6 +1047,7 @@ pub fn max_pool3d_with_indices(
         drop_end_padding_windows(indices, dims, stride, padding, ceil_mode),
     )
 }
+
 /// Lays out `weight`, `[..., k, n]`, the way the device's matmul reads it best for
 /// `x.matmul(weight)`, so that a weight used in many products is laid out once.
 ///
