@@ -283,7 +283,6 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.abs()`                                                  | `torch.abs(tensor)`                           |
 | `tensor.add(other)` or `tensor + other`                         | `tensor + other`                              |
 | `tensor.add_scalar(scalar)` or `tensor + scalar`                | `tensor + scalar`                             |
-| `tensor.all_close(other, atol, rtol)`                           | `torch.allclose(tensor, other, atol, rtol)`   |
 | `tensor.argmax(dim)`                                            | `tensor.argmax(dim)`                          |
 | `tensor.argmin(dim)`                                            | `tensor.argmin(dim)`                          |
 | `tensor.argsort(dim)`                                           | `tensor.argsort(dim)`                         |
@@ -363,6 +362,7 @@ Those operations are only available for `Float` tensors.
 | -------------------------------------------- | ------------------------------------------ |
 | `tensor.acos()`                              | `tensor.acos()`                            |
 | `tensor.acosh()`                             | `tensor.acosh()`                           |
+| `tensor.all_close(other, Some(rtol), Some(atol))` | `torch.allclose(tensor, other, rtol=rtol, atol=atol)` |
 | `tensor.asin()`                              | `tensor.asin()`                            |
 | `tensor.asinh()`                             | `tensor.asinh()`                           |
 | `tensor.atan()`                              | `tensor.atan()`                            |
@@ -382,7 +382,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.fmod_scalar(scalar)`                 | `tensor.fmod(scalar)`                      |
 | `tensor.from_floats(floats, device)`         | N/A                                        |
 | `tensor.int()`                               | Similar to `tensor.to(torch.long)`         |
-| `tensor.is_close(other, atol, rtol)`         | `torch.isclose(tensor, other, atol, rtol)` |
+| `tensor.is_close(other, Some(rtol), Some(atol))` | `torch.isclose(tensor, other, rtol=rtol, atol=atol)` |
 | `tensor.is_finite()`                         | `torch.isfinite(tensor)`                   |
 | `tensor.is_inf()`                            | `torch.isinf(tensor)`                      |
 | `tensor.is_nan()`                            | `torch.isnan(tensor)`                      |
