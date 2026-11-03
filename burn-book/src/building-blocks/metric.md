@@ -13,6 +13,9 @@ throughout the training process. We currently offer a restricted range of metric
 | FBetaScore          | Calculate F<sub>β </sub>score in percentage                                                 |
 | AUROC               | Calculate the area under curve of ROC in percentage                                         |
 | AUC-PR              | Calculate the area under the precision-recall curve (average precision) in percentage       |
+| MSE                 | Calculate the Mean Squared Error for regression tasks                                       |
+| MAE                 | Calculate the Mean Absolute Error for regression tasks                                      |
+| R2Score             | Calculate the Coefficient of Determination (R²) for regression tasks                        |
 | Loss                | Output the loss used for the backward pass                                                  |
 | CharErrorRate (CER) | Calculate Character Error Rate in percentage                                                |
 | WordErrorRate (WER) | Calculate Word Error Rate in percentage                                                     |
@@ -70,7 +73,7 @@ adaptor code yourself.
 - `RegressionOutput`:
     - Use case: Regression tasks
     - Fields: `loss: Tensor<1>`, `output: Tensor<2>`, `targets: Tensor<2>`
-    - Adapted metrics: Loss
+    - Adapted metrics: MSE, MAE, R2Score, Loss
 - `SequenceOutput`:
     - Use case: Sequence prediction
     - Fields: `loss: Tensor<1>`, `logits: Tensor<3>`, `predictions: Option<Tensor<2, Int>>`, `targets: Tensor<2, Int>`
