@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use burn_backend::RandomKey;
 use burn_backend::{
     BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::{IntTensorOps, PadMode},
@@ -324,8 +325,9 @@ impl IntTensorOps<Self> for Dispatch {
         distribution: burn_backend::Distribution,
         device: &DispatchDevice,
         dtype: IntDType,
+        key: RandomKey,
     ) -> IntTensor<Self> {
-        B::int_random(shape, distribution, device, dtype)
+        B::int_random(shape, distribution, device, dtype, key)
     }
 
     fn int_expand(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {

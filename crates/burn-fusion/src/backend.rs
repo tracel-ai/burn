@@ -3,6 +3,7 @@ use crate::{
     client::GlobalFusionClient,
     stream::{Context, OrderedExecution},
 };
+use burn_backend::RandomKey;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceOps, DeviceTelemetry,
     EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
@@ -50,9 +51,11 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     }
 
     fn seed(device: &B::Device, seed: u64) {
-        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
-        let device = device.clone();
-        client.sync(move || B::seed(&device, seed));
+        B::seed(device, seed);
+    }
+
+    fn next_random_key(device: &Self::Device) -> RandomKey {
+        B::next_random_key(device)
     }
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {

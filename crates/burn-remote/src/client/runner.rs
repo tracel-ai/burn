@@ -1,6 +1,7 @@
 use super::{DeviceQueryError, RemoteChannel, RemoteClient, service};
 use crate::shared::{DeviceQueryId, LocalTransferId, TensorRemote, TransferCapability};
 use crate::{PeerAddr, PeerId};
+use burn_backend::RandomKey;
 use burn_backend::{
     DeviceDescription, DeviceId, DeviceOps, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
     EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken,
@@ -225,7 +226,16 @@ impl RouterClient for RemoteClient {
         self.handle.submit(move |s| s.graph_release(graph));
     }
 
+    fn next_random_key(&self) -> RandomKey {
+        use burn_std::rand::RngExt;
+        RandomKey::new(self.rng.lock().unwrap().random())
+    }
+
     fn seed(&self, seed: u64) {
+        use burn_std::rand::SeedableRng;
+        let mut rng = self.rng.lock().unwrap();
+        *rng = burn_std::rand::StdRng::seed_from_u64(seed);
+        // Keep concurrent reseeds in the same order locally and on the server.
         self.handle.submit(move |s| s.seed(seed));
     }
 

@@ -1,4 +1,5 @@
 use crate::{CubeDevice, ops::numeric::empty_device_dtype, tensor::CubeTensor};
+use burn_backend::RandomKey;
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, Shape, TensorMetadata};
 
@@ -9,6 +10,7 @@ pub fn random_uniform(
     lower_bound: f32,
     upper_bound: f32,
     dtype: DType,
+    key: RandomKey,
 ) -> CubeTensor {
     let client = device.client();
     let output = empty_device_dtype(client.clone(), device.clone(), shape, dtype);
@@ -19,6 +21,7 @@ pub fn random_uniform(
         upper_bound,
         output.clone().binding(),
         dtype_to_storage_type(dtype),
+        key.seed(),
     )
     .expect("Kernel to never fail");
 
@@ -32,6 +35,7 @@ pub fn random_like_uniform(
     lower_bound: f32,
     upper_bound: f32,
     dtype: DType,
+    key: RandomKey,
 ) -> CubeTensor {
     random_uniform(
         tensor.shape(),
@@ -39,5 +43,6 @@ pub fn random_like_uniform(
         lower_bound,
         upper_bound,
         dtype,
+        key,
     )
 }

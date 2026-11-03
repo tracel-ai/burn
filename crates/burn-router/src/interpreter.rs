@@ -1290,6 +1290,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.distribution,
                         &self.device,
                         desc.out.dtype.into(),
+                        desc.key(),
                     );
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
@@ -1517,6 +1518,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.distribution,
                         &self.device,
                         desc.out.dtype.into(),
+                        desc.key(),
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }

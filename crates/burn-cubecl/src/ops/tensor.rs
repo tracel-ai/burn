@@ -7,6 +7,7 @@ use crate::kernel::unary_basic::BasicFloatUnaryKind;
 use crate::kernel::{
     self, FloatUnaryOp, FloatUnaryOpFamily, launch_unary_float, reduce, unary_basic,
 };
+use burn_backend::RandomKey;
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::GridSampleOptions;
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
@@ -37,16 +38,19 @@ impl FloatTensorOps<Self> for CubeBackend {
         distribution: Distribution,
         device: &Device<Self>,
         dtype: FloatDType,
+        key: RandomKey,
     ) -> FloatTensor<Self> {
         let dtype = dtype.into();
         match distribution {
-            Distribution::Default => random_uniform(shape, device, 0., 1., dtype),
+            Distribution::Default => random_uniform(shape, device, 0., 1., dtype, key),
             Distribution::Uniform(low, high) => {
-                random_uniform(shape, device, low.elem(), high.elem(), dtype)
+                random_uniform(shape, device, low.elem(), high.elem(), dtype, key)
             }
-            Distribution::Bernoulli(prob) => random_bernoulli(shape, device, prob as f32, dtype),
+            Distribution::Bernoulli(prob) => {
+                random_bernoulli(shape, device, prob as f32, dtype, key)
+            }
             Distribution::Normal(mean, std) => {
-                random_normal(shape, device, mean.elem(), std.elem(), dtype)
+                random_normal(shape, device, mean.elem(), std.elem(), dtype, key)
             }
         }
     }

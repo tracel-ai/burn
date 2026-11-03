@@ -28,4 +28,5 @@ burn-std = { workspace = true, features = ["std"] }
 [dev-dependencies]
 burn-flex = { workspace = true, features = ["default"] }
 # A path, not the workspace version: burn-tensor depends on this crate through burn-dispatch.
-burn-tensor = { path = "../burn-tensor", features = ["std", "flex", "autodiff", "group"] }
+# Keep autotuning enabled and select fusion only through test-fusion.
+burn-tensor = { path = "../burn-tensor", default-features = false, features = ["std", "flex", "autodiff", "group", "autotune"] }

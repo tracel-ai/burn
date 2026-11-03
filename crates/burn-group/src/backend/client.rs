@@ -1,3 +1,4 @@
+use burn_backend::RandomKey;
 use std::sync::Arc;
 
 use burn_backend::{
@@ -88,6 +89,10 @@ impl RouterClient for GroupClient {
 
     fn device(&self) -> Self::Device {
         self.device
+    }
+
+    fn next_random_key(&self) -> RandomKey {
+        self.interpreter.lock().next_random_key()
     }
 
     fn seed(&self, seed: u64) {
