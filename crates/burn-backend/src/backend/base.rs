@@ -202,7 +202,7 @@ pub trait Backend:
     /// Random operations already requested retain their reserved keys, even if not yet executed.
     fn seed(device: &Self::Device, seed: u64);
 
-    /// Reserves a key for one random operation in caller order.
+    /// Advances the backend's implicit random generator and returns a key for one random operation.
     ///
     /// Call before queueing work. The returned key remains valid after reseeding, and
     /// executing an explicitly keyed operation must not advance this generator.
