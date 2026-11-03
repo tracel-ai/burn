@@ -280,7 +280,13 @@ mod storage_tiled {
 
         for m in [1, 64] {
             let lhs = tensor(&[m, 256], &device, 1);
-            let plain = matmul(lhs.clone(), rhs.clone(), None, MatmulStrategy::Cube, DType::F32);
+            let plain = matmul(
+                lhs.clone(),
+                rhs.clone(),
+                None,
+                MatmulStrategy::Cube,
+                DType::F32,
+            );
             let plain = values(plain.unwrap());
             for strategy in strategies() {
                 let laid = matmul(lhs.clone(), weight.clone(), None, strategy, DType::F32);
