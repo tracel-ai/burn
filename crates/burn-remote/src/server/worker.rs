@@ -591,6 +591,11 @@ where
                 self.send_response(request_id, TaskResponseContent::EnvironmentSaved(res))
                     .await
             }
+            Task::EnvironmentMerge(request_id, stream_id, id, origin) => {
+                let res = self.on_stream(stream_id, |runner| runner.environment_merge(id, origin));
+                self.send_response(request_id, TaskResponseContent::EnvironmentMerged(res))
+                    .await
+            }
             Task::DeviceDescription(request_id) => {
                 let description = self.runner.device_description();
                 self.send_response(

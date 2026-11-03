@@ -140,6 +140,14 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
         client.environment_save(id)
     }
 
+    fn environment_merge(
+        device: &Self::Device,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        get_client::<R>(device).environment_merge(id, origin)
+    }
+
     fn device_description(device: &Self::Device) -> Option<DeviceDescription> {
         get_client::<R>(device).device_description()
     }

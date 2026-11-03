@@ -2544,6 +2544,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
         B::environment_save(&self.device, id)
     }
 
+    /// Bring what `origin` holds into the environment `id` of the backend.
+    pub fn environment_merge(
+        &self,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        B::environment_merge(&self.device, id, origin)
+    }
+
     /// What the backend's device is, as its driver states it.
     pub fn device_description(&self) -> Option<DeviceDescription> {
         B::device_description(&self.device)

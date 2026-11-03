@@ -157,6 +157,17 @@ impl RouterClient for RemoteClient {
             .map_err(service_failed)?
     }
 
+    fn environment_merge(
+        &self,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.environment_merge(stream_id, id, origin))
+            .map_err(service_failed)?
+    }
+
     fn device_description(&self) -> Option<DeviceDescription> {
         self.handle
             .submit_blocking(|s| s.device_description())
