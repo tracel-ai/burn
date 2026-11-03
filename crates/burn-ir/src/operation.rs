@@ -8,7 +8,7 @@ use alloc::boxed::Box;
 use alloc::{string::String, vec::Vec};
 
 use burn_backend::{
-    DType, Distribution, Slice,
+    DType, Distribution, RandomKey, Slice,
     ops::{
         ConvOptions, ConvTransposeOptions, CoordinateTransformMode, DeformConvOptions,
         GridSampleMode, GridSampleOptions, GridSamplePaddingMode, InterpolateMode,
@@ -989,6 +989,22 @@ impl From<PadModeIr> for PadMode {
 pub struct RandomOpIr {
     pub out: TensorIr,
     pub distribution: Distribution,
+    /// Operation key encoded as an unsigned scalar for graph binding.
+    pub key: ScalarIr,
+}
+
+impl RandomOpIr {
+    /// Returns the operation key after resolving graph scalar bindings.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the key is not encoded as an unsigned integer.
+    pub fn key(&self) -> RandomKey {
+        let ScalarIr::UInt(seed) = self.key else {
+            panic!("Random keys must be encoded as unsigned integers");
+        };
+        RandomKey::new(seed)
+    }
 }
 
 /// Creation operation intermediate representation.
@@ -3316,6 +3332,7 @@ impl NumericOperationIr {
             }
             NumericOperationIr::IntRandom(repr) => {
                 v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.key);
             }
             NumericOperationIr::Powi(repr) => {
                 v.visit_tensor_mut(&mut repr.lhs);
@@ -3600,6 +3617,7 @@ impl FloatOperationIr {
             }
             FloatOperationIr::Random(repr) => {
                 v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.key);
             }
             FloatOperationIr::Exp(repr) => {
                 v.visit_tensor_mut(&mut repr.input);

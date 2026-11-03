@@ -4,6 +4,7 @@ use crate::{
     tensor::AutodiffTensor,
 };
 use alloc::{format, string::String, vec::Vec};
+use burn_backend::RandomKey;
 use core::marker::PhantomData;
 
 use burn_backend::{
@@ -55,6 +56,10 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 
     fn seed(device: &B::Device, seed: u64) {
         B::seed(device, seed)
+    }
+
+    fn next_random_key(device: &Self::Device) -> RandomKey {
+        B::next_random_key(device)
     }
 
     fn sync(device: &B::Device) -> Result<(), ExecutionError> {
@@ -130,6 +135,14 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         id: EnvironmentId,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
         B::environment_save(device, id)
+    }
+
+    fn environment_merge(
+        device: &Self::Device,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        B::environment_merge(device, id, origin)
     }
 
     fn memory_persistent_allocations<

@@ -46,6 +46,7 @@ use writer::SubmitWriter;
 
 use super::{ConnectError, DeviceQueryError, runtime::Executor};
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
+pub(crate) use registry::random_generator;
 use registry::{SessionEnd, device_count_cell, settings_cell};
 pub(crate) use registry::{device_count_for, register_endpoint, registered_device, session_end};
 pub(crate) use registry::{has_settings, new_tensor_id, session_of, settings_for};
@@ -795,6 +796,23 @@ impl RemoteService {
             |request| Task::EnvironmentSave(request, stream_id, id),
             |answer| match answer {
                 TaskResponseContent::EnvironmentSaved(res) => Ok(res),
+                other => Err(other),
+            },
+        )
+    }
+
+    /// Bring what `origin` holds into the environment `id` where `stream_id` stands, after every
+    /// task sent before.
+    pub fn environment_merge(
+        &mut self,
+        stream_id: StreamId,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        self.environment_request(
+            |request| Task::EnvironmentMerge(request, stream_id, id, origin),
+            |answer| match answer {
+                TaskResponseContent::EnvironmentMerged(res) => Ok(res),
                 other => Err(other),
             },
         )

@@ -43,6 +43,9 @@ pub use data::*;
 pub mod distribution;
 pub use distribution::*;
 
+mod random;
+pub use random::RandomKey;
+
 /// Traits for tensor element types and conversions.
 pub mod element;
 pub use element::*;

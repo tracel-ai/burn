@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use burn_backend::RandomKey;
 use burn_backend::Scalar;
 use burn_backend::backend::ExecutionError;
 use burn_std::{BoolDType, IntDType};
@@ -56,10 +57,13 @@ impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
         distribution: Distribution,
         device: &Device<Self>,
         dtype: FloatDType,
+        key: RandomKey,
     ) -> FloatTensor<Self> {
         let client = get_client::<R>(device);
         let dtype = dtype.into();
-        let desc = RandomOpIr::create(shape, dtype, distribution, || client.create_empty_handle());
+        let desc = RandomOpIr::create(shape, dtype, distribution, key, || {
+            client.create_empty_handle()
+        });
 
         client
             .register(OperationIr::Float(dtype, FloatOperationIr::Random(desc)))

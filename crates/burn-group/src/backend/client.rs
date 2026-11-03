@@ -1,3 +1,4 @@
+use burn_backend::RandomKey;
 use std::sync::Arc;
 
 use burn_backend::{
@@ -90,6 +91,10 @@ impl RouterClient for GroupClient {
         self.device
     }
 
+    fn next_random_key(&self) -> RandomKey {
+        self.interpreter.lock().next_random_key()
+    }
+
     fn seed(&self, seed: u64) {
         self.interpreter.lock().seed(seed);
     }
@@ -127,6 +132,14 @@ impl RouterClient for GroupClient {
     }
 
     fn environment_save(&self, _id: EnvironmentId) -> Result<EnvironmentBundle, EnvironmentError> {
+        Err(group_environment())
+    }
+
+    fn environment_merge(
+        &self,
+        _id: EnvironmentId,
+        _origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
         Err(group_environment())
     }
 

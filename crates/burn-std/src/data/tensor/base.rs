@@ -1397,6 +1397,10 @@ mod tests {
                 size_of::<f32>()
             }
 
+            fn may_alias_mutable_storage(&self) -> bool {
+                false
+            }
+
             fn memory(&self, _policy: AccessPolicy) -> Result<&[MaybeUninit<u8>], AccessError> {
                 Err(AccessError::Read("test read failure".into()))
             }

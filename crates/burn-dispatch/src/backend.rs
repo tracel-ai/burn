@@ -1,6 +1,7 @@
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+use burn_backend::RandomKey;
 #[cfg(cube_backend)]
 use burn_backend::cubecl::{Device as CubeDevice, RuntimeId};
 
@@ -188,6 +189,10 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::seed(device, seed))
     }
 
+    fn next_random_key(device: &Self::Device) -> RandomKey {
+        dispatch_device!(device, |device| B::next_random_key(device))
+    }
+
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::sync(device))
     }
@@ -261,6 +266,14 @@ impl Backend for Dispatch {
         id: EnvironmentId,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
         dispatch_device!(device, |device| B::environment_save(device, id))
+    }
+
+    fn environment_merge(
+        device: &Self::Device,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_merge(device, id, origin))
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

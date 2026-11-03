@@ -42,7 +42,7 @@ impl ElementwiseRule {
     }
 
     /// An input of length 1 along the split dim broadcasts, so it stays whole.
-    fn input_sharding(output: Sharding, shape: &Shape) -> Sharding {
+    pub fn input_sharding(output: Sharding, shape: &Shape) -> Sharding {
         match output {
             Sharding::Split { dim } if shape[dim] == 1 => Sharding::Replicated,
             sharding => sharding,
