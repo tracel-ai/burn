@@ -12,7 +12,7 @@ members = [
 
 exclude = [
     "examples/notebook",
-    "examples/dqn-agent",         # gym-rs
+    "examples/dqn-agent", # gym-rs
 ]
 
 [workspace.package]
@@ -121,7 +121,9 @@ turso = { version = "0.8.2", default-features = false }
 branches = { version = "0.4.6", default-features = false, features = ["std"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-zip = { version = "9.0.4", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip = { version = "9.0.4", default-features = false, features = [
+    "deflate-flate2-zlib-rs",
+] }
 
 # Persist related
 memmap2 = { version = "0.9" }
@@ -246,4 +248,3 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
-
