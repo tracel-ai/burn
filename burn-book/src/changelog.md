@@ -104,6 +104,11 @@ positions when sequence lengths differ.
 
 #### Kernels
 
+- Autotune CubeCL `sum_dims` between folded reductions and a copy followed by one reduction,
+  including the copy cost. Tuning anchors shapes and strides to reuse plan choices across nearby
+  workloads; Full autotuning keeps exact shapes and strides.
+  ([#6376](https://github.com/tracel-ai/burn/pull/6376))
+  [@EthanAlmloff](https://github.com/EthanAlmloff)
 - Avoid a full-sized gradient copy in CubeCL FP32 `conv2d` bias backward, while retaining
   single-pass accumulation for FP16/BF16 to avoid intermediate overflow.
   ([#6173](https://github.com/tracel-ai/burn/pull/6173))

@@ -15,7 +15,7 @@ on:
       - "!LICENSE-APACHE"
       - "!LICENSE-MIT"
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened, closed]
     branches:
       - main
     paths:
@@ -46,11 +46,15 @@ env:
   TEST_RELEASE_FLAG: "--release"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # A merged PR's ref becomes main; retain its PR group so closing it cancels
+  # the remaining PR jobs without interrupting main's cache-producing run.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   prepare-checks:
+    # Closing a PR only cancels its previous run. All other jobs depend on this one.
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     outputs:
       rust-prev-version: ${{ env.RUST_PREVIOUS_VERSION }}
