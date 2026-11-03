@@ -88,6 +88,12 @@ pub(crate) fn handle_backend_tests(
         extension_features.extend(["burn-signal/std", "burn-signal/autotune"]);
     }
 
+    if matches!(context, Context::Std) && !matches!(backend, TestBackend::Flex) {
+        // Reuse tuning results across backend and extension test executables.
+        test_args.extend(["--features", "persistence"]);
+        extension_features.push("burn-core/persistence");
+    }
+
     // TODO: Re-enable collective (all-reduce) tests once NCCL is installed and loadable on
     // the CUDA CI runners. The documented runner image setup does not install NCCL.
     // if matches!(backend, TestBackend::Cuda) {
@@ -250,6 +256,8 @@ fn handle_macos_tests(release: bool) -> anyhow::Result<()> {
     let features = [
         "burn-backend-tests/wgpu-msl",
         "burn-backend-tests/std",
+        // Reuse tuning results across executables in both fusion configurations.
+        "burn-backend-tests/persistence",
         "burn-linalg/wgpu-msl",
         "burn-linalg/std",
         "burn-linalg/autotune",
