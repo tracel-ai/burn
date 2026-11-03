@@ -189,6 +189,14 @@ impl<M: LayerParallelism> HeldStage<M> {
                 layer.forward(signal)
             })
     }
+
+    /// A copy whose layers record no graph, for evaluation.
+    pub fn valid(&self) -> Self {
+        Self {
+            device: self.device.clone(),
+            layers: self.layers.iter().map(Module::valid).collect(),
+        }
+    }
 }
 
 /// `layers` as stage `index`, checked to be on the stage's device.
@@ -357,6 +365,14 @@ mod tests {
                 input: self.input,
                 hidden: self.hidden,
                 output: self.output,
+            }
+        }
+
+        fn from_layers(layers: LayerSequence<Self>) -> Self {
+            Self {
+                input: layers.input,
+                hidden: layers.hidden,
+                output: layers.output,
             }
         }
     }
