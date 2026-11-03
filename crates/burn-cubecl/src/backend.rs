@@ -1,5 +1,6 @@
 use crate::execution::OPEN_MODES;
 use crate::{CubeDevice, tensor::CubeTensor};
+use burn_backend::RandomKey;
 use burn_backend::cubecl::{ThroughputKey, dtype_to_storage_type, measure_peak_throughput};
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceDescription,
@@ -116,6 +117,10 @@ impl Backend for CubeBackend {
 
     fn seed(_device: &Self::Device, seed: u64) {
         cubek::random::seed(seed);
+    }
+
+    fn next_random_key(_device: &Self::Device) -> RandomKey {
+        RandomKey::new(cubek::random::next_seed())
     }
 
     fn ad_enabled(_device: &Self::Device) -> bool {
@@ -260,6 +265,19 @@ impl Backend for CubeBackend {
     ) -> Result<EnvironmentBundle, EnvironmentError> {
         device.client().flush().map_err(server_err)?;
         Ok(id.save()?)
+    }
+
+    /// The launches the calling stream's client still buffers are flushed
+    /// first, so they compile into the environment as it was before the
+    /// merge.
+    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+    fn environment_merge(
+        device: &Self::Device,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        device.client().flush().map_err(server_err)?;
+        Ok(id.merge(origin)?)
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

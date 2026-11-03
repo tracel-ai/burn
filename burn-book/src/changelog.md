@@ -5,6 +5,25 @@ Changes for the next release. For published releases, see
 
 ## Unreleased
 
+### Random operation keys
+
+Random operations now reserve a `RandomKey` when requested, before group, fusion, or remote queues
+execute them. Even a draw dropped before execution consumes one key. Reseeding leaves pending
+draws unchanged, and group shards no longer depend on fusion worker scheduling. Seeded sequences change from previous versions; equality across devices
+or different shardings is not guaranteed.
+
+Backend implementors must provide `Backend::next_random_key` and accept a `RandomKey` in
+`float_random` and `int_random`. Sampling must use only the supplied key, without advancing the
+implicit generator. `Tensor::random` and `random_like` reserve keys at the tensor bridge;
+direct backend callers must supply a key. Use `RandomKey::split` to derive child keys.
+Router clients must also implement `next_random_key`; random-operation IR now carries a key
+scalar, so remote clients and servers must be upgraded together (protocol version 11).
+Remote clients reserve keys locally without waiting for queued service work.
+
+Capture preserves explicit backend keys. Implicit random operations (`Tensor::random` and
+`random_like`) during capture are unsupported and panic; capture does not allocate seeds or
+own a random generator.
+
 ### Interpolation options
 
 **Breaking:** `InterpolateMode` variants now own their coordinate transform and cubic coefficient
@@ -105,10 +124,13 @@ positions when sequence lengths differ.
   and the GELU backward pass also run with SIMD; `log` matches the `libm` crate bit for bit, `tanh`
   is within 2 ulp of libm, and `erf` within 1 ulp. F32 `log1p`, `atanh`, `log_sigmoid`, and the
   log-sigmoid backward pass also run with SIMD; `log1p` and `atanh` match the `libm` crate bit for
-  bit.
+  bit. F32 `sin` and `cos` run with SIMD within 2 ulp of libm, and `tan` within 4; `atan`, `asin`,
+  and `acos` within 3, 2, and 1 ulp.
   ([#6313](https://github.com/tracel-ai/burn/pull/6313),
   [#6341](https://github.com/tracel-ai/burn/pull/6341),
-  [#6345](https://github.com/tracel-ai/burn/pull/6345)) [@antimora](https://github.com/antimora)
+  [#6345](https://github.com/tracel-ai/burn/pull/6345),
+  [#6347](https://github.com/tracel-ai/burn/pull/6347),
+  [#6352](https://github.com/tracel-ai/burn/pull/6352)) [@antimora](https://github.com/antimora)
 - Add F32 unit-convolution and im2col autotuning candidates on CubeCL backends, including
   split depthwise weight gradients. Forward im2col limits its column workspace to 128 MiB.
   ([#6048](https://github.com/tracel-ai/burn/pull/6048)) [@znicelya](https://github.com/znicelya)
@@ -185,8 +207,12 @@ See [runtime configuration](./advanced/runtime-configuration.md#cubek-matmul-pre
 Models can now be split across devices by layer, enabling training and inference with models that
 exceed a single device's memory. The new `LayerParallelism` trait and `DistributedLayeredModel`
 wrapper support sequential execution, transferring activations between devices.
-`LayerPipeline` streams several inference batches through such a model with a thread per stage,
-so the stages overlap. Training schedules and `Learner` integration are not included.
+`InferencePipeline` streams several batches through such a model with a thread per stage, so the
+stages overlap, and `TrainingPipeline` trains it with the GPipe or 1F1B schedule. A signal
+passed between layers derives `AutodiffSignal` to train through. `Learner` integration is not
+included.
+**Breaking:** `LayerParallelism` requires `from_layers`, which rebuilds the model from the
+`LayerSequence` that `into_layers` returns.
 ([#5702](https://github.com/tracel-ai/burn/pull/5702),
 [#6277](https://github.com/tracel-ai/burn/pull/6277))
 [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
@@ -226,8 +252,13 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - A random tensor on a device group waits until it is first used, and a split use, such as a
   dropout mask over a split activation, has each member generate only its shard instead of copying
-  the whole tensor from the first member. Its values follow the order of first use, so they differ
-  from one device's with the same seed. ([#6272](https://github.com/tracel-ai/burn/pull/6272))
+  the whole tensor from the first member. Its seed is captured on creation, and each shard derives its own
+  seed, so its values can differ from one device's with the same seed. ([#6272](https://github.com/tracel-ai/burn/pull/6272))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- Attention split on its batch or heads, and `swap_dims`, `permute`, `expand`, `slice` and
+  `slice_assign` on a device group keep their input's split instead of gathering it, so a
+  tensor-parallel transformer layer communicates only in its all-reduces.
+  ([#6372](https://github.com/tracel-ai/burn/pull/6372))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution

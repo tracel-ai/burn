@@ -150,7 +150,7 @@ pub(crate) fn handle_backend_tests(
         let features = [
             "burn-backend-tests/flex,burn-backend-tests/cpu,burn-backend-tests/std",
             "burn-core/flex,burn-core/cpu,burn-core/std",
-            "burn/flex,burn/cpu,burn/std,burn/autodiff,burn/extension",
+            "burn/flex,burn/cpu,burn/std,burn/autodiff,burn/extension,burn/optim",
         ]
         .join(",");
         // One invocation shares dependency builds across these integration targets.
@@ -180,6 +180,10 @@ pub(crate) fn handle_backend_tests(
                     "layer_placement",
                     "--test",
                     "backend_extension_runtime",
+                    "--test",
+                    "autodiff_signal",
+                    "--test",
+                    "training_pipeline",
                 ],
                 args.release,
             ),

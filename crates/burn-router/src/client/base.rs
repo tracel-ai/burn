@@ -2,6 +2,7 @@ use crate::{RouterChannel, RouterTensor};
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
+use burn_backend::RandomKey;
 use burn_backend::{
     DType, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId,
     EnvironmentOrigin, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
@@ -86,6 +87,9 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     fn device(&self) -> Self::Device;
     /// Seed the interpreter.
     fn seed(&self, seed: u64);
+
+    /// Reserves randomness before an operation is queued or sent to another device.
+    fn next_random_key(&self) -> RandomKey;
     /// Returns the supported data type usage set
     fn dtype_usage(&self, dtype: DType) -> burn_backend::DTypeUsageSet;
     /// Open a profiling window on the interpreter, where the calling stream
@@ -185,6 +189,18 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     /// registered so far on the calling stream.
     fn environment_save(&self, id: EnvironmentId) -> Result<EnvironmentBundle, EnvironmentError> {
         let _ = id;
+        Err(environment_unsupported())
+    }
+
+    /// Bring what `origin` holds into the environment `id` of the
+    /// interpreter's backend — see
+    /// [`Backend::environment_merge`](burn_backend::Backend::environment_merge).
+    fn environment_merge(
+        &self,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        let _ = (id, origin);
         Err(environment_unsupported())
     }
 

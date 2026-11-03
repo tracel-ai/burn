@@ -1290,6 +1290,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.distribution,
                         &self.device,
                         desc.out.dtype.into(),
+                        desc.key(),
                     );
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
@@ -1517,6 +1518,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.distribution,
                         &self.device,
                         desc.out.dtype.into(),
+                        desc.key(),
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
@@ -2542,6 +2544,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
         id: EnvironmentId,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
         B::environment_save(&self.device, id)
+    }
+
+    /// Bring what `origin` holds into the environment `id` of the backend.
+    pub fn environment_merge(
+        &self,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        B::environment_merge(&self.device, id, origin)
     }
 
     /// What the backend's device is, as its driver states it.

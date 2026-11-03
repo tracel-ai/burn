@@ -1,3 +1,4 @@
+use crate::RandomKey;
 use burn_std::DType;
 pub use burn_std::{ExecutionError, backtrace::BackTrace};
 
@@ -198,7 +199,14 @@ pub trait Backend:
     /// that at least the specified device will be seeded.
     ///
     /// In all cases, this should ensure deterministic execution for a single-threaded program.
+    /// Random operations already requested retain their reserved keys, even if not yet executed.
     fn seed(device: &Self::Device, seed: u64);
+
+    /// Advances the backend's implicit random generator and returns a key for one random operation.
+    ///
+    /// Call before queueing work. The returned key remains valid after reseeding, and
+    /// executing an explicitly keyed operation must not advance this generator.
+    fn next_random_key(device: &Self::Device) -> RandomKey;
 
     /// Sync the backend, ensure that all computation are finished.
     fn sync(_device: &Self::Device) -> Result<(), ExecutionError> {
@@ -425,6 +433,25 @@ pub trait Backend:
         _device: &Self::Device,
         _id: EnvironmentId,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
+        Err(EnvironmentError::unsupported())
+    }
+
+    /// Bring what `origin` holds into the compute environment `id`, after
+    /// every operation registered so far on the calling stream: a key `id`
+    /// already holds keeps its value, and every other entry of `origin` is
+    /// added. The merge only writes entries and never activates an
+    /// environment, so the active one is not switched. Merging an
+    /// environment into itself changes nothing.
+    ///
+    /// # Errors
+    ///
+    /// The backend keeps no compute environment, `id` or a fork's source lives
+    /// in a storage `device` does not reach, or the storage refused the write.
+    fn environment_merge(
+        _device: &Self::Device,
+        _id: EnvironmentId,
+        _origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
         Err(EnvironmentError::unsupported())
     }
 

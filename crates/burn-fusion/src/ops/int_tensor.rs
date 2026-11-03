@@ -5,6 +5,7 @@ use crate::{
     stream::{StreamId, execution::Operation},
     unary_int_ops,
 };
+use burn_backend::RandomKey;
 use burn_backend::{
     BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
     TensorData,
@@ -2013,6 +2014,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         distribution: Distribution,
         device: &Device<Self>,
         dtype: IntDType,
+        key: RandomKey,
     ) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct IntRandomOps<B: FusionBackend> {
@@ -2031,6 +2033,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                     self.desc.distribution,
                     &self.device,
                     self.desc.out.dtype.into(),
+                    self.desc.key(),
                 );
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
 
@@ -2040,7 +2043,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let dtype = dtype.into();
         let client = get_client::<B>(device);
-        let desc = RandomOpIr::create(shape, dtype, distribution, || client.create_empty_handle());
+        let desc = RandomOpIr::create(shape, dtype, distribution, key, || {
+            client.create_empty_handle()
+        });
 
         client
             .register(

@@ -1,3 +1,4 @@
+use burn_backend::RandomKey;
 use std::{
     collections::{BTreeMap, HashMap},
     iter,
@@ -6,9 +7,11 @@ use std::{
 use burn_backend::{
     DType, DTypeUsageSet, DeviceSettings, ExecutionError, TensorData, ops::DimSplit,
 };
-use burn_ir::{BackendIr, IrVisitorMut, OperationIr, TensorId, TensorIr, TensorStatus};
+use burn_ir::{
+    BackendIr, BaseOperationIr, IrVisitorMut, OperationIr, TensorId, TensorIr, TensorStatus,
+};
 use burn_router::TensorInterpreter;
-use burn_std::{QuantConfig, future::DynFut};
+use burn_std::{QuantConfig, Slice, future::DynFut};
 
 use super::{GroupError, MemberDevice};
 use super::{
@@ -58,8 +61,11 @@ pub trait DynGroupInterpreter: Send {
     /// Submits every member's queued work without waiting, and returns the first member's error.
     fn flush(&mut self) -> Result<(), ExecutionError>;
 
-    /// Seeds every member's backend, once every pending op has run on the seed before.
+    /// Seeds future draws on every member's backend without executing pending operations.
     fn seed(&mut self, seed: u64);
+
+    /// Reserves a key while the random operation is being registered.
+    fn next_random_key(&self) -> RandomKey;
 
     /// What every member can do with `dtype`, since each op runs on all of them.
     fn dtype_usage(&self, dtype: DType) -> DTypeUsageSet;
@@ -202,10 +208,11 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
         first_error.map_or(Ok(()), Err)
     }
 
+    fn next_random_key(&self) -> RandomKey {
+        B::next_random_key(&self.devices[0])
+    }
+
     fn seed(&mut self, seed: u64) {
-        while let Some(&id) = self.pending_ops.keys().next() {
-            self.run_pending(id, Sharding::Replicated);
-        }
         self.interpreters
             .iter()
             .for_each(|interpreter| interpreter.seed(seed));
@@ -291,7 +298,32 @@ impl<B: BackendIr> GroupInterpreter<B> {
             },
             shardings: &self.shardings,
         });
+        self.localize_slice_ranges(&mut op);
         self.interpreters[member].register_op(op);
+    }
+
+    /// Gives a slice the ranges of the shard one member holds, since a backend may reject the
+    /// whole tensor's range on a shard. Its rule keeps a split only on a dim the slice takes whole,
+    /// so on a member that dim's range is the whole shard.
+    fn localize_slice_ranges(&self, op: &mut OperationIr) {
+        let (tensor, ranges) = match op {
+            OperationIr::BaseFloat(BaseOperationIr::Slice(desc))
+            | OperationIr::BaseInt(BaseOperationIr::Slice(desc))
+            | OperationIr::BaseBool(BaseOperationIr::Slice(desc)) => {
+                (&desc.tensor, &mut desc.ranges)
+            }
+            OperationIr::BaseFloat(BaseOperationIr::SliceAssign(desc))
+            | OperationIr::BaseInt(BaseOperationIr::SliceAssign(desc))
+            | OperationIr::BaseBool(BaseOperationIr::SliceAssign(desc)) => {
+                (&desc.tensor, &mut desc.ranges)
+            }
+            _ => return,
+        };
+        if let Sharding::Split { dim } = self.shardings[&tensor.id]
+            && let Some(range) = ranges.get_mut(dim)
+        {
+            *range = Slice::full();
+        }
     }
 
     fn run_copied_from_first_member(&mut self, op: &OperationIr) {
@@ -337,9 +369,29 @@ impl<B: BackendIr> GroupInterpreter<B> {
         match split {
             true => {
                 self.shardings.insert(id, sharding);
-                self.run_on_every_member(&op);
+                self.run_random_on_members(op);
             }
             false => self.run_copied_from_first_member(&op),
+        }
+    }
+
+    fn run_random_on_members(&mut self, mut op: OperationIr) {
+        use burn_ir::{FloatOperationIr, NumericOperationIr, RandomOpIr};
+
+        fn random_desc(op: &mut OperationIr) -> &mut RandomOpIr {
+            match op {
+                OperationIr::Float(_, FloatOperationIr::Random(desc))
+                | OperationIr::NumericInt(_, NumericOperationIr::IntRandom(desc)) => desc,
+                _ => unreachable!("Only random operations are deferred"),
+            }
+        }
+
+        // Derive shard keys from the captured operation key, independently of first use
+        // and member scheduling. Replicated draws instead keep the original operation key.
+        let keys = random_desc(&mut op).key().split();
+        for (member, key) in (0..self.interpreters.len()).zip(keys) {
+            random_desc(&mut op).key = key.into();
+            self.run_on(member, &op);
         }
     }
 

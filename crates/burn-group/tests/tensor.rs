@@ -5,7 +5,13 @@ use burn_tensor::{
     group::GroupError,
     module,
     quantization::QuantScheme,
+    s,
 };
+
+use std::sync::{Mutex, PoisonError};
+
+// All random tests share the backend RNG, including those that do not seed it.
+static RNG: Mutex<()> = Mutex::new(());
 
 #[test]
 fn megatron_mlp_on_a_device_group_matches_one_device() {
@@ -50,6 +56,83 @@ fn heads_split_out_of_a_split_hidden_dim_stay_split() {
             .into_data()
             .assert_approx_eq::<f32>(&expected, tolerance());
     }
+}
+
+#[test]
+fn rotated_heads_stay_split() {
+    let (x, angles) = (values([2, 3, 4, 8], 1), values([3, 8], 2));
+    let expected = rotate(
+        Tensor::from_data(x.clone(), &Device::flex()),
+        angles.clone(),
+    )
+    .into_data();
+    for num_members in [2, 4] {
+        let rotated = rotate(
+            sharded(x.clone(), &group(num_members), Split { dim: 2 }),
+            angles.clone(),
+        );
+
+        assert_eq!(
+            rotated.sharding(),
+            Some(Split { dim: 1 }),
+            "{num_members} members"
+        );
+        rotated
+            .into_data()
+            .assert_approx_eq::<f32>(&expected, tolerance());
+    }
+}
+
+/// Rotary position embedding as a tensor-op formulation writes it: heads moved outward, then each
+/// head's halves rotated into a zero buffer.
+fn rotate(x: Tensor<4>, angles: TensorData) -> Tensor<4> {
+    let heads = x.swap_dims(1, 2);
+    let half = heads.dims()[3] / 2;
+    let (lower, upper) = (
+        heads.clone().narrow(3, 0, half),
+        heads.clone().narrow(3, half, half),
+    );
+    let rotated = heads
+        .zeros_like()
+        .slice_assign(s![.., .., .., 0..half], upper.neg())
+        .slice_assign(s![.., .., .., half..2 * half], lower);
+    let angles = Tensor::<2>::from_data(angles, &heads.device()).unsqueeze::<4>();
+    heads * angles.clone().cos() + rotated * angles.sin()
+}
+
+#[test]
+fn attention_split_on_the_heads_stays_split() {
+    let (query, key, value) = (
+        values([2, 4, 3, 4], 1),
+        values([2, 2, 5, 4], 2),
+        values([2, 2, 5, 4], 3),
+    );
+    let flex = Device::flex();
+    let expected = module::attention(
+        Tensor::from_data(query.clone(), &flex),
+        Tensor::from_data(key.clone(), &flex),
+        Tensor::from_data(value.clone(), &flex),
+        None,
+        None,
+        Default::default(),
+    )
+    .into_data();
+
+    let device = group(2);
+    let heads = Split { dim: 1 };
+    let context = module::attention(
+        sharded::<4>(query, &device, heads),
+        sharded(key, &device, heads),
+        sharded(value, &device, heads),
+        None,
+        None,
+        Default::default(),
+    );
+
+    assert_eq!(context.sharding(), Some(heads));
+    context
+        .into_data()
+        .assert_approx_eq::<f32>(&expected, tolerance());
 }
 
 #[test]
@@ -188,24 +271,21 @@ fn a_tensor_resharded_mid_graph_passes_its_gradient_through() {
 
 #[test]
 fn a_random_tensor_is_the_same_on_every_member() {
+    let _rng = RNG.lock().unwrap_or_else(PoisonError::into_inner);
     let device = group(2);
     let random = Tensor::<2>::random([4, 6], Distribution::Default, &device);
-    let shifted = random.clone() + Tensor::ones([4, 6], &device);
-
-    let expected = random
-        .to_device(&Device::flex())
-        .add_scalar(1.0)
-        .into_data();
-    let from_every_member = shifted
+    // Force a replicated use before selecting a slice from every member.
+    let copies = random.clone() + Tensor::zeros([4, 6], &device);
+    let expected = random.into_data();
+    copies
         .with_sharding(Split { dim: 1 })
-        .to_device(&Device::flex());
-    from_every_member
         .into_data()
-        .assert_approx_eq::<f32>(&expected, tolerance());
+        .assert_eq(&expected, false);
 }
 
 #[test]
 fn a_random_mask_over_a_split_tensor_is_generated_split() {
+    let _rng = RNG.lock().unwrap_or_else(PoisonError::into_inner);
     let device = group(2);
     let mask = Tensor::<2>::random([4, 6], Distribution::Bernoulli(0.5), &device);
     let x = Tensor::<2>::ones([4, 6], &device).with_sharding(Split { dim: 1 });
@@ -214,6 +294,38 @@ fn a_random_mask_over_a_split_tensor_is_generated_split() {
 
     // Generated whole and copied from member 0, it would still be replicated.
     assert_eq!(mask.sharding(), Some(Split { dim: 1 }));
+}
+
+#[test]
+fn deferred_random_keys_survive_reordering_and_reseeding() {
+    let _rng = RNG.lock().unwrap_or_else(PoisonError::into_inner);
+    let device = group(2);
+    let float = || Tensor::<2>::random([4, 6], Distribution::Default, &device);
+    let int = || Tensor::<2, Int>::random([4, 6], Distribution::Uniform(0., 1000.), &device);
+
+    device.seed(7);
+    let expected_float = float().with_sharding(Split { dim: 1 }).into_data();
+    let expected_int = int().with_sharding(Split { dim: 1 }).into_data();
+
+    device.seed(7);
+    let pending_float = float();
+    let pending_int = int();
+    // Reseeding must not execute deferred draws or let first use choose their keys.
+    device.seed(19);
+    let split_int = pending_int.clone().with_sharding(Split { dim: 1 });
+    let split_float = pending_float.clone().with_sharding(Split { dim: 1 });
+    assert_eq!(pending_float.sharding(), Some(Split { dim: 1 }));
+    assert_eq!(pending_int.sharding(), Some(Split { dim: 1 }));
+
+    // Member fusion queues may still hold the draws after sharding.
+    device.seed(23);
+    split_int.into_data().assert_eq(&expected_int, false);
+    split_float.into_data().assert_eq(&expected_float, false);
+
+    // A key accidentally reused for every shard must not pass the replay check above.
+    let values: Vec<f32> = expected_float.iter().collect();
+    let (rows, _) = values.as_chunks::<6>();
+    assert!(rows.iter().any(|row| row[..3] != row[3..]));
 }
 
 #[test]
