@@ -179,13 +179,15 @@ pub fn gather<E: Element + Pod + Default + Copy + Send + Sync>(
         ndims
     );
 
-    // Validate shapes: all dims except `dim` must match between tensor and indices
+    // Validate shapes: indices must not be larger than the tensor on dims other than `dim`
     for i in 0..ndims {
         if i != dim {
-            assert_eq!(
-                tensor_shape[i], indices_shape[i],
-                "gather: shape mismatch at dim {}: tensor {} vs indices {}",
-                i, tensor_shape[i], indices_shape[i]
+            assert!(
+                indices_shape[i] <= tensor_shape[i],
+                "gather: indices larger than tensor at dim {}: tensor {} vs indices {}",
+                i,
+                tensor_shape[i],
+                indices_shape[i]
             );
         }
     }
@@ -514,10 +516,12 @@ where
 
     for i in 0..ndims {
         if i != dim {
-            assert_eq!(
-                tensor_shape[i], indices_shape[i],
-                "{operation}: shape mismatch at dim {}: tensor {} vs indices {}",
-                i, tensor_shape[i], indices_shape[i]
+            assert!(
+                indices_shape[i] <= tensor_shape[i],
+                "{operation}: indices larger than tensor at dim {}: tensor {} vs indices {}",
+                i,
+                tensor_shape[i],
+                indices_shape[i]
             );
         }
     }
