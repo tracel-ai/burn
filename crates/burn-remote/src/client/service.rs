@@ -46,6 +46,7 @@ use writer::SubmitWriter;
 
 use super::{ConnectError, DeviceQueryError, runtime::Executor};
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
+pub(crate) use registry::random_generator;
 use registry::{SessionEnd, device_count_cell, settings_cell};
 pub(crate) use registry::{device_count_for, register_endpoint, registered_device, session_end};
 pub(crate) use registry::{has_settings, new_tensor_id, session_of, settings_for};

@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use burn_backend::RandomKey;
 use burn_backend::backend::ExecutionError;
 use burn_std::{BoolDType, FloatDType};
 
@@ -965,10 +966,13 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
         distribution: Distribution,
         device: &Device<Self>,
         dtype: IntDType,
+        key: RandomKey,
     ) -> IntTensor<Self> {
         let client = get_client::<R>(device);
         let dtype = dtype.into();
-        let desc = RandomOpIr::create(shape, dtype, distribution, || client.create_empty_handle());
+        let desc = RandomOpIr::create(shape, dtype, distribution, key, || {
+            client.create_empty_handle()
+        });
 
         client
             .register(OperationIr::NumericInt(

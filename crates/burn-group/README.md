@@ -48,9 +48,10 @@ different runtimes form a group whose every collective is emulated through the h
 far slower than members that share a runtime. A tensor made from data stays on the host until it
 is used, and a split of it there, by `with_sharding` or by an op that consumes it, uploads each
 member only its chunk. A random tensor waits the same way until it is first used, and a split use
-has each member generate only its shard. Its values follow the order of first use, so they differ
-from one device's with the same seed. Any other tensor, `zeros` among them, is created whole on
-every member before `with_sharding` splits it.
+has each member generate only its shard. Its random key is reserved when the tensor is created;
+each shard receives a child key from `RandomKey::split`, so first-use order, member scheduling,
+and later reseeding do not change its values. A split draw can differ from one device's with the
+same seed. Any other tensor, `zeros` among them, is created whole on every member before `with_sharding` splits it.
 
 <!-- burn-crate-footer -->
 

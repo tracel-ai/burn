@@ -5,6 +5,25 @@ Changes for the next release. For published releases, see
 
 ## Unreleased
 
+### Random operation keys
+
+Random operations now reserve a `RandomKey` when requested, before group, fusion, or remote queues
+execute them. Even a draw dropped before execution consumes one key. Reseeding leaves pending
+draws unchanged, and group shards no longer depend on fusion worker scheduling. Seeded sequences change from previous versions; equality across devices
+or different shardings is not guaranteed.
+
+Backend implementors must provide `Backend::next_random_key` and accept a `RandomKey` in
+`float_random` and `int_random`. Sampling must use only the supplied key, without advancing the
+implicit generator. `Tensor::random` and `random_like` reserve keys at the tensor bridge;
+direct backend callers must supply a key. Use `RandomKey::split` to derive child keys.
+Router clients must also implement `next_random_key`; random-operation IR now carries a key
+scalar, so remote clients and servers must be upgraded together (protocol version 11).
+Remote clients reserve keys locally without waiting for queued service work.
+
+Capture preserves explicit backend keys. Implicit random operations (`Tensor::random` and
+`random_like`) during capture are unsupported and panic; capture does not allocate seeds or
+own a random generator.
+
 ### Interpolation options
 
 **Breaking:** `InterpolateMode` variants now own their coordinate transform and cubic coefficient
@@ -228,8 +247,8 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - A random tensor on a device group waits until it is first used, and a split use, such as a
   dropout mask over a split activation, has each member generate only its shard instead of copying
-  the whole tensor from the first member. Its values follow the order of first use, so they differ
-  from one device's with the same seed. ([#6272](https://github.com/tracel-ai/burn/pull/6272))
+  the whole tensor from the first member. Its seed is captured on creation, and each shard derives its own
+  seed, so its values can differ from one device's with the same seed. ([#6272](https://github.com/tracel-ai/burn/pull/6272))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - Attention split on its batch or heads, and `swap_dims`, `permute`, `expand`, `slice` and
   `slice_assign` on a device group keep their input's split instead of gathering it, so a

@@ -1,4 +1,4 @@
-use burn_backend::{DType, Scalar};
+use burn_backend::{DType, RandomKey, Scalar};
 use burn_backend::{Element, ElementConversion};
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
@@ -73,5 +73,11 @@ impl From<ScalarIr> for Scalar {
             ScalarIr::UInt(x) => Self::UInt(x),
             ScalarIr::Bool(x) => Self::Bool(x),
         }
+    }
+}
+
+impl From<RandomKey> for ScalarIr {
+    fn from(key: RandomKey) -> Self {
+        Self::UInt(key.seed())
     }
 }
