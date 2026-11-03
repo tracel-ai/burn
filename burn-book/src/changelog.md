@@ -19,7 +19,7 @@ layer and back.
 
 **Breaking for backend implementors:** `ModuleOps` gains the required method
 `lay_out_for_matmul`. Returning the weight unchanged is a correct implementation.
-([#PR](https://github.com/tracel-ai/burn/pull/PR)) [@louisfd](https://github.com/louisfd)
+([#6374](https://github.com/tracel-ai/burn/pull/6374)) [@louisfd](https://github.com/louisfd)
 
 ### Interpolation options
 
