@@ -224,6 +224,11 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   the whole tensor from the first member. Its values follow the order of first use, so they differ
   from one device's with the same seed. ([#6272](https://github.com/tracel-ai/burn/pull/6272))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- Attention split on its batch or heads, and `swap_dims`, `permute`, `expand`, `slice` and
+  `slice_assign` on a device group keep their input's split instead of gathering it, so a
+  tensor-parallel transformer layer communicates only in its all-reduces.
+  ([#6372](https://github.com/tracel-ai/burn/pull/6372))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution
 
