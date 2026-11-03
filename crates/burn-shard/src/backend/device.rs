@@ -6,9 +6,10 @@ use std::{
 use burn_backend::{DType, DeviceId, DeviceOps, DeviceSettings, RouterDeviceType};
 use burn_ir::BackendIr;
 use burn_router::{get_client, register_scoped_client};
-use burn_std::{QuantConfig, device::Device};
+use burn_std::{QuantConfig, Shape, device::Device};
 
 use super::{ShardClient, channel::ShardChannel, interpreter::ShardInterpreter};
+use crate::{Resharding, Sharding, ShardingError};
 
 /// A sharded compute device of devices, its members, that a tensor's shards are spread over.
 ///
@@ -114,6 +115,17 @@ impl ShardedComputeDevice {
             .expect("A new sharded compute device's device has no client yet")
             .keep();
         Ok(device)
+    }
+
+    /// Why a value of `shape` made on this device cannot take `sharding`, if it cannot.
+    ///
+    /// # Errors
+    ///
+    /// When `sharding` splits a dim `shape` lacks or one shorter than the members, or is a partial
+    /// sum, which a new value never is.
+    pub fn check_sharding(&self, shape: &Shape, sharding: Sharding) -> Result<(), ShardingError> {
+        let num_members = get_client::<ShardChannel>(self).num_members();
+        Resharding::new(Sharding::Replicated, sharding, shape, num_members).map(|_| ())
     }
 }
 

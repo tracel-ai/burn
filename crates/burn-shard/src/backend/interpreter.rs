@@ -37,6 +37,9 @@ pub trait DynShardInterpreter: Send {
     /// When the tensor is not on the sharded compute device.
     fn sharding(&self, id: &TensorId) -> Sharding;
 
+    /// How many members the tensors are split over.
+    fn num_members(&self) -> usize;
+
     /// A new tensor holding `data`, replicated. It stays on the host until it is used, so a split
     /// by `with_sharding`, or by an op that consumes it, uploads each member only its chunk.
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId;
@@ -154,6 +157,10 @@ impl<B: BackendIr> DynShardInterpreter for ShardInterpreter<B> {
 
     fn sharding(&self, id: &TensorId) -> Sharding {
         self.shardings[id]
+    }
+
+    fn num_members(&self) -> usize {
+        self.interpreters.len()
     }
 
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId {

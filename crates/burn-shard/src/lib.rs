@@ -12,7 +12,7 @@ mod rules;
 mod sharding;
 
 pub use backend::{MemberDevice, ShardBackend, ShardError, ShardedComputeDevice};
-pub use sharding::{Sharding, ShardingError};
+pub use burn_std::distributed::{Sharding, ShardingError};
 
 use kind::{Linearity, OpKind, ReducedDims, ReductionKind};
 use resharding::Resharding;

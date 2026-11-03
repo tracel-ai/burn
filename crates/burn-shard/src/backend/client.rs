@@ -56,6 +56,11 @@ impl ShardClient {
     pub fn sharding(&self, tensor: &RouterTensor<Self>) -> Sharding {
         self.interpreter.lock().sharding(&tensor.id())
     }
+
+    /// How many members the tensors are split over.
+    pub fn num_members(&self) -> usize {
+        self.interpreter.lock().num_members()
+    }
 }
 
 impl RouterClient for ShardClient {
