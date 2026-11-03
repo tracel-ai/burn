@@ -271,6 +271,10 @@ device whose tensors are split over `devices` (crate `burn-shard`).
   tensor-parallel transformer layer communicates only in its all-reduces.
   ([#6372](https://github.com/tracel-ai/burn/pull/6372))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- Elementwise ops, reductions, and softmax, cumsum, sort and topk on a sharded compute device keep
+  their input's split or partial sum where the math allows, instead of gathering it.
+  ([#6387](https://github.com/tracel-ai/burn/pull/6387))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution
 
