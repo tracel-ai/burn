@@ -297,61 +297,35 @@ fn a_random_mask_over_a_split_tensor_is_generated_split() {
 }
 
 #[test]
-fn split_random_draws_keep_their_seeds_across_reseeding() {
+fn deferred_random_keys_survive_reordering_and_reseeding() {
     let _rng = RNG.lock().unwrap_or_else(PoisonError::into_inner);
     let device = group(2);
-    let float = || {
-        Tensor::<2>::random([4, 6], Distribution::Default, &device).with_sharding(Split { dim: 1 })
-    };
-    let int = || {
-        Tensor::<2, Int>::random([4, 6], Distribution::Uniform(0., 1000.), &device)
-            .with_sharding(Split { dim: 1 })
-    };
+    let float = || Tensor::<2>::random([4, 6], Distribution::Default, &device);
+    let int = || Tensor::<2, Int>::random([4, 6], Distribution::Uniform(0., 1000.), &device);
 
     device.seed(7);
-    let expected_float = float().into_data();
-    let expected_int = int().into_data();
+    let expected_float = float().with_sharding(Split { dim: 1 }).into_data();
+    let expected_int = int().with_sharding(Split { dim: 1 }).into_data();
 
     device.seed(7);
     let pending_float = float();
     let pending_int = int();
-    // Member fusion queues may still hold the draws when the shared RNG is reset.
+    // Reseeding must not execute deferred draws or let first use choose their keys.
     device.seed(19);
-    pending_int.into_data().assert_eq(&expected_int, false);
-    pending_float.into_data().assert_eq(&expected_float, false);
+    let split_int = pending_int.clone().with_sharding(Split { dim: 1 });
+    let split_float = pending_float.clone().with_sharding(Split { dim: 1 });
+    assert_eq!(pending_float.sharding(), Some(Split { dim: 1 }));
+    assert_eq!(pending_int.sharding(), Some(Split { dim: 1 }));
+
+    // Member fusion queues may still hold the draws after sharding.
+    device.seed(23);
+    split_int.into_data().assert_eq(&expected_int, false);
+    split_float.into_data().assert_eq(&expected_float, false);
 
     // A key accidentally reused for every shard must not pass the replay check above.
     let values: Vec<f32> = expected_float.iter().collect();
-    assert!(
-        values
-            .as_chunks::<6>()
-            .0
-            .iter()
-            .any(|row| row[..3] != row[3..])
-    );
-}
-
-#[test]
-fn deferred_random_ops_keep_issue_order_and_can_split_after_reseeding() {
-    let _rng = RNG.lock().unwrap_or_else(PoisonError::into_inner);
-    let device = group(2);
-    let random = || Tensor::<2>::random([4, 6], Distribution::Default, &device);
-
-    device.seed(7);
-    let expected_first = random().with_sharding(Split { dim: 1 }).into_data();
-    let expected_second = random().with_sharding(Split { dim: 1 }).into_data();
-
-    device.seed(7);
-    let first = random();
-    let second = random();
-    device.seed(19);
-    // Reseeding must neither execute these whole nor let first use choose their seeds.
-    let second_split = second.clone().with_sharding(Split { dim: 1 });
-    let first_split = first.clone().with_sharding(Split { dim: 1 });
-    assert_eq!(first.sharding(), Some(Split { dim: 1 }));
-    assert_eq!(second.sharding(), Some(Split { dim: 1 }));
-    second_split.into_data().assert_eq(&expected_second, false);
-    first_split.into_data().assert_eq(&expected_first, false);
+    let (rows, _) = values.as_chunks::<6>();
+    assert!(rows.iter().any(|row| row[..3] != row[3..]));
 }
 
 #[test]

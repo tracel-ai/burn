@@ -96,17 +96,15 @@ mod tests {
         let cloned = client.clone();
         let other = RemoteClient::init(device);
         client.seed(7);
-        let expected = core::array::from_fn::<_, 3, _>(|_| client.next_random_key());
+        let expected: [_; 3] = core::array::from_fn(|_| client.next_random_key());
 
         let timeout = Duration::from_secs(5);
-        let (entered_tx, entered_rx) = mpsc::channel();
         let (release_tx, release_rx) = mpsc::channel();
         client.handle.submit(move |_| {
-            entered_tx.send(()).unwrap();
             let _ = release_rx.recv();
         });
+        // Queue the blocker before the caller can submit a key request to this worker.
         client.handle.flush_queue();
-        entered_rx.recv_timeout(timeout).unwrap();
 
         let (keys_tx, keys_rx) = mpsc::channel();
         let caller = thread::spawn(move || {

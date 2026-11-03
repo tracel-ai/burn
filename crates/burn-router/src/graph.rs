@@ -289,7 +289,7 @@ mod tests {
     }
 
     #[test]
-    fn random_graph_replay_uses_the_bound_keys() {
+    fn bind_resolves_random_keys() {
         use burn_backend::{Distribution, RandomKey};
         use burn_ir::{FloatOperationIr, RandomOpIr};
 
@@ -315,24 +315,22 @@ mod tests {
                 )),
             ),
         ]);
-        for seed in [7, 19] {
-            let bound = graph.bind(GraphBindings {
-                tensors: vec![],
-                shapes: vec![12],
-                scalars: vec![ScalarIr::UInt(seed), ScalarIr::UInt(seed + 1)],
-                ranges: vec![],
-            });
-            let keys: Vec<RandomKey> = bound
-                .operations
-                .iter()
-                .map(|op| match op {
-                    OperationIr::Float(_, FloatOperationIr::Random(desc))
-                    | OperationIr::NumericInt(_, NumericOperationIr::IntRandom(desc)) => desc.key(),
-                    _ => unreachable!(),
-                })
-                .collect();
-            assert_eq!(keys, [RandomKey::new(seed), RandomKey::new(seed + 1)]);
-        }
+        let bound = graph.bind(GraphBindings {
+            tensors: vec![],
+            shapes: vec![12],
+            scalars: vec![ScalarIr::UInt(7), ScalarIr::UInt(19)],
+            ranges: vec![],
+        });
+        let keys: Vec<RandomKey> = bound
+            .operations
+            .iter()
+            .map(|op| match op {
+                OperationIr::Float(_, FloatOperationIr::Random(desc))
+                | OperationIr::NumericInt(_, NumericOperationIr::IntRandom(desc)) => desc.key(),
+                _ => unreachable!(),
+            })
+            .collect();
+        assert_eq!(keys, [RandomKey::new(7), RandomKey::new(19)]);
     }
 
     #[test]

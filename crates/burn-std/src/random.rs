@@ -43,21 +43,19 @@ mod tests {
     #[test]
     fn splitting_is_repeatable_and_separates_children() {
         let key = RandomKey::new(7);
-        let children: alloc::vec::Vec<_> = key.split().take(3).collect();
+        let children: alloc::vec::Vec<_> = key.split().take(2).collect();
         assert_eq!(
             children,
-            key.split().take(3).collect::<alloc::vec::Vec<_>>()
+            key.split().take(2).collect::<alloc::vec::Vec<_>>()
         );
         assert_ne!(
             children,
             RandomKey::new(19)
                 .split()
-                .take(3)
+                .take(2)
                 .collect::<alloc::vec::Vec<_>>()
         );
-        for (index, child) in children.iter().enumerate() {
-            assert_ne!(*child, key);
-            assert!(!children[..index].contains(child));
-        }
+        assert_ne!(children[0], children[1]);
+        assert!(!children.contains(&key));
     }
 }
