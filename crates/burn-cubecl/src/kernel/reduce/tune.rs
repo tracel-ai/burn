@@ -15,7 +15,7 @@ use burn_backend::{DType, cubecl::dtype_to_elem_type};
 use cubecl::{
     AutotuneKey,
     client::Client,
-    tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
+    tune::{LocalTuner, Tunable, TunableSet, TuneGroup, anchor, local_tuner},
 };
 use cubek::reduce::{
     ReduceDtypes, ReduceStrategy, ReduceWithIndicesDtypes,
@@ -39,7 +39,7 @@ pub struct ReduceDimAutotuneKey {
     reduce: ReduceAutotuneKey,
 }
 
-/// Identifies a complete reduction by its exact dimensions and memory layout.
+/// Anchors shapes and strides to reuse plan choices across nearby workloads.
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
 struct ReduceDimsPlanAutotuneKey {
     shape: Vec<usize>,
@@ -47,6 +47,30 @@ struct ReduceDimsPlanAutotuneKey {
     dims: Vec<usize>,
     dtype: DType,
     mean: bool,
+}
+
+impl ReduceDimsPlanAutotuneKey {
+    fn generate(
+        shape: &[usize],
+        strides: &[usize],
+        dims: &[usize],
+        dtype: DType,
+        config: ReduceOperationConfig,
+    ) -> Self {
+        Self::new(
+            shape
+                .iter()
+                .map(|&size| anchor(size, None, None, None))
+                .collect(),
+            strides
+                .iter()
+                .map(|&stride| anchor(stride, None, None, None))
+                .collect(),
+            dims.to_vec(),
+            dtype,
+            matches!(config, ReduceOperationConfig::Mean),
+        )
+    }
 }
 
 /// Selects a sum or mean plan. The output preserves rank and sets reduced axes to one.
@@ -80,12 +104,12 @@ mod reduce_dims_ops {
     pub(super) fn create_key(
         (input, dims, config): &(CubeTensor, Vec<usize>, ReduceOperationConfig),
     ) -> ReduceDimsPlanAutotuneKey {
-        ReduceDimsPlanAutotuneKey::new(
-            input.meta.shape().iter().copied().collect(),
-            input.meta.strides().iter().copied().collect(),
-            dims.clone(),
+        ReduceDimsPlanAutotuneKey::generate(
+            input.meta.shape(),
+            input.meta.strides(),
+            dims,
             input.dtype,
-            matches!(config, ReduceOperationConfig::Mean),
+            *config,
         )
     }
 
@@ -544,5 +568,32 @@ mod sum_ops {
             cubek::reduce::components::instructions::ReduceOperationConfig::Sum,
         )
         .map_err(|e| e.to_string())
+    }
+}
+
+#[cfg(test)]
+mod reduce_dims_plan_tests {
+    use super::*;
+
+    #[test]
+    fn nearby_lengths_share_plan_keys_unless_full_tuning_is_requested() {
+        let [first, second] = [513, 514].map(|n| {
+            ReduceDimsPlanAutotuneKey::generate(
+                &[2, 3, n],
+                &[3 * n, n, 1],
+                &[0, 2],
+                DType::F32,
+                ReduceOperationConfig::Sum,
+            )
+        });
+
+        if matches!(
+            autotune_level(),
+            cubecl::config::autotune::AutotuneLevel::Full
+        ) {
+            assert_ne!(first, second);
+        } else {
+            assert_eq!(first, second);
+        }
     }
 }

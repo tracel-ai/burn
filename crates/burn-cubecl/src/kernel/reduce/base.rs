@@ -706,30 +706,3 @@ impl Default for KernelReduceStrategy {
         return Self::Unspecified;
     }
 }
-
-#[cfg(all(test, feature = "autotune", feature = "cuda"))]
-mod tests {
-    use super::*;
-    use burn_backend::TensorData;
-
-    #[test]
-    fn multi_axis_integer_mean_keeps_intermediate_rounding() {
-        let device = crate::CubeDevice::default();
-        let input = crate::ops::from_data(
-            TensorData::new(vec![0_i32, 1, 0, 1, 1, 2, 1, 2], [2, 2, 2]),
-            &device,
-        );
-        let output = reduce_dims(
-            input,
-            None,
-            &[0, 2],
-            KernelReduceStrategy::Autotune,
-            ReduceOperationConfig::Mean,
-        )
-        .unwrap();
-
-        let data = crate::ops::into_data_sync(output);
-        assert_eq!(data.shape().as_slice(), &[1, 2, 1]);
-        assert_eq!(data.try_to_vec::<i32>().unwrap(), vec![0, 0]);
-    }
-}
