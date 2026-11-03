@@ -1,6 +1,6 @@
 use burn_backend::{
-    Backend, Scalar, Shape, TensorData,
-    ops::{ActivationOps, FloatTensorOps, QTensorOps},
+    Backend, Scalar, Shape, Slice, TensorData,
+    ops::{ActivationOps, AttentionModuleOptions, FloatTensorOps, QTensorOps},
     quantization::QuantScheme,
     tensor::FloatTensor,
 };
@@ -106,6 +106,61 @@ fn sums_match_one_device_for_every_sharding() {
     }
 }
 
+/// Each slice takes dim 0 whole and cuts dim 1, so a split on dim 0 stays and one on dim 1
+/// gathers.
+#[test]
+fn layout_ops_match_one_device_for_every_sharding() {
+    let ranges = [0..4, 1..3, 0..5].map(Slice::from);
+    for num_members in 1..=4 {
+        let input = data([4, 3, 5], 1);
+        check_unary!(num_members, &input, |B, a| B::float_swap_dims(a, 0, 2));
+        check_unary!(num_members, &input, |B, a| B::float_permute(a, &[2, 0, 1]));
+        check_unary!(num_members, &data([4, 1, 5], 2), |B, a| B::float_expand(
+            a,
+            Shape::new([2, 4, 3, 5])
+        ));
+        check_unary!(num_members, &input, [ranges: [Slice; 3]] |B, a| B::float_slice(a, &ranges));
+        check_binary!(num_members, &input, &data([4, 2, 5], 3), [ranges: [Slice; 3]] |B, a, b| {
+            B::float_slice_assign(a, &ranges, b)
+        });
+    }
+}
+
+/// Heads that split unevenly, grouped query heads, and one key and value head shared by all.
+#[test]
+fn attention_matches_one_device_for_every_sharding() {
+    for num_members in 1..=4 {
+        for (q_heads, kv_heads) in [(3, 3), (4, 2), (4, 1)] {
+            let inputs = AttentionInputs {
+                query: data([2, q_heads, 3, 4], 1),
+                key: data([2, kv_heads, 5, 4], 2),
+                value: data([2, kv_heads, 5, 4], 3),
+                mask_and_bias: None,
+            };
+            inputs.assert_matches(num_members, AttentionModuleOptions::default());
+        }
+    }
+}
+
+/// The mask is split along the heads with the query, and the bias, broadcast over them, is not.
+#[test]
+fn masked_causal_attention_matches_one_device_for_every_sharding() {
+    let mask = (0..2 * 4 * 3 * 5).map(|i| i % 7 == 3).collect::<Vec<_>>();
+    let inputs = AttentionInputs {
+        query: data([2, 4, 3, 4], 1),
+        key: data([2, 2, 5, 4], 2),
+        value: data([2, 2, 5, 4], 3),
+        mask_and_bias: Some((TensorData::new(mask, [2, 4, 3, 5]), data([2, 1, 3, 5], 4))),
+    };
+    let options = AttentionModuleOptions {
+        is_causal: true,
+        ..Default::default()
+    };
+    for num_members in 1..=4 {
+        inputs.assert_matches(num_members, options);
+    }
+}
+
 #[test]
 fn split_tensors_stay_split_where_megatron_keeps_them() {
     let device = group(2);
@@ -199,6 +254,71 @@ fn assert_binary_matches(
             let case = format!("{num_members} members, {lhs_sharding:?} with {rhs_sharding:?}");
             assert_close(actual, expected, &case);
         }
+    }
+}
+
+struct AttentionInputs {
+    query: TensorData,
+    key: TensorData,
+    value: TensorData,
+    mask_and_bias: Option<(TensorData, TensorData)>,
+}
+
+impl AttentionInputs {
+    /// For every sharding of the query, and of the key and value together, the mask and bias
+    /// replicated.
+    fn assert_matches(&self, num_members: usize, options: AttentionModuleOptions) {
+        let device = group(num_members);
+        let expected = read::<Flex>(
+            self.attention::<Flex>(
+                [&self.query, &self.key, &self.value]
+                    .map(|data| Flex::float_from_data(data.clone(), &FlexDevice)),
+                &FlexDevice,
+                options,
+            ),
+        );
+        for query_sharding in shardings(self.query.shape(), num_members) {
+            for kv_sharding in shardings(self.key.shape(), num_members) {
+                let (query, query_value) = sharded(&self.query, &device, query_sharding);
+                let (key, key_value) = sharded(&self.key, &device, kv_sharding);
+                let (value, value_value) = sharded(&self.value, &device, kv_sharding);
+                let case = format!(
+                    "{num_members} members, query {query_sharding:?}, key and value {kv_sharding:?}"
+                );
+                // A partial sum stands for a contraction's product, which changes the expected
+                // value: those cases are checked against one device run on that product.
+                let expected = match (query_sharding, kv_sharding) {
+                    (PartialSum, _) | (_, PartialSum) => read::<Flex>(
+                        self.attention::<Flex>(
+                            [query_value, key_value, value_value]
+                                .map(|data| Flex::float_from_data(data, &FlexDevice)),
+                            &FlexDevice,
+                            options,
+                        ),
+                    ),
+                    _ => expected.clone(),
+                };
+                let actual =
+                    read::<Group>(self.attention::<Group>([query, key, value], &device, options));
+                assert_close(actual, expected, &case);
+            }
+        }
+    }
+
+    fn attention<B: Backend>(
+        &self,
+        [query, key, value]: [FloatTensor<B>; 3],
+        device: &B::Device,
+        options: AttentionModuleOptions,
+    ) -> FloatTensor<B> {
+        let (mask, bias) = match &self.mask_and_bias {
+            Some((mask, bias)) => (
+                Some(B::bool_from_data(mask.clone(), device)),
+                Some(B::float_from_data(bias.clone(), device)),
+            ),
+            None => (None, None),
+        };
+        B::attention(query, key, value, mask, bias, options)
     }
 }
 

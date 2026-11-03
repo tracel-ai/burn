@@ -127,6 +127,9 @@ positions when sequence lengths differ.
   ([#6313](https://github.com/tracel-ai/burn/pull/6313),
   [#6341](https://github.com/tracel-ai/burn/pull/6341),
   [#6345](https://github.com/tracel-ai/burn/pull/6345)) [@antimora](https://github.com/antimora)
+- Speed up Flex CPU `clamp` and `sign` by letting their loops vectorize, and run F32/F64 `powi`
+  with integer exponents other than 0, ±1 and ±2 with SIMD, matching the scalar results bit for
+  bit. ([#6351](https://github.com/tracel-ai/burn/pull/6351)) [@antimora](https://github.com/antimora)
 - Run GELU and sigmoid forward and backward operations in single CubeCL kernels.
   ([#6114](https://github.com/tracel-ai/burn/pull/6114)) [@ssoj13](https://github.com/ssoj13)
 - Allow more CubeCL slices to share their source buffer, avoiding copies of KV-cache prefixes.
@@ -238,6 +241,11 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   dropout mask over a split activation, has each member generate only its shard instead of copying
   the whole tensor from the first member. Its seed is captured on creation, and each shard derives its own
   seed, so its values can differ from one device's with the same seed. ([#6272](https://github.com/tracel-ai/burn/pull/6272))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- Attention split on its batch or heads, and `swap_dims`, `permute`, `expand`, `slice` and
+  `slice_assign` on a device group keep their input's split instead of gathering it, so a
+  tensor-parallel transformer layer communicates only in its all-reduces.
+  ([#6372](https://github.com/tracel-ai/burn/pull/6372))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution

@@ -1,12 +1,16 @@
 use std::collections::HashMap;
 
-use burn_backend::DType;
+use burn_backend::{DType, ops::attention::AttentionShapes};
 use burn_ir::{
-    ActivationOperationIr, BaseOperationIr, BinaryOpIr, FloatOperationIr, MatmulOpIr,
-    NumericOperationIr, OperationIr, ScalarOpIr, ShapeOpIr, TensorId, TensorIr, UnaryOpIr,
+    ActivationOperationIr, AttentionOpIr, BaseOperationIr, BinaryOpIr, FloatOperationIr,
+    MatmulOpIr, ModuleOperationIr, NumericOperationIr, OperationIr, ScalarOpIr, ShapeOpIr,
+    SliceAssignOpIr, TensorId, TensorIr, UnaryOpIr,
 };
 
-use crate::{ElementwiseRule, MatmulRule, OpSharding, ReducedDims, ReshapeRule, Sharding, SumRule};
+use crate::{
+    AttentionRule, ElementwiseRule, LayoutRule, MatmulRule, OpSharding, ReducedDims, ReshapeRule,
+    Sharding, SumRule,
+};
 
 /// Where each tensor of one op must be for the op to run on every member, where its outputs land,
 /// and when the members run it.
@@ -111,6 +115,45 @@ impl GroupShardings<'_> {
             OperationIr::BaseFloat(BaseOperationIr::Reshape(desc))
             | OperationIr::BaseInt(BaseOperationIr::Reshape(desc))
             | OperationIr::BaseBool(BaseOperationIr::Reshape(desc)) => self.reshape(desc),
+            OperationIr::BaseFloat(BaseOperationIr::SwapDims(desc))
+            | OperationIr::BaseInt(BaseOperationIr::SwapDims(desc))
+            | OperationIr::BaseBool(BaseOperationIr::SwapDims(desc)) => self.layout(
+                &desc.input,
+                &desc.out,
+                LayoutRule::swap(self.sharding(&desc.input), desc.dim1, desc.dim2),
+            ),
+            OperationIr::BaseFloat(BaseOperationIr::Permute(desc))
+            | OperationIr::BaseInt(BaseOperationIr::Permute(desc))
+            | OperationIr::BaseBool(BaseOperationIr::Permute(desc)) => self.layout(
+                &desc.input,
+                &desc.out,
+                LayoutRule::permute(self.sharding(&desc.input), &desc.axes),
+            ),
+            OperationIr::BaseFloat(BaseOperationIr::Slice(desc))
+            | OperationIr::BaseInt(BaseOperationIr::Slice(desc))
+            | OperationIr::BaseBool(BaseOperationIr::Slice(desc)) => self.layout(
+                &desc.tensor,
+                &desc.out,
+                LayoutRule::slice(
+                    self.sharding(&desc.tensor),
+                    &desc.ranges,
+                    &desc.tensor.shape,
+                ),
+            ),
+            OperationIr::BaseFloat(BaseOperationIr::SliceAssign(desc))
+            | OperationIr::BaseInt(BaseOperationIr::SliceAssign(desc))
+            | OperationIr::BaseBool(BaseOperationIr::SliceAssign(desc)) => self.slice_assign(desc),
+            OperationIr::BaseFloat(BaseOperationIr::Expand(desc))
+            | OperationIr::BaseInt(BaseOperationIr::Expand(desc))
+            | OperationIr::BaseBool(BaseOperationIr::Expand(desc)) => self.layout(
+                &desc.input,
+                &desc.out,
+                LayoutRule::expand(
+                    self.sharding(&desc.input),
+                    desc.input.shape.num_dims(),
+                    desc.out.shape.num_dims(),
+                ),
+            ),
             OperationIr::NumericFloat(_, op) => self.numeric(op),
             OperationIr::Float(_, FloatOperationIr::Matmul(desc)) => self.matmul(desc),
             OperationIr::Float(_, FloatOperationIr::Random(desc)) => self.random(&desc.out),
@@ -122,6 +165,7 @@ impl GroupShardings<'_> {
                 | ActivationOperationIr::Gelu(desc)
                 | ActivationOperationIr::Sigmoid(desc),
             ) => self.unary(ElementwiseRule::Nonlinear, desc),
+            OperationIr::Module(ModuleOperationIr::Attention(desc)) => self.attention(desc),
             _ => None,
         }
     }
@@ -196,6 +240,33 @@ impl GroupShardings<'_> {
         )
     }
 
+    fn attention(&self, desc: &AttentionOpIr) -> Option<OpPlan> {
+        let (query, key, value) = (&desc.query, &desc.key, &desc.value);
+        let rule = AttentionRule::new(
+            [query, key, value].map(|input| self.sharding(input)),
+            &AttentionShapes::new(&query.shape, &key.shape, &value.shape),
+            self.num_members,
+        );
+        let out = &desc.out;
+        match (&desc.mask, &desc.attn_bias) {
+            (None, None) => self.attend(rule, [query, key, value], out),
+            (Some(scores), None) | (None, Some(scores)) => {
+                self.attend(rule, [query, key, value, scores], out)
+            }
+            (Some(mask), Some(bias)) => self.attend(rule, [query, key, value, mask, bias], out),
+        }
+    }
+
+    fn attend<const N: usize>(
+        &self,
+        rule: AttentionRule,
+        inputs: [&TensorIr; N],
+        out: &TensorIr,
+    ) -> Option<OpPlan> {
+        let sharding = rule.sharding(inputs.map(|input| &input.shape));
+        OpPlan::from_rule(inputs, out, sharding, Execution::Eager)
+    }
+
     fn sum(&self, input: &TensorIr, out: &TensorIr, reduced_dims: ReducedDims) -> Option<OpPlan> {
         let sharding = SumRule::new(self.sharding(input), reduced_dims).sharding();
         OpPlan::from_rule([input], out, sharding, Execution::Eager)
@@ -210,6 +281,25 @@ impl GroupShardings<'_> {
         )
         .sharding();
         OpPlan::from_rule([&desc.input], &desc.out, sharding, Execution::Eager)
+    }
+
+    fn layout(&self, input: &TensorIr, out: &TensorIr, rule: LayoutRule) -> Option<OpPlan> {
+        OpPlan::from_rule([input], out, rule.sharding(), Execution::Eager)
+    }
+
+    fn slice_assign(&self, desc: &SliceAssignOpIr) -> Option<OpPlan> {
+        let rule = LayoutRule::slice_assign(
+            self.sharding(&desc.tensor),
+            self.sharding(&desc.value),
+            &desc.ranges,
+            &desc.tensor.shape,
+        );
+        OpPlan::from_rule(
+            [&desc.tensor, &desc.value],
+            &desc.out,
+            rule.sharding(),
+            Execution::Eager,
+        )
     }
 
     fn random(&self, out: &TensorIr) -> Option<OpPlan> {

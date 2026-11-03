@@ -5,6 +5,7 @@ use burn_tensor::{
     group::GroupError,
     module,
     quantization::QuantScheme,
+    s,
 };
 
 use std::sync::{Mutex, PoisonError};
@@ -55,6 +56,83 @@ fn heads_split_out_of_a_split_hidden_dim_stay_split() {
             .into_data()
             .assert_approx_eq::<f32>(&expected, tolerance());
     }
+}
+
+#[test]
+fn rotated_heads_stay_split() {
+    let (x, angles) = (values([2, 3, 4, 8], 1), values([3, 8], 2));
+    let expected = rotate(
+        Tensor::from_data(x.clone(), &Device::flex()),
+        angles.clone(),
+    )
+    .into_data();
+    for num_members in [2, 4] {
+        let rotated = rotate(
+            sharded(x.clone(), &group(num_members), Split { dim: 2 }),
+            angles.clone(),
+        );
+
+        assert_eq!(
+            rotated.sharding(),
+            Some(Split { dim: 1 }),
+            "{num_members} members"
+        );
+        rotated
+            .into_data()
+            .assert_approx_eq::<f32>(&expected, tolerance());
+    }
+}
+
+/// Rotary position embedding as a tensor-op formulation writes it: heads moved outward, then each
+/// head's halves rotated into a zero buffer.
+fn rotate(x: Tensor<4>, angles: TensorData) -> Tensor<4> {
+    let heads = x.swap_dims(1, 2);
+    let half = heads.dims()[3] / 2;
+    let (lower, upper) = (
+        heads.clone().narrow(3, 0, half),
+        heads.clone().narrow(3, half, half),
+    );
+    let rotated = heads
+        .zeros_like()
+        .slice_assign(s![.., .., .., 0..half], upper.neg())
+        .slice_assign(s![.., .., .., half..2 * half], lower);
+    let angles = Tensor::<2>::from_data(angles, &heads.device()).unsqueeze::<4>();
+    heads * angles.clone().cos() + rotated * angles.sin()
+}
+
+#[test]
+fn attention_split_on_the_heads_stays_split() {
+    let (query, key, value) = (
+        values([2, 4, 3, 4], 1),
+        values([2, 2, 5, 4], 2),
+        values([2, 2, 5, 4], 3),
+    );
+    let flex = Device::flex();
+    let expected = module::attention(
+        Tensor::from_data(query.clone(), &flex),
+        Tensor::from_data(key.clone(), &flex),
+        Tensor::from_data(value.clone(), &flex),
+        None,
+        None,
+        Default::default(),
+    )
+    .into_data();
+
+    let device = group(2);
+    let heads = Split { dim: 1 };
+    let context = module::attention(
+        sharded::<4>(query, &device, heads),
+        sharded(key, &device, heads),
+        sharded(value, &device, heads),
+        None,
+        None,
+        Default::default(),
+    );
+
+    assert_eq!(context.sharding(), Some(heads));
+    context
+        .into_data()
+        .assert_approx_eq::<f32>(&expected, tolerance());
 }
 
 #[test]
