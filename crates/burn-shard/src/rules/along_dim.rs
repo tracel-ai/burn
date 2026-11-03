@@ -1,3 +1,5 @@
+use smallvec::smallvec;
+
 use crate::{OpSharding, Sharding};
 
 /// An op that reads one dim whole and treats every other independently, like softmax, cumsum or
@@ -16,9 +18,9 @@ impl AlongDimRule {
         Self { sharding }
     }
 
-    pub fn sharding(&self) -> OpSharding<1> {
+    pub fn sharding(&self) -> OpSharding {
         OpSharding {
-            inputs: [self.sharding],
+            inputs: smallvec![self.sharding],
             output: self.sharding,
         }
     }
@@ -40,11 +42,11 @@ mod tests {
     #[test]
     fn a_split_of_the_dim_or_a_partial_sum_gathers() {
         assert_eq!(
-            AlongDimRule::new(Split { dim: 1 }, 1).sharding().inputs,
+            AlongDimRule::new(Split { dim: 1 }, 1).sharding().inputs[..],
             [Replicated]
         );
         assert_eq!(
-            AlongDimRule::new(PartialSum, 1).sharding().inputs,
+            AlongDimRule::new(PartialSum, 1).sharding().inputs[..],
             [Replicated]
         );
     }

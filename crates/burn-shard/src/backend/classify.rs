@@ -7,14 +7,14 @@ use burn_ir::{
     OperationIr, ReduceDimOpIr, ReduceOpIr, ScalarOpIr, TensorIr, UnaryOpIr,
 };
 
-use crate::{Linearity, OpKind, ReducedDims, ReductionKind};
+use crate::{Linearity, OpInputs, OpKind, ReducedDims, ReductionKind};
 
 /// How the planner reads an op: by its kind and the tensors it reads, or not at all.
 #[derive(Debug, PartialEq)]
 pub enum OpClass<'a> {
     Kind {
         kind: OpKind<'a>,
-        inputs: Vec<&'a TensorIr>,
+        inputs: OpInputs<&'a TensorIr>,
         out: &'a TensorIr,
     },
     /// No rule: the op gathers its inputs and runs whole on every member.
@@ -391,7 +391,7 @@ impl<'a> OpClass<'a> {
     ) -> Self {
         Self::Kind {
             kind,
-            inputs: inputs.to_vec(),
+            inputs: inputs.into_iter().collect(),
             out,
         }
     }

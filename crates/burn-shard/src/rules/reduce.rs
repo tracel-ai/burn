@@ -1,3 +1,5 @@
+use smallvec::smallvec;
+
 use crate::{OpSharding, ReducedDims, ReductionKind, Sharding};
 
 /// How the members run a reduce op.
@@ -23,14 +25,14 @@ impl ReduceRule {
         }
     }
 
-    pub fn sharding(&self) -> OpSharding<1> {
+    pub fn sharding(&self) -> OpSharding {
         let (input, output) = match *self {
             Self::Local { sharding } => (sharding, sharding),
             Self::AcrossMembers { dim } => (Sharding::Split { dim }, Sharding::PartialSum),
             Self::Gathered => (Sharding::Replicated, Sharding::Replicated),
         };
         OpSharding {
-            inputs: [input],
+            inputs: smallvec![input],
             output,
         }
     }
@@ -83,7 +85,7 @@ mod tests {
         assert_eq!(
             ReduceRule::new(PartialSum, dims, ReductionKind::Nonlinear).sharding(),
             OpSharding {
-                inputs: [Replicated],
+                inputs: smallvec![Replicated],
                 output: Replicated
             }
         );

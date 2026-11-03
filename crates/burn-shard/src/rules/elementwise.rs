@@ -1,4 +1,5 @@
 use burn_std::Shape;
+use smallvec::SmallVec;
 
 use crate::{Linearity, OpSharding, Sharding};
 
@@ -15,24 +16,24 @@ impl ElementwiseRule {
     }
 
     /// Where the inputs must be for the op to run on every member, and where its output lands.
-    pub fn sharding<const N: usize>(
-        self,
-        inputs: [Sharding; N],
-        shapes: [&Shape; N],
-    ) -> OpSharding<N> {
-        if self.keeps_partial_sum(&inputs) {
+    pub fn sharding(self, inputs: &[Sharding], shapes: &[&Shape]) -> OpSharding {
+        if self.keeps_partial_sum(inputs) {
             return OpSharding {
-                inputs,
+                inputs: SmallVec::from_slice(inputs),
                 output: Sharding::PartialSum,
             };
         }
 
         let output = inputs
-            .into_iter()
+            .iter()
+            .copied()
             .find(|sharding| matches!(sharding, Sharding::Split { .. }))
             .unwrap_or(Sharding::Replicated);
         OpSharding {
-            inputs: shapes.map(|shape| Self::input_sharding(output, shape)),
+            inputs: shapes
+                .iter()
+                .map(|shape| Self::input_sharding(output, shape))
+                .collect(),
             output,
         }
     }
@@ -68,17 +69,17 @@ mod tests {
     fn partial_plus_replicated_is_reduced_first() {
         let shape = Shape::new([4, 6]);
         let sharding = ElementwiseRule::new(Linearity::Linear)
-            .sharding([PartialSum, Replicated], [&shape, &shape]);
+            .sharding(&[PartialSum, Replicated], &[&shape, &shape]);
 
         assert_eq!(sharding.output, Replicated);
-        assert_eq!(sharding.inputs, [Replicated, Replicated]);
+        assert_eq!(sharding.inputs[..], [Replicated, Replicated]);
     }
 
     #[test]
     fn partial_times_replicated_stays_partial() {
         let shape = Shape::new([4, 6]);
         let sharding = ElementwiseRule::new(Linearity::Multilinear)
-            .sharding([Replicated, PartialSum], [&shape, &shape]);
+            .sharding(&[Replicated, PartialSum], &[&shape, &shape]);
 
         assert_eq!(sharding.output, PartialSum);
     }
@@ -86,19 +87,19 @@ mod tests {
     #[test]
     fn bias_broadcast_along_the_split_dim_stays_whole() {
         let sharding = ElementwiseRule::new(Linearity::Linear).sharding(
-            [Split { dim: 0 }, Replicated],
-            [&Shape::new([4, 6]), &Shape::new([1, 6])],
+            &[Split { dim: 0 }, Replicated],
+            &[&Shape::new([4, 6]), &Shape::new([1, 6])],
         );
 
-        assert_eq!(sharding.inputs, [Split { dim: 0 }, Replicated]);
+        assert_eq!(sharding.inputs[..], [Split { dim: 0 }, Replicated]);
     }
 
     #[test]
     fn partial_meeting_a_split_input_is_reduce_scattered() {
         let shape = Shape::new([4, 6]);
         let sharding = ElementwiseRule::new(Linearity::Linear)
-            .sharding([PartialSum, Split { dim: 1 }], [&shape, &shape]);
+            .sharding(&[PartialSum, Split { dim: 1 }], &[&shape, &shape]);
 
-        assert_eq!(sharding.inputs, [Split { dim: 1 }, Split { dim: 1 }]);
+        assert_eq!(sharding.inputs[..], [Split { dim: 1 }, Split { dim: 1 }]);
     }
 }

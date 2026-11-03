@@ -3,6 +3,7 @@ use std::fmt;
 use burn_backend::ops::DimSplit;
 use burn_ir::TensorIr;
 use burn_std::Shape;
+use smallvec::SmallVec;
 
 /// How a tensor's shards, one per member of its sharded compute device, make up its value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -81,10 +82,18 @@ impl fmt::Display for ShardingError {
 
 impl std::error::Error for ShardingError {}
 
+/// Attention's query, key, value, mask and bias are the most inputs a built-in op with a rule
+/// reads, so planning one never allocates.
+pub type OpInputs<T> = SmallVec<[T; 5]>;
+
+/// A rule plans an op of one output.
+pub type OpOutputs<T> = SmallVec<[T; 1]>;
+
 /// Where an op's inputs must be for it to run on every member at once, and where its output lands.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct OpSharding<const N: usize> {
-    pub inputs: [Sharding; N],
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OpSharding {
+    /// One per input of the op, in its order.
+    pub inputs: OpInputs<Sharding>,
     pub output: Sharding,
 }
 

@@ -19,4 +19,4 @@ use resharding::Resharding;
 use rules::{
     AlongDimRule, AttentionRule, ElementwiseRule, LayoutRule, MatmulRule, ReduceRule, ReshapeRule,
 };
-use sharding::{OpSharding, ShardMember};
+use sharding::{OpInputs, OpOutputs, OpSharding, ShardMember};
