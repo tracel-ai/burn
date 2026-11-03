@@ -184,10 +184,10 @@ where
     ))
 }
 
-/// SIMD rounding for f32 and f64; other dtypes and strided tensors are
-/// handed back as `Err`.
+/// [`simd_map`] for f32 and f64 tensors; other dtypes and strided tensors
+/// are handed back as `Err`.
 #[cfg(feature = "simd")]
-fn round_simd<O>(tensor: FlexTensor, op: O) -> Result<FlexTensor, FlexTensor>
+pub(crate) fn simd_map_float<O>(tensor: FlexTensor, op: O) -> Result<FlexTensor, FlexTensor>
 where
     O: crate::simd::LaneOp<f32> + crate::simd::LaneOp<f64>,
 {
@@ -283,16 +283,31 @@ pub fn recip(tensor: FlexTensor) -> FlexTensor {
 
 /// Cosine
 pub fn cos(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Cos) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.cos(), |x| x.cos())
 }
 
 /// Sine
 pub fn sin(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Sin) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.sin(), |x| x.sin())
 }
 
 /// Tangent
 pub fn tan(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Tan) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.tan(), |x| x.tan())
 }
 
@@ -354,7 +369,7 @@ pub fn atanh(tensor: FlexTensor) -> FlexTensor {
 /// Round to nearest integer (ties to even / banker's rounding)
 pub fn round(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
-    let tensor = match round_simd(tensor, crate::simd::RoundTiesEven) {
+    let tensor = match simd_map_float(tensor, crate::simd::RoundTiesEven) {
         Ok(out) => return out,
         Err(tensor) => tensor,
     };
@@ -364,7 +379,7 @@ pub fn round(tensor: FlexTensor) -> FlexTensor {
 /// Floor (round down)
 pub fn floor(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
-    let tensor = match round_simd(tensor, crate::simd::Floor) {
+    let tensor = match simd_map_float(tensor, crate::simd::Floor) {
         Ok(out) => return out,
         Err(tensor) => tensor,
     };
@@ -374,7 +389,7 @@ pub fn floor(tensor: FlexTensor) -> FlexTensor {
 /// Ceiling (round up)
 pub fn ceil(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
-    let tensor = match round_simd(tensor, crate::simd::Ceil) {
+    let tensor = match simd_map_float(tensor, crate::simd::Ceil) {
         Ok(out) => return out,
         Err(tensor) => tensor,
     };
@@ -384,7 +399,7 @@ pub fn ceil(tensor: FlexTensor) -> FlexTensor {
 /// Truncate (round towards zero)
 pub fn trunc(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
-    let tensor = match round_simd(tensor, crate::simd::Trunc) {
+    let tensor = match simd_map_float(tensor, crate::simd::Trunc) {
         Ok(out) => return out,
         Err(tensor) => tensor,
     };
