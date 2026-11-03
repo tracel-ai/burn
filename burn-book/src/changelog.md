@@ -504,7 +504,7 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
 - Allow `gather` and `scatter` indices smaller than the tensor on dimensions other than `dim`
   (`indices.shape[d] <= tensor.shape[d]`), like PyTorch; `scatter` updates only the covered
   positions. Larger indices are still rejected. Third-party backends must accept these shapes in
-  `*_gather` and `*_scatter`.
+  `*_gather` and `*_scatter`. ([#6381](https://github.com/tracel-ai/burn/pull/6381))
 - Report the runtime-stated capacity in bytes for workload sizing, now
   `Device::description()`'s `max_memory`. The value is distinct from currently free memory;
   backends without a reported capacity return `None`. ([#6250](https://github.com/tracel-ai/burn/pull/6250))
