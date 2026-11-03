@@ -12,30 +12,31 @@ use burn_autodiff::{
 };
 #[cfg(feature = "autodiff")]
 use burn_backend::{Backend, tensor::FloatTensor};
-use burn_group::{Sharding, ShardingError};
+use burn_shard::{Sharding, ShardingError};
 
-use crate::{BackendTensor, DispatchTensor, DispatchTensorKind, backends::Group};
+use crate::{BackendTensor, DispatchTensor, DispatchTensorKind, backends::ShardedCompute};
 #[cfg(feature = "autodiff")]
 use crate::{DispatchAutodiffContext, GradientCheckpointingStrategy, backends::Autodiff};
 
 impl DispatchTensor {
-    /// The same value with another sharding over its device group, or why it cannot take it.
+    /// The same value with another sharding over its sharded compute device, or why it cannot take it.
     ///
     /// A tracked autodiff tensor records the move: its gradient flows back through it unchanged,
     /// since a gradient may have any sharding.
     pub fn try_with_sharding(self, sharding: Sharding) -> Result<Self, ShardingError> {
         let DispatchTensor { kind, autodiff } = self;
         let kind = match kind {
-            DispatchTensorKind::Group(tensor) => {
-                DispatchTensorKind::Group(tensor.reshard(sharding)?)
+            DispatchTensorKind::ShardedCompute(tensor) => {
+                DispatchTensorKind::ShardedCompute(tensor.reshard(sharding)?)
             }
             #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(inner) => {
                 let DispatchAutodiffContext::Enabled(checkpointing) = autodiff else {
                     unreachable!("An autodiff tensor has an enabled autodiff context")
                 };
-                let DispatchTensorKind::Group(BackendTensor::Autodiff(tensor)) = *inner else {
-                    return Err(ShardingError::NotOnGroup);
+                let DispatchTensorKind::ShardedCompute(BackendTensor::Autodiff(tensor)) = *inner
+                else {
+                    return Err(ShardingError::NotSharded);
                 };
                 let resharded = match checkpointing {
                     GradientCheckpointingStrategy::Balanced => {
@@ -45,20 +46,20 @@ impl DispatchTensor {
                         WithSharding::record::<NoCheckpointing>(tensor, sharding)
                     }
                 }?;
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Group(
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::ShardedCompute(
                     BackendTensor::Autodiff(resharded),
                 )))
             }
             #[allow(unreachable_patterns)]
-            _ => return Err(ShardingError::NotOnGroup),
+            _ => return Err(ShardingError::NotSharded),
         };
         Ok(DispatchTensor { kind, autodiff })
     }
 
-    /// Where the tensor's shards sit, or `None` when it is not on a device group.
+    /// Where the tensor's shards sit, or `None` when it is not on a sharded compute device.
     pub fn sharding(&self) -> Option<Sharding> {
         let primitive = match &self.kind {
-            DispatchTensorKind::Group(
+            DispatchTensorKind::ShardedCompute(
                 BackendTensor::Float(tensor)
                 | BackendTensor::Int(tensor)
                 | BackendTensor::Bool(tensor)
@@ -66,7 +67,9 @@ impl DispatchTensor {
             ) => tensor,
             #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(inner) => match &**inner {
-                DispatchTensorKind::Group(BackendTensor::Autodiff(tensor)) => tensor.primitive(),
+                DispatchTensorKind::ShardedCompute(BackendTensor::Autodiff(tensor)) => {
+                    tensor.primitive()
+                }
                 _ => return None,
             },
             #[allow(unreachable_patterns)]
@@ -84,14 +87,14 @@ struct WithSharding;
 #[cfg(feature = "autodiff")]
 impl WithSharding {
     fn record<C: CheckpointStrategy>(
-        tensor: FloatTensor<Autodiff<Group>>,
+        tensor: FloatTensor<Autodiff<ShardedCompute>>,
         sharding: Sharding,
-    ) -> Result<FloatTensor<Autodiff<Group>>, ShardingError> {
+    ) -> Result<FloatTensor<Autodiff<ShardedCompute>>, ShardingError> {
         let node = tensor.node();
         let inner = tensor.into_primitive();
         let resharded = inner.client.clone().reshard(inner, sharding)?;
         Ok(
-            <WithSharding as Backward<Group, 1>>::prepare::<C>(WithSharding, [node])
+            <WithSharding as Backward<ShardedCompute, 1>>::prepare::<C>(WithSharding, [node])
                 .compute_bound()
                 .stateless(resharded),
         )
@@ -107,7 +110,7 @@ impl<B: Backend> Backward<B, 1> for WithSharding {
     }
 }
 
-impl BackendTensor<Group> {
+impl BackendTensor<ShardedCompute> {
     fn reshard(self, sharding: Sharding) -> Result<Self, ShardingError> {
         Ok(match self {
             BackendTensor::Float(tensor) => {

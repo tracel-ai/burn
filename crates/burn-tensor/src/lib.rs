@@ -87,7 +87,7 @@ pub use burn_derive::{__assert_shape, __debug_assert_shape, __einsum};
 // Re-exported types
 #[cfg(feature = "autodiff")]
 pub use burn_dispatch::GradientCheckpointingStrategy;
-#[cfg(feature = "group")]
+#[cfg(feature = "shard")]
 pub use burn_dispatch::backends::{Sharding, ShardingError};
 pub use burn_std::{
     AllocationProperty, Bytes, bf16, f16, flex32,
@@ -108,8 +108,8 @@ pub use environment::*;
 #[cfg(feature = "wgpu")]
 pub mod wgpu;
 
-#[cfg(feature = "group")]
-pub mod group;
+#[cfg(feature = "shard")]
+pub mod shard;
 
 #[cfg(feature = "remote")]
 pub mod remote;

@@ -5,7 +5,7 @@ use crate::{
     ShardingError,
 };
 
-/// How the shards of a group's tensor move between members, from one sharding to another.
+/// How the shards of a sharded compute device's tensor move between members, from one sharding to another.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Resharding {
     /// The tensor already has the target sharding, so nothing moves.
@@ -39,7 +39,7 @@ impl Resharding {
                 });
             }
             if shape[dim] < num_members {
-                return Err(ShardingError::DimShorterThanGroup {
+                return Err(ShardingError::DimShorterThanMembers {
                     dim,
                     shape: shape.clone(),
                     num_members,
@@ -76,12 +76,12 @@ mod tests {
     }
 
     #[test]
-    fn a_dim_shorter_than_the_group_has_no_resharding() {
+    fn a_dim_with_fewer_indices_than_members_has_no_resharding() {
         let resharding = Resharding::new(Replicated, Split { dim: 0 }, &Shape::new([2, 6]), 3);
 
         assert!(matches!(
             resharding,
-            Err(ShardingError::DimShorterThanGroup { dim: 0, .. })
+            Err(ShardingError::DimShorterThanMembers { dim: 0, .. })
         ));
     }
 

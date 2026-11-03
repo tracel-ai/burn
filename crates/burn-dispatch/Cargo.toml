@@ -58,8 +58,8 @@ remote-server = ["remote", "burn-remote/server"]
 # Add the legacy WebSocket transport.
 remote-websocket = ["remote", "burn-remote/websocket"]
 capture = ["burn-capture"]
-# Experimental: tensors split over a group of devices.
-group = ["std", "burn-group"]
+# Experimental: tensors split over several devices.
+shard = ["std", "burn-shard"]
 
 # Backend features
 persistence = ["burn-cubecl?/persistence"]
@@ -95,7 +95,7 @@ burn-remote = { workspace = true, optional = true, features = ["client"] }
 # Encodes a device's cubecl capabilities for the device query a server answers them with.
 rmp-serde = { workspace = true, optional = true }
 burn-capture = { workspace = true, optional = true }
-burn-group = { workspace = true, optional = true }
+burn-shard = { workspace = true, optional = true }
 
 # Op macros with `.as_$inner_kind()`
 paste = { workspace = true }
