@@ -2355,8 +2355,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 Some(handler) => handler(handles, desc, &self.device),
                 None => {
                     let error = TensorError::new(ExecutionError::with_context(format!(
-                        "No custom-op handler registered for `{}`. Register one on the server \
-                         via `CustomOpRegistry`/the server builder before starting it.",
+                        "No custom-op handler registered for `{}`. Register one in the \
+                         `CustomOpRegistry` the server or sharded compute device is made with.",
                         desc.id
                     )));
                     handles.free_inputs(op);

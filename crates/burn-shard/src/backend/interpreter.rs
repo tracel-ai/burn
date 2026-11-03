@@ -10,7 +10,7 @@ use burn_backend::{
 use burn_ir::{
     BackendIr, BaseOperationIr, IrVisitorMut, OperationIr, TensorId, TensorIr, TensorStatus,
 };
-use burn_router::TensorInterpreter;
+use burn_router::{CustomOpRegistry, TensorInterpreter};
 use burn_std::{QuantConfig, Slice, future::DynFut};
 
 use super::{MemberDevice, ShardError};
@@ -84,11 +84,14 @@ pub struct ShardInterpreter<B: BackendIr> {
 }
 
 impl<B: BackendIr> ShardInterpreter<B> {
-    pub fn new(devices: Vec<B::Device>) -> Self {
+    /// Every member runs the custom operations of `custom_ops`.
+    pub fn new(devices: Vec<B::Device>, custom_ops: CustomOpRegistry<B>) -> Self {
         Self {
             interpreters: devices
                 .iter()
-                .map(|device| TensorInterpreter::new(device.clone()))
+                .map(|device| {
+                    TensorInterpreter::with_custom_ops(device.clone(), custom_ops.clone())
+                })
                 .collect(),
             devices,
             shardings: HashMap::new(),
@@ -570,7 +573,10 @@ mod tests {
 
     #[test]
     fn a_split_of_data_uploads_no_member_the_whole_tensor() {
-        let mut interpreter = ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice]);
+        let mut interpreter = ShardInterpreter::<Flex>::new(
+            vec![FlexDevice, FlexDevice],
+            CustomOpRegistry::new(),
+        );
         let id = interpreter.register_tensor_data(TensorData::new(vec![0f32; 24], [4, 6]));
 
         let split = interpreter
@@ -588,7 +594,10 @@ mod tests {
 
     #[test]
     fn data_an_op_consumes_split_is_cut_on_the_host() {
-        let mut interpreter = ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice]);
+        let mut interpreter = ShardInterpreter::<Flex>::new(
+            vec![FlexDevice, FlexDevice],
+            CustomOpRegistry::new(),
+        );
         let x = interpreter.register_tensor_data(TensorData::new(vec![1f32; 24], [4, 6]));
         let x = interpreter
             .reshard(
@@ -640,7 +649,10 @@ mod tests {
             .with_store(QuantStore::Native);
         let data = TensorData::quantized(vec![1i8; 24], [4, 6], scheme, &[0.1], None);
         let dtype = data.dtype();
-        let mut interpreter = ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice]);
+        let mut interpreter = ShardInterpreter::<Flex>::new(
+            vec![FlexDevice, FlexDevice],
+            CustomOpRegistry::new(),
+        );
         let id = interpreter.register_tensor_data(data);
 
         let refused = interpreter.reshard(

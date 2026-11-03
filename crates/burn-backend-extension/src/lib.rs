@@ -79,7 +79,7 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// # Backend selection
 ///
-/// Execution backend selectors include `Cube`, `Flex`, and `Remote`.
+/// Execution backend selectors include `Cube`, `Flex`, `Remote`, and `ShardedCompute`.
 /// `Cube` covers the CubeCL runtimes, including WGPU, CUDA, ROCm, and CPU; `Wgpu` and `Cuda`
 /// are not selectors. Gate a selector with, for example, `Cube: cfg(feature = "wgpu")`;
 /// this condition refers to the consuming crate's features. Enable Burn's `extension` feature
@@ -267,6 +267,25 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// cannot be read as the signature (fewer inputs or scalars than it reads, an unknown enum variant
 /// index, or a scalar that does not decode) panics in the handler instead. Client and server must
 /// therefore be built from the same trait definition.
+///
+/// # Sharded compute devices
+///
+/// Listing `ShardedCompute` beside `Fusion` runs the extension on a sharded compute device from
+/// the same generated client and handlers as `Remote`. Its members are its servers: register the
+/// handlers for the members' backend and give the registry to the device when it is made.
+///
+/// ```rust,ignore
+/// #[backend_extension(Cube, Fusion, ShardedCompute: cfg(feature = "shard"))]
+/// pub trait AttentionBackend: Backend { /* as above */ }
+///
+/// let mut registry = CustomOpRegistry::<Cube>::new();
+/// AttentionBackendHandlers::register(&mut registry);
+/// let device = Device::shard_options(&devices).with_custom_ops(registry).init()?;
+/// ```
+///
+/// It has no sharding rule for a custom operation, so it gathers the inputs and runs the
+/// operation whole on every member. Arguments travel as they do to a server, under the same
+/// requirements.
 #[proc_macro_attribute]
 pub fn backend_extension(attr: TokenStream, item: TokenStream) -> TokenStream {
     extension::expand(attr.into(), item.into())

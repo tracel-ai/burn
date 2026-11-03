@@ -9,8 +9,8 @@
 
 use alloc::vec::Vec;
 
-use burn_dispatch::DispatchDevice;
 pub use burn_dispatch::backends::ShardError;
+use burn_dispatch::{DispatchDevice, backends::ShardCustomOps};
 
 use crate::Device;
 
@@ -20,9 +20,20 @@ use crate::Device;
 #[derive(Clone, Debug)]
 pub struct ShardOptions {
     devices: Vec<Device>,
+    custom_ops: ShardCustomOps,
 }
 
 impl ShardOptions {
+    /// Every member runs the custom operations of `registry`, a `CustomOpRegistry` of the backend
+    /// the members run, as `#[backend_extension]`'s generated `register` fills one.
+    ///
+    /// A custom operation has no sharding rule, so it gathers its inputs and runs whole on every
+    /// member. Calling this again replaces the registry.
+    pub fn with_custom_ops(mut self, registry: impl Into<ShardCustomOps>) -> Self {
+        self.custom_ops = registry.into();
+        self
+    }
+
     /// A new sharded compute device of the devices, its members, that a tensor can be split over, apart from every
     /// other one, even one of the same devices. A tensor made on it is replicated on every
     /// member until it is [sharded](crate::Tensor::with_sharding).
@@ -40,9 +51,9 @@ impl ShardOptions {
     /// # Errors
     ///
     /// When there are no devices, when they mix backends, when they are not Cube or Flex devices,
-    /// when no member's default for a dtype runs on every member, or when the members quantize
-    /// differently. For autodiff, shard the plain
-    /// devices and call `autodiff` on the sharded compute device. Remote devices are left out: tensor parallelism
+    /// when no member's default for a dtype runs on every member, when the members quantize
+    /// differently, or when the custom operations are another backend's. For autodiff, shard the
+    /// plain devices and call `autodiff` on the sharded compute device. Remote devices are left out: tensor parallelism
     /// needs links as fast as one machine's GPU interconnect.
     ///
     /// # Panics
@@ -54,7 +65,10 @@ impl ShardOptions {
             .iter()
             .map(|device| device.as_dispatch().clone())
             .collect();
-        Ok(Device::new(DispatchDevice::shard(members)?))
+        Ok(Device::new(DispatchDevice::shard(
+            members,
+            self.custom_ops,
+        )?))
     }
 }
 
@@ -63,6 +77,7 @@ impl Device {
     pub fn shard_options(devices: &[Device]) -> ShardOptions {
         ShardOptions {
             devices: devices.to_vec(),
+            custom_ops: ShardCustomOps::default(),
         }
     }
 }

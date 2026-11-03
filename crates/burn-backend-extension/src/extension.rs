@@ -2,7 +2,7 @@
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::parse::{Parse, ParseStream};
+use syn::parse::{Parse, ParseStream, Parser};
 use syn::punctuated::Punctuated;
 use syn::{
     Attribute, FnArg, GenericArgument, GenericParam, Ident, ItemTrait, Meta, Pat, PathArguments,
@@ -270,28 +270,24 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
 fn expand_extension(mut ir: Extension, mut original_trait: ItemTrait) -> TokenStream2 {
     let trait_name = &ir.trait_name;
     let fusion_cfg = ir.backends.fusion.1.as_ref().map(|c| quote!(#[#c]));
-    // With Fusion listed, `Remote` is generated from the same metadata: a client for the router
-    // backend, which the generated `Fusion<B>` implementation wraps into the remote backend, and
-    // the server's handlers. Without it, the remote implementation stays handwritten.
-    let remote_gate = ir
-        .backends
-        .concrete
-        .iter_mut()
-        .find(|backend| ir.backends.fusion.0 && backend.ident == "Remote")
-        .map(|backend| {
-            let remote_cfg = backend.cfg_attr.take();
-            let gate = quote!(#remote_cfg #fusion_cfg);
-            // The remote backend implements the trait only where the generated client exists; an
-            // empty gate keeps an ungated backend ungated.
-            backend.cfg_attr = (!gate.is_empty()).then(|| gate.clone());
-            gate
-        });
+    // With Fusion listed, the router backends, `Remote` and `ShardedCompute`, are generated from the same
+    // metadata: one client for every router channel, which the generated `Fusion<B>`
+    // implementation wraps into the remote backend, and the handlers a server or a sharded compute device's members
+    // run. Without it, their implementations stay handwritten.
+    let router_gate = match ir.backends.fusion.0 {
+        true => router_gate(&mut ir.backends.concrete, fusion_cfg.as_ref()),
+        false => Ok(None),
+    };
+    let router_gate = match router_gate {
+        Ok(gate) => gate,
+        Err(error) => return error.to_compile_error(),
+    };
     // One parse feeds both emitters; each implements every method, a malformed one included, so
     // its error is the only one.
     let (fusion, remote) = if ir.backends.fusion.0 {
         let model = crate::parse::LazyTrait::new(&original_trait);
-        let implementation = crate::fusion::expand(&model, remote_gate.as_ref());
-        let remote = remote_gate
+        let implementation = crate::fusion::expand(&model, router_gate.as_ref());
+        let remote = router_gate
             .as_ref()
             .map(|gate| crate::remote::expand(&model, gate));
         (quote!(#fusion_cfg #implementation), remote)
@@ -319,6 +315,58 @@ fn expand_extension(mut ir: Extension, mut original_trait: ItemTrait) -> TokenSt
         impl #trait_name for burn::backend::Dispatch {
             #( #dispatch_methods )*
         }
+    }
+}
+
+/// The condition the router client is generated under, `None` when no router backend is listed:
+/// any listed router backend's together with Fusion's. Each router backend implements the trait
+/// only where that client exists, so Fusion's condition joins its own.
+fn router_gate(
+    backends: &mut [Backend],
+    fusion_cfg: Option<&TokenStream2>,
+) -> syn::Result<Option<TokenStream2>> {
+    let mut routers: Vec<&mut Backend> = backends
+        .iter_mut()
+        .filter(|backend| {
+            BACKENDS
+                .iter()
+                .any(|spec| spec.router && backend.ident == spec.name)
+        })
+        .collect();
+    if routers.is_empty() {
+        return Ok(None);
+    }
+    let conditions = routers
+        .iter()
+        .map(|router| cfg_condition(router.cfg_attr.as_ref()))
+        .collect::<syn::Result<Vec<_>>>()?;
+    // An ungated router backend leaves the client ungated.
+    let any = match conditions.into_iter().collect::<Option<Vec<_>>>() {
+        Some(conditions) => quote!(#[cfg(any(#(#conditions),*))]),
+        None => quote!(),
+    };
+    for router in &mut routers {
+        let own = router.cfg_attr.take();
+        let gate = quote!(#own #fusion_cfg);
+        router.cfg_attr = (!gate.is_empty()).then_some(gate);
+    }
+    Ok(Some(quote!(#any #fusion_cfg)))
+}
+
+/// The predicate of a backend's `cfg(...)`, `None` for an ungated backend.
+fn cfg_condition(cfg_attr: Option<&TokenStream2>) -> syn::Result<Option<TokenStream2>> {
+    let Some(cfg_attr) = cfg_attr else {
+        return Ok(None);
+    };
+    let attributes = Attribute::parse_outer.parse2(cfg_attr.clone())?;
+    match attributes.as_slice() {
+        [attribute] if attribute.path().is_ident("cfg") => {
+            Ok(Some(attribute.meta.require_list()?.tokens.clone()))
+        }
+        _ => Err(syn::Error::new_spanned(
+            cfg_attr,
+            "a router backend's condition is a `cfg(...)`",
+        )),
     }
 }
 

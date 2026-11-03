@@ -98,9 +98,15 @@ pub mod backends {
 
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteBackend as Remote;
-    #[cfg(feature = "remote")]
+    /// What `#[backend_extension]` builds the remote backend's and sharded compute devices' client on.
+    #[cfg(any(feature = "remote", feature = "shard"))]
     #[doc(hidden)]
-    pub use burn_remote::extension as remote_extension;
+    pub mod router_extension {
+        pub use burn_router::{
+            BackendRouter, CustomOpRegistry, HandlerSource, RouterChannel, RouterClient,
+            RouterTensor,
+        };
+    }
 
     /// Public graph-capture API types.
     #[cfg(feature = "capture")]
@@ -116,7 +122,7 @@ pub mod backends {
     #[cfg(feature = "shard")]
     pub use burn_shard::ShardBackend as ShardedCompute;
     #[cfg(feature = "shard")]
-    pub use burn_shard::{ShardError, Sharding, ShardingError};
+    pub use burn_shard::{CustomOpRegistry, ShardCustomOps, ShardError, Sharding, ShardingError};
 }
 
 // Re-export devices

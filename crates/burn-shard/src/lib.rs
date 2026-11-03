@@ -11,7 +11,8 @@ mod resharding;
 mod rules;
 mod sharding;
 
-pub use backend::{MemberDevice, ShardBackend, ShardError, ShardedComputeDevice};
+pub use backend::{MemberDevice, ShardBackend, ShardCustomOps, ShardError, ShardedComputeDevice};
+pub use burn_router::CustomOpRegistry;
 pub use sharding::{Sharding, ShardingError};
 
 use kind::{Linearity, OpKind, ReducedDims, ReductionKind};

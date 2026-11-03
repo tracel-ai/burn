@@ -9,6 +9,8 @@ pub struct BackendSpec {
     pub name: &'static str,
     pub cfg: &'static str,
     distributed: bool,
+    /// A `BackendRouter`, which runs an extension from its IR alone.
+    pub router: bool,
     unidirectional_transfer: bool,
 }
 
@@ -20,30 +22,35 @@ pub const BACKENDS: &[BackendSpec] = &[
         cfg: "cube_backend",
         // A runtime without a transport between its devices emulates its collectives.
         distributed: true,
+        router: false,
         unidirectional_transfer: false,
     },
     BackendSpec {
         name: "Flex",
         cfg: "feature = \"flex\"",
         distributed: false,
+        router: false,
         unidirectional_transfer: false,
     },
     BackendSpec {
         name: "Remote",
         cfg: "feature = \"remote\"",
         distributed: true,
+        router: true,
         unidirectional_transfer: false,
     },
     BackendSpec {
         name: "ShardedCompute",
         cfg: "feature = \"shard\"",
         distributed: false,
+        router: true,
         unidirectional_transfer: false,
     },
     BackendSpec {
         name: "Capture",
         cfg: "feature = \"capture\"",
         distributed: false,
+        router: false,
         // Capture is one-way and is handled by dedicated transfer arms.
         unidirectional_transfer: true,
     },
