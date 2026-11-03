@@ -429,11 +429,11 @@ pub trait Backend:
     }
 
     /// Bring what `origin` holds into the compute environment `id`, after
-    /// every operation registered so far on the calling stream: an entry of
-    /// `origin` replaces the one `id` holds under the same key, and every
-    /// other entry of `id` stays. When `id` is active, the work after the
-    /// merge reads the merged entries. Merging an environment into itself
-    /// changes nothing.
+    /// every operation registered so far on the calling stream: a key `id`
+    /// already holds keeps its value, and every other entry of `origin` is
+    /// added. The merge only writes entries and never activates an
+    /// environment, so the active one is not switched. Merging an
+    /// environment into itself changes nothing.
     ///
     /// # Errors
     ///

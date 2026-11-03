@@ -126,11 +126,11 @@ impl ComputeEnvironment {
     }
 
     /// Bring what `other` holds now into this environment, after every
-    /// operation registered so far on the calling stream: an entry of `other`
-    /// replaces the one this environment holds under the same key, and every
-    /// other entry stays. When this environment is active, the work after the
-    /// merge reads the merged entries. Merging an environment into itself
-    /// changes nothing.
+    /// operation registered so far on the calling stream: a key this
+    /// environment already holds keeps its value, and every other entry of
+    /// `other` is added. The merge only writes entries and never activates an
+    /// environment, so the active one is not switched. Merging an environment
+    /// into itself changes nothing.
     ///
     /// # Errors
     ///
