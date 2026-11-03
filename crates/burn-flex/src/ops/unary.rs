@@ -333,6 +333,11 @@ pub fn tanh(tensor: FlexTensor) -> FlexTensor {
 
 /// Inverse cosine (arccos)
 pub fn acos(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Acos) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.acos(), |x| x.acos())
 }
 
@@ -343,6 +348,11 @@ pub fn acosh(tensor: FlexTensor) -> FlexTensor {
 
 /// Inverse sine (arcsin)
 pub fn asin(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Asin) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.asin(), |x| x.asin())
 }
 
@@ -353,6 +363,11 @@ pub fn asinh(tensor: FlexTensor) -> FlexTensor {
 
 /// Inverse tangent (arctan)
 pub fn atan(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Atan) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.atan(), |x| x.atan())
 }
 
