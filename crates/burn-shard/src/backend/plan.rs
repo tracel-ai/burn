@@ -1,15 +1,13 @@
 use std::collections::HashMap;
 
 use burn_backend::{DType, ops::attention::AttentionShapes};
-use burn_ir::{
-    ActivationOperationIr, AttentionOpIr, BaseOperationIr, BinaryOpIr, FloatOperationIr,
-    MatmulOpIr, ModuleOperationIr, NumericOperationIr, OperationIr, ScalarOpIr, ShapeOpIr,
-    SliceAssignOpIr, TensorId, TensorIr, UnaryOpIr,
-};
+use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_std::Slice;
 
+use super::classify::OpClass;
 use crate::{
-    AttentionRule, ElementwiseRule, LayoutRule, MatmulRule, OpSharding, ReducedDims, ReshapeRule,
-    Sharding, SumRule,
+    AlongDimRule, AttentionRule, ElementwiseRule, LayoutRule, Linearity, MatmulRule, OpKind,
+    OpSharding, ReduceRule, ReducedDims, ReductionKind, ReshapeRule, Sharding,
 };
 
 /// Where each tensor of one op must be for the op to run on every member, where its outputs land,
@@ -42,7 +40,7 @@ impl OpPlan {
             shardings,
             num_members,
         }
-        .plan(op)
+        .plan(OpClass::from(op))
         .unwrap_or_else(|| Self::gathered(op))
     }
 
@@ -110,104 +108,74 @@ struct TensorShardings<'a> {
 }
 
 impl TensorShardings<'_> {
-    fn plan(&self, op: &OperationIr) -> Option<OpPlan> {
-        match op {
-            OperationIr::BaseFloat(BaseOperationIr::Reshape(desc))
-            | OperationIr::BaseInt(BaseOperationIr::Reshape(desc))
-            | OperationIr::BaseBool(BaseOperationIr::Reshape(desc)) => self.reshape(desc),
-            OperationIr::BaseFloat(BaseOperationIr::SwapDims(desc))
-            | OperationIr::BaseInt(BaseOperationIr::SwapDims(desc))
-            | OperationIr::BaseBool(BaseOperationIr::SwapDims(desc)) => self.layout(
-                &desc.input,
-                &desc.out,
-                LayoutRule::swap(self.sharding(&desc.input), desc.dim1, desc.dim2),
+    fn plan(&self, class: OpClass) -> Option<OpPlan> {
+        match class {
+            OpClass::Kind { kind, inputs, out } => self.apply(kind, &inputs, out),
+            OpClass::Gathered => None,
+        }
+    }
+
+    /// The plan an op of `kind` runs by, or `None` when its inputs are not the ones the kind
+    /// reads.
+    fn apply(&self, kind: OpKind, inputs: &[&TensorIr], out: &TensorIr) -> Option<OpPlan> {
+        match (kind, inputs) {
+            (OpKind::Elementwise(linearity), [a]) => self.elementwise(linearity, [*a], out),
+            (OpKind::Elementwise(linearity), [a, b]) => self.elementwise(linearity, [*a, *b], out),
+            (OpKind::Elementwise(linearity), [a, b, c]) => {
+                self.elementwise(linearity, [*a, *b, *c], out)
+            }
+            (OpKind::AlongDim { dim }, [input]) => self.along_dim(dim, input, out),
+            (
+                OpKind::Reduction {
+                    dims,
+                    kind: reduction,
+                },
+                [input],
+            ) => self.reduction(input, out, dims, reduction),
+            (OpKind::Matmul, [lhs, rhs]) => self.matmul(lhs, rhs, out),
+            (OpKind::Random, []) => self.random(out),
+            (OpKind::Reshape, [input]) => self.reshape(input, out),
+            (OpKind::SwapDims { dim1, dim2 }, [input]) => self.layout(
+                input,
+                out,
+                LayoutRule::swap(self.sharding(input), dim1, dim2),
             ),
-            OperationIr::BaseFloat(BaseOperationIr::Permute(desc))
-            | OperationIr::BaseInt(BaseOperationIr::Permute(desc))
-            | OperationIr::BaseBool(BaseOperationIr::Permute(desc)) => self.layout(
-                &desc.input,
-                &desc.out,
-                LayoutRule::permute(self.sharding(&desc.input), &desc.axes),
+            (OpKind::Permute { axes }, [input]) => {
+                self.layout(input, out, LayoutRule::permute(self.sharding(input), axes))
+            }
+            (OpKind::Slice { ranges }, [input]) => self.layout(
+                input,
+                out,
+                LayoutRule::slice(self.sharding(input), ranges, &input.shape),
             ),
-            OperationIr::BaseFloat(BaseOperationIr::Slice(desc))
-            | OperationIr::BaseInt(BaseOperationIr::Slice(desc))
-            | OperationIr::BaseBool(BaseOperationIr::Slice(desc)) => self.layout(
-                &desc.tensor,
-                &desc.out,
-                LayoutRule::slice(
-                    self.sharding(&desc.tensor),
-                    &desc.ranges,
-                    &desc.tensor.shape,
-                ),
-            ),
-            OperationIr::BaseFloat(BaseOperationIr::SliceAssign(desc))
-            | OperationIr::BaseInt(BaseOperationIr::SliceAssign(desc))
-            | OperationIr::BaseBool(BaseOperationIr::SliceAssign(desc)) => self.slice_assign(desc),
-            OperationIr::BaseFloat(BaseOperationIr::Expand(desc))
-            | OperationIr::BaseInt(BaseOperationIr::Expand(desc))
-            | OperationIr::BaseBool(BaseOperationIr::Expand(desc)) => self.layout(
-                &desc.input,
-                &desc.out,
+            (OpKind::SliceAssign { ranges }, [tensor, value]) => {
+                self.slice_assign(tensor, value, ranges, out)
+            }
+            (OpKind::Expand, [input]) => self.layout(
+                input,
+                out,
                 LayoutRule::expand(
-                    self.sharding(&desc.input),
-                    desc.input.shape.num_dims(),
-                    desc.out.shape.num_dims(),
+                    self.sharding(input),
+                    input.shape.num_dims(),
+                    out.shape.num_dims(),
                 ),
             ),
-            OperationIr::NumericFloat(_, op) => self.numeric(op),
-            OperationIr::Float(_, FloatOperationIr::Matmul(desc)) => self.matmul(desc),
-            OperationIr::Float(_, FloatOperationIr::Random(desc)) => self.random(&desc.out),
-            OperationIr::NumericInt(_, NumericOperationIr::IntRandom(desc)) => {
-                self.random(&desc.out)
+            (OpKind::Attention, [query, key, value]) => self.attention([*query, *key, *value], out),
+            (OpKind::Attention, [query, key, value, scores]) => {
+                self.attention([*query, *key, *value, *scores], out)
             }
-            OperationIr::Activation(
-                ActivationOperationIr::Relu(desc)
-                | ActivationOperationIr::Gelu(desc)
-                | ActivationOperationIr::Sigmoid(desc),
-            ) => self.unary(ElementwiseRule::Nonlinear, desc),
-            OperationIr::Module(ModuleOperationIr::Attention(desc)) => self.attention(desc),
-            _ => None,
-        }
-    }
-
-    fn numeric(&self, op: &NumericOperationIr) -> Option<OpPlan> {
-        match op {
-            NumericOperationIr::Add(desc) | NumericOperationIr::Sub(desc) => {
-                self.binary(ElementwiseRule::Linear, desc)
-            }
-            NumericOperationIr::Mul(desc) => self.binary(ElementwiseRule::Multilinear, desc),
-            NumericOperationIr::Div(desc) => {
-                self.binary(ElementwiseRule::LinearIn { input: 0 }, desc)
-            }
-            NumericOperationIr::MulScalar(desc) | NumericOperationIr::DivScalar(desc) => {
-                self.scalar(ElementwiseRule::Linear, desc)
-            }
-            NumericOperationIr::Neg(desc) => self.unary(ElementwiseRule::Linear, desc),
-            NumericOperationIr::Sum(desc) => self.sum(&desc.input, &desc.out, ReducedDims::All),
-            NumericOperationIr::SumDim(desc) => {
-                self.sum(&desc.input, &desc.out, ReducedDims::Dim(desc.axis))
+            (OpKind::Attention, [query, key, value, mask, bias]) => {
+                self.attention([*query, *key, *value, *mask, *bias], out)
             }
             _ => None,
         }
-    }
-
-    fn unary(&self, rule: ElementwiseRule, desc: &UnaryOpIr) -> Option<OpPlan> {
-        self.elementwise(rule, [&desc.input], &desc.out)
-    }
-
-    fn scalar(&self, rule: ElementwiseRule, desc: &ScalarOpIr) -> Option<OpPlan> {
-        self.elementwise(rule, [&desc.lhs], &desc.out)
-    }
-
-    fn binary(&self, rule: ElementwiseRule, desc: &BinaryOpIr) -> Option<OpPlan> {
-        self.elementwise(rule, [&desc.lhs, &desc.rhs], &desc.out)
     }
 
     /// Broadcasting lines up dims of the same index, so an input with another number of dims has
-    /// no rule.
+    /// no rule, and neither has a linearity naming an input the op does not have.
     fn elementwise<const N: usize>(
         &self,
-        rule: ElementwiseRule,
+        linearity: Linearity,
         inputs: [&TensorIr; N],
         out: &TensorIr,
     ) -> Option<OpPlan> {
@@ -215,91 +183,81 @@ impl TensorShardings<'_> {
         if inputs
             .iter()
             .any(|input| input.shape.num_dims() != num_dims)
+            || matches!(linearity, Linearity::LinearIn { input } if input >= N)
         {
             return None;
         }
-        let sharding = rule.sharding(
+        let sharding = ElementwiseRule::new(linearity).sharding(
             inputs.map(|input| self.sharding(input)),
             inputs.map(|input| &input.shape),
         );
         OpPlan::from_rule(inputs, out, sharding, Execution::Eager)
     }
 
-    fn matmul(&self, desc: &MatmulOpIr) -> Option<OpPlan> {
-        let sharding = MatmulRule::new(
-            self.sharding(&desc.lhs),
-            self.sharding(&desc.rhs),
-            desc.lhs.shape.num_dims(),
-        )
-        .sharding();
-        OpPlan::from_rule(
-            [&desc.lhs, &desc.rhs],
-            &desc.out,
-            sharding,
-            Execution::Eager,
-        )
+    fn along_dim(&self, dim: usize, input: &TensorIr, out: &TensorIr) -> Option<OpPlan> {
+        let sharding = AlongDimRule::new(self.sharding(input), dim).sharding();
+        OpPlan::from_rule([input], out, sharding, Execution::Eager)
     }
 
-    fn attention(&self, desc: &AttentionOpIr) -> Option<OpPlan> {
-        let (query, key, value) = (&desc.query, &desc.key, &desc.value);
+    fn reduction(
+        &self,
+        input: &TensorIr,
+        out: &TensorIr,
+        dims: ReducedDims,
+        reduction: ReductionKind,
+    ) -> Option<OpPlan> {
+        let sharding = ReduceRule::new(self.sharding(input), dims, reduction).sharding();
+        OpPlan::from_rule([input], out, sharding, Execution::Eager)
+    }
+
+    fn matmul(&self, lhs: &TensorIr, rhs: &TensorIr, out: &TensorIr) -> Option<OpPlan> {
+        let sharding =
+            MatmulRule::new(self.sharding(lhs), self.sharding(rhs), lhs.shape.num_dims())
+                .sharding();
+        OpPlan::from_rule([lhs, rhs], out, sharding, Execution::Eager)
+    }
+
+    /// The query, key and value come first.
+    fn attention<const N: usize>(&self, inputs: [&TensorIr; N], out: &TensorIr) -> Option<OpPlan> {
+        let [query, key, value] = [inputs[0], inputs[1], inputs[2]];
         let rule = AttentionRule::new(
             [query, key, value].map(|input| self.sharding(input)),
             &AttentionShapes::new(&query.shape, &key.shape, &value.shape),
             self.num_members,
         );
-        let out = &desc.out;
-        match (&desc.mask, &desc.attn_bias) {
-            (None, None) => self.attend(rule, [query, key, value], out),
-            (Some(scores), None) | (None, Some(scores)) => {
-                self.attend(rule, [query, key, value, scores], out)
-            }
-            (Some(mask), Some(bias)) => self.attend(rule, [query, key, value, mask, bias], out),
-        }
-    }
-
-    fn attend<const N: usize>(
-        &self,
-        rule: AttentionRule,
-        inputs: [&TensorIr; N],
-        out: &TensorIr,
-    ) -> Option<OpPlan> {
         let sharding = rule.sharding(inputs.map(|input| &input.shape));
         OpPlan::from_rule(inputs, out, sharding, Execution::Eager)
     }
 
-    fn sum(&self, input: &TensorIr, out: &TensorIr, reduced_dims: ReducedDims) -> Option<OpPlan> {
-        let sharding = SumRule::new(self.sharding(input), reduced_dims).sharding();
-        OpPlan::from_rule([input], out, sharding, Execution::Eager)
-    }
-
-    fn reshape(&self, desc: &ShapeOpIr) -> Option<OpPlan> {
+    fn reshape(&self, input: &TensorIr, out: &TensorIr) -> Option<OpPlan> {
         let sharding = ReshapeRule::new(
-            self.sharding(&desc.input),
-            &desc.input.shape,
-            &desc.out.shape,
+            self.sharding(input),
+            &input.shape,
+            &out.shape,
             self.num_members,
         )
         .sharding();
-        OpPlan::from_rule([&desc.input], &desc.out, sharding, Execution::Eager)
+        OpPlan::from_rule([input], out, sharding, Execution::Eager)
     }
 
     fn layout(&self, input: &TensorIr, out: &TensorIr, rule: LayoutRule) -> Option<OpPlan> {
         OpPlan::from_rule([input], out, rule.sharding(), Execution::Eager)
     }
 
-    fn slice_assign(&self, desc: &SliceAssignOpIr) -> Option<OpPlan> {
+    fn slice_assign(
+        &self,
+        tensor: &TensorIr,
+        value: &TensorIr,
+        ranges: &[Slice],
+        out: &TensorIr,
+    ) -> Option<OpPlan> {
         let rule = LayoutRule::slice_assign(
-            self.sharding(&desc.tensor),
-            self.sharding(&desc.value),
-            &desc.ranges,
-            &desc.tensor.shape,
+            self.sharding(tensor),
+            self.sharding(value),
+            ranges,
+            &tensor.shape,
         );
-        OpPlan::from_rule(
-            [&desc.tensor, &desc.value],
-            &desc.out,
-            rule.sharding(),
-            Execution::Eager,
-        )
+        OpPlan::from_rule([tensor, value], out, rule.sharding(), Execution::Eager)
     }
 
     fn random(&self, out: &TensorIr) -> Option<OpPlan> {

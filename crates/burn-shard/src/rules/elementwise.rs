@@ -1,23 +1,19 @@
 use burn_std::Shape;
 
-use crate::{OpSharding, Sharding};
+use crate::{Linearity, OpSharding, Sharding};
 
-/// Which inputs of an elementwise op a partial sum can pass through: its output stays partial
-/// only where the op distributes over the sum.
+/// An elementwise op keeps a partial sum where its linearity lets one through, and otherwise
+/// takes the first split among its inputs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ElementwiseRule {
-    /// Linear in no input, like relu: a partial input is summed first.
-    Nonlinear,
-    /// Linear in every input at once: the output stays partial when every input is, like add.
-    Linear,
-    /// Linear in each input with the others fixed: one partial input among replicated ones
-    /// keeps the output partial, like mul.
-    Multilinear,
-    /// Linear in one input with the others replicated, like a dividend.
-    LinearIn { input: usize },
+pub struct ElementwiseRule {
+    linearity: Linearity,
 }
 
 impl ElementwiseRule {
+    pub fn new(linearity: Linearity) -> Self {
+        Self { linearity }
+    }
+
     /// Where the inputs must be for the op to run on every member, and where its output lands.
     pub fn sharding<const N: usize>(
         self,
@@ -52,11 +48,11 @@ impl ElementwiseRule {
     fn keeps_partial_sum(self, inputs: &[Sharding]) -> bool {
         let count = |sharding| inputs.iter().filter(|input| **input == sharding).count();
         let others_replicated = count(Sharding::Replicated) == inputs.len() - 1;
-        match self {
-            ElementwiseRule::Nonlinear => false,
-            ElementwiseRule::Linear => count(Sharding::PartialSum) == inputs.len(),
-            ElementwiseRule::Multilinear => count(Sharding::PartialSum) == 1 && others_replicated,
-            ElementwiseRule::LinearIn { input } => {
+        match self.linearity {
+            Linearity::Nonlinear => false,
+            Linearity::Linear => count(Sharding::PartialSum) == inputs.len(),
+            Linearity::Multilinear => count(Sharding::PartialSum) == 1 && others_replicated,
+            Linearity::LinearIn { input } => {
                 inputs[input] == Sharding::PartialSum && others_replicated
             }
         }
@@ -71,7 +67,8 @@ mod tests {
     #[test]
     fn partial_plus_replicated_is_reduced_first() {
         let shape = Shape::new([4, 6]);
-        let sharding = ElementwiseRule::Linear.sharding([PartialSum, Replicated], [&shape, &shape]);
+        let sharding = ElementwiseRule::new(Linearity::Linear)
+            .sharding([PartialSum, Replicated], [&shape, &shape]);
 
         assert_eq!(sharding.output, Replicated);
         assert_eq!(sharding.inputs, [Replicated, Replicated]);
@@ -80,15 +77,15 @@ mod tests {
     #[test]
     fn partial_times_replicated_stays_partial() {
         let shape = Shape::new([4, 6]);
-        let sharding =
-            ElementwiseRule::Multilinear.sharding([Replicated, PartialSum], [&shape, &shape]);
+        let sharding = ElementwiseRule::new(Linearity::Multilinear)
+            .sharding([Replicated, PartialSum], [&shape, &shape]);
 
         assert_eq!(sharding.output, PartialSum);
     }
 
     #[test]
     fn bias_broadcast_along_the_split_dim_stays_whole() {
-        let sharding = ElementwiseRule::Linear.sharding(
+        let sharding = ElementwiseRule::new(Linearity::Linear).sharding(
             [Split { dim: 0 }, Replicated],
             [&Shape::new([4, 6]), &Shape::new([1, 6])],
         );
@@ -99,8 +96,8 @@ mod tests {
     #[test]
     fn partial_meeting_a_split_input_is_reduce_scattered() {
         let shape = Shape::new([4, 6]);
-        let sharding =
-            ElementwiseRule::Linear.sharding([PartialSum, Split { dim: 1 }], [&shape, &shape]);
+        let sharding = ElementwiseRule::new(Linearity::Linear)
+            .sharding([PartialSum, Split { dim: 1 }], [&shape, &shape]);
 
         assert_eq!(sharding.inputs, [Split { dim: 1 }, Split { dim: 1 }]);
     }
