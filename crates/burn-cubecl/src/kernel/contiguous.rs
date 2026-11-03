@@ -261,6 +261,19 @@ mod storage_tiled {
         assert_eq!(values(back), values(rhs));
     }
 
+    #[test]
+    fn multi_axis_sum_uses_the_logical_shape_of_tiled_storage() {
+        let device = CubeDevice::default();
+        let input = tensor(&[2, 64, 96], &device, 3);
+        let weight = tiled(&input, (16, 32));
+        assert!(weight.meta.is_tiled());
+
+        let expected = CubeBackend::float_sum_dims(input, &[0, 2]);
+        let actual = CubeBackend::float_sum_dims(weight, &[0, 2]);
+        assert_eq!(actual.shape(), expected.shape());
+        assert_close(&values(actual), &values(expected), "tiled reduction");
+    }
+
     /// Swapping, permuting, broadcasting and adding or dropping dims of one rewrite metadata
     /// alone: the tiles stay where they are, and every value reads where the same rewrite of
     /// the rows puts it.
