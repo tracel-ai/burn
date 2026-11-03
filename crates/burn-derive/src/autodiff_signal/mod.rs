@@ -66,7 +66,7 @@ fn generate(input: &DeriveInput) -> syn::Result<TokenStream> {
         if *skip {
             quote! { #member: self.#member }
         } else {
-            quote! { #member: #signal::detach_require_grad(self.#member) }
+            quote! { #member: #signal::detach_require_grad(self.#member, device) }
         }
     });
     let gradients = fields.iter().map(|SignalField { member, skip }| {
@@ -89,7 +89,7 @@ fn generate(input: &DeriveInput) -> syn::Result<TokenStream> {
     Ok(quote! {
         #[allow(unused_variables)]
         impl #impl_generics #signal for #name #ty_generics #where_clause {
-            fn detach_require_grad(self) -> Self {
+            fn detach_require_grad(self, device: &burn::tensor::Device) -> Self {
                 Self { #(#detached),* }
             }
 

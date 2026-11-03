@@ -57,7 +57,7 @@ fn assert_stack_trains_as_one_device(
     optimizer: impl Fn() -> ModuleOptimizer,
 ) {
     let device = placement.input.clone();
-    let mut reference = stack.clone().fork(&device);
+    let mut reference = stack.copied_onto(&device);
     let mut reference_optimizer = optimizer();
     let mut training = TrainingPipeline::new(
         DistributedLayeredModel::new(stack, placement),
@@ -141,6 +141,23 @@ fn a_parameter_group_selected_by_path_matches_as_in_the_whole_model() {
         PipelineSchedule::OneForwardOneBackward,
         optimizer,
     );
+}
+
+#[test]
+fn stages_on_two_checkpointing_strategies_train_as_one_device() {
+    let (flex, cpu) = devices();
+    let balanced = flex.gradient_checkpointing();
+    for schedule in SCHEDULES {
+        assert_trains_as_one_device(
+            &placement([
+                (balanced.clone(), 2),
+                (cpu.clone(), 1),
+                (balanced.clone(), 1),
+            ]),
+            schedule,
+            || SgdConfig::new().init(),
+        );
+    }
 }
 
 #[test]
@@ -250,6 +267,22 @@ impl Stack {
         self.output.forward(hidden)
     }
 
+    /// The same weights on `device` alone, under its gradient-checkpointing strategy, which
+    /// `fork` would leave as each layer's own.
+    fn copied_onto(&self, device: &Device) -> Self {
+        Self {
+            input: self.input.copied_onto(device),
+            hidden: self
+                .hidden
+                .iter()
+                .map(|layer| Tanh {
+                    linear: layer.linear.copied_onto(device),
+                })
+                .collect(),
+            output: self.output.copied_onto(device),
+        }
+    }
+
     fn weights(&self) -> Vec<(String, Tensor<2>)> {
         core::iter::once(("input".to_string(), &self.input))
             .chain(
@@ -325,6 +358,15 @@ impl Linear {
                 Distribution::Default,
                 device,
             )),
+        }
+    }
+
+    fn copied_onto(&self, device: &Device) -> Self {
+        let weight = self.weight.val();
+        let trained = weight.is_require_grad();
+        Self {
+            weight: Param::from_tensor(Tensor::from_data(weight.into_data(), device))
+                .set_require_grad(trained),
         }
     }
 }
