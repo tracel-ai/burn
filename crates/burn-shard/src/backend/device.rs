@@ -95,8 +95,8 @@ impl ShardedComputeDevice {
     /// `B`'s handlers in `custom_ops`. Each of its default dtypes is the first of the members' own,
     /// in member order, that every member supports.
     ///
-    /// A custom operation has no sharding rule, so it gathers its inputs and runs whole on every
-    /// member.
+    /// A custom operation without a [rule](crate::CustomOpRule) gathers its inputs and runs whole
+    /// on every member.
     ///
     /// # Errors
     ///
@@ -115,8 +115,8 @@ impl ShardedComputeDevice {
         }
         let interpreter = ShardInterpreter::<B>::new(
             members.iter().map(|it| it.device.clone()).collect(),
-            custom_ops.registry::<B>()?,
-        );
+            custom_ops,
+        )?;
         let shared_settings = interpreter.default_settings(members)?;
         let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
         let device = Self {

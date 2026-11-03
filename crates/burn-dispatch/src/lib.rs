@@ -98,7 +98,8 @@ pub mod backends {
 
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteBackend as Remote;
-    /// What `#[backend_extension]` builds the remote backend's and sharded compute devices' client on.
+    /// What `#[backend_extension]` builds the client of the remote backend and of sharded compute
+    /// devices on.
     #[cfg(any(feature = "remote", feature = "shard"))]
     #[doc(hidden)]
     pub mod router_extension {
@@ -122,7 +123,7 @@ pub mod backends {
     #[cfg(feature = "shard")]
     pub use burn_shard::ShardBackend as ShardedCompute;
     #[cfg(feature = "shard")]
-    pub use burn_shard::{CustomOpRegistry, ShardCustomOps, ShardError, Sharding, ShardingError};
+    pub use burn_shard::{ShardError, Sharding, ShardingError};
 }
 
 // Re-export devices
@@ -169,6 +170,11 @@ pub mod devices {
     #[cfg(feature = "shard")]
     pub use burn_shard::ShardedComputeDevice;
 }
+
+/// The sharded compute device's crate, for `burn::tensor::shard` to build on. Not a user path.
+#[doc(hidden)]
+#[cfg(feature = "shard")]
+pub use burn_shard as __shard;
 
 /// The remote backend's crate, for `burn::remote` and `burn::server` to build on. Not a user path.
 #[doc(hidden)]

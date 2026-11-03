@@ -283,9 +283,8 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// let device = Device::shard_options(&devices).with_custom_ops(registry).init()?;
 /// ```
 ///
-/// It has no sharding rule for a custom operation, so it gathers the inputs and runs the
-/// operation whole on every member. Arguments travel as they do to a server, under the same
-/// requirements.
+/// A custom operation without a sharding rule on the device gathers its inputs and runs whole on
+/// every member. Arguments travel as they do to a server, under the same requirements.
 #[proc_macro_attribute]
 pub fn backend_extension(attr: TokenStream, item: TokenStream) -> TokenStream {
     extension::expand(attr.into(), item.into())

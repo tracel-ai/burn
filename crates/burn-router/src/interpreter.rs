@@ -92,6 +92,12 @@ impl<B: BackendIr> TensorInterpreter<B> {
         }
     }
 
+    /// The handles of the tensors on this interpreter's device, for a handler that runs one
+    /// operation over several interpreters at once.
+    pub fn handles_mut(&mut self) -> &mut HandleContainer<B::Handle> {
+        &mut self.context.handles
+    }
+
     /// Get the tensor handle for the given [tensor representation](TensorIr).
     pub fn get_tensor_handle(&mut self, tensor: &TensorIr) -> B::Handle {
         let handles = &mut self.context.handles;

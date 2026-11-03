@@ -415,12 +415,16 @@ impl DispatchDevice {
             #[cfg(cube_backend)]
             Some(Self::Cube(_)) => {
                 let members = shard_members!(devices, Cube)?;
-                ShardedComputeDevice::with_member_settings::<crate::backends::Cube>(&members, custom_ops)
+                ShardedComputeDevice::with_member_settings::<crate::backends::Cube>(
+                    &members, custom_ops,
+                )
             }
             #[cfg(feature = "flex")]
             Some(Self::Flex(_)) => {
                 let members = shard_members!(devices, Flex)?;
-                ShardedComputeDevice::with_member_settings::<crate::backends::Flex>(&members, custom_ops)
+                ShardedComputeDevice::with_member_settings::<crate::backends::Flex>(
+                    &members, custom_ops,
+                )
             }
             Some(other) => unreachable!("{other:?} was refused as a member"),
             None => Err(ShardError::NoDevices),

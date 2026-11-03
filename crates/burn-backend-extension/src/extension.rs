@@ -270,10 +270,10 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
 fn expand_extension(mut ir: Extension, mut original_trait: ItemTrait) -> TokenStream2 {
     let trait_name = &ir.trait_name;
     let fusion_cfg = ir.backends.fusion.1.as_ref().map(|c| quote!(#[#c]));
-    // With Fusion listed, the router backends, `Remote` and `ShardedCompute`, are generated from the same
-    // metadata: one client for every router channel, which the generated `Fusion<B>`
-    // implementation wraps into the remote backend, and the handlers a server or a sharded compute device's members
-    // run. Without it, their implementations stay handwritten.
+    // With Fusion listed, the router backends, `Remote` and `ShardedCompute`, are generated from
+    // the same metadata: one client for every router channel, which the generated `Fusion<B>`
+    // implementation wraps into the remote backend, and the handlers a server or a sharded
+    // compute device's members run. Without it, their implementations stay handwritten.
     let router_gate = match ir.backends.fusion.0 {
         true => router_gate(&mut ir.backends.concrete, fusion_cfg.as_ref()),
         false => Ok(None),

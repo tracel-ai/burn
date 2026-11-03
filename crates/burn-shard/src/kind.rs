@@ -4,10 +4,10 @@ use burn_std::Slice;
 /// its kind.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OpKind<'a> {
-    /// Per element: each input has the output's dims, of length 1 where it broadcasts.
+    /// Per element: each input has the output's last dims, of length 1 where it broadcasts.
     Elementwise(Linearity),
-    /// Reads `dim` of its one input whole and treats every other dim independently, like
-    /// softmax or cumsum.
+    /// Reads `dim` of its first input whole and treats every other dim independently, like
+    /// softmax or cumsum. Further inputs broadcast against the first, like a norm's weight.
     AlongDim { dim: usize },
     /// Collapses `dims` of its one input.
     Reduction {

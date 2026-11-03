@@ -46,9 +46,9 @@ pub fn expand(model: &LazyTrait<'_>, gate: &TokenStream) -> TokenStream {
     let vis = model.vis;
     let handlers = format_ident!("{trait_name}Handlers");
     let doc = format!(
-        "What runs [`{trait_name}`] on a remote server or a sharded compute device's members: one custom \
-         operation handler per method.\n\nRegister them, once, with the registry given to the \
-         server or the sharded compute device for the backend it runs."
+        "What runs [`{trait_name}`] on a remote server or a sharded compute device's members: \
+         one custom operation handler per method.\n\nRegister them, once, with the registry \
+         given to the server or the sharded compute device for the backend it runs."
     );
     quote! {
         #gate
