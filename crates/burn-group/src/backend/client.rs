@@ -130,6 +130,14 @@ impl RouterClient for GroupClient {
         Err(group_environment())
     }
 
+    fn environment_merge(
+        &self,
+        _id: EnvironmentId,
+        _origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        Err(group_environment())
+    }
+
     fn register_and_execute_graph(&self, _: GraphId, _: Vec<OperationIr>, _: GraphBindings) {
         unreachable!("Only router fusion replays graphs, and a device group runs without it")
     }

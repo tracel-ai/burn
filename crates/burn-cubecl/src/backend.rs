@@ -262,6 +262,19 @@ impl Backend for CubeBackend {
         Ok(id.save()?)
     }
 
+    /// The launches the calling stream's client still buffers are flushed
+    /// first, so they compile into the environment as it was before the
+    /// merge.
+    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+    fn environment_merge(
+        device: &Self::Device,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        device.client().flush().map_err(server_err)?;
+        Ok(id.merge(origin)?)
+    }
+
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = device.client();
         client.graph_prepare().map_err(graph_err)

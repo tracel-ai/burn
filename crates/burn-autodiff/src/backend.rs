@@ -132,6 +132,14 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::environment_save(device, id)
     }
 
+    fn environment_merge(
+        device: &Self::Device,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        B::environment_merge(device, id, origin)
+    }
+
     fn memory_persistent_allocations<
         Output: Send,
         Input: Send,

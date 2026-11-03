@@ -188,6 +188,18 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
         Err(environment_unsupported())
     }
 
+    /// Bring what `origin` holds into the environment `id` of the
+    /// interpreter's backend — see
+    /// [`Backend::environment_merge`](burn_backend::Backend::environment_merge).
+    fn environment_merge(
+        &self,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        let _ = (id, origin);
+        Err(environment_unsupported())
+    }
+
     /// What the interpreter's device is, as its driver states it — see
     /// [`Backend::device_description`](burn_backend::Backend::device_description).
     fn device_description(&self) -> Option<DeviceDescription> {
