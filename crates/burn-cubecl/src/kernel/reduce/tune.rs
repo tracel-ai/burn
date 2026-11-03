@@ -1,6 +1,9 @@
 #![allow(missing_docs)]
 
-use super::{SumAutotuneKey, accumulator_len};
+use super::{
+    SumAutotuneKey, accumulator_len,
+    base::{reduce_dims_copy, reduce_dims_folded},
+};
 use crate::{
     CubeAutotuneKey, CubeTuneId,
     kernel::reduce::bounds::{
@@ -8,7 +11,7 @@ use crate::{
     },
     tensor::CubeTensor,
 };
-use burn_backend::cubecl::dtype_to_elem_type;
+use burn_backend::{DType, cubecl::dtype_to_elem_type};
 use cubecl::{
     AutotuneKey,
     client::Client,
@@ -34,6 +37,83 @@ pub struct ReduceDimAutotuneKey {
     accumulator_len: usize,
     /// The shape and dtypes of the reduction itself.
     reduce: ReduceAutotuneKey,
+}
+
+/// Identifies a complete reduction by its exact dimensions and memory layout.
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
+struct ReduceDimsPlanAutotuneKey {
+    shape: Vec<usize>,
+    strides: Vec<usize>,
+    dims: Vec<usize>,
+    dtype: DType,
+    mean: bool,
+}
+
+/// Selects a sum or mean plan. The output preserves rank and sets reduced axes to one.
+pub(super) fn autotune_reduce_dims_plan(
+    input: CubeTensor,
+    dims: &[usize],
+    config: ReduceOperationConfig,
+) -> CubeTensor {
+    use reduce_dims_ops::*;
+
+    static TUNER: LocalTuner<ReduceDimsPlanAutotuneKey, CubeTuneId> =
+        local_tuner!("reduce-dims-plan");
+
+    let client = input.client.clone();
+    let tune_id = CubeTuneId::new(&client, &input.device);
+    let tunables = TUNER.init(&tune_id, || {
+        TunableSet::new(create_key, input_gen)
+            .with(Tunable::new("folded", folded))
+            .with(Tunable::new("copy_single", copy_single))
+    });
+
+    let dims = (0..input.meta.num_dims())
+        .filter(|dim| dims.contains(dim))
+        .collect();
+    TUNER.execute(&tune_id, &client, tunables, (input, dims, config))
+}
+
+mod reduce_dims_ops {
+    use super::*;
+
+    pub(super) fn create_key(
+        (input, dims, config): &(CubeTensor, Vec<usize>, ReduceOperationConfig),
+    ) -> ReduceDimsPlanAutotuneKey {
+        ReduceDimsPlanAutotuneKey::new(
+            input.meta.shape().iter().copied().collect(),
+            input.meta.strides().iter().copied().collect(),
+            dims.clone(),
+            input.dtype,
+            matches!(config, ReduceOperationConfig::Mean),
+        )
+    }
+
+    pub(super) fn input_gen(
+        _key: &ReduceDimsPlanAutotuneKey,
+        (input, dims, config): &(CubeTensor, Vec<usize>, ReduceOperationConfig),
+    ) -> (CubeTensor, Vec<usize>, ReduceOperationConfig) {
+        (input.clone(), dims.clone(), *config)
+    }
+
+    pub(super) fn folded(
+        (input, dims, config): (CubeTensor, Vec<usize>, ReduceOperationConfig),
+    ) -> Result<CubeTensor, String> {
+        reduce_dims_folded(
+            input,
+            None,
+            &dims,
+            crate::kernel::reduce::KernelReduceStrategy::Autotune,
+            config,
+        )
+        .map_err(|error| error.to_string())
+    }
+
+    pub(super) fn copy_single(
+        (input, dims, config): (CubeTensor, Vec<usize>, ReduceOperationConfig),
+    ) -> Result<CubeTensor, String> {
+        reduce_dims_copy(input, &dims, config).map_err(|error| error.to_string())
+    }
 }
 
 /// The configured autotune level, read once — [`ReduceStrategy`] carries it
