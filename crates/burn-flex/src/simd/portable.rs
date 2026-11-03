@@ -7,8 +7,8 @@ use alloc::vec::Vec;
 use core::mem::MaybeUninit;
 
 use macerator::{
-    Scalar, Simd, VBitAnd, VBitOr, VBitXor, VCeil, VFloor, VRoundTiesEven, VTrunc, Vector,
-    vload_unaligned, vstore_unaligned,
+    Scalar, Simd, VBitAnd, VBitOr, VBitXor, VCeil, VDiv, VFloor, VMul, VRoundTiesEven, VTrunc,
+    Vector, vload_unaligned, vstore_unaligned,
 };
 
 #[cfg(feature = "rayon")]
@@ -368,6 +368,57 @@ impl<F: VRoundTiesEven> LaneOp<F> for RoundTiesEven {
     #[inline(always)]
     fn apply<S: Simd>(self, v: Vector<S, F>) -> Vector<S, F> {
         v.round_ties_even()
+    }
+}
+
+/// `x^n` for an integer `n`, with the multiplications of `powi_float` in
+/// `ops/float.rs` in the same order, so it matches it bit for bit: square and
+/// multiply as `num_traits::pow` does, and for negative `n` the reciprocal of
+/// the half power squared, divided by `x` once more when `n` is odd.
+#[derive(Clone, Copy)]
+pub struct PowI(pub i32);
+
+/// `num_traits::pow`, step for step.
+#[inline(always)]
+fn pow_vec<S: Simd, F: VMul + num_traits::One>(
+    mut base: Vector<S, F>,
+    mut exp: u32,
+) -> Vector<S, F> {
+    if exp == 0 {
+        return F::one().splat();
+    }
+    while exp & 1 == 0 {
+        base = base * base;
+        exp >>= 1;
+    }
+    if exp == 1 {
+        return base;
+    }
+    let mut acc = base;
+    while exp > 1 {
+        exp >>= 1;
+        base = base * base;
+        if exp & 1 == 1 {
+            acc *= base;
+        }
+    }
+    acc
+}
+
+impl<F: VMul + VDiv + num_traits::One> LaneOp<F> for PowI {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, F>) -> Vector<S, F> {
+        let magnitude = self.0.unsigned_abs();
+        if self.0 >= 0 {
+            return pow_vec(x, magnitude);
+        }
+        let reciprocal = F::one().splat::<S>() / pow_vec(x, magnitude / 2);
+        let result = reciprocal * reciprocal;
+        if magnitude & 1 == 1 {
+            result / x
+        } else {
+            result
+        }
     }
 }
 
@@ -827,6 +878,253 @@ impl LaneOp<f32> for GeluGrad {
         let pdf = INV_SQRT_2PI.splat::<S>() * exp_f32::<S>((-0.5f32).splat::<S>() * x * x);
         x.mul_add(pdf, std_normal_cdf(x))
     }
+}
+
+/// Largest |x| the SIMD sin, cos and tan reduce themselves: up to here the
+/// quadrant count has at most 12 bits, so each product with the 12-bit
+/// pieces of pi/2 in [`reduce_half_pi`] is exact. A vector with a larger lane
+/// goes through libm instead.
+const TRIG_MAX: f32 = 6433.0;
+
+/// Splits `a` in [0, [`TRIG_MAX`]] into `j * pi/2 + r`, with |r| at most
+/// slightly over pi/4 where `a * 2/pi` rounds across a quadrant boundary,
+/// returning `r` and `j`. pi/2 is taken in four pieces, the first three with
+/// at most 12 significant bits.
+#[inline(always)]
+fn reduce_half_pi<S: Simd>(a: Vector<S, f32>) -> (Vector<S, f32>, Vector<S, i32>) {
+    // Rounds a * 2/pi to an integer as in `exp_f32`.
+    let magic = 12_582_912.0f32.splat::<S>();
+    let t = a * core::f32::consts::FRAC_2_PI.splat() + magic;
+    let jf = t - magic;
+    let j = t.reinterpret::<i32>() - magic.reinterpret::<i32>();
+    let r = a - jf * f32::from_bits(0x3fc9_0000).splat();
+    let r = r - jf * f32::from_bits(0x39fd_a000).splat();
+    let r = r - jf * f32::from_bits(0x33a2_2000).splat();
+    let r = r - jf * f32::from_bits(0x2c34_611a).splat();
+    (r, j)
+}
+
+/// `sin(r)` and `cos(r)` for |r| near or below pi/4, on the Cephes `sinf` and `cosf`
+/// polynomials.
+#[allow(clippy::excessive_precision)]
+#[inline(always)]
+fn sin_cos_poly<S: Simd>(r: Vector<S, f32>) -> (Vector<S, f32>, Vector<S, f32>) {
+    let z = r * r;
+    let ps = horner(z, [-1.9515295891e-4, 8.3321608736e-3, -1.6666654611e-1]);
+    let sin = (ps * z).mul_add(r, r);
+    let pc = horner(
+        z,
+        [
+            2.443315711809948e-5,
+            -1.388731625493765e-3,
+            4.166664568298827e-2,
+        ],
+    );
+    let cos = (pc * z).mul_add(z, (-0.5f32).splat::<S>().mul_add(z, 1.0f32.splat()));
+    (sin, cos)
+}
+
+/// `if_odd` in lanes where `j` is odd and `if_even` elsewhere, by bit masks,
+/// since `j` is an integer vector.
+#[inline(always)]
+fn select_odd<S: Simd>(
+    j: Vector<S, i32>,
+    if_odd: Vector<S, f32>,
+    if_even: Vector<S, f32>,
+) -> Vector<S, f32> {
+    let odd = 0i32.splat::<S>() - (j & 1i32.splat());
+    let bits = (if_odd.reinterpret::<i32>() & odd) | (if_even.reinterpret::<i32>() & !odd);
+    bits.reinterpret::<f32>()
+}
+
+/// Flips the sign of `v` in lanes where `bit` of `j` is set.
+#[inline(always)]
+fn flip_sign_on_bit<S: Simd>(v: Vector<S, f32>, j: Vector<S, i32>, bit: u32) -> Vector<S, f32> {
+    let flip = (j & (1i32 << bit).splat()) << (31 - bit);
+    (v.reinterpret::<i32>() ^ flip).reinterpret::<f32>()
+}
+
+/// `f` of each lane of `x`, one at a time.
+#[inline(never)]
+fn per_lane<S: Simd>(x: Vector<S, f32>, f: fn(f32) -> f32) -> Vector<S, f32> {
+    let mut buf = [0.0f32; MAX_LANES];
+    // SAFETY: a vector has at most `MAX_LANES` f32 lanes.
+    unsafe { vstore_unaligned::<S, f32>(buf.as_mut_ptr(), x) };
+    for v in &mut buf[..f32::lanes::<S>()] {
+        *v = f(*v);
+    }
+    // SAFETY: as above.
+    unsafe { vload_unaligned::<S, f32>(buf.as_ptr()) }
+}
+
+/// `sin(x)` for f32 lanes, on |x| with the sign restored. A vector with a lane
+/// beyond [`TRIG_MAX`] (inf included) goes through `libm::sinf`.
+#[derive(Clone, Copy)]
+pub struct Sin;
+
+impl LaneOp<f32> for Sin {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
+        let a = x.abs();
+        if a.gt(TRIG_MAX.splat()).any() {
+            return per_lane(x, libm::sinf);
+        }
+        let (r, j) = reduce_half_pi(a);
+        let (sin, cos) = sin_cos_poly(r);
+        // Quadrants 1 and 3 take cos, and 2 and 3 negate.
+        let y = flip_sign_on_bit(select_odd(j, cos, sin), j, 1);
+        xor_sign_of(y, x)
+    }
+}
+
+/// `cos(x)` for f32 lanes, on |x|. A vector with a lane beyond [`TRIG_MAX`]
+/// (inf included) goes through `libm::cosf`.
+#[derive(Clone, Copy)]
+pub struct Cos;
+
+impl LaneOp<f32> for Cos {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
+        let a = x.abs();
+        if a.gt(TRIG_MAX.splat()).any() {
+            return per_lane(x, libm::cosf);
+        }
+        let (r, j) = reduce_half_pi(a);
+        let (sin, cos) = sin_cos_poly(r);
+        // cos(x) = sin(x + pi/2): one quadrant on from `Sin`.
+        let j = j + 1i32.splat();
+        flip_sign_on_bit(select_odd(j, cos, sin), j, 1)
+    }
+}
+
+/// `tan(x)` for f32 lanes, on |x| with the sign restored: `sin(r) / cos(r)` in
+/// even quadrants and `-cos(r) / sin(r)` in odd ones. A vector with a lane
+/// beyond [`TRIG_MAX`] (inf included) goes through `libm::tanf`.
+#[derive(Clone, Copy)]
+pub struct Tan;
+
+impl LaneOp<f32> for Tan {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
+        let a = x.abs();
+        if a.gt(TRIG_MAX.splat()).any() {
+            return per_lane(x, libm::tanf);
+        }
+        let (r, j) = reduce_half_pi(a);
+        let (sin, cos) = sin_cos_poly(r);
+        let y = select_odd(j, cos, sin) / select_odd(j, sin, cos);
+        xor_sign_of(flip_sign_on_bit(y, j, 0), x)
+    }
+}
+
+/// `asin(w)` for |w| <= 0.5, on the Cephes `asinf` polynomial.
+#[allow(clippy::excessive_precision)]
+#[inline(always)]
+fn asin_poly<S: Simd>(w: Vector<S, f32>, z: Vector<S, f32>) -> Vector<S, f32> {
+    let p = horner(
+        z,
+        [
+            4.2163199048e-2,
+            2.4181311049e-2,
+            4.5470025998e-2,
+            7.4953002686e-2,
+            1.6666752422e-1,
+        ],
+    );
+    (p * z).mul_add(w, w)
+}
+
+/// `atan(x)` for f32 lanes, on |x| with the sign restored: Cephes `atanf`,
+/// which takes `-1/|x|` above tan(3pi/8) and `(|x| - 1) / (|x| + 1)` above
+/// tan(pi/8), adding pi/2 or pi/4. The three reductions share one division.
+#[derive(Clone, Copy)]
+pub struct Atan;
+
+impl LaneOp<f32> for Atan {
+    #[allow(clippy::excessive_precision)]
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
+        let a = x.abs();
+        let one = 1.0f32.splat::<S>();
+        // `Mask` isn't `Copy`, so each select takes a fresh comparison.
+        let big = || a.gt(2.414_213_562_373_095f32.splat());
+        let mid = || a.gt(0.414_213_562_373_095f32.splat());
+
+        let num = big().select((-1.0f32).splat(), mid().select(a - one, a));
+        let den = big().select(a, mid().select(a + one, one));
+        let r = num / den;
+        let offset = big().select(
+            core::f32::consts::FRAC_PI_2.splat(),
+            mid().select(core::f32::consts::FRAC_PI_4.splat(), 0.0f32.splat()),
+        );
+
+        let z = r * r;
+        let p = horner(
+            z,
+            [
+                8.05374449538e-2,
+                -1.38776856032e-1,
+                1.99777106478e-1,
+                -3.33329491539e-1,
+            ],
+        );
+        with_sign_of(offset + (p * z).mul_add(r, r), x)
+    }
+}
+
+/// `asin(x)` for f32 lanes, on |x| with the sign restored: Cephes `asinf`,
+/// which above |x| = 0.5 takes `pi/2 - 2 asin(sqrt((1 - |x|) / 2))`. Inputs
+/// beyond +-1 give NaN.
+#[derive(Clone, Copy)]
+pub struct Asin;
+
+impl LaneOp<f32> for Asin {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
+        let a = x.abs();
+        let half = 0.5f32.splat::<S>();
+        let high = || a.gt(half);
+
+        let z = high().select(half * (1.0f32.splat::<S>() - a), a * a);
+        let w = high().select(z.sqrt(), a);
+        let p = asin_poly(w, z);
+        let y = high().select(core::f32::consts::FRAC_PI_2.splat::<S>() - (p + p), p);
+        with_sign_of(y, x)
+    }
+}
+
+/// `acos(x)` for f32 lanes: Cephes `acosf`, as `pi - 2 asin(sqrt((1 + x) / 2))`
+/// below -0.5, `2 asin(sqrt((1 - x) / 2))` above 0.5 and `pi/2 - asin(x)`
+/// between, all on one `asin` of an argument within +-0.5. Inputs beyond +-1
+/// give NaN.
+#[derive(Clone, Copy)]
+pub struct Acos;
+
+impl LaneOp<f32> for Acos {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
+        let one = 1.0f32.splat::<S>();
+        let half = 0.5f32.splat::<S>();
+        let low = || x.lt((-0.5f32).splat());
+        let high = || x.gt(half);
+
+        let w = low().select(
+            (half * (one + x)).sqrt(),
+            high().select((half * (one - x)).sqrt(), x),
+        );
+        let s = asin_poly(w, w * w);
+        low().select(
+            core::f32::consts::PI.splat::<S>() - (s + s),
+            high().select(s + s, core::f32::consts::FRAC_PI_2.splat::<S>() - s),
+        )
+    }
+}
+
+/// `v` with its sign flipped where `sign` is negative.
+#[inline(always)]
+fn xor_sign_of<S: Simd>(v: Vector<S, f32>, sign: Vector<S, f32>) -> Vector<S, f32> {
+    let sign_bit = sign.reinterpret::<i32>() & i32::MIN.splat();
+    (v.reinterpret::<i32>() ^ sign_bit).reinterpret::<f32>()
 }
 
 // ============================================================================
@@ -1752,6 +2050,170 @@ mod tests {
     /// Distance in representable f32 values; both inputs must have the same sign.
     fn ulps(a: f32, b: f32) -> u32 {
         a.to_bits().abs_diff(b.to_bits())
+    }
+
+    /// Distance in representable f32 values, across zero as well.
+    fn signed_ulps(a: f32, b: f32) -> u64 {
+        let ord = |x: f32| {
+            let b = x.to_bits() as i32 as i64;
+            if b < 0 { i64::from(i32::MIN) - b } else { b }
+        };
+        ord(a).abs_diff(ord(b))
+    }
+
+    /// Checks `op` against `reference` within `max_ulps`: on every 997th bit
+    /// pattern up to [`TRIG_MAX`] of both signs and on `extra`, which all
+    /// take the SIMD path, then on vectors that mix small lanes with lanes
+    /// past the cutoff, which go through libm whole. Whether `TRIG_MAX`
+    /// itself is low enough rests on the exhaustive run noted below.
+    fn check_trig(op: impl LaneOp<f32>, reference: fn(f32) -> f32, max_ulps: u64, extra: &[f32]) {
+        check_within(op, reference, max_ulps, TRIG_MAX, extra);
+        check_values(
+            op,
+            reference,
+            max_ulps,
+            &[
+                0.5,
+                TRIG_MAX,
+                TRIG_MAX.next_up(),
+                1e6,
+                -1e6,
+                f32::MAX,
+                f32::MIN,
+                -0.5,
+            ],
+        );
+
+        // NaN stays on the SIMD path next to ordinary lanes; inf goes through
+        // libm. Both give NaN.
+        let out = map_to_vec(&[f32::NAN, 1.0, f32::INFINITY, f32::NEG_INFINITY], op);
+        assert!(
+            out[0].is_nan() && out[2].is_nan() && out[3].is_nan(),
+            "{out:?}"
+        );
+        let out = map_to_vec(&[f32::NAN, 1.0], op);
+        assert!(out[0].is_nan(), "{out:?}");
+        assert!(signed_ulps(out[1], reference(1.0)) <= max_ulps);
+    }
+
+    // The extra inputs are the worst cases of an exhaustive run over
+    // [0, TRIG_MAX] on NEON and SSE4.2.
+
+    #[test]
+    fn sin_f32_within_2_ulp_of_libm() {
+        let extra = [f32::from_bits(0x4155_bc3b), f32::from_bits(0x4069_85b9)];
+        check_trig(Sin, libm::sinf, 2, &extra);
+        let zeros = map_to_vec(&[0.0, -0.0], Sin);
+        assert_eq!(zeros[0].to_bits(), 0.0f32.to_bits());
+        assert_eq!(zeros[1].to_bits(), (-0.0f32).to_bits());
+    }
+
+    #[test]
+    fn cos_f32_within_2_ulp_of_libm() {
+        check_trig(Cos, libm::cosf, 2, &[f32::from_bits(0x4016_cc3a)]);
+        assert_eq!(map_to_vec(&[0.0, -0.0], Cos), [1.0, 1.0]);
+    }
+
+    #[test]
+    fn tan_f32_within_4_ulp_of_libm() {
+        check_trig(Tan, libm::tanf, 4, &[f32::from_bits(0x4016_d9ff)]);
+        let zeros = map_to_vec(&[0.0, -0.0], Tan);
+        assert_eq!(zeros[0].to_bits(), 0.0f32.to_bits());
+        assert_eq!(zeros[1].to_bits(), (-0.0f32).to_bits());
+    }
+
+    /// Checks `op` against `reference` within `max_ulps` on `input`, with NaN
+    /// matching NaN.
+    fn check_values(op: impl LaneOp<f32>, reference: fn(f32) -> f32, max_ulps: u64, input: &[f32]) {
+        let out = map_to_vec(input, op);
+        for (&x, &y) in input.iter().zip(&out) {
+            let expected = reference(x);
+            assert!(
+                signed_ulps(y, expected) <= max_ulps || (y.is_nan() && expected.is_nan()),
+                "{x:e} gives {y:e}, libm gives {expected:e}"
+            );
+        }
+    }
+
+    /// [`check_values`] on every 997th bit pattern up to `limit` of both
+    /// signs, then on `extra` in a call of its own.
+    fn check_within(
+        op: impl LaneOp<f32>,
+        reference: fn(f32) -> f32,
+        max_ulps: u64,
+        limit: f32,
+        extra: &[f32],
+    ) {
+        let grid: Vec<f32> = (0..=limit.to_bits())
+            .step_by(997)
+            .flat_map(|b| [f32::from_bits(b), -f32::from_bits(b)])
+            .collect();
+        check_values(op, reference, max_ulps, &grid);
+        check_values(op, reference, max_ulps, extra);
+    }
+
+    // The extra inputs include the worst cases of an exhaustive run on NEON
+    // and SSE4.2, over every f32 for atan and over [-1, 1] for asin and acos.
+
+    #[test]
+    fn atan_f32_within_3_ulp_of_libm() {
+        let extra = [
+            f32::from_bits(0x3ed6_81fb),
+            f32::from_bits(0x3ed6_a91f),
+            // The f32 thresholds and the values just above, on either side of
+            // each reduction.
+            0.414_213_57,
+            0.414_213_57f32.next_up(),
+            2.414_213_7,
+            2.414_213_7f32.next_up(),
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+            f32::NAN,
+        ];
+        check_within(Atan, libm::atanf, 3, f32::MAX, &extra);
+        let zeros = map_to_vec(&[0.0, -0.0], Atan);
+        assert_eq!(zeros[0].to_bits(), 0.0f32.to_bits());
+        assert_eq!(zeros[1].to_bits(), (-0.0f32).to_bits());
+    }
+
+    #[test]
+    fn asin_f32_within_2_ulp_of_libm() {
+        let extra = [
+            f32::from_bits(0x3f00_0010),
+            f32::from_bits(0x3f00_0009),
+            0.5,
+            1.0,
+            -1.0,
+            1.000_000_1,
+            -2.0,
+            f32::INFINITY,
+            f32::NAN,
+        ];
+        check_within(Asin, libm::asinf, 2, 1.0, &extra);
+        let zeros = map_to_vec(&[0.0, -0.0], Asin);
+        assert_eq!(zeros[0].to_bits(), 0.0f32.to_bits());
+        assert_eq!(zeros[1].to_bits(), (-0.0f32).to_bits());
+    }
+
+    // libm's `acosf` returns the f32 below pi/2 for tiny inputs rather than
+    // the nearest one, so most of the range is 1 ulp from it, and the f32
+    // below pi for -1.
+    #[test]
+    fn acos_f32_within_1_ulp_of_libm() {
+        let extra = [
+            0.5,
+            -0.5,
+            1.0,
+            -1.0,
+            1.000_000_1,
+            -2.0,
+            f32::INFINITY,
+            f32::NAN,
+        ];
+        check_within(Acos, libm::acosf, 1, 1.0, &extra);
+        let ends = map_to_vec(&[1.0, -1.0], Acos);
+        assert_eq!(ends[0].to_bits(), 0.0f32.to_bits());
+        assert_eq!(ends[1].to_bits(), core::f32::consts::PI.to_bits());
     }
 
     #[test]

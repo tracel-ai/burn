@@ -105,10 +105,16 @@ positions when sequence lengths differ.
   and the GELU backward pass also run with SIMD; `log` matches the `libm` crate bit for bit, `tanh`
   is within 2 ulp of libm, and `erf` within 1 ulp. F32 `log1p`, `atanh`, `log_sigmoid`, and the
   log-sigmoid backward pass also run with SIMD; `log1p` and `atanh` match the `libm` crate bit for
-  bit.
+  bit. F32 `sin` and `cos` run with SIMD within 2 ulp of libm, and `tan` within 4; `atan`, `asin`,
+  and `acos` within 3, 2, and 1 ulp.
   ([#6313](https://github.com/tracel-ai/burn/pull/6313),
   [#6341](https://github.com/tracel-ai/burn/pull/6341),
-  [#6345](https://github.com/tracel-ai/burn/pull/6345)) [@antimora](https://github.com/antimora)
+  [#6345](https://github.com/tracel-ai/burn/pull/6345),
+  [#6347](https://github.com/tracel-ai/burn/pull/6347),
+  [#6352](https://github.com/tracel-ai/burn/pull/6352)) [@antimora](https://github.com/antimora)
+- Speed up Flex CPU `clamp` and `sign` by letting their loops vectorize, and run F32/F64 `powi`
+  with integer exponents other than 0, ±1 and ±2 with SIMD, matching the scalar results bit for
+  bit. ([#6351](https://github.com/tracel-ai/burn/pull/6351)) [@antimora](https://github.com/antimora)
 - Run GELU and sigmoid forward and backward operations in single CubeCL kernels.
   ([#6114](https://github.com/tracel-ai/burn/pull/6114)) [@ssoj13](https://github.com/ssoj13)
 - Allow more CubeCL slices to share their source buffer, avoiding copies of KV-cache prefixes.
@@ -177,8 +183,12 @@ See [runtime configuration](./advanced/runtime-configuration.md#cubek-matmul-pre
 Models can now be split across devices by layer, enabling training and inference with models that
 exceed a single device's memory. The new `LayerParallelism` trait and `DistributedLayeredModel`
 wrapper support sequential execution, transferring activations between devices.
-`LayerPipeline` streams several inference batches through such a model with a thread per stage,
-so the stages overlap. Training schedules and `Learner` integration are not included.
+`InferencePipeline` streams several batches through such a model with a thread per stage, so the
+stages overlap, and `TrainingPipeline` trains it with the GPipe or 1F1B schedule. A signal
+passed between layers derives `AutodiffSignal` to train through. `Learner` integration is not
+included.
+**Breaking:** `LayerParallelism` requires `from_layers`, which rebuilds the model from the
+`LayerSequence` that `into_layers` returns.
 ([#5702](https://github.com/tracel-ai/burn/pull/5702),
 [#6277](https://github.com/tracel-ai/burn/pull/6277))
 [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
@@ -220,6 +230,11 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   dropout mask over a split activation, has each member generate only its shard instead of copying
   the whole tensor from the first member. Its values follow the order of first use, so they differ
   from one device's with the same seed. ([#6272](https://github.com/tracel-ai/burn/pull/6272))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- Attention split on its batch or heads, and `swap_dims`, `permute`, `expand`, `slice` and
+  `slice_assign` on a device group keep their input's split instead of gathering it, so a
+  tensor-parallel transformer layer communicates only in its all-reduces.
+  ([#6372](https://github.com/tracel-ai/burn/pull/6372))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution
