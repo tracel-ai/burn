@@ -125,12 +125,18 @@ positions when sequence lengths differ.
   is within 2 ulp of libm, and `erf` within 1 ulp. F32 `log1p`, `atanh`, `log_sigmoid`, and the
   log-sigmoid backward pass also run with SIMD; `log1p` and `atanh` match the `libm` crate bit for
   bit. F32 `sin` and `cos` run with SIMD within 2 ulp of libm, and `tan` within 4; `atan`, `asin`,
-  and `acos` within 3, 2, and 1 ulp.
+  and `acos` within 3, 2, and 1 ulp. F32 `atan2` (within 3 ulp) and `hypot` (within 1 ulp) run with
+  SIMD on same-shape contiguous operands, and the GELU and log-sigmoid backward passes run in one
+  pass.
   ([#6313](https://github.com/tracel-ai/burn/pull/6313),
   [#6341](https://github.com/tracel-ai/burn/pull/6341),
   [#6345](https://github.com/tracel-ai/burn/pull/6345),
   [#6347](https://github.com/tracel-ai/burn/pull/6347),
-  [#6352](https://github.com/tracel-ai/burn/pull/6352)) [@antimora](https://github.com/antimora)
+  [#6352](https://github.com/tracel-ai/burn/pull/6352),
+  [#6353](https://github.com/tracel-ai/burn/pull/6353)) [@antimora](https://github.com/antimora)
+- Add F32 unit-convolution and im2col autotuning candidates on CubeCL backends, including
+  split depthwise weight gradients. Forward im2col limits its column workspace to 128 MiB.
+  ([#6048](https://github.com/tracel-ai/burn/pull/6048)) [@znicelya](https://github.com/znicelya)
 - Speed up Flex CPU `clamp` and `sign` by letting their loops vectorize, and run F32/F64 `powi`
   with integer exponents other than 0, ±1 and ±2 with SIMD, matching the scalar results bit for
   bit. ([#6351](https://github.com/tracel-ai/burn/pull/6351)) [@antimora](https://github.com/antimora)
@@ -175,8 +181,10 @@ positions when sequence lengths differ.
   ([#6099](https://github.com/tracel-ai/burn/pull/6099))
 - Share autotuning results across devices with the same hardware. Previously saved per-device
   results are tuned again once. ([#6150](https://github.com/tracel-ai/burn/pull/6150))
-- Avoid excessive kernel compilation for large depthwise-convolution filters.
-  ([#6072](https://github.com/tracel-ai/burn/pull/6072))
+- Avoid excessive kernel compilation for large depthwise-convolution filters, regardless of
+  channel count.
+  ([#6072](https://github.com/tracel-ai/burn/pull/6072),
+  [#6048](https://github.com/tracel-ai/burn/pull/6048))
 - Stop dumping LLVM compiler IR into normal experiment logs, reducing compilation overhead and log
   size. ([#6188](https://github.com/tracel-ai/burn/pull/6188),
   [CubeCL #1895](https://github.com/tracel-ai/cubecl/pull/1895))
