@@ -40,6 +40,9 @@ pub mod grad_clipping;
 #[cfg(feature = "std")]
 pub mod lr_scheduler;
 
+#[cfg(feature = "std")]
+pub mod parallel;
+
 /// Type alias for the learning rate.
 ///
 /// LearningRate also implements [learning rate scheduler](crate::lr_scheduler::LrScheduler) so it
