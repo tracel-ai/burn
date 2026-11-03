@@ -1,7 +1,8 @@
 use super::{RouterChannel, RouterClient, RouterGraph, RouterTensor, get_client};
 use alloc::{format, string::String, vec::Vec};
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceTelemetry, ExecutionError,
+    Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceTelemetry,
+    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
     ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
     ProfileDuration, ProfileOptions, ProfileToken, profile_with_tokens,
 };
@@ -107,6 +108,36 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
     ) -> Result<ExecutionStatistics, ExecutionError> {
         let client = get_client::<R>(device);
         client.execution_mode_close(token)
+    }
+
+    fn environment_create(
+        device: &Self::Device,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        let client = get_client::<R>(device);
+        client.environment_create(name, origin)
+    }
+
+    fn environment_activate(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        let client = get_client::<R>(device);
+        client.environment_activate(id)
+    }
+
+    fn environment_active(device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
+        let client = get_client::<R>(device);
+        client.environment_active()
+    }
+
+    fn environment_save(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        let client = get_client::<R>(device);
+        client.environment_save(id)
     }
 
     fn device_description(device: &Self::Device) -> Option<DeviceDescription> {

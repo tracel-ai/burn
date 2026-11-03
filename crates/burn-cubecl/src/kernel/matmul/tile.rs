@@ -3,7 +3,12 @@
 //! A quantized input is read as stored by the routines listed for it or decoded first, and a scheme
 //! none reads is dequantized here first.
 
-use crate::{CubeTuneId, kernel::quantization::dequantize, ops::swap_dims, tensor::CubeTensor};
+use crate::{
+    CubeTuneId,
+    kernel::{quantization::dequantize, untile},
+    ops::swap_dims,
+    tensor::CubeTensor,
+};
 use burn_backend::DType;
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::std::tensor::TensorHandle;
@@ -14,7 +19,8 @@ use cubek::matmul::{
         MatmulOpStrategy,
         plan::{FrameworkDequantize, MatmulCall, MatmulCallInput},
         select::{problem::MatmulProblem, selector::select},
-        tune::MatmulTableGroups,
+        tensor::StoredTensor,
+        tune::MatmulAutotuneGroups,
     },
 };
 use cubek::std::{
@@ -55,7 +61,7 @@ pub(crate) fn launch(
         (&lhs_shape, lhs.tensor.kind()),
         (&rhs_shape, rhs.tensor.kind()),
     );
-    let plan = select(strategy, &problem, &hw, MatmulTableGroups::default()).map_err(invalid)?;
+    let plan = select(strategy, &problem, &hw, MatmulAutotuneGroups::default()).map_err(invalid)?;
     let call = MatmulCall {
         hw,
         client,
@@ -98,7 +104,8 @@ fn run_as((lhs, rhs, out): Inputs) -> Inputs {
 
 /// `tensor`, the input stated over `axes`, as cubek's plan reads it: as stored, and dequantized
 /// into `out` by burn's dequantize where a plan reaches for it. A quantized input the routines
-/// cannot state as stored is dequantized here first, and the plan reads a float input.
+/// cannot state as stored is dequantized here first, and the plan reads a float input; a float
+/// one stored in tiles no routine reads is laid back in rows.
 ///
 /// # Errors
 ///
@@ -111,6 +118,11 @@ fn call_input(tensor: CubeTensor, axes: [Axis; 2], out: DType) -> Result<MatmulC
     });
     let meta = (*tensor.meta).clone();
     match tensor.clone().stored(axes) {
+        // No routine reads tiles stored a column at a time, as a transposed weight's are: such
+        // an input is read as rows.
+        Ok(StoredTensor::Plain(plain)) if plain.is_tiled_column_first() => {
+            Ok(MatmulCallInput::plain(untile(tensor).plain()))
+        }
         Ok(stored) => Ok(MatmulCallInput {
             tensor: stored,
             meta,

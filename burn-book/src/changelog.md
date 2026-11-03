@@ -112,6 +112,9 @@ positions when sequence lengths differ.
 - Add F32 unit-convolution and im2col autotuning candidates on CubeCL backends, including
   split depthwise weight gradients. Forward im2col limits its column workspace to 128 MiB.
   ([#6048](https://github.com/tracel-ai/burn/pull/6048)) [@znicelya](https://github.com/znicelya)
+- Speed up Flex CPU `clamp` and `sign` by letting their loops vectorize, and run F32/F64 `powi`
+  with integer exponents other than 0, ±1 and ±2 with SIMD, matching the scalar results bit for
+  bit. ([#6351](https://github.com/tracel-ai/burn/pull/6351)) [@antimora](https://github.com/antimora)
 - Run GELU and sigmoid forward and backward operations in single CubeCL kernels.
   ([#6114](https://github.com/tracel-ai/burn/pull/6114)) [@ssoj13](https://github.com/ssoj13)
 - Allow more CubeCL slices to share their source buffer, avoiding copies of KV-cache prefixes.

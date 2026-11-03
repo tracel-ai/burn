@@ -223,11 +223,11 @@ burn-wgpu = { path = "crates/burn-wgpu", version = "0.23.0-pre.1", default-featu
 pytorch-reader = { path = "crates/pytorch-reader", version = "0.23.0-pre.1" }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fdba0a849104c0d805a86c883b32ce06c2c85ba1" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fdba0a849104c0d805a86c883b32ce06c2c85ba1" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fdba0a849104c0d805a86c883b32ce06c2c85ba1" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fdba0a849104c0d805a86c883b32ce06c2c85ba1" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "06e1c8ec2057898d0f1118060c6bd46baa38f708" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5a4a44a0ae9c30eea26018ec02534d51e2109503" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5a4a44a0ae9c30eea26018ec02534d51e2109503" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5a4a44a0ae9c30eea26018ec02534d51e2109503" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5a4a44a0ae9c30eea26018ec02534d51e2109503" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "202cec0b0c5abbc6eb5fb26c0f1542a8ddcbb1dc" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -240,6 +240,9 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 # cubecl-environment = { version = "0.12.0-pre.1", default-features = false }
 # cubecl-zspace = { version = "0.12.0-pre.1", default-features = false }
 # cubek = { version = "0.4.0-pre.1", default-features = false }
+
+# cubecl at cubecl dev (the flip pin plus cubecl#2025's tiled metadata), until cubek pins a
+# cubecl holding #2025. The host differs from the pin's so cargo takes it as a patch.
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.

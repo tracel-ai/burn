@@ -1,4 +1,5 @@
-use burn_backend::Shape;
+use alloc::borrow::Cow;
+use burn_backend::{Shape, TensorMetadata};
 use cubecl::prelude::SequenceArg;
 use cubecl::{
     prelude::*,
@@ -39,10 +40,18 @@ pub fn split_dim(mut tensor: CubeTensor, dim: usize, shape: &[usize]) -> CubeTen
     tensor
 }
 
-pub fn broadcast_shape(tensors: &[&CubeTensor]) -> Shape {
-    let rank = tensors[0].meta.num_dims();
+/// The shape the logical shapes of `tensors` broadcast to.
+pub fn broadcast_shape<const N: usize>(tensors: &[&CubeTensor; N]) -> Shape {
+    // Rows are read in place; only a storage-tiled tensor builds its logical shape.
+    let shapes = tensors
+        .each_ref()
+        .map(|tensor| match tensor.meta.is_tiled() {
+            false => Cow::Borrowed(tensor.meta.shape()),
+            true => Cow::Owned(tensor.shape()),
+        });
+    let rank = shapes[0].num_dims();
     debug_assert!(
-        tensors.iter().all(|it| it.meta.num_dims() == rank),
+        shapes.iter().all(|shape| shape.num_dims() == rank),
         "Broadcast tensors must have the same rank"
     );
 
@@ -51,8 +60,8 @@ pub fn broadcast_shape(tensors: &[&CubeTensor]) -> Shape {
         // Every size that is not 1 must agree, and that shared size (0 included) is the result.
         // Taking the max would be wrong when a 0 meets a 1: max picks 1 and drops the 0.
         let mut broadcast = 1;
-        for tensor in tensors {
-            let size = tensor.meta.shape()[dim];
+        for shape in &shapes {
+            let size = shape[dim];
             if size != 1 {
                 debug_assert!(
                     broadcast == 1 || broadcast == size,
