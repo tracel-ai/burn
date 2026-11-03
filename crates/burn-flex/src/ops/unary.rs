@@ -283,16 +283,31 @@ pub fn recip(tensor: FlexTensor) -> FlexTensor {
 
 /// Cosine
 pub fn cos(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Cos) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.cos(), |x| x.cos())
 }
 
 /// Sine
 pub fn sin(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Sin) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.sin(), |x| x.sin())
 }
 
 /// Tangent
 pub fn tan(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Tan) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.tan(), |x| x.tan())
 }
 
