@@ -7,7 +7,10 @@ use burn_backend::TensorMetadata;
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
     calculate_cube_count_elemwise,
-    prelude::{polyfills::powi_int, *},
+    prelude::{
+        polyfills::{powi_int, powi_unsigned},
+        *,
+    },
     std::tensor::layout::linear::{LinearView, LinearViewMut},
 };
 
@@ -90,17 +93,32 @@ impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseShlOp {
 #[cube]
 impl<T: Int, N: Size> BinaryOpInt<T, N> for PowiOp {
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
-        let zero = Vector::zero();
-        let one = Vector::one();
-        let minus_one = Vector::new(T::new(-1));
+        let dtype = elem_type_of::<T>().comptime();
+        if comptime!(dtype.is_signed_int()) {
+            powi_int(lhs, narrow_signed_exponent(rhs))
+        } else {
+            // An unsigned exponent is never negative. Reading it as `u32` keeps exponents above
+            // `i32::MAX` as large powers.
+            powi_unsigned(lhs, Vector::<u32, N>::cast_from(rhs))
+        }
+    }
+}
 
-        // `powi_int` reads the exponent as unsigned. That keeps its parity, so the result is still
-        // right for a base of 1 or -1. Any other base gives `1 / lhs^|rhs|`, which truncates to 0.
-        let pow = powi_int(lhs, Vector::<i32, N>::cast_from(rhs));
-        let unit_base = lhs.equal(&one).or(lhs.equal(&minus_one));
-        let truncated = select_many(unit_base, pow, zero);
-
-        select_many(rhs.less_than(&zero), truncated, pow)
+/// Narrows a signed exponent to `i32` for [`powi_int`], keeping its sign and parity: a negative
+/// power, and any power of -1, depends only on those. Exponents outside `i32` saturate.
+#[cube]
+fn narrow_signed_exponent<T: Int, N: Size>(exp: Vector<T, N>) -> Vector<i32, N> {
+    if T::size_bits().comptime() <= 32 {
+        Vector::cast_from(exp)
+    } else {
+        // A plain cast keeps only the low 32 bits, which can turn a negative exponent into a
+        // non-negative one, such as `-2^32` into 0.
+        let min = Vector::new(T::new(i32::MIN as i64));
+        let max = Vector::new(T::new(i32::MAX as i64));
+        let saturated = clamp(exp, min, max);
+        // Saturating keeps the sign. Putting the original low bit back keeps the parity.
+        let one = Vector::<T, N>::one();
+        Vector::cast_from((saturated & Vector::new(T::new(-2))) | (exp & one))
     }
 }
 

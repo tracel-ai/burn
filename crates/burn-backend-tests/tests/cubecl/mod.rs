@@ -22,6 +22,7 @@ mod matmul;
 mod max_pool2d;
 mod max_pool2d_backward;
 mod normal;
+mod powi;
 mod quantization;
 mod reduce;
 mod repeat_dim;
