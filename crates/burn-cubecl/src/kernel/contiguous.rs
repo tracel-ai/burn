@@ -463,8 +463,7 @@ mod storage_tiled {
         );
     }
 
-    /// The same tensors through fusion: a fused elementwise block walks the tiles as the eager
-    /// ops do, and any other fused kernel reads them as rows.
+    /// The same tensors through fusion: every fused kernel reads them laid back in rows.
     #[cfg(feature = "fusion")]
     mod fused {
         use super::{assert_close, tensor, tiled, values};
@@ -485,10 +484,9 @@ mod storage_tiled {
 
         type Fused = Fusion<CubeBackend>;
 
-        /// `w * 2 + 1`, then `exp`, fuse into one elementwise block: it walks the weight's
-        /// tiles and writes its output in them.
+        /// `w * 2 + 1`, then `exp`, fuse into one elementwise block.
         #[test]
-        fn a_fused_elementwise_chain_keeps_the_tiles() {
+        fn a_fused_elementwise_chain_reads_the_tiles_as_rows() {
             let device = CubeDevice::default();
             let rows = tensor(&[64, 96], &device, 9);
             let chain = |w| {
@@ -497,36 +495,16 @@ mod storage_tiled {
                 Fused::float_exp(w)
             };
 
-            let out = resolve(chain(stored_in_tiles(fusion_tensor(&rows, &device))));
-            assert!(out.meta.is_tiled(), "the output is written in the tiles");
             assert_close(
-                &values(out),
+                &values(resolve(chain(stored_in_tiles(fusion_tensor(
+                    &rows, &device,
+                ))))),
                 &values(resolve(chain(fusion_tensor(&rows, &device)))),
                 "exp(2w + 1)",
             );
         }
 
-        /// A bias broadcast along the rows is split into the weight's tiles by strides.
-        #[test]
-        fn a_fused_broadcast_operand_is_split_into_the_tiles() {
-            let device = CubeDevice::default();
-            let rows = tensor(&[64, 96], &device, 10);
-            let bias = tensor(&[1, 96], &device, 11);
-            let step = |w| {
-                let w = Fused::float_add(w, fusion_tensor(&bias, &device));
-                Fused::float_mul_scalar(w, Scalar::from(0.5f32))
-            };
-
-            let out = resolve(step(stored_in_tiles(fusion_tensor(&rows, &device))));
-            assert!(out.meta.is_tiled(), "the output is written in the tiles");
-            assert_close(
-                &values(out),
-                &values(resolve(step(fusion_tensor(&rows, &device)))),
-                "(w + bias) / 2",
-            );
-        }
-
-        /// A fused reduce indexes its input by coordinates: it reads the tiles as rows.
+        /// A fused reduce.
         #[test]
         fn a_fused_reduce_reads_the_tiles_as_rows() {
             let device = CubeDevice::default();
@@ -543,7 +521,7 @@ mod storage_tiled {
             );
         }
 
-        /// A transpose fused into an elementwise block is a view: the block reads the tiles as
+        /// A transpose fused into an elementwise block: a view, whose strides are rewritten on the
         /// rows.
         #[test]
         fn a_fused_view_reads_the_tiles_as_rows() {

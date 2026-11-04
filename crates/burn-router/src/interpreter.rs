@@ -92,6 +92,12 @@ impl<B: BackendIr> TensorInterpreter<B> {
         }
     }
 
+    /// The handles of the tensors on this interpreter's device, for a handler that runs one
+    /// operation over several interpreters at once.
+    pub fn handles_mut(&mut self) -> &mut HandleContainer<B::Handle> {
+        &mut self.context.handles
+    }
+
     /// Get the tensor handle for the given [tensor representation](TensorIr).
     pub fn get_tensor_handle(&mut self, tensor: &TensorIr) -> B::Handle {
         let handles = &mut self.context.handles;
@@ -2361,8 +2367,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 Some(handler) => handler(handles, desc, &self.device),
                 None => {
                     let error = TensorError::new(ExecutionError::with_context(format!(
-                        "No custom-op handler registered for `{}`. Register one on the server \
-                         via `CustomOpRegistry`/the server builder before starting it.",
+                        "No custom-op handler registered for `{}`. Register one in the \
+                         `CustomOpRegistry` the server or sharded compute device is made with.",
                         desc.id
                     )));
                     handles.free_inputs(op);

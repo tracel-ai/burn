@@ -11,10 +11,14 @@ mod resharding;
 mod rules;
 mod sharding;
 
-pub use backend::{MemberDevice, ShardBackend, ShardError, ShardedComputeDevice};
+pub use backend::{
+    CollectiveMember, CollectiveOpHandler, CollectiveOpRegistry, CustomOpPlan, CustomOpRule,
+    MemberDevice, ShardBackend, ShardCustomOps, ShardError, ShardedComputeDevice,
+};
+pub use burn_router::CustomOpRegistry;
+pub use kind::{Linearity, OpKind, ReducedDims, ReductionKind};
 pub use sharding::{Sharding, ShardingError};
 
-use kind::{Linearity, OpKind, ReducedDims, ReductionKind};
 use resharding::Resharding;
 use rules::{
     AlongDimRule, AttentionRule, ElementwiseRule, LayoutRule, MatmulRule, ReduceRule, ReshapeRule,

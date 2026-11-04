@@ -37,8 +37,7 @@ pub struct CubeFusionHandle {
     pub strides: Strides,
     /// How the tensor is stored: `None` for rows, under `strides` over the shape the IR states;
     /// otherwise storage tiles, whose physical dims the IR cannot state (it knows the logical
-    /// shape only), so the handle carries them. A fused elementwise kernel walks the tiles; any
-    /// other fused kernel reads them laid back in rows.
+    /// shape only), so the handle carries them. A fused kernel reads them laid back in rows.
     pub tiles: Option<Tiles>,
     /// Quantization runtime parameters, if applicable
     pub qparams: Option<QParams>,

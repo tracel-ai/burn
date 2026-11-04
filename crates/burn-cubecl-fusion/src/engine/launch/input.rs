@@ -32,40 +32,24 @@ impl<'a> InputPlanner<'a> {
                     // a clone in the container during planning made `can_mut()` always
                     // false, disabling every in-place alias. On execution failure the
                     // handle is restored by [FuseTraceLauncher::rollback](super::base).
-                    let mut handle = context
+                    // A fused kernel reads its inputs as rows, so a storage-tiled one is laid
+                    // back in rows first.
+                    let handle = context
                         .handles
-                        .get_handle(&tensor_global.id, &tensor_relative.status);
-                    // A storage-tiled input is read as it lies only when the plan walks its
-                    // tiles; otherwise it is laid back in rows for this kernel.
-                    if handle.tiles.is_some()
-                        && !plan
-                            .tiling
-                            .as_ref()
-                            .is_some_and(|tiling| tiling.stores(&handle))
-                    {
-                        handle = handle.untile(tensor_global.shape.clone());
-                    }
+                        .get_handle(&tensor_global.id, &tensor_relative.status)
+                        .untile(tensor_global.shape.clone());
+
+                    let mut new_strides = handle.strides.clone();
 
                     self.analyze(plan, pos, tensor_relative, &handle);
 
-                    let new_strides = match &plan.tiling {
-                        Some(tiling) => {
-                            let strides = tiling.strides(&handle, &tensor_global.shape);
-                            tensor_global.shape = tiling.shape().clone();
-                            strides
+                    if tensor_global.shape.rank() < plan.rank {
+                        let num_elem: usize = tensor_global.shape.iter().product();
+                        for _ in 0..(plan.rank - tensor_global.shape.rank()) {
+                            tensor_global.shape.insert(0, 1);
+                            new_strides.insert(0, num_elem);
                         }
-                        None => {
-                            let mut strides = handle.strides.clone();
-                            if tensor_global.shape.rank() < plan.rank {
-                                let num_elem: usize = tensor_global.shape.iter().product();
-                                for _ in 0..(plan.rank - tensor_global.shape.rank()) {
-                                    tensor_global.shape.insert(0, 1);
-                                    strides.insert(0, num_elem);
-                                }
-                            }
-                            strides
-                        }
-                    };
+                    }
 
                     plan.handle_inputs
                         .push(HandleInput::Normal(NormalHandleInput::new(
@@ -177,14 +161,7 @@ impl<'a> InputPlanner<'a> {
         }
 
         if let BlockInplaceSelection::Selected(idx) = block_inplace_selection {
-            // An input split into the walked tiles by strides is laid out as its rows are, not
-            // as the outputs are: it is neither aliased nor the reference.
-            if self.blocks[idx].shape_ref != tensor_relative.shape
-                || plan
-                    .tiling
-                    .as_ref()
-                    .is_some_and(|tiling| !tiling.stores(handle))
-            {
+            if self.blocks[idx].shape_ref != tensor_relative.shape {
                 return;
             }
 
