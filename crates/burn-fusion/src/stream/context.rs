@@ -656,6 +656,17 @@ impl RelativeOps for ModuleOperationIr {
                 options: desc.options.clone(),
                 out: desc.out.to_relative(converter),
             }),
+            ModuleOperationIr::AttentionOverCache(desc) => {
+                ModuleOperationIr::AttentionOverCache(AttentionOverCacheOpIr {
+                    query: desc.query.to_relative(converter),
+                    key: desc.key.to_relative(converter),
+                    value: desc.value.to_relative(converter),
+                    pages: desc.pages.as_ref().map(|p| p.to_relative(converter)),
+                    lengths: desc.lengths.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             ModuleOperationIr::AttentionWithLogsumexp(desc) => {
                 ModuleOperationIr::AttentionWithLogsumexp(AttentionWithLogsumexpOpIr {
                     query: desc.query.to_relative(converter),

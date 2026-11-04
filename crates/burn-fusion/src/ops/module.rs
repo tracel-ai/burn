@@ -1878,6 +1878,59 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             .output()
     }
 
+    fn attention_over_cache(
+        query: FloatTensor<Fusion<B>>,
+        key: FloatTensor<Fusion<B>>,
+        value: FloatTensor<Fusion<B>>,
+        pages: Option<IntTensor<Fusion<B>>>,
+        lengths: IntTensor<Fusion<B>>,
+        options: AttentionModuleOptions,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            AttentionOverCacheOps,
+            AttentionOverCacheOpIr,
+            |args: &AttentionOverCacheOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let query = handles.get_float_tensor::<B>(&args.query);
+                let key = handles.get_float_tensor::<B>(&args.key);
+                let value = handles.get_float_tensor::<B>(&args.value);
+                let pages = args.pages.as_ref().map(|p| handles.get_int_tensor::<B>(p));
+                let lengths = handles.get_int_tensor::<B>(&args.lengths);
+
+                let output = B::attention_over_cache(
+                    query,
+                    key,
+                    value,
+                    pages,
+                    lengths,
+                    args.options.clone().into(),
+                );
+
+                handles.register_float_tensor::<B>(&args.out.id, output);
+            }
+        );
+
+        let streams = StreamId::current();
+
+        let client = query.client.clone();
+        let desc = AttentionOverCacheOpIr::create(
+            query.into_ir(),
+            key.into_ir(),
+            value.into_ir(),
+            pages.map(|p| p.into_ir()),
+            lengths.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::AttentionOverCache(desc.clone())),
+                AttentionOverCacheOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn has_attention_backward() -> bool {
         B::has_attention_backward()
     }

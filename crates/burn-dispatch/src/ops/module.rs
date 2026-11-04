@@ -674,6 +674,17 @@ impl ModuleOps<Self> for Dispatch {
         B::attention(query, key, value, mask, attn_bias, options)
     }
 
+    fn attention_over_cache(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        pages: Option<IntTensor<Self>>,
+        lengths: IntTensor<Self>,
+        options: burn_backend::ops::AttentionModuleOptions,
+    ) -> FloatTensor<Self> {
+        B::attention_over_cache(query, key, value, pages, lengths, options)
+    }
+
     fn layer_norm(
         tensor: FloatTensor<Self>,
         gamma: FloatTensor<Self>,

@@ -2132,6 +2132,24 @@ impl<B: BackendIr> TensorInterpreter<B> {
 
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                ModuleOperationIr::AttentionOverCache(desc) => {
+                    let query = handles.get_float_tensor::<B>(&desc.query);
+                    let key = handles.get_float_tensor::<B>(&desc.key);
+                    let value = handles.get_float_tensor::<B>(&desc.value);
+                    let pages = desc.pages.as_ref().map(|p| handles.get_int_tensor::<B>(p));
+                    let lengths = handles.get_int_tensor::<B>(&desc.lengths);
+
+                    let output = B::attention_over_cache(
+                        query,
+                        key,
+                        value,
+                        pages,
+                        lengths,
+                        desc.options.clone().into(),
+                    );
+
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 ModuleOperationIr::AttentionWithLogsumexp(desc) => {
                     let query = handles.get_float_tensor::<B>(&desc.query);
                     let key = handles.get_float_tensor::<B>(&desc.key);

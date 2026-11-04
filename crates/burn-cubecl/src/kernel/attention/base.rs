@@ -1,7 +1,10 @@
 #[cfg(feature = "autotune")]
-use super::{attention_autotune, forward_serves};
+use super::{attention_autotune, attention_over_cache_autotune, cache_serves, forward_serves};
 use crate::{CubeBackend, tensor::CubeTensor};
-use burn_backend::ops::{AttentionModuleOptions, attention::attention_fallback};
+use burn_backend::ops::{
+    AttentionModuleOptions,
+    attention::{attention_fallback, attention_over_cache_default},
+};
 
 #[derive(Debug)]
 /// Strategy used to select which attention implementation to run.
@@ -47,4 +50,21 @@ pub fn attention(
         }
         _ => attention_fallback::<CubeBackend>(query, key, value, mask, attn_bias, options),
     }
+}
+
+/// Launch an attention over a key/value cache: through cubek's autotune where its tile routines
+/// serve the call ([`cache_serves`]), composed from tensor operations otherwise.
+pub fn attention_over_cache(
+    query: CubeTensor,
+    key: CubeTensor,
+    value: CubeTensor,
+    pages: Option<CubeTensor>,
+    lengths: CubeTensor,
+    options: AttentionModuleOptions,
+) -> CubeTensor {
+    #[cfg(feature = "autotune")]
+    if cache_serves(&query, &key, &value, &options) {
+        return attention_over_cache_autotune(query, key, value, pages, lengths, options);
+    }
+    attention_over_cache_default::<CubeBackend>(query, key, value, pages, lengths, options)
 }

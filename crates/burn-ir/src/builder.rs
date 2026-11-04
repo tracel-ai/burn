@@ -1478,6 +1478,19 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    AttentionOverCacheOpIr {
+        query: TensorIr,
+        key: TensorIr,
+        value: TensorIr,
+        pages: Option<TensorIr>,
+        lengths: TensorIr,
+        options: AttentionOptionsIr,
+    },
+    shape = Shape::new([query.shape[0], query.shape[1], query.shape[2], value.shape[3]]),
+    dtype = query.dtype
+);
+
+impl_ir_create!(
     CtcLossOpIr {
         log_probs: TensorIr,
         targets: TensorIr,

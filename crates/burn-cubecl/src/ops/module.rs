@@ -478,6 +478,17 @@ impl ModuleOps<Self> for CubeBackend {
         )
     }
 
+    fn attention_over_cache(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        pages: Option<IntTensor<Self>>,
+        lengths: IntTensor<Self>,
+        options: AttentionModuleOptions,
+    ) -> FloatTensor<Self> {
+        kernel::attention::attention_over_cache(query, key, value, pages, lengths, options)
+    }
+
     fn has_attention_backward() -> bool {
         true
     }

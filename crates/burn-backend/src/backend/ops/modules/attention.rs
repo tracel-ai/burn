@@ -6,7 +6,7 @@ use burn_std::{FloatDType, Shape};
 use crate::{
     Backend, TensorMetadata, get_or_init_device_settings,
     ops::{AttentionBackward, AttentionModuleOptions},
-    tensor::{BoolTensor, FloatTensor},
+    tensor::{BoolTensor, FloatTensor, IntTensor},
 };
 
 /// Shapes of an attention call, validated against the [`attention`](crate::ops::ModuleOps::attention)
@@ -109,6 +109,115 @@ pub fn attention_fallback<B: Backend>(
     let scores = attention_scores::<B>(products, mask, attn_bias, shapes, options);
     let softmax = Softmax::<B>::new(scores);
     context::<B>(softmax.probabilities, value, shapes)
+}
+
+/// [`attention_over_cache`](crate::ops::ModuleOps::attention_over_cache) composed from tensor
+/// operations: the pages gathered into one sequence each, then [`attention_fallback`] over the
+/// whole capacity, the positions past each sequence's length masked, and the causal edge and the
+/// window placed at each query's own position.
+pub fn attention_over_cache_default<B: Backend>(
+    query: FloatTensor<B>,
+    key: FloatTensor<B>,
+    value: FloatTensor<B>,
+    pages: Option<IntTensor<B>>,
+    lengths: IntTensor<B>,
+    options: AttentionModuleOptions,
+) -> FloatTensor<B> {
+    let cache = AttendedCache::<B>::new(key, value, pages);
+    let hidden = cache.hidden_keys(&query, lengths, &options);
+    let options = AttentionModuleOptions {
+        is_causal: false,
+        sliding_window: None,
+        ..options
+    };
+    attention_fallback::<B>(query, cache.key, cache.value, Some(hidden), None, options)
+}
+
+/// The keys and values a cache holds, one sequence each, as [`attention_fallback`] reads them:
+/// `[batch_size, num_kv_heads, capacity, dim]`.
+struct AttendedCache<B: Backend> {
+    key: FloatTensor<B>,
+    value: FloatTensor<B>,
+}
+
+impl<B: Backend> AttendedCache<B> {
+    /// The cache of `key` and `value`, gathered from their pools where `pages` names pages.
+    fn new(key: FloatTensor<B>, value: FloatTensor<B>, pages: Option<IntTensor<B>>) -> Self {
+        match pages {
+            Some(pages) => Self {
+                key: Self::sequences(key, pages.clone()),
+                value: Self::sequences(value, pages),
+            },
+            None => Self { key, value },
+        }
+    }
+
+    /// `pool`, `[num_pages, num_kv_heads, page_size, dim]`, as `[batch_size, num_kv_heads,
+    /// pages_per_sequence · page_size, dim]`: each sequence's pages in the order `pages` lists them.
+    fn sequences(pool: FloatTensor<B>, pages: IntTensor<B>) -> FloatTensor<B> {
+        let [_, heads, page_size, dim] = pool.shape().dims::<4>();
+        let [batch, per_sequence] = pages.shape().dims::<2>();
+        let pages = B::int_reshape(pages, Shape::new([batch * per_sequence]));
+        let gathered = B::float_select(pool, 0, pages);
+        let gathered = B::float_reshape(
+            gathered,
+            Shape::new([batch, per_sequence, heads, page_size, dim]),
+        );
+        let gathered = B::float_permute(gathered, &[0, 2, 1, 3, 4]);
+        B::float_reshape(
+            gathered,
+            Shape::new([batch, heads, per_sequence * page_size, dim]),
+        )
+    }
+
+    /// `[batch_size, num_heads, seq_len_q, capacity]`, `true` where a query does not see a key:
+    /// past its sequence's length, and, causal or windowed, past the query's own position
+    /// `lengths[b] - seq_len_q + q` or before its window's start.
+    fn hidden_keys(
+        &self,
+        query: &FloatTensor<B>,
+        lengths: IntTensor<B>,
+        options: &AttentionModuleOptions,
+    ) -> BoolTensor<B> {
+        let device = query.device();
+        let settings = get_or_init_device_settings::<B>(&device);
+        let [batch, heads, seq_q, _] = query.shape().dims::<4>();
+        let capacity = self.key.shape()[2];
+        let scores = Shape::new([batch, heads, seq_q, capacity]);
+        let keys = B::int_reshape(
+            B::int_arange(0..capacity as i64, &device, settings.int_dtype),
+            Shape::new([1, 1, 1, capacity]),
+        );
+        let lengths = B::int_reshape(
+            B::int_cast(lengths, settings.int_dtype),
+            Shape::new([batch, 1, 1, 1]),
+        );
+        let past_length = B::bool_expand(
+            B::int_greater_equal(keys.clone(), lengths.clone(), settings.bool_dtype),
+            scores.clone(),
+        );
+        if !options.is_causal && options.sliding_window.is_none() {
+            return past_length;
+        }
+        let queries = B::int_reshape(
+            B::int_arange(0..seq_q as i64, &device, settings.int_dtype),
+            Shape::new([1, 1, seq_q, 1]),
+        );
+        let own = B::int_add(B::int_sub_scalar(lengths, (seq_q as i64).into()), queries);
+        let newer = B::bool_expand(
+            B::int_lower(own.clone(), keys.clone(), settings.bool_dtype),
+            scores.clone(),
+        );
+        let hidden = B::bool_or(past_length, newer);
+        match options.sliding_window {
+            Some(window) => {
+                let start = B::int_sub_scalar(own, (window.saturating_sub(1) as i64).into());
+                let older = B::bool_expand(B::int_lower(keys, start, settings.bool_dtype), scores);
+                B::bool_or(hidden, older)
+            }
+            None => hidden,
+        }
+    }
 }
 
 /// [`attention_fallback`] without a mask or an additive bias, and each query's logsumexp of its

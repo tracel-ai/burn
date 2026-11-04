@@ -1089,6 +1089,46 @@ pub trait ModuleOps<B: Backend> {
         options: AttentionModuleOptions,
     ) -> FloatTensor<B>;
 
+    /// [attention](ModuleOps::attention) of `query` over a key/value cache, of which each sequence
+    /// attends only its first `lengths[b]` positions.
+    ///
+    /// The cache is held at a fixed capacity, so its shape stays the same as it fills: the length
+    /// is a device tensor, read inside the kernel. The queries are the **last** `seq_len_q`
+    /// attended positions of their sequence (bottom-right), so a prompt chunk scored against a
+    /// partly filled cache sees what the whole prompt would.
+    ///
+    /// # Arguments
+    /// - `query`: `[batch_size, num_heads, seq_len_q, head_dim]`.
+    /// - `key`, `value`: without `pages`, `[batch_size, num_kv_heads, capacity, head_dim]` and
+    ///   `[batch_size, num_kv_heads, capacity, val_dim]`. With `pages`, pools of pages,
+    ///   `[num_pages, num_kv_heads, page_size, head_dim]` and `[.., val_dim]`.
+    ///   `num_heads` must be a multiple of `num_kv_heads`, as in [attention](ModuleOps::attention).
+    /// - `pages`: `[batch_size, pages_per_sequence]`: position `s` of sequence `b` is at position
+    ///   `s % page_size` of page `pages[b, s / page_size]`. The capacity is
+    ///   `pages_per_sequence · page_size`.
+    /// - `lengths`: `[batch_size]`, the positions each sequence attends, at most the capacity and,
+    ///   for a causal or windowed call, at least `seq_len_q`.
+    /// - `options`: as for [attention](ModuleOps::attention), with the causal edge and the window
+    ///   placed at each query's own position; `causal_alignment` must be
+    ///   [`BottomRight`](CausalAlignment::BottomRight).
+    ///
+    /// # Returns
+    /// `[batch_size, num_heads, seq_len_q, val_dim]`.
+    ///
+    /// The default composes it from tensor operations
+    /// ([attention::attention_over_cache_default]): the pages gathered into sequences, the
+    /// positions past each length masked.
+    fn attention_over_cache(
+        query: FloatTensor<B>,
+        key: FloatTensor<B>,
+        value: FloatTensor<B>,
+        pages: Option<IntTensor<B>>,
+        lengths: IntTensor<B>,
+        options: AttentionModuleOptions,
+    ) -> FloatTensor<B> {
+        attention::attention_over_cache_default::<B>(query, key, value, pages, lengths, options)
+    }
+
     /// Returns `true` if this backend implements
     /// [attention_backward](ModuleOps::attention_backward) natively.
     ///

@@ -1370,4 +1370,30 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             .register(OperationIr::Module(ModuleOperationIr::Attention(desc)))
             .output()
     }
+
+    fn attention_over_cache(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        pages: Option<IntTensor<Self>>,
+        lengths: IntTensor<Self>,
+        options: AttentionModuleOptions,
+    ) -> FloatTensor<Self> {
+        let client = query.client.clone();
+        let desc = AttentionOverCacheOpIr::create(
+            query.into_ir(),
+            key.into_ir(),
+            value.into_ir(),
+            pages.map(|p| p.into_ir()),
+            lengths.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::AttentionOverCache(
+                desc,
+            )))
+            .output()
+    }
 }
