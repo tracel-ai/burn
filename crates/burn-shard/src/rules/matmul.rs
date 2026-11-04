@@ -1,3 +1,5 @@
+use smallvec::smallvec;
+
 use crate::{
     OpSharding,
     Sharding::{self, PartialSum, Replicated, Split},
@@ -38,13 +40,14 @@ impl MatmulRule {
         }
     }
 
-    pub fn sharding(&self) -> OpSharding<2> {
+    pub fn sharding(&self) -> OpSharding {
         let (inputs, output) = match *self {
-            Self::Unsplit | Self::Gathered => ([Replicated, Replicated], Replicated),
-            Self::Columns { dim } => ([Replicated, Split { dim }], Split { dim }),
-            Self::Contraction { lhs_dim, rhs_dim } => {
-                ([Split { dim: lhs_dim }, Split { dim: rhs_dim }], PartialSum)
-            }
+            Self::Unsplit | Self::Gathered => (smallvec![Replicated, Replicated], Replicated),
+            Self::Columns { dim } => (smallvec![Replicated, Split { dim }], Split { dim }),
+            Self::Contraction { lhs_dim, rhs_dim } => (
+                smallvec![Split { dim: lhs_dim }, Split { dim: rhs_dim }],
+                PartialSum,
+            ),
         };
         OpSharding { inputs, output }
     }
@@ -63,7 +66,7 @@ mod tests {
         assert_eq!(
             down.sharding(),
             OpSharding {
-                inputs: [Split { dim: 1 }, Split { dim: 0 }],
+                inputs: smallvec![Split { dim: 1 }, Split { dim: 0 }],
                 output: PartialSum,
             }
         );

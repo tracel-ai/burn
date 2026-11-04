@@ -1,8 +1,8 @@
 use burn_backend::{
-    Backend, Scalar, Shape, Slice, TensorData,
-    ops::{ActivationOps, AttentionModuleOptions, FloatTensorOps, QTensorOps},
+    Backend, BoolDType, Scalar, Shape, Slice, TensorData,
+    ops::{ActivationOps, AttentionModuleOptions, FloatTensorOps, IntTensorOps, QTensorOps},
     quantization::QuantScheme,
-    tensor::FloatTensor,
+    tensor::{FloatTensor, IntTensor},
 };
 use burn_flex::{Flex, FlexDevice};
 use burn_shard::{
@@ -61,10 +61,16 @@ fn elementwise_ops_match_one_device_for_every_sharding() {
             check_binary!(num_members, &lhs, &rhs, |B, a, b| B::float_add(a, b));
             check_binary!(num_members, &lhs, &rhs, |B, a, b| B::float_sub(a, b));
             check_binary!(num_members, &lhs, &rhs, |B, a, b| B::float_mul(a, b));
+            check_binary!(num_members, &lhs, &rhs, |B, a, b| B::relu_backward(a, b));
             check_binary!(num_members, &lhs, &positive(rhs), |B, a, b| B::float_div(
                 a, b
             ));
         }
+        let (lhs, rhs) = (data([4, 6], 1), data([4, 6], 2));
+        check_binary!(num_members, &lhs, &rhs, |B, a, b| {
+            let mask = B::float_greater_elem(b.clone(), Scalar::Float(0.0), BoolDType::Native);
+            B::float_mask_where(a, mask, b)
+        });
         let input = data([4, 6], 3);
         check_unary!(num_members, &input, |B, a| B::float_neg(a));
         check_unary!(num_members, &input, |B, a| B::float_mul_scalar(
@@ -75,6 +81,16 @@ fn elementwise_ops_match_one_device_for_every_sharding() {
             a,
             Scalar::Float(3.0)
         ));
+        check_unary!(num_members, &input, |B, a| B::float_add_scalar(
+            a,
+            Scalar::Float(3.0)
+        ));
+        check_unary!(num_members, &input, |B, a| B::float_clamp(
+            a,
+            Scalar::Float(-0.5),
+            Scalar::Float(0.5)
+        ));
+        check_unary!(num_members, &input, |B, a| B::float_exp(a));
         check_unary!(num_members, &input, |B, a| B::relu(a));
         check_unary!(num_members, &input, |B, a| B::gelu(a));
         check_unary!(num_members, &input, |B, a| B::sigmoid(a));
@@ -96,13 +112,54 @@ fn matmuls_match_one_device_for_every_sharding() {
 }
 
 #[test]
-fn sums_match_one_device_for_every_sharding() {
+fn reductions_match_one_device_for_every_sharding() {
     for num_members in 1..=4 {
         let input = data([4, 3, 5], 1);
         for dim in 0..3 {
             check_unary!(num_members, &input, [dim: usize] |B, a| B::float_sum_dim(a, dim));
+            check_unary!(num_members, &input, [dim: usize] |B, a| B::float_mean_dim(a, dim));
+            check_unary!(num_members, &input, [dim: usize] |B, a| B::float_max_dim(a, dim));
         }
         check_unary!(num_members, &input, |B, a| B::float_sum(a));
+        check_unary!(num_members, &input, |B, a| B::float_mean(a));
+        check_unary!(num_members, &input, |B, a| B::float_max(a));
+    }
+}
+
+/// Each member's summand is `[[1, 1], [1, 1], [0, 0]]` and the whole `[[2, 2], [2, 2], [0, 0]]`,
+/// so dividing or averaging each summand truncates to zero where the whole does not.
+#[test]
+fn integer_division_and_mean_sum_a_partial_sum_first() {
+    let device = sharded_compute(2);
+    let int = |values: Vec<i64>, shape: [usize; 2]| {
+        Shard::int_from_data(TensorData::new(values, shape), &device)
+    };
+    let partial = || {
+        Shard::int_matmul(
+            reshard(int(vec![1, 1, 1, 1, 0, 0], [3, 2]), Split { dim: 1 }),
+            reshard(int(vec![1; 4], [2, 2]), Split { dim: 0 }),
+        )
+    };
+    assert_eq!(sharding_of(&partial()), PartialSum);
+
+    let divided = Shard::int_div(partial(), int(vec![2; 6], [3, 2]));
+    let divided_by_scalar = Shard::int_div_scalar(partial(), Scalar::Int(2));
+    let mean = Shard::int_mean_dim(partial(), 0);
+
+    assert_eq!(read_ints(divided), [1, 1, 1, 1, 0, 0]);
+    assert_eq!(read_ints(divided_by_scalar), [1, 1, 1, 1, 0, 0]);
+    assert_eq!(read_ints(mean), [1, 1]);
+}
+
+#[test]
+fn ops_along_a_dim_match_one_device_for_every_sharding() {
+    for num_members in 1..=4 {
+        let input = data([4, 3, 5], 1);
+        for dim in 0..3 {
+            check_unary!(num_members, &input, [dim: usize] |B, a| B::softmax(a, dim));
+            check_unary!(num_members, &input, [dim: usize] |B, a| B::float_cumsum(a, dim));
+            check_unary!(num_members, &input, [dim: usize] |B, a| B::float_topk(a, dim, 2));
+        }
     }
 }
 
@@ -180,7 +237,9 @@ fn split_tensors_stay_split_where_megatron_keeps_them() {
         PartialSum
     );
     assert_eq!(sharding_of(&Shard::float_sum_dim(x.clone(), 1)), PartialSum);
-    assert_eq!(sharding_of(&Shard::relu(x)), Split { dim: 1 });
+    assert_eq!(sharding_of(&Shard::relu(x.clone())), Split { dim: 1 });
+    assert_eq!(sharding_of(&Shard::float_exp(x.clone())), Split { dim: 1 });
+    assert_eq!(sharding_of(&Shard::softmax(x, 0)), Split { dim: 1 });
 }
 
 #[test]
@@ -407,6 +466,13 @@ fn data<S: Into<Shape>>(shape: S, seed: usize) -> TensorData {
 fn positive(data: TensorData) -> TensorData {
     let values: Vec<f32> = data.iter::<f32>().map(|value| value.abs() + 1.0).collect();
     TensorData::new(values, data.shape().clone())
+}
+
+fn read_ints(tensor: IntTensor<Shard>) -> Vec<i64> {
+    block_on(Shard::int_into_data(tensor))
+        .expect("The tensor can be read")
+        .iter::<i64>()
+        .collect()
 }
 
 fn read<B: Backend>(tensor: FloatTensor<B>) -> TensorData {

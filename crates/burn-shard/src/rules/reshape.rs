@@ -1,4 +1,5 @@
 use burn_std::Shape;
+use smallvec::smallvec;
 
 use crate::{OpSharding, Sharding};
 
@@ -28,7 +29,7 @@ impl ReshapeRule {
         }
     }
 
-    pub fn sharding(&self) -> OpSharding<1> {
+    pub fn sharding(&self) -> OpSharding {
         let (input, output) = match *self {
             Self::Local { sharding } => (sharding, sharding),
             Self::Split { from_dim, to_dim } => (
@@ -38,7 +39,7 @@ impl ReshapeRule {
             Self::Gathered => (Sharding::Replicated, Sharding::Replicated),
         };
         OpSharding {
-            inputs: [input],
+            inputs: smallvec![input],
             output,
         }
     }

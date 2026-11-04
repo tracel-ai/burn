@@ -1,4 +1,5 @@
 mod channel;
+mod classify;
 mod client;
 mod device;
 mod interpreter;

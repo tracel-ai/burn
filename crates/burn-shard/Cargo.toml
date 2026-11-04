@@ -24,6 +24,7 @@ burn-backend = { workspace = true, features = ["std"] }
 burn-ir = { workspace = true, features = ["std"] }
 burn-router = { workspace = true, features = ["std"] }
 burn-std = { workspace = true, features = ["std"] }
+smallvec = { workspace = true }
 
 [dev-dependencies]
 burn-flex = { workspace = true, features = ["default"] }
