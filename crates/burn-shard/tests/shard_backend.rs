@@ -58,6 +58,7 @@ fn a_sharded_compute_device_lists_its_members_in_order() {
     let device = sharded_compute(3);
 
     assert_eq!(device.members::<Flex>(), Some(vec![FlexDevice; 3]));
+    assert_eq!(device.num_members(), 3);
 }
 
 #[test]

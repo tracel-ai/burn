@@ -144,6 +144,12 @@ impl ShardedComputeDevice {
     pub fn members<B: BackendIr>(&self) -> Option<Vec<B::Device>> {
         get_client::<ShardChannel>(self).members::<B::Device>()
     }
+
+    /// How many members it splits its tensors over, whichever backend they run: the count a
+    /// caller lays a split out for, such as heads every member holds as many of.
+    pub fn num_members(&self) -> usize {
+        get_client::<ShardChannel>(self).num_members()
+    }
 }
 
 impl fmt::Display for ShardError {

@@ -286,7 +286,8 @@ whose tensors are split over `devices` (crate `burn-shard`).
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - A `CustomOpRule` can plan `CustomOpPlan::Sharded`, naming each input's and output's sharding,
   so each member runs the op's own handler on its shards: an op that runs per head, or has
-  several outputs, stays split without a collective handler.
+  several outputs, stays split without a collective handler. `ShardedComputeDevice::num_members`
+  counts its members whichever backend they run.
 - **Breaking (experimental):** `ShardedComputeDevice::with_member_settings` and
   `DispatchDevice::shard` take the device's custom ops: pass `ShardCustomOps::default()` for none.
   `ShardError` has a new `CustomOpsBackend` variant.
