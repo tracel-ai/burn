@@ -288,6 +288,8 @@ whose tensors are split over `devices` (crate `burn-shard`).
   so each member runs the op's own handler on its shards: an op that runs per head, or has
   several outputs, stays split without a collective handler. `ShardedComputeDevice::num_members`
   counts its members whichever backend they run.
+- `cat` along a dim its inputs are not split on keeps their split on a sharded compute device, and
+  partial sums stay partial, instead of gathering every input.
 - **Breaking (experimental):** `ShardedComputeDevice::with_member_settings` and
   `DispatchDevice::shard` take the device's custom ops: pass `ShardCustomOps::default()` for none.
   `ShardError` has a new `CustomOpsBackend` variant.

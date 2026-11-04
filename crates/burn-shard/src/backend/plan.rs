@@ -202,6 +202,12 @@ impl TensorShardings<'_> {
                     out.shape.num_dims(),
                 ),
             ),
+            (OpKind::Concat { dim }, [_, ..]) => {
+                let shardings: OpInputs<_> =
+                    inputs.iter().map(|input| self.sharding(input)).collect();
+                let rule = LayoutRule::concat(&shardings, dim);
+                OpPlan::from_rule(inputs, out, rule.sharding(inputs.len()), Execution::Eager)
+            }
             (OpKind::Attention, _) => self.attention(inputs, out),
             _ => None,
         }
