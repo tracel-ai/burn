@@ -54,6 +54,13 @@ macro_rules! check_binary {
 }
 
 #[test]
+fn a_sharded_compute_device_lists_its_members_in_order() {
+    let device = sharded_compute(3);
+
+    assert_eq!(device.members::<Flex>(), Some(vec![FlexDevice; 3]));
+}
+
+#[test]
 fn elementwise_ops_match_one_device_for_every_sharding() {
     for num_members in 1..=4 {
         for rhs in [[4, 6], [1, 6], [4, 1]] {

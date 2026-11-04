@@ -113,20 +113,24 @@ impl ShardedComputeDevice {
         if members.is_empty() {
             return Err(ShardError::NoDevices);
         }
-        let interpreter = ShardInterpreter::<B>::new(
-            members.iter().map(|it| it.device.clone()).collect(),
-            custom_ops,
-        )?;
+        let devices: Vec<B::Device> = members.iter().map(|it| it.device.clone()).collect();
+        let interpreter = ShardInterpreter::<B>::new(devices.clone(), custom_ops)?;
         let shared_settings = interpreter.default_settings(members)?;
         let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
         let device = Self {
             id: u16::try_from(id).expect("Fewer than 65536 sharded compute devices in one process"),
         };
-        let client = ShardClient::new(device, interpreter, shared_settings);
+        let client = ShardClient::new(device, interpreter, shared_settings, devices);
         register_scoped_client::<ShardChannel>(&device, client)
             .expect("A new sharded compute device's device has no client yet")
             .keep();
         Ok(device)
+    }
+
+    /// The devices of its members, in member order, when they run `B`, or `None` when they run
+    /// another backend.
+    pub fn members<B: BackendIr>(&self) -> Option<Vec<B::Device>> {
+        get_client::<ShardChannel>(self).members::<B::Device>()
     }
 }
 
