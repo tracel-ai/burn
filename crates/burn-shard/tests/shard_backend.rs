@@ -5,14 +5,14 @@ use burn_backend::{
     tensor::FloatTensor,
 };
 use burn_flex::{Flex, FlexDevice};
-use burn_group::{
-    GroupBackend, GroupDevice,
+use burn_shard::{
+    ShardBackend, ShardedComputeDevice,
     Sharding::{self, PartialSum, Replicated, Split},
     ShardingError,
 };
 use burn_std::future::block_on;
 
-type Group = GroupBackend;
+type Shard = ShardBackend;
 
 macro_rules! check_unary {
     ($num_members:expr, $input:expr, |$backend:ident, $a:ident| $body:expr) => {
@@ -25,7 +25,7 @@ macro_rules! check_unary {
         assert_unary_matches(
             $num_members,
             $input,
-            |a| op::<Group>(a, $($env.clone()),*),
+            |a| op::<Shard>(a, $($env.clone()),*),
             |a| op::<Flex>(a, $($env.clone()),*),
         )
     }};
@@ -47,7 +47,7 @@ macro_rules! check_binary {
             $num_members,
             $lhs,
             $rhs,
-            |a, b| op::<Group>(a, b, $($env.clone()),*),
+            |a, b| op::<Shard>(a, b, $($env.clone()),*),
             |a, b| op::<Flex>(a, b, $($env.clone()),*),
         )
     }};
@@ -163,31 +163,31 @@ fn masked_causal_attention_matches_one_device_for_every_sharding() {
 
 #[test]
 fn split_tensors_stay_split_where_megatron_keeps_them() {
-    let device = group(2);
+    let device = sharded_compute(2);
     let x = reshard(
-        Group::float_from_data(data([4, 6], 1), &device),
+        Shard::float_from_data(data([4, 6], 1), &device),
         Split { dim: 1 },
     );
     let w = reshard(
-        Group::float_from_data(data([6, 6], 2), &device),
+        Shard::float_from_data(data([6, 6], 2), &device),
         Split { dim: 0 },
     );
-    let summand = Group::float_matmul(x.clone(), w);
+    let summand = Shard::float_matmul(x.clone(), w);
 
     assert_eq!(sharding_of(&summand), PartialSum);
     assert_eq!(
-        sharding_of(&Group::float_add(summand.clone(), summand)),
+        sharding_of(&Shard::float_add(summand.clone(), summand)),
         PartialSum
     );
-    assert_eq!(sharding_of(&Group::float_sum_dim(x.clone(), 1)), PartialSum);
-    assert_eq!(sharding_of(&Group::relu(x)), Split { dim: 1 });
+    assert_eq!(sharding_of(&Shard::float_sum_dim(x.clone(), 1)), PartialSum);
+    assert_eq!(sharding_of(&Shard::relu(x)), Split { dim: 1 });
 }
 
 #[test]
 fn a_quantized_tensor_is_not_split() {
     // CUDA packs four quantized values per u32, so the last dim is a multiple of four.
-    let whole = Group::float_from_data(data([4, 8], 1), &group(2));
-    let quantized = Group::quantize_dynamic(whole, &QuantScheme::default());
+    let whole = Shard::float_from_data(data([4, 8], 1), &sharded_compute(2));
+    let quantized = Shard::quantize_dynamic(whole, &QuantScheme::default());
     let client = quantized.client.clone();
 
     let refused = client.reshard(quantized, Split { dim: 0 });
@@ -199,17 +199,17 @@ fn a_quantized_tensor_is_not_split() {
 fn every_sharding_moves_to_every_other_and_keeps_its_value() {
     let input = data([4, 6], 1);
     for num_members in 1..=4 {
-        let group = group(num_members);
+        let device = sharded_compute(num_members);
         for from in shardings(input.shape(), num_members) {
             for to in shardings(input.shape(), num_members) {
                 if to == PartialSum && from != PartialSum {
                     continue;
                 }
-                let (tensor, value) = sharded(&input, &group, from);
+                let (tensor, value) = sharded(&input, &device, from);
                 let moved = reshard(tensor, to);
                 assert_eq!(sharding_of(&moved), to);
                 let case = format!("{num_members} members, {from:?} to {to:?}");
-                assert_close(read::<Group>(moved), value, &case);
+                assert_close(read::<Shard>(moved), value, &case);
             }
         }
     }
@@ -218,14 +218,14 @@ fn every_sharding_moves_to_every_other_and_keeps_its_value() {
 fn assert_unary_matches(
     num_members: usize,
     input: &TensorData,
-    on_group: impl Fn(FloatTensor<Group>) -> FloatTensor<Group>,
+    on_shards: impl Fn(FloatTensor<Shard>) -> FloatTensor<Shard>,
     on_flex: impl Fn(FloatTensor<Flex>) -> FloatTensor<Flex>,
 ) {
-    let device = group(num_members);
+    let device = sharded_compute(num_members);
     for sharding in shardings(input.shape(), num_members) {
         let (tensor, value) = sharded(input, &device, sharding);
         let expected = read::<Flex>(on_flex(Flex::float_from_data(value, &FlexDevice)));
-        let actual = read::<Group>(on_group(tensor));
+        let actual = read::<Shard>(on_shards(tensor));
         assert_close(
             actual,
             expected,
@@ -238,10 +238,10 @@ fn assert_binary_matches(
     num_members: usize,
     lhs: &TensorData,
     rhs: &TensorData,
-    on_group: impl Fn(FloatTensor<Group>, FloatTensor<Group>) -> FloatTensor<Group>,
+    on_shards: impl Fn(FloatTensor<Shard>, FloatTensor<Shard>) -> FloatTensor<Shard>,
     on_flex: impl Fn(FloatTensor<Flex>, FloatTensor<Flex>) -> FloatTensor<Flex>,
 ) {
-    let device = group(num_members);
+    let device = sharded_compute(num_members);
     for lhs_sharding in shardings(lhs.shape(), num_members) {
         for rhs_sharding in shardings(rhs.shape(), num_members) {
             let (lhs_tensor, lhs_value) = sharded(lhs, &device, lhs_sharding);
@@ -250,7 +250,7 @@ fn assert_binary_matches(
                 Flex::float_from_data(lhs_value, &FlexDevice),
                 Flex::float_from_data(rhs_value, &FlexDevice),
             ));
-            let actual = read::<Group>(on_group(lhs_tensor, rhs_tensor));
+            let actual = read::<Shard>(on_shards(lhs_tensor, rhs_tensor));
             let case = format!("{num_members} members, {lhs_sharding:?} with {rhs_sharding:?}");
             assert_close(actual, expected, &case);
         }
@@ -268,7 +268,7 @@ impl AttentionInputs {
     /// For every sharding of the query, and of the key and value together, the mask and bias
     /// replicated.
     fn assert_matches(&self, num_members: usize, options: AttentionModuleOptions) {
-        let device = group(num_members);
+        let device = sharded_compute(num_members);
         let expected = read::<Flex>(
             self.attention::<Flex>(
                 [&self.query, &self.key, &self.value]
@@ -299,7 +299,7 @@ impl AttentionInputs {
                     _ => expected.clone(),
                 };
                 let actual =
-                    read::<Group>(self.attention::<Group>([query, key, value], &device, options));
+                    read::<Shard>(self.attention::<Shard>([query, key, value], &device, options));
                 assert_close(actual, expected, &case);
             }
         }
@@ -326,19 +326,19 @@ impl AttentionInputs {
 /// contraction `data @ weights` with both split, so it holds the product instead.
 fn sharded(
     data: &TensorData,
-    device: &GroupDevice,
+    device: &ShardedComputeDevice,
     sharding: Sharding,
-) -> (FloatTensor<Group>, TensorData) {
-    let tensor = Group::float_from_data(data.clone(), device);
+) -> (FloatTensor<Shard>, TensorData) {
+    let tensor = Shard::float_from_data(data.clone(), device);
     if sharding != PartialSum {
         return (reshard(tensor, sharding), data.clone());
     }
     let num_dims = data.shape().num_dims();
     let weights = contraction_weights(data.shape());
-    let partial = Group::float_matmul(
+    let partial = Shard::float_matmul(
         reshard(tensor, Split { dim: num_dims - 1 }),
         reshard(
-            Group::float_from_data(weights.clone(), device),
+            Shard::float_from_data(weights.clone(), device),
             Split { dim: num_dims - 2 },
         ),
     );
@@ -364,7 +364,7 @@ fn product_on_one_device(data: &TensorData, weights: &TensorData) -> TensorData 
     ))
 }
 
-/// A partial sum needs a last dim to contract, at least as long as the group.
+/// A partial sum needs a last dim to contract, at least as long as the sharded compute device.
 fn shardings(shape: &Shape, num_members: usize) -> Vec<Sharding> {
     let num_dims = shape.num_dims();
     let mut shardings = vec![Replicated];
@@ -379,11 +379,12 @@ fn shardings(shape: &Shape, num_members: usize) -> Vec<Sharding> {
     shardings
 }
 
-fn group(num_members: usize) -> GroupDevice {
-    GroupDevice::new::<Flex>(&vec![FlexDevice; num_members]).expect("Flex devices form a group")
+fn sharded_compute(num_members: usize) -> ShardedComputeDevice {
+    ShardedComputeDevice::new::<Flex>(&vec![FlexDevice; num_members])
+        .expect("Flex devices form a sharded compute device")
 }
 
-fn reshard(tensor: FloatTensor<Group>, sharding: Sharding) -> FloatTensor<Group> {
+fn reshard(tensor: FloatTensor<Shard>, sharding: Sharding) -> FloatTensor<Shard> {
     tensor
         .client
         .clone()
@@ -391,7 +392,7 @@ fn reshard(tensor: FloatTensor<Group>, sharding: Sharding) -> FloatTensor<Group>
         .expect("The test asks for a sharding the tensor can take")
 }
 
-fn sharding_of(tensor: &FloatTensor<Group>) -> Sharding {
+fn sharding_of(tensor: &FloatTensor<Shard>) -> Sharding {
     tensor.client.sharding(tensor)
 }
 
