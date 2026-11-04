@@ -255,6 +255,233 @@ fn should_visit_generic_modules_with_primitive_arguments() {
     assert_eq!(model.num_params(), 4);
 }
 
+mod named_enum_variants {
+    use super::*;
+    use burn::module::{ModuleMapper, ModuleVisitor};
+
+    #[derive(Module, Debug)]
+    enum Net {
+        Small(ModuleBasic),
+        Wide {
+            first: ModuleBasic,
+            second: ModuleBasic,
+            steps: usize,
+        },
+    }
+
+    impl Net {
+        fn wide(device: &Device) -> Self {
+            Self::Wide {
+                first: ModuleBasic::new(device),
+                second: ModuleBasic::new(device),
+                steps: 7,
+            }
+        }
+    }
+
+    #[derive(Default)]
+    struct Trace {
+        path: Vec<String>,
+        containers: Vec<String>,
+        paths: Vec<String>,
+        leaves: Vec<String>,
+    }
+
+    impl ModuleVisitor for Trace {
+        fn enter_module(&mut self, name: &str, container_type: &str) {
+            self.path.push(name.into());
+            self.containers.push(container_type.into());
+        }
+        fn exit_module(&mut self, _: &str, _: &str) {
+            self.path.pop();
+            self.containers.pop();
+        }
+        fn visit_float<const D: usize>(&mut self, _: &Param<Tensor<D>>) {
+            self.paths.push(self.path.join("."));
+            self.leaves.push(format!(
+                "{} [{}]",
+                self.path.join("."),
+                self.containers.join(" > ")
+            ));
+        }
+    }
+
+    #[test]
+    fn named_fields_are_nested_under_the_variant_and_tuple_variants_keep_their_path() {
+        let device = test_device();
+        let wide = Net::wide(&device);
+        let small = Net::Small(ModuleBasic::new(&device));
+
+        let mut wide_trace = Trace::default();
+        wide.visit(&mut wide_trace);
+        assert_eq!(
+            wide_trace.leaves,
+            [
+                "Wide.first.weight_basic [Enum:Net > Variant:Net::Wide > Struct:ModuleBasic]",
+                "Wide.second.weight_basic [Enum:Net > Variant:Net::Wide > Struct:ModuleBasic]",
+            ]
+        );
+
+        let mut small_trace = Trace::default();
+        small.visit(&mut small_trace);
+        assert_eq!(
+            small_trace.leaves,
+            ["Small.weight_basic [Enum:Net > Struct:ModuleBasic]"]
+        );
+
+        assert_eq!(wide.num_params(), 2 * 20 * 20);
+    }
+
+    #[test]
+    fn named_variant_paths_match_the_wrapped_struct_workaround() {
+        #[derive(Module, Debug)]
+        struct Layers {
+            first: ModuleBasic,
+            second: ModuleBasic,
+        }
+
+        #[derive(Module, Debug)]
+        enum Wrapped {
+            Wide(Layers),
+        }
+
+        let device = test_device();
+        let wrapped = Wrapped::Wide(Layers {
+            first: ModuleBasic::new(&device),
+            second: ModuleBasic::new(&device),
+        });
+
+        let mut named_trace = Trace::default();
+        Net::wide(&device).visit(&mut named_trace);
+        let mut wrapped_trace = Trace::default();
+        wrapped.visit(&mut wrapped_trace);
+
+        assert_eq!(named_trace.paths, wrapped_trace.paths);
+    }
+
+    #[test]
+    fn record_round_trip_keeps_each_field_in_place() {
+        let device = test_device();
+        let source = Net::wide(&device);
+        let target = Net::wide(&device);
+
+        let Net::Wide {
+            first: source_first,
+            second: source_second,
+            ..
+        } = &source
+        else {
+            panic!("Invalid module type")
+        };
+        assert_ne!(
+            source_first.weight_basic.to_data(),
+            source_second.weight_basic.to_data()
+        );
+
+        let loaded = target.load_record(source.clone().into_record());
+
+        let Net::Wide { first, second, .. } = &loaded else {
+            panic!("Invalid module type")
+        };
+        assert_eq!(
+            first.weight_basic.to_data(),
+            source_first.weight_basic.to_data()
+        );
+        assert_eq!(
+            second.weight_basic.to_data(),
+            source_second.weight_basic.to_data()
+        );
+    }
+
+    #[test]
+    fn plain_and_skipped_fields_survive_state_transitions() {
+        #[derive(Module, Debug)]
+        enum Mixed {
+            Variant {
+                live: ModuleBasic,
+                steps: usize,
+                #[module(skip)]
+                cache: Vec<ModuleBasic>,
+            },
+        }
+
+        struct Identity;
+        impl ModuleMapper for Identity {}
+
+        let device = test_device();
+        let module = Mixed::Variant {
+            live: ModuleBasic::new(&device),
+            steps: 7,
+            cache: vec![ModuleBasic::new(&device)],
+        };
+        assert_eq!(module.num_params(), 20 * 20);
+
+        let transitioned = module
+            .clone()
+            .map(&mut Identity)
+            .to_device(&device)
+            .fork(&device)
+            .materialize();
+        // Tensor parameters switch between validation and training only with autodiff.
+        #[cfg(feature = "autodiff")]
+        let transitioned = transitioned.valid().train();
+        let Mixed::Variant { steps, cache, .. } = &transitioned;
+        assert_eq!(*steps, 7);
+        assert_eq!(cache.len(), 1);
+
+        let display = module.to_string();
+        assert!(display.contains("Variant"), "{display}");
+        assert!(display.contains("live"), "{display}");
+        assert!(display.contains("steps"), "{display}");
+    }
+
+    #[test]
+    fn field_names_do_not_shadow_generated_parameters() {
+        #[derive(Module, Debug)]
+        enum Reserved {
+            Variant {
+                device: ModuleBasic,
+                devices: ModuleBasic,
+                mapper: ModuleBasic,
+                visitor: ModuleBasic,
+            },
+        }
+
+        struct Identity;
+        impl ModuleMapper for Identity {}
+
+        let device = test_device();
+        let module = Reserved::Variant {
+            device: ModuleBasic::new(&device),
+            devices: ModuleBasic::new(&device),
+            mapper: ModuleBasic::new(&device),
+            visitor: ModuleBasic::new(&device),
+        };
+
+        let module = module.to_device(&device).fork(&device).map(&mut Identity);
+        assert_eq!(module.devices().len(), 1);
+
+        let mut trace = Trace::default();
+        module.visit(&mut trace);
+        assert_eq!(trace.leaves.len(), 4);
+    }
+
+    #[test]
+    fn generic_modules_in_named_fields_infer_their_bounds() {
+        #[derive(Module, Debug)]
+        enum Choice<M: Module> {
+            Pair { left: M, right: M },
+        }
+
+        let device = test_device();
+        let module = Choice::Pair {
+            left: ModuleBasic::new(&device),
+            right: ModuleBasic::new(&device),
+        };
+        assert_eq!(module.num_params(), 2 * 20 * 20);
+    }
+}
+
 mod state {
     use super::*;
     use burn::store::RecordError;

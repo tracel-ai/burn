@@ -282,6 +282,10 @@ bounds are inferred from the actual field types, and generics can be shared betw
 and skipped configuration or caches. This makes reusable module definitions easier to write.
 ([#6059](https://github.com/tracel-ai/burn/pull/6059))
 
+Enum variants can also hold named fields, such as `Wide { first: Linear, second: Linear }`. Their
+tensors are saved under `Wide.first` and `Wide.second`, the same paths as a tuple variant wrapping
+a struct with those fields. ([#6388](https://github.com/tracel-ai/burn/pull/6388))
+
 #### Optimizer-step metrics
 
 **Breaking:** Replace `metric_train_numeric(LearningRateMetric::new())` with

@@ -631,6 +631,8 @@ pub trait ModuleVisitor {
     /// - `container_type`: The type of the container with format:
     ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
     ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
+    ///   - For named enum variant fields: "Variant:TypeName::VariantName"
+    ///     (e.g., "Variant:MyEnum::Wide")
     ///   - For Vec containers: "Vec" (name is the index)
     ///   - For Tuple containers: "Tuple" (name is the index)
     ///   - For Array containers: "Array" (name is the index)
@@ -647,6 +649,8 @@ pub trait ModuleVisitor {
     /// - `container_type`: The type of the container with format:
     ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
     ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
+    ///   - For named enum variant fields: "Variant:TypeName::VariantName"
+    ///     (e.g., "Variant:MyEnum::Wide")
     ///   - For Vec containers: "Vec" (name is the index)
     ///   - For Tuple containers: "Tuple" (name is the index)
     ///   - For Array containers: "Array" (name is the index)
@@ -717,6 +721,8 @@ pub trait ModuleMapper {
     /// - `container_type`: The type of the container with format:
     ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
     ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
+    ///   - For named enum variant fields: "Variant:TypeName::VariantName"
+    ///     (e.g., "Variant:MyEnum::Wide")
     ///   - For Vec containers: "Vec" (name is the index)
     ///   - For Tuple containers: "Tuple" (name is the index)
     ///   - For Array containers: "Array" (name is the index)
@@ -733,6 +739,8 @@ pub trait ModuleMapper {
     /// - `container_type`: The type of the container with format:
     ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
     ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
+    ///   - For named enum variant fields: "Variant:TypeName::VariantName"
+    ///     (e.g., "Variant:MyEnum::Wide")
     ///   - For Vec containers: "Vec" (name is the index)
     ///   - For Tuple containers: "Tuple" (name is the index)
     ///   - For Array containers: "Array" (name is the index)
