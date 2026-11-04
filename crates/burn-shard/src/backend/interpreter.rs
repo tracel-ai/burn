@@ -932,4 +932,72 @@ mod tests {
 
         assert_eq!(interpreter.sharding(&out), Sharding::Replicated);
     }
+
+    /// Splits its one input on dim 1 and writes two outputs split the same way.
+    struct ShardedRule;
+
+    impl CustomOpRule for ShardedRule {
+        fn plan<'a>(&self, _op: &'a CustomOpIr) -> CustomOpPlan<'a> {
+            let split = Sharding::Split { dim: 1 };
+            CustomOpPlan::Sharded {
+                inputs: vec![split],
+                outputs: vec![split, split],
+            }
+        }
+    }
+
+    /// No kind describes an op of two outputs, so only its rule's shardings keep it split: each
+    /// member runs its own handler on its half, and the halves make up the whole results.
+    #[test]
+    fn a_sharded_op_runs_on_each_members_shards() {
+        use burn_backend::ops::FloatTensorOps;
+
+        let mut handlers = burn_router::CustomOpRegistry::<Flex>::new();
+        handlers.register("double_and_shift", |handles, ir, _device| {
+            assert_eq!(
+                ir.inputs[0].shape,
+                [4, 3].into(),
+                "a member reads its own half"
+            );
+            let x = handles.get_float_tensor::<Flex>(&ir.inputs[0]);
+            let doubled = Flex::float_mul_scalar(x.clone(), 2.0f32.into());
+            let shifted = Flex::float_add_scalar(x, 1.0f32.into());
+            handles.register_float_tensor::<Flex>(&ir.outputs[0].id, doubled);
+            handles.register_float_tensor::<Flex>(&ir.outputs[1].id, shifted);
+        });
+        let custom_ops = ShardCustomOps::default()
+            .with_handlers(handlers)
+            .with_rule("double_and_shift", ShardedRule);
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], custom_ops).unwrap();
+        let values: Vec<f32> = (0..24).map(|value| value as f32).collect();
+        let x = interpreter.register_tensor_data(TensorData::new(values.clone(), [4, 6]));
+        let (doubled, shifted) = (interpreter.new_tensor_id(), interpreter.new_tensor_id());
+        let input = whole(x, TensorStatus::ReadOnly);
+        let output = |id| TensorIr {
+            id,
+            status: TensorStatus::NotInit,
+            ..input.clone()
+        };
+
+        interpreter.register_op(OperationIr::Custom(CustomOpIr {
+            id: "double_and_shift".into(),
+            outputs: vec![output(doubled), output(shifted)],
+            inputs: vec![input.clone()],
+            scalars: Vec::new(),
+        }));
+
+        let read = |interpreter: &mut ShardInterpreter<Flex>, id| {
+            block_on(interpreter.read(whole(id, TensorStatus::ReadOnly)))
+                .unwrap()
+                .try_to_vec::<f32>()
+                .unwrap()
+        };
+        for id in [doubled, shifted] {
+            assert_eq!(interpreter.sharding(&id), Sharding::Split { dim: 1 });
+        }
+        let expected = |f: fn(f32) -> f32| values.iter().copied().map(f).collect::<Vec<_>>();
+        assert_eq!(read(&mut interpreter, doubled), expected(|x| 2.0 * x));
+        assert_eq!(read(&mut interpreter, shifted), expected(|x| x + 1.0));
+    }
 }

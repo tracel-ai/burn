@@ -284,6 +284,9 @@ whose tensors are split over `devices` (crate `burn-shard`).
   lists the members' devices, for an extension that checks what their hardware supports.
   ([#6395](https://github.com/tracel-ai/burn/pull/6395))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- A `CustomOpRule` can plan `CustomOpPlan::Sharded`, naming each input's and output's sharding,
+  so each member runs the op's own handler on its shards: an op that runs per head, or has
+  several outputs, stays split without a collective handler.
 - **Breaking (experimental):** `ShardedComputeDevice::with_member_settings` and
   `DispatchDevice::shard` take the device's custom ops: pass `ShardCustomOps::default()` for none.
   `ShardError` has a new `CustomOpsBackend` variant.
