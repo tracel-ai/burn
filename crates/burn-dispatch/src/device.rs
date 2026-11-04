@@ -3,10 +3,12 @@ use burn_backend::{DeviceId, DeviceOps, DeviceSettings};
 #[allow(unused_imports)] // Empty in backend-free and capture-only builds.
 use crate::devices::*;
 
+#[cfg(feature = "shard")]
+use burn_backend::Shape;
 #[cfg(feature = "capture")]
 use burn_capture::CaptureDevice;
 #[cfg(feature = "shard")]
-use burn_shard::{ShardCustomOps, ShardError, ShardedComputeDevice};
+use burn_shard::{ShardCustomOps, ShardError, ShardedComputeDevice, Sharding, ShardingError};
 
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
@@ -430,6 +432,23 @@ impl DispatchDevice {
             None => Err(ShardError::NoDevices),
         }?;
         Ok(Self::ShardedCompute(device))
+    }
+
+    /// Why a value of `shape` made on this device cannot take `sharding`, if it cannot.
+    ///
+    /// # Errors
+    ///
+    /// When this is not a sharded compute device, or as
+    /// [`ShardedComputeDevice::check_sharding`].
+    #[cfg(feature = "shard")]
+    pub fn check_sharding(&self, shape: &Shape, sharding: Sharding) -> Result<(), ShardingError> {
+        match self {
+            Self::ShardedCompute(device) => device.check_sharding(shape, sharding),
+            #[cfg(feature = "autodiff")]
+            Self::Autodiff(device) => device.inner.check_sharding(shape, sharding),
+            #[allow(unreachable_patterns)]
+            _ => Err(ShardingError::NotSharded),
+        }
     }
 
     /// Why this device cannot be a sharded compute device's member, or `None` when it can.
