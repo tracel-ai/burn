@@ -79,16 +79,9 @@ adaptor code yourself.
     - Fields: `loss: Tensor<1>`, `logits: Tensor<3>`, `predictions: Option<Tensor<2, Int>>`, `targets: Tensor<2, Int>`
     - Adapted metrics: Accuracy, TopKAccuracy, Perplexity, CER, WER, Loss
 
-Regression metrics share `RegressionInput`, with predictions and targets shaped
-`[samples, targets]`. `RegressionOutput` adapts to it automatically. Register the
-metrics with `.metrics((MseMetric::new(), MaeMetric::new(), R2ScoreMetric::new()))`.
-
-MSE and MAE average all prediction values. R² computes a score per target column
-and averages those scores uniformly, using accumulated statistics over the whole
-epoch rather than averaging batch scores. Constant targets score 1 for perfect
-predictions and 0 otherwise; fewer than two samples yield `NaN`. Inputs must be
-non-empty and have matching shapes. R² also requires the number of target columns
-to remain constant throughout an epoch.
+MSE and MAE average errors across all samples and target columns. R² computes a
+score per target column and averages those scores uniformly, using statistics
+accumulated over the whole epoch rather than averaging batch scores.
 
 \* Precision, Recall, FBetaScore, AUROC, and AUC-PR all use `ConfusionStatsInput` as their input type so these 
 metrics are automatically (implicitly) adapted since `ConfusionStatsInput` is adapted.

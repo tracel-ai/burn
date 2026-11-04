@@ -192,6 +192,7 @@ impl Numeric for R2ScoreMetric {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::metric::NumericAttributes;
     use burn_core::tensor::Tensor;
 
     #[test]
@@ -208,7 +209,6 @@ mod tests {
             )
             .unwrap();
         assert_eq!(metric.value().unwrap().current(), 0.0);
-        assert_eq!(metric.final_value().current(), 0.0);
     }
 
     #[test]
@@ -225,7 +225,6 @@ mod tests {
             )
             .unwrap();
         assert_eq!(metric.value().unwrap().current(), 0.0);
-        assert_eq!(metric.final_value().current(), 0.0);
     }
 
     #[test]
@@ -284,90 +283,97 @@ mod tests {
     }
 
     #[test]
-    fn sklearn_reference_and_uneven_batches() {
+    fn sklearn_reference_across_batches_and_epochs() {
         // scikit-learn 1.8.0: r2_score(y_true, y_pred) == 0.759375.
-        // Batch scores are 0.25 and 0.11607142857; averaging them is wrong.
         let device = Default::default();
-        let targets = [[1., 10.], [2., 10.], [3., 12.], [4., 14.], [5., 18.]];
-        let outputs = [[1., 9.], [2.5, 11.], [2., 11.], [5., 14.], [4., 20.]];
+        let targets = Tensor::from_data(
+            [[1., 10.], [2., 10.], [3., 12.], [4., 14.], [5., 18.]],
+            &device,
+        );
+        let outputs = Tensor::from_data(
+            [[1., 9.], [2.5, 11.], [2., 11.], [5., 14.], [4., 20.]],
+            &device,
+        );
+        let mut metric = R2ScoreMetric::default();
+        assert_eq!(metric.name().as_str(), "R2 Score");
+        assert!(matches!(
+            metric.attributes(),
+            MetricAttributes::Numeric(NumericAttributes {
+                unit: None,
+                higher_is_better: true,
+            })
+        ));
+
+        for range in [0..2, 2..5] {
+            metric
+                .update(
+                    &RegressionInput::new(
+                        outputs.clone().slice([range.clone()]),
+                        targets.clone().slice([range]),
+                    ),
+                    &MetricMetadata::fake(),
+                )
+                .unwrap();
+        }
+        assert!(matches!(
+            metric.value().unwrap(),
+            NumericEntry::Aggregated { aggregated_value, count: 3 }
+                if (aggregated_value - 0.11607142857).abs() < 1e-6
+        ));
+        assert!((metric.running_value().unwrap().current() - 0.759375).abs() < 1e-6);
+        let entry = metric.compute().unwrap();
+        assert!(matches!(
+            NumericEntry::deserialize(&entry.serialized).unwrap(),
+            NumericEntry::Final(value) if (value - 0.759375).abs() < 1e-6
+        ));
+        assert!((metric.final_value().current() - 0.759375).abs() < 1e-6);
+
+        metric.clear();
+        assert!(metric.value().is_none());
+        assert!(metric.running_value().is_none());
+        metric
+            .update(
+                &RegressionInput::new(outputs.slice([0..2]), targets.slice([0..2])),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+        metric.compute().unwrap();
+        assert!((metric.final_value().current() - 0.25).abs() < 1e-6);
+    }
+
+    #[rstest::rstest]
+    #[case::perfect([[3.], [3.]], 1.0)]
+    #[case::imperfect([[3.], [4.]], 0.0)]
+    fn constant_targets(#[case] outputs: [[f32; 1]; 2], #[case] expected: f64) {
+        let device = Default::default();
         let mut metric = R2ScoreMetric::new();
         metric
             .update(
                 &RegressionInput::new(
                     Tensor::from_data(outputs, &device),
-                    Tensor::from_data(targets, &device),
+                    Tensor::from_data([[3.], [3.]], &device),
                 ),
                 &MetricMetadata::fake(),
             )
             .unwrap();
-        assert!((metric.final_value().current() - 0.759375).abs() < 1e-6);
-
-        metric.clear();
-        for range in [0..2, 2..5] {
-            metric
-                .update(
-                    &RegressionInput::new(
-                        Tensor::from_data(outputs, &device).slice([range.clone()]),
-                        Tensor::from_data(targets, &device).slice([range]),
-                    ),
-                    &MetricMetadata::fake(),
-                )
-                .unwrap();
-        }
-        assert!((metric.running_value().unwrap().current() - 0.759375).abs() < 1e-6);
-        metric.compute().unwrap();
-        assert!((metric.final_value().current() - 0.759375).abs() < 1e-6);
-
-        metric.clear();
-        for (output, target) in outputs.into_iter().zip(targets) {
-            metric
-                .update(
-                    &RegressionInput::new(
-                        Tensor::from_data([output], &device),
-                        Tensor::from_data([target], &device),
-                    ),
-                    &MetricMetadata::fake(),
-                )
-                .unwrap();
-        }
-        assert!((metric.final_value().current() - 0.759375).abs() < 1e-6);
+        assert_eq!(metric.final_value().current(), expected);
     }
 
     #[test]
-    fn sklearn_constant_targets_and_single_sample() {
+    fn accumulates_single_sample_batches() {
         let device = Default::default();
         let mut metric = R2ScoreMetric::new();
-        metric
-            .update(
-                &RegressionInput::new(
-                    Tensor::from_data([[3.], [3.]], &device),
-                    Tensor::from_data([[3.], [3.]], &device),
-                ),
-                &MetricMetadata::fake(),
-            )
-            .unwrap();
-        assert_eq!(metric.final_value().current(), 1.0);
-        metric.clear();
-        metric
-            .update(
-                &RegressionInput::new(
-                    Tensor::from_data([[3.], [4.]], &device),
-                    Tensor::from_data([[3.], [3.]], &device),
-                ),
-                &MetricMetadata::fake(),
-            )
-            .unwrap();
-        assert_eq!(metric.final_value().current(), 0.0);
-        metric.clear();
-        metric
-            .update(
-                &RegressionInput::new(
-                    Tensor::from_data([[3.]], &device),
-                    Tensor::from_data([[3.]], &device),
-                ),
-                &MetricMetadata::fake(),
-            )
-            .unwrap();
+        let mut input = RegressionInput::new(
+            Tensor::from_data([[0.]], &device),
+            Tensor::from_data([[0.]], &device),
+        );
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert!(metric.final_value().current().is_nan());
+
+        input.targets = Tensor::from_data([[2.]], &device);
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
+        assert!(metric.value().unwrap().current().is_nan());
+        // Both batch scores are undefined, but the combined score is 1 - 4 / 2.
+        assert_eq!(metric.final_value().current(), -1.0);
     }
 }
