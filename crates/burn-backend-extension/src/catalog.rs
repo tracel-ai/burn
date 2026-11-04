@@ -35,8 +35,8 @@ pub const BACKENDS: &[BackendSpec] = &[
         unidirectional_transfer: false,
     },
     BackendSpec {
-        name: "Group",
-        cfg: "feature = \"group\"",
+        name: "ShardedCompute",
+        cfg: "feature = \"shard\"",
         distributed: false,
         unidirectional_transfer: false,
     },

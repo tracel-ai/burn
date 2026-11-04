@@ -10,21 +10,21 @@ use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_router::{RouterClient, RouterTensor};
 use burn_std::{future::DynFut, sync::Mutex};
 
-use super::{GroupDevice, interpreter::DynGroupInterpreter};
+use super::{ShardedComputeDevice, interpreter::DynShardInterpreter};
 use crate::{Sharding, ShardingError};
 
-/// The client of one device group: every tensor of the group goes through its interpreter.
+/// The client of one sharded compute device: every tensor of the sharded compute device goes through its interpreter.
 #[derive(Clone)]
-pub struct GroupClient {
-    device: GroupDevice,
-    interpreter: Arc<Mutex<dyn DynGroupInterpreter>>,
+pub struct ShardClient {
+    device: ShardedComputeDevice,
+    interpreter: Arc<Mutex<dyn DynShardInterpreter>>,
     settings: DeviceSettings,
 }
 
-impl GroupClient {
+impl ShardClient {
     pub fn new(
-        device: GroupDevice,
-        interpreter: impl DynGroupInterpreter + 'static,
+        device: ShardedComputeDevice,
+        interpreter: impl DynShardInterpreter + 'static,
         settings: DeviceSettings,
     ) -> Self {
         Self {
@@ -58,8 +58,8 @@ impl GroupClient {
     }
 }
 
-impl RouterClient for GroupClient {
-    type Device = GroupDevice;
+impl RouterClient for ShardClient {
+    type Device = ShardedComputeDevice;
 
     fn register_op(&self, op: OperationIr) {
         self.interpreter.lock().register_op(op);
@@ -103,36 +103,36 @@ impl RouterClient for GroupClient {
         self.interpreter.lock().dtype_usage(dtype)
     }
 
-    /// Refused rather than answered `None`: the group's members may well apply a mode, and a
-    /// caller told that the group does not would run a compile-only pass for real.
+    /// Refused rather than answered `None`: the sharded compute device's members may well apply a mode, and a
+    /// caller told that the sharded compute device does not would run a compile-only pass for real.
     fn execution_mode_open(
         &self,
         mode: ExecutionMode,
     ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
         Err(ExecutionError::with_context(format!(
-            "a device group does not open {mode:?}: open it on the group's devices"
+            "a sharded compute device does not open {mode:?}: open it on the sharded compute device's devices"
         )))
     }
 
-    /// A group's members each keep their own environment: create and activate one on them.
+    /// A sharded compute device's members each keep their own environment: create and activate one on them.
     fn environment_create(
         &self,
         _name: String,
         _origin: EnvironmentOrigin,
     ) -> Result<EnvironmentId, EnvironmentError> {
-        Err(group_environment())
+        Err(shard_environment())
     }
 
     fn environment_activate(&self, _id: EnvironmentId) -> Result<EnvironmentId, EnvironmentError> {
-        Err(group_environment())
+        Err(shard_environment())
     }
 
     fn environment_active(&self) -> Result<EnvironmentId, EnvironmentError> {
-        Err(group_environment())
+        Err(shard_environment())
     }
 
     fn environment_save(&self, _id: EnvironmentId) -> Result<EnvironmentBundle, EnvironmentError> {
-        Err(group_environment())
+        Err(shard_environment())
     }
 
     fn environment_merge(
@@ -140,25 +140,31 @@ impl RouterClient for GroupClient {
         _id: EnvironmentId,
         _origin: EnvironmentOrigin,
     ) -> Result<(), EnvironmentError> {
-        Err(group_environment())
+        Err(shard_environment())
     }
 
     fn register_and_execute_graph(&self, _: GraphId, _: Vec<OperationIr>, _: GraphBindings) {
-        unreachable!("Only router fusion replays graphs, and a device group runs without it")
+        unreachable!(
+            "Only router fusion replays graphs, and a sharded compute device runs without it"
+        )
     }
 
     fn execute_graph(&self, _: GraphId, _: GraphBindings) {
-        unreachable!("Only router fusion replays graphs, and a device group runs without it")
+        unreachable!(
+            "Only router fusion replays graphs, and a sharded compute device runs without it"
+        )
     }
 
     fn register_alias(&self, _: TensorId, _: TensorId) {
-        unreachable!("Only router fusion aliases handles, and a device group runs without it")
+        unreachable!(
+            "Only router fusion aliases handles, and a sharded compute device runs without it"
+        )
     }
 }
 
-/// The answer of a device group to an environment call.
-fn group_environment() -> EnvironmentError {
+/// The answer of a sharded compute device to an environment call.
+fn shard_environment() -> EnvironmentError {
     EnvironmentError::IncompatibleDevice {
-        reason: "a device group keeps no environment of its own: use its devices'".into(),
+        reason: "a sharded compute device keeps no environment of its own: use its devices'".into(),
     }
 }

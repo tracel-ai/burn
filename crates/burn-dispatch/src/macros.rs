@@ -509,24 +509,24 @@ macro_rules! transaction_op {
 }
 
 /// `$devices` as `$variant`'s own devices, each with its settings, or
-/// [`GroupError::MixedBackends`](burn_group::GroupError).
+/// [`ShardError::MixedBackends`](burn_shard::ShardError).
 ///
 /// A device is asked for its settings only once it is known to be a member, since asking a remote
 /// device for its own connects to its server.
-#[cfg(feature = "group")]
+#[cfg(feature = "shard")]
 #[allow(unused_macros)]
-macro_rules! group_members {
+macro_rules! shard_members {
     ($devices:expr, $variant:ident) => {
         $devices
             .iter()
             .map(|device| match device {
-                $crate::DispatchDevice::$variant(member) => Ok(burn_group::MemberDevice {
+                $crate::DispatchDevice::$variant(member) => Ok(burn_shard::MemberDevice {
                     device: member.clone(),
                     settings: burn_backend::get_device_settings::<crate::backend::Dispatch>(device),
                 }),
                 #[allow(unreachable_patterns)]
-                _ => Err(burn_group::GroupError::MixedBackends),
+                _ => Err(burn_shard::ShardError::MixedBackends),
             })
-            .collect::<Result<alloc::vec::Vec<_>, burn_group::GroupError>>()
+            .collect::<Result<alloc::vec::Vec<_>, burn_shard::ShardError>>()
     };
 }

@@ -7,7 +7,7 @@ use burn_std::future::DynFut;
 
 use crate::{Resharding, Sharding, ShardingError};
 
-/// One tensor as the backend holds it over the group: its shard on every member, in member order.
+/// One tensor as the backend holds it over the sharded compute device: its shard on every member, in member order.
 pub enum ShardedTensor<B: BackendIr> {
     Float(Vec<B::FloatTensorPrimitive>),
     Int(Vec<B::IntTensorPrimitive>),
@@ -21,7 +21,10 @@ impl<B: BackendIr> ShardedTensor<B> {
     /// When `handles` is empty, or when they are not all of one kind.
     pub fn new(handles: Vec<HandleKind<B>>) -> Self {
         let mut handles = handles.into_iter();
-        let mut sharded = match handles.next().expect("A group has a member") {
+        let mut sharded = match handles
+            .next()
+            .expect("A sharded compute device has a member")
+        {
             HandleKind::Float(tensor) => Self::Float(vec![tensor]),
             HandleKind::Int(tensor) => Self::Int(vec![tensor]),
             HandleKind::Bool(tensor) => Self::Bool(vec![tensor]),
@@ -37,7 +40,7 @@ impl<B: BackendIr> ShardedTensor<B> {
             HandleKind::Float(tensor) => Self::Float(B::float_broadcast(tensor, devices)),
             HandleKind::Int(tensor) => Self::Int(B::int_broadcast(tensor, devices)),
             HandleKind::Bool(tensor) => Self::Bool(B::bool_broadcast(tensor, devices)),
-            // A quantized tensor has no broadcast, and a group only ever replicates one.
+            // A quantized tensor has no broadcast, and a sharded compute device only ever replicates one.
             HandleKind::Quantized(tensor) => Self::Quantized(
                 devices
                     .iter()
@@ -125,7 +128,7 @@ impl<B: BackendIr> ShardedTensor<B> {
                 .into_handles()
                 .into_iter()
                 .next()
-                .expect("A group has a member"),
+                .expect("A sharded compute device has a member"),
             (Self::Float(shards), Sharding::Split { dim }) => {
                 HandleKind::Float(B::float_cat(shards, dim))
             }
@@ -294,7 +297,7 @@ fn sum<T>(shards: Vec<T>, add: impl FnMut(T, T) -> T) -> T {
     shards
         .into_iter()
         .reduce(add)
-        .expect("A group has a member")
+        .expect("A sharded compute device has a member")
 }
 
 /// No rule makes a bool tensor a partial sum, so one here is a planner bug.

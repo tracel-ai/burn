@@ -13,20 +13,20 @@ use burn_ir::{
 use burn_router::TensorInterpreter;
 use burn_std::{QuantConfig, Slice, future::DynFut};
 
-use super::{GroupError, MemberDevice};
+use super::{MemberDevice, ShardError};
 use super::{
     plan::{Execution, OpPlan},
     tensor::ShardedTensor,
 };
-use crate::{GroupMember, Resharding, Sharding, ShardingError};
+use crate::{Resharding, ShardMember, Sharding, ShardingError};
 
-/// A device group's [`GroupInterpreter`] as a trait object, so the [`GroupClient`] of every group
+/// A sharded compute device's [`ShardInterpreter`] as a trait object, so the [`ShardClient`] of every sharded compute device
 /// has one type whatever backend the members run.
 ///
-/// It interprets the group's IR in burn-router's sense, as [`TensorInterpreter`] does one device's.
+/// It interprets the sharded compute device's IR in burn-router's sense, as [`TensorInterpreter`] does one device's.
 ///
-/// [`GroupClient`]: super::GroupClient
-pub trait DynGroupInterpreter: Send {
+/// [`ShardClient`]: super::ShardClient
+pub trait DynShardInterpreter: Send {
     /// A fresh id for a tensor the client is about to create.
     fn new_tensor_id(&mut self) -> TensorId;
 
@@ -34,7 +34,7 @@ pub trait DynGroupInterpreter: Send {
     ///
     /// # Panics
     ///
-    /// When the tensor is not on the group.
+    /// When the tensor is not on the sharded compute device.
     fn sharding(&self, id: &TensorId) -> Sharding;
 
     /// A new tensor holding `data`, replicated. It stays on the host until it is used, so a split
@@ -71,9 +71,9 @@ pub trait DynGroupInterpreter: Send {
     fn dtype_usage(&self, dtype: DType) -> DTypeUsageSet;
 }
 
-/// The interpreter of a group whose members run `B`: one [`TensorInterpreter`] per member, and
+/// The interpreter of a sharded compute device whose members run `B`: one [`TensorInterpreter`] per member, and
 /// where each tensor's shards sit.
-pub struct GroupInterpreter<B: BackendIr> {
+pub struct ShardInterpreter<B: BackendIr> {
     interpreters: Vec<TensorInterpreter<B>>,
     devices: Vec<B::Device>,
     shardings: HashMap<TensorId, Sharding>,
@@ -83,7 +83,7 @@ pub struct GroupInterpreter<B: BackendIr> {
     next_id: u64,
 }
 
-impl<B: BackendIr> GroupInterpreter<B> {
+impl<B: BackendIr> ShardInterpreter<B> {
     pub fn new(devices: Vec<B::Device>) -> Self {
         Self {
             interpreters: devices
@@ -99,11 +99,11 @@ impl<B: BackendIr> GroupInterpreter<B> {
     }
 
     /// Each default dtype is the first of the `members`' own that every member supports, so a
-    /// tensor made on the group runs on all of them.
+    /// tensor made on the sharded compute device runs on all of them.
     pub fn default_settings(
         &self,
         members: &[MemberDevice<B::Device>],
-    ) -> Result<DeviceSettings, GroupError> {
+    ) -> Result<DeviceSettings, ShardError> {
         let settings = || members.iter().map(|it| it.settings);
         Ok(DeviceSettings::new(
             self.first_supported_everywhere(settings().map(|it| it.float_dtype))?,
@@ -115,12 +115,14 @@ impl<B: BackendIr> GroupInterpreter<B> {
 
     fn shared_quantization(
         configs: impl Iterator<Item = QuantConfig> + Clone,
-    ) -> Result<QuantConfig, GroupError> {
+    ) -> Result<QuantConfig, ShardError> {
         let mut rest = configs.clone();
-        let first = rest.next().expect("A group has at least one member");
+        let first = rest
+            .next()
+            .expect("A sharded compute device has at least one member");
         match rest.all(|config| config == first) {
             true => Ok(first),
-            false => Err(GroupError::MixedQuantization {
+            false => Err(ShardError::MixedQuantization {
                 configs: configs.collect(),
             }),
         }
@@ -129,7 +131,7 @@ impl<B: BackendIr> GroupInterpreter<B> {
     fn first_supported_everywhere<T: Copy + Into<DType>>(
         &self,
         candidates: impl Iterator<Item = T> + Clone,
-    ) -> Result<T, GroupError> {
+    ) -> Result<T, ShardError> {
         candidates
             .clone()
             .find(|&dtype| {
@@ -138,13 +140,13 @@ impl<B: BackendIr> GroupInterpreter<B> {
                     .iter()
                     .all(|device| B::supports_dtype(device, dtype))
             })
-            .ok_or_else(|| GroupError::NoSharedDefault {
+            .ok_or_else(|| ShardError::NoSharedDefault {
                 candidates: candidates.map(Into::into).collect(),
             })
     }
 }
 
-impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
+impl<B: BackendIr> DynShardInterpreter for ShardInterpreter<B> {
     fn new_tensor_id(&mut self) -> TensorId {
         self.next_id += 1;
         TensorId::new(self.next_id)
@@ -227,7 +229,7 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
     }
 }
 
-impl<B: BackendIr> GroupInterpreter<B> {
+impl<B: BackendIr> ShardInterpreter<B> {
     fn run(&mut self, mut op: OperationIr) {
         let plan = OpPlan::new(&op, &self.shardings, self.interpreters.len());
         let temporaries = self.shard_inputs(&mut op, &plan);
@@ -292,7 +294,7 @@ impl<B: BackendIr> GroupInterpreter<B> {
     fn run_on(&mut self, member: usize, op: &OperationIr) {
         let mut op = op.clone();
         op.visit_mut(&mut MemberShapes {
-            member: GroupMember {
+            member: ShardMember {
                 index: member,
                 num_members: self.interpreters.len(),
             },
@@ -402,7 +404,7 @@ impl<B: BackendIr> GroupInterpreter<B> {
             .iter_mut()
             .enumerate()
             .map(|(index, interpreter)| {
-                let member = GroupMember { index, num_members };
+                let member = ShardMember { index, num_members };
                 interpreter.get_tensor(&member.local_tensor(tensor, sharding))
             })
             .collect();
@@ -539,7 +541,7 @@ impl IrVisitorMut for ReshardedInputs {
 
 /// Gives every tensor of an op the shape of the shard one member holds.
 struct MemberShapes<'a> {
-    member: GroupMember,
+    member: ShardMember,
     shardings: &'a HashMap<TensorId, Sharding>,
 }
 
@@ -568,44 +570,44 @@ mod tests {
 
     #[test]
     fn a_split_of_data_uploads_no_member_the_whole_tensor() {
-        let mut group = GroupInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice]);
-        let id = group.register_tensor_data(TensorData::new(vec![0f32; 24], [4, 6]));
+        let mut interpreter = ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice]);
+        let id = interpreter.register_tensor_data(TensorData::new(vec![0f32; 24], [4, 6]));
 
-        let split = group
+        let split = interpreter
             .reshard(
                 whole(id, TensorStatus::ReadOnly),
                 Sharding::Split { dim: 1 },
             )
             .unwrap();
 
-        for interpreter in &group.interpreters {
-            assert!(interpreter.read_failure(&id).is_some());
-            assert!(interpreter.read_failure(&split).is_none());
+        for member in &interpreter.interpreters {
+            assert!(member.read_failure(&id).is_some());
+            assert!(member.read_failure(&split).is_none());
         }
     }
 
     #[test]
     fn data_an_op_consumes_split_is_cut_on_the_host() {
-        let mut group = GroupInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice]);
-        let x = group.register_tensor_data(TensorData::new(vec![1f32; 24], [4, 6]));
-        let x = group
+        let mut interpreter = ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice]);
+        let x = interpreter.register_tensor_data(TensorData::new(vec![1f32; 24], [4, 6]));
+        let x = interpreter
             .reshard(
                 whole(x, TensorStatus::ReadWrite),
                 Sharding::Split { dim: 1 },
             )
             .unwrap();
-        let path = std::env::temp_dir().join(format!("burn-group-cut-{}", std::process::id()));
+        let path = std::env::temp_dir().join(format!("burn-shard-cut-{}", std::process::id()));
         std::fs::write(&path, TensorData::new(vec![1f32; 24], [6, 4]).as_bytes()).unwrap();
         let reads = FileReadCounter::new(&path);
-        let w = group.register_tensor_data(TensorData::from_bytes(
+        let w = interpreter.register_tensor_data(TensorData::from_bytes(
             Bytes::from_file(&path, 96, 0),
             [6, 4],
             DType::F32,
         ));
-        let out = group.new_tensor_id();
+        let out = interpreter.new_tensor_id();
 
         // A lhs split along its columns asks for the rhs split along its rows.
-        group.register_op(OperationIr::Float(
+        interpreter.register_op(OperationIr::Float(
             DType::F32,
             FloatOperationIr::Matmul(MatmulOpIr {
                 lhs: whole(x, TensorStatus::ReadWrite),
@@ -622,7 +624,7 @@ mod tests {
 
         // Each member reads only its rows of the file, where a whole upload reads it all on each.
         assert_eq!(reads.read(), 96);
-        let read = block_on(group.read(TensorIr {
+        let read = block_on(interpreter.read(TensorIr {
             shape: [4, 4].into(),
             ..whole(out, TensorStatus::ReadWrite)
         }))
@@ -638,10 +640,10 @@ mod tests {
             .with_store(QuantStore::Native);
         let data = TensorData::quantized(vec![1i8; 24], [4, 6], scheme, &[0.1], None);
         let dtype = data.dtype();
-        let mut group = GroupInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice]);
-        let id = group.register_tensor_data(data);
+        let mut interpreter = ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice]);
+        let id = interpreter.register_tensor_data(data);
 
-        let refused = group.reshard(
+        let refused = interpreter.reshard(
             TensorIr {
                 dtype,
                 ..whole(id, TensorStatus::ReadOnly)
@@ -650,8 +652,8 @@ mod tests {
         );
 
         assert_eq!(refused, Err(ShardingError::Quantized));
-        for interpreter in &group.interpreters {
-            assert!(interpreter.read_failure(&id).is_some());
+        for member in &interpreter.interpreters {
+            assert!(member.read_failure(&id).is_some());
         }
     }
 }

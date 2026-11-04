@@ -35,14 +35,17 @@ impl AttentionRule {
 
     /// Where the query, key and value, then the mask and bias the op has, must be, and where the
     /// output lands.
-    pub fn sharding<const N: usize>(self, inputs: [&Shape; N]) -> OpSharding<N> {
+    pub fn sharding(self, inputs: &[&Shape]) -> OpSharding {
         let output = match self {
             Self::Unsplit => Replicated,
             Self::Batch => Split { dim: 0 },
             Self::Heads => Split { dim: 1 },
         };
         OpSharding {
-            inputs: inputs.map(|shape| ElementwiseRule::input_sharding(output, shape)),
+            inputs: inputs
+                .iter()
+                .map(|shape| ElementwiseRule::input_sharding(output, shape))
+                .collect(),
             output,
         }
     }
@@ -57,6 +60,8 @@ impl AttentionRule {
 
 #[cfg(test)]
 mod tests {
+    use smallvec::smallvec;
+
     use super::*;
 
     fn shapes(q_heads: usize, kv_heads: usize) -> AttentionShapes {
@@ -71,9 +76,9 @@ mod tests {
         let scores = Shape::new([2, 4, 3, 5]);
 
         assert_eq!(
-            rule.sharding([&scores; 4]),
+            rule.sharding(&[&scores; 4]),
             OpSharding {
-                inputs: [Split { dim: 1 }; 4],
+                inputs: smallvec![Split { dim: 1 }; 4],
                 output: Split { dim: 1 },
             }
         );
@@ -86,7 +91,7 @@ mod tests {
         let (query, kv) = (Shape::new([2, 4, 3, 4]), Shape::new([2, 1, 5, 4]));
 
         assert_eq!(
-            rule.sharding([&query, &kv, &kv]).inputs,
+            rule.sharding(&[&query, &kv, &kv]).inputs[..],
             [Split { dim: 1 }, Replicated, Replicated]
         );
     }
@@ -104,9 +109,9 @@ mod tests {
         let (qkv, mask) = (Shape::new([2, 4, 3, 4]), Shape::new([1, 4, 3, 5]));
 
         assert_eq!(
-            rule.sharding([&qkv, &qkv, &qkv, &mask]),
+            rule.sharding(&[&qkv, &qkv, &qkv, &mask]),
             OpSharding {
-                inputs: [
+                inputs: smallvec![
                     Split { dim: 0 },
                     Split { dim: 0 },
                     Split { dim: 0 },
@@ -134,7 +139,7 @@ mod tests {
         let (qkv, mask) = (Shape::new([2, 4, 3, 4]), Shape::new([2, 1, 3, 5]));
 
         assert_eq!(
-            rule.sharding([&qkv, &qkv, &qkv, &mask]).inputs[3],
+            rule.sharding(&[&qkv, &qkv, &qkv, &mask]).inputs[3],
             Replicated
         );
     }
