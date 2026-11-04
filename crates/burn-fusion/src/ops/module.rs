@@ -4,10 +4,10 @@ use crate::{
 };
 use burn_backend::{
     ops::{
-        AttentionBackward, AttentionCache, AttentionModuleOptions, ConvOptions, ConvTransposeOptions,
-        DeformConv2dBackward, DeformConvOptions, InterpolateOptions, MaxPool1dBackward,
-        MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward,
-        MaxPool3dWithIndices, ModuleOps,
+        AttentionBackward, AttentionCache, AttentionModuleOptions, ConvOptions,
+        ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, InterpolateOptions,
+        MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices,
+        MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -1886,7 +1886,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::Module(ModuleOperationIr::Attention(desc.clone())),
+                OperationIr::Module(ModuleOperationIr::Attention(Box::new(desc.clone()))),
                 AttentionOps::<B>::new(desc),
             )
             .output()

@@ -1731,8 +1731,9 @@ impl TensorCheck {
         check
     }
 
-    /// Checks the operands of an attention over a key/value cache, contiguous or paged.
-    pub(crate) fn attention_over_cache(
+    /// Checks the cache of an attention over a key/value cache, contiguous or paged, beyond
+    /// [`attention`](Self::attention)'s checks of its operands.
+    pub(crate) fn attention_cache(
         query: &Tensor<4>,
         key: &Tensor<4>,
         value: &Tensor<4>,
@@ -1740,9 +1741,8 @@ impl TensorCheck {
         lengths: &Tensor<1, Int>,
         options: &AttentionModuleOptions,
     ) -> Self {
-        let ops = "attention_over_cache";
-        let mut check = Self::attention(ops, query, key, value, None, None, options.sliding_window)
-            .binary_ops_device(ops, &query.device(), &lengths.device());
+        let ops = "attention";
+        let mut check = Self::Ok.binary_ops_device(ops, &query.device(), &lengths.device());
         let [batch, q_heads, _, head_dim] = query.dims();
         let [cache_rows, kv_heads, page_size, k_dim] = key.dims();
         let [v_rows, v_heads, v_size, _] = value.dims();

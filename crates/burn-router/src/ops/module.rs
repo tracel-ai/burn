@@ -1376,7 +1376,9 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         );
 
         client
-            .register(OperationIr::Module(ModuleOperationIr::Attention(desc)))
+            .register(OperationIr::Module(ModuleOperationIr::Attention(Box::new(
+                desc,
+            ))))
             .output()
     }
 }

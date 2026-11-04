@@ -336,7 +336,7 @@ pub enum ModuleOperationIr {
     /// Operation corresponding to [interpolate backward](burn_backend::ops::ModuleOps::interpolate_backward).
     InterpolateBackward(InterpolateBackwardOpIr),
     /// Operation corresponding to [attention](burn_backend::ops::ModuleOps::attention).
-    Attention(AttentionOpIr),
+    Attention(Box<AttentionOpIr>),
     /// Operation corresponding to
     /// [attention_with_logsumexp](burn_backend::ops::ModuleOps::attention_with_logsumexp).
     AttentionWithLogsumexp(AttentionWithLogsumexpOpIr),

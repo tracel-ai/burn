@@ -1,5 +1,5 @@
-use super::{attention, conv, ctc, linear, pool};
 pub use super::attention::AttentionCache;
+use super::{attention, conv, ctc, linear, pool};
 use crate::ops::unfold::{create_unfolding_weight, unfold4d_using_conv2d};
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
 use crate::{Backend, Scalar, TensorMetadata};

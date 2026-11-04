@@ -1,9 +1,9 @@
 use burn_backend::{
     IntDType,
     ops::{
-        AttentionBackward, AttentionCache, BatchNormTrain, BatchNormTrainBackward, DeformConv2dBackward,
-        MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices,
-        MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
+        AttentionBackward, AttentionCache, BatchNormTrain, BatchNormTrainBackward,
+        DeformConv2dBackward, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
+        MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
     },
     tensor::{FloatTensor, IntTensor},
 };

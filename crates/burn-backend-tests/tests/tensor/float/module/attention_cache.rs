@@ -2,7 +2,7 @@ use super::*;
 use burn_tensor::Distribution;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
-use burn_tensor::module::{attention_fallback, attention_over_cache};
+use burn_tensor::module::{AttentionCache, attention, attention_fallback};
 use burn_tensor::ops::{AttentionModuleOptions, CausalAlignment};
 use burn_tensor::s;
 
@@ -48,18 +48,36 @@ impl CacheCall {
     }
 
     fn attend(&self, options: AttentionModuleOptions) -> TestTensor<4> {
-        attention_over_cache(
+        self.attend_masked(None, options)
+    }
+
+    fn attend_masked(
+        &self,
+        mask: Option<TestTensorBool<4>>,
+        options: AttentionModuleOptions,
+    ) -> TestTensor<4> {
+        attention(
             self.query.clone(),
             self.key.clone(),
             self.value.clone(),
+            mask,
             None,
-            self.lengths(),
+            Some(AttentionCache::new(self.lengths())),
             options,
         )
     }
 
     /// The composed attention of each sequence over its attended keys alone.
     fn expected(&self, options: AttentionModuleOptions) -> TestTensor<4> {
+        self.expected_masked(None, options)
+    }
+
+    /// [`Self::expected`] with `mask`, over the whole capacity, cut to each sequence's keys.
+    fn expected_masked(
+        &self,
+        mask: Option<TestTensorBool<4>>,
+        options: AttentionModuleOptions,
+    ) -> TestTensor<4> {
         let sequences = self
             .lengths
             .iter()
@@ -69,7 +87,8 @@ impl CacheCall {
                     self.query.clone().slice(s![b..b + 1]),
                     self.key.clone().slice(s![b..b + 1, .., 0..len]),
                     self.value.clone().slice(s![b..b + 1, .., 0..len]),
-                    None,
+                    mask.clone()
+                        .map(|mask| mask.slice(s![b..b + 1, .., .., 0..len])),
                     None,
                     options,
                 )
@@ -107,7 +126,7 @@ impl CacheCall {
 }
 
 #[test]
-fn test_attention_over_cache_prompt_chunk_per_sequence_lengths() {
+fn test_attention_cache_prompt_chunk_per_sequence_lengths() {
     // A causal chunk of 4 queries over a grouped cache of 32, the sequences 9 and 23 long: each
     // query sees its own sequence's keys up to its own position, none past the length.
     let call = CacheCall::random(4, 2, 4, 32, &[9, 23]);
@@ -120,7 +139,7 @@ fn test_attention_over_cache_prompt_chunk_per_sequence_lengths() {
 }
 
 #[test]
-fn test_attention_over_cache_windowed_decode_twice() {
+fn test_attention_cache_windowed_decode_twice() {
     // One query per sequence, a window of 5: a second call reads the same arrival counters as the
     // first, which it only can if the first left them at zero.
     let call = CacheCall::random(4, 1, 1, 64, &[17, 40, 3]);
@@ -135,7 +154,7 @@ fn test_attention_over_cache_windowed_decode_twice() {
 }
 
 #[test]
-fn test_attention_over_cache_paged_matches_contiguous() {
+fn test_attention_cache_paged_matches_contiguous() {
     let call = CacheCall::random(2, 2, 3, 64, &[20, 64]);
     let options = AttentionModuleOptions {
         is_causal: true,
@@ -143,12 +162,13 @@ fn test_attention_over_cache_paged_matches_contiguous() {
     };
     let (key, value, pages) = call.paged(16);
 
-    let paged = attention_over_cache(
+    let paged = attention(
         call.query.clone(),
         key,
         value,
-        Some(pages),
-        call.lengths(),
+        None,
+        None,
+        Some(AttentionCache::paged(call.lengths(), pages)),
         options,
     );
 
@@ -157,11 +177,31 @@ fn test_attention_over_cache_paged_matches_contiguous() {
 
 #[test]
 #[should_panic(expected = "last attended positions")]
-fn test_attention_over_cache_refuses_top_left() {
+fn test_attention_cache_refuses_top_left() {
     let call = CacheCall::random(1, 1, 2, 8, &[4]);
     call.attend(AttentionModuleOptions {
         is_causal: true,
         causal_alignment: CausalAlignment::TopLeft,
         ..Default::default()
     });
+}
+
+#[test]
+fn test_attention_cache_with_mask() {
+    // A mask over the whole capacity, hiding every third key, with the lengths hiding what is
+    // past each sequence's: a key is seen only where neither hides it.
+    let call = CacheCall::random(2, 2, 3, 16, &[11, 7]);
+    let options = AttentionModuleOptions {
+        is_causal: true,
+        ..Default::default()
+    };
+    let hidden: Vec<bool> = (0..16).map(|key| key % 3 == 1).collect();
+    let mask =
+        TestTensorBool::<4>::from_data(TensorData::new(hidden, [1, 1, 1, 16]), &Default::default())
+            .expand([2, 2, 3, 16]);
+
+    CacheCall::assert_matches(
+        call.attend_masked(Some(mask.clone()), options),
+        call.expected_masked(Some(mask), options),
+    );
 }

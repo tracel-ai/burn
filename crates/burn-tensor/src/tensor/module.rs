@@ -1247,8 +1247,16 @@ fn linear_impl(
 ///   where `true` indicates positions to mask (i.e. set to -inf before softmax).
 /// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
 ///   added to the attention scores before softmax (e.g. ALiBi, relative position biases).
+/// - `cache`: Optional key/value [cache](AttentionCache) that `key` and `value` hold, for an
+///   inference engine that keeps them at a fixed capacity: each sequence then attends only its
+///   first `lengths[b]` positions, read on the device, so a call at each step of a decode has the
+///   same shapes. With `pages`, `key` and `value` are pools of pages. `seq_len_k` is the cache's
+///   capacity, and the queries are its **last** attended positions (bottom-right), so a prompt
+///   chunk scored against a partly filled cache sees what the whole prompt would.
 /// - `options`: Additional attention options (custom scale, softcap, causal and
-///   sliding-window masking). `sliding_window` must be at least one key when set.
+///   sliding-window masking). `sliding_window` must be at least one key when set. Over a cache,
+///   the causal edge and the window sit at each query's own position, and `causal_alignment`
+///   must be [`BottomRight`](crate::ops::CausalAlignment::BottomRight).
 ///
 /// # Returns
 /// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`
@@ -1256,20 +1264,24 @@ fn linear_impl(
 ///
 /// # Note
 /// This implementation does not support dropout and is intended for inference or
-/// use cases where dropout is not needed.
+/// use cases where dropout is not needed. No backend differentiates through an attention over a
+/// cache natively: autodiff composes it from tensor operations.
 pub fn attention(
     query: Tensor<4>,
     key: Tensor<4>,
     value: Tensor<4>,
     mask: Option<Tensor<4, Bool>>,
     attn_bias: Option<Tensor<4>>,
+    cache: Option<AttentionCache>,
     options: AttentionModuleOptions,
 ) -> Tensor<4> {
-    burn_backend::ops::attention::AttentionShapes::new(
-        &query.shape(),
-        &key.shape(),
-        &value.shape(),
-    );
+    if cache.as_ref().is_none_or(|cache| cache.pages.is_none()) {
+        burn_backend::ops::attention::AttentionShapes::new(
+            &query.shape(),
+            &key.shape(),
+            &value.shape(),
+        );
+    }
     check!(TensorCheck::attention(
         "attention",
         &query,
@@ -1279,69 +1291,63 @@ pub fn attention(
         attn_bias.as_ref(),
         options.sliding_window,
     ));
+    if let Some(cache) = &cache {
+        check!(TensorCheck::attention_cache(
+            &query,
+            &key,
+            &value,
+            cache.pages.as_ref(),
+            &cache.lengths,
+            &options,
+        ));
+    }
     Tensor::new(BridgeTensor::float(Dispatch::attention(
         query.primitive.into_float(),
         key.primitive.into_float(),
         value.primitive.into_float(),
         mask.map(|mask| mask.primitive.into()),
         attn_bias.map(|bias| bias.primitive.into_float()),
+        cache.map(|cache| burn_backend::ops::AttentionCache {
+            lengths: cache.lengths.primitive.into(),
+            pages: cache.pages.map(|pages| pages.primitive.into()),
+        }),
         options,
     )))
 }
 
-/// [Attention](attention) of `query` over a key/value cache, of which each sequence attends only
-/// its first `lengths[b]` positions.
-///
-/// The cache keeps a fixed capacity as it fills, and the lengths are read on the device, so a call
-/// at each step of a decode has the same shapes. The queries are the **last** `seq_len_q` attended
-/// positions of their sequence (bottom-right), so a prompt chunk scored against a partly filled
-/// cache sees what the whole prompt would. There is no mask or additive bias; with them, attend
-/// the cache's keys through [`attention`].
-///
-/// # Arguments
-/// - `query`: `[batch_size, num_heads, seq_len_q, head_dim]`.
-/// - `key`, `value`: without `pages`, `[batch_size, num_kv_heads, capacity, head_dim]` and
-///   `[batch_size, num_kv_heads, capacity, val_dim]`. With `pages`, pools of pages,
-///   `[num_pages, num_kv_heads, page_size, head_dim]` and `[num_pages, num_kv_heads, page_size,
-///   val_dim]`. `num_heads` must be a multiple of `num_kv_heads`.
-/// - `pages`: `[batch_size, pages_per_sequence]`: position `s` of sequence `b` is at position
-///   `s % page_size` of page `pages[b, s / page_size]`.
-/// - `lengths`: `[batch_size]`, the positions each sequence attends: at most the capacity
-///   (`pages_per_sequence · page_size` when paged) and, for a causal or windowed call, at least
-///   `seq_len_q`. They are not checked, as reading them would wait on the device.
-/// - `options`: as for [`attention`], with the causal edge and the sliding window placed at each
-///   query's own position. `causal_alignment` must be
-///   [`BottomRight`](crate::ops::CausalAlignment::BottomRight).
-///
-/// # Returns
-/// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`.
-///
-/// # Note
-/// No backend differentiates through it natively: autodiff composes it from tensor operations.
-pub fn attention_over_cache(
-    query: Tensor<4>,
-    key: Tensor<4>,
-    value: Tensor<4>,
-    pages: Option<Tensor<2, Int>>,
-    lengths: Tensor<1, Int>,
-    options: AttentionModuleOptions,
-) -> Tensor<4> {
-    check!(TensorCheck::attention_over_cache(
-        &query,
-        &key,
-        &value,
-        pages.as_ref(),
-        &lengths,
-        &options,
-    ));
-    Tensor::new(BridgeTensor::float(Dispatch::attention_over_cache(
-        query.primitive.into_float(),
-        key.primitive.into_float(),
-        value.primitive.into_float(),
-        pages.map(|pages| pages.primitive.into()),
-        lengths.primitive.into(),
-        options,
-    )))
+/// The key/value cache an [attention] reads its keys and values from, held at a fixed capacity
+/// so that its shapes stay the same as it fills.
+#[derive(Clone, Debug)]
+pub struct AttentionCache {
+    /// `[batch_size]`, the positions each sequence attends: at most the capacity
+    /// (`pages_per_sequence · page_size` when paged) and, for a causal or windowed call, at least
+    /// `seq_len_q`. They are not checked, as reading them would wait on the device.
+    pub lengths: Tensor<1, Int>,
+    /// `[batch_size, pages_per_sequence]`: position `s` of sequence `b` is at position
+    /// `s % page_size` of page `pages[b, s / page_size]`. With it, the key and the value are
+    /// pools of pages, `[num_pages, num_kv_heads, page_size, head_dim]` and
+    /// `[num_pages, num_kv_heads, page_size, val_dim]`; without it, they are
+    /// `[batch_size, num_kv_heads, capacity, dim]`.
+    pub pages: Option<Tensor<2, Int>>,
+}
+
+impl AttentionCache {
+    /// A contiguous cache, each sequence attending its first `lengths[b]` positions.
+    pub fn new(lengths: Tensor<1, Int>) -> Self {
+        Self {
+            lengths,
+            pages: None,
+        }
+    }
+
+    /// A paged cache: the key and the value are pools of pages, and `pages` lists each
+    /// sequence's.
+    pub fn paged(lengths: Tensor<1, Int>, pages: Tensor<2, Int>) -> Self {
+        Self {
+            lengths,
+            pages: Some(pages),
+        }
+    }
 }
 
 /// Exports attention fallback to test backend's attention against.
@@ -1948,7 +1954,7 @@ mod tests {
         let key = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::F32);
         let value = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::BF16);
         let options = AttentionModuleOptions::default();
-        attention(query, key, value, None, None, options);
+        attention(query, key, value, None, None, None, options);
     }
 
     #[test]
@@ -1962,7 +1968,7 @@ mod tests {
             sliding_window: Some(0),
             ..Default::default()
         };
-        attention(query, key, value, None, None, options);
+        attention(query, key, value, None, None, None, options);
     }
 
     #[test]
@@ -2025,7 +2031,7 @@ mod tests {
         let value = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::BF16);
         let attn_bias = Tensor::<4>::ones([2, 4, 8, 8], &device).cast(crate::FloatDType::F32);
         let options = AttentionModuleOptions::default();
-        attention(query, key, value, None, Some(attn_bias), options);
+        attention(query, key, value, None, Some(attn_bias), None, options);
     }
 
     #[test]

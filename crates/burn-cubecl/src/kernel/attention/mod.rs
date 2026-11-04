@@ -5,5 +5,5 @@ mod tile;
 
 pub use backward::*;
 pub use base::*;
-pub use cache::*;
+use cache::kept_arrivals;
 pub use tile::*;
