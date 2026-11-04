@@ -1,32 +1,21 @@
-use std::sync::Arc;
-
 use super::MetricMetadata;
 use super::state::{FormatOptions, NumericMetricState};
 use crate::metric::{
-    Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry, SerializedEntry,
+    Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
+    RegressionInput, SerializedEntry,
 };
-use burn_core::tensor::{Tensor, TensorReadError};
+use burn_core::tensor::TensorReadError;
 
-/// The Mean Squared Error (MSE) metric for regression tasks.
+/// The Mean Squared Error (MSE) over all prediction values, including all target columns.
+///
+/// # Panics
+///
+/// Updating the metric panics if outputs and targets have different shapes or are empty.
 #[derive(Clone)]
 pub struct MseMetric {
     name: MetricName,
     state: NumericMetricState,
 }
-
-/// The [MSE metric](MseMetric) input type.
-#[derive(new)]
-pub struct MseInput {
-    /// The model outputs.
-    pub outputs: Tensor<2>,
-    /// The targets.
-    pub targets: Tensor<2>,
-}
-
-/// Type alias for [`MseMetric`].
-pub type MSEMetric = MseMetric;
-/// Type alias for [`MseInput`].
-pub type MSEInput = MseInput;
 
 impl Default for MseMetric {
     fn default() -> Self {
@@ -38,30 +27,35 @@ impl MseMetric {
     /// Creates the metric.
     pub fn new() -> Self {
         Self {
-            name: Arc::new("MSE".to_string()),
+            name: MetricName::new("MSE".to_string()),
             state: NumericMetricState::default(),
         }
     }
 }
 
 impl Metric for MseMetric {
-    type Input = MseInput;
+    type Input = RegressionInput;
 
     fn update(
         &mut self,
         input: &Self::Input,
         _metadata: &MetricMetadata,
     ) -> Result<SerializedEntry, TensorReadError> {
-        assert_eq!(
-            input.outputs.dims(),
-            input.targets.dims(),
-            "MSE outputs and targets must have the same shape"
-        );
-        let [batch_size, _] = input.outputs.dims();
-        let diff = input.outputs.clone().sub(input.targets.clone());
-        let mse = diff.powf_scalar(2.0).mean().try_into_scalar::<f64>()?;
+        let targets = input.targets.clone();
+        let outputs = input.outputs.clone();
 
-        self.state.update(mse, batch_size);
+        assert_eq!(outputs.dims(), targets.dims(), "MSE shapes must match");
+        let [batch_size, num_targets] = outputs.dims();
+        assert!(
+            batch_size > 0 && num_targets > 0,
+            "MSE requires non-empty input"
+        );
+
+        let diff = outputs.sub(targets);
+        let mse = diff.powf_scalar(2.0).mean();
+
+        self.state
+            .update(mse.try_into_scalar::<f64>()?, batch_size * num_targets);
         Ok(self
             .state
             .compute_update(FormatOptions::new(self.name()).precision(4)))
@@ -74,7 +68,7 @@ impl Metric for MseMetric {
     }
 
     fn clear(&mut self) {
-        self.state.reset();
+        self.state.reset()
     }
 
     fn name(&self) -> MetricName {
@@ -107,115 +101,95 @@ impl Numeric for MseMetric {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::learner::RegressionOutput;
-    use crate::metric::Adaptor;
-    use burn_core::tensor::Device;
+    use burn_core::tensor::Tensor;
 
     #[test]
-    fn test_mse_perfect_prediction() {
-        let device = Device::default();
-        let mut metric = MseMetric::new();
-
-        let input = MseInput::new(
-            Tensor::from_data([[1.0, 2.0], [3.0, 4.0]], &device),
-            Tensor::from_data([[1.0, 2.0], [3.0, 4.0]], &device),
-        );
-
-        let entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
-        assert_eq!(metric.final_value().current(), 0.0);
-        assert_eq!(entry.formatted, "epoch 0.0000e0 - batch 0.0000e0");
+    #[should_panic(expected = "MSE shapes must match")]
+    fn rejects_mismatched_shapes() {
+        let device = Default::default();
+        MseMetric::new()
+            .update(
+                &RegressionInput::new(
+                    Tensor::from_data([[1., 2.]], &device),
+                    Tensor::from_data([[1.]], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
     }
 
     #[test]
-    fn test_mse_known_values() {
-        let device = Device::default();
-        let mut metric = MseMetric::new();
-
-        // Predictions: [[1.0, 2.0], [3.0, 4.0]]
-        // Targets:     [[1.5, 2.5], [2.0, 5.0]]
-        // Residuals:   [-0.5, -0.5, 1.0, -1.0]
-        // Squared:     [0.25, 0.25, 1.0, 1.0] -> sum = 2.5 -> mean = 0.625
-        let input = MseInput::new(
-            Tensor::from_data([[1.0, 2.0], [3.0, 4.0]], &device),
-            Tensor::from_data([[1.5, 2.5], [2.0, 5.0]], &device),
-        );
-
-        let _ = metric.update(&input, &MetricMetadata::fake()).unwrap();
-        let current = metric.value().unwrap().current();
-        assert!((current - 0.625).abs() < 1e-6);
-        assert!((metric.final_value().current() - 0.625).abs() < 1e-6);
+    #[should_panic(expected = "MSE requires non-empty input")]
+    fn rejects_empty_input() {
+        let device = Default::default();
+        MseMetric::new()
+            .update(
+                &RegressionInput::new(
+                    Tensor::empty([1, 0], &device),
+                    Tensor::empty([1, 0], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
     }
 
     #[test]
-    fn test_mse_multiple_batches() {
-        let device = Device::default();
+    fn weights_all_target_values_across_batches() {
+        let device = Default::default();
         let mut metric = MseMetric::new();
-
-        // Batch 1: batch_size = 2, error = 1.0
-        let input1 = MseInput::new(
-            Tensor::from_data([[1.0], [2.0]], &device),
-            Tensor::from_data([[2.0], [3.0]], &device),
-        );
-        let _ = metric.update(&input1, &MetricMetadata::fake()).unwrap();
-
-        // Batch 2: batch_size = 4, error = 4.0 (diff = 2.0, squared = 4.0)
-        let input2 = MseInput::new(
-            Tensor::from_data([[0.0], [0.0], [0.0], [0.0]], &device),
-            Tensor::from_data([[2.0], [2.0], [2.0], [2.0]], &device),
-        );
-        let _ = metric.update(&input2, &MetricMetadata::fake()).unwrap();
-
-        // Weighted running average: (2 * 1.0 + 4 * 4.0) / 6 = 18.0 / 6 = 3.0
-        assert!((metric.final_value().current() - 3.0).abs() < 1e-6);
+        metric
+            .update(
+                &RegressionInput::new(
+                    Tensor::from_data([[0.]], &device),
+                    Tensor::from_data([[0.]], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+        metric
+            .update(
+                &RegressionInput::new(
+                    Tensor::from_data([[0., 0., 0.]], &device),
+                    Tensor::from_data([[2., 2., 2.]], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+        assert_eq!(metric.final_value().current(), 3.0);
     }
 
     #[test]
-    fn test_mse_with_regression_output() {
-        let device = Device::default();
+    fn sklearn_reference_and_uneven_batches() {
+        // scikit-learn 1.8.0: mean_squared_error(y_true, y_pred) == 1.025.
+        let device = Default::default();
+        let targets = [[1., 10.], [2., 10.], [3., 12.], [4., 14.], [5., 18.]];
+        let outputs = [[1., 9.], [2.5, 11.], [2., 11.], [5., 14.], [4., 20.]];
         let mut metric = MseMetric::new();
-
-        let output = RegressionOutput::new(
-            Tensor::from_data([0.5], &device),
-            Tensor::from_data([[1.0, 2.0]], &device),
-            Tensor::from_data([[1.0, 4.0]], &device),
-        );
-
-        let input: MseInput = output.adapt();
-        let _ = metric.update(&input, &MetricMetadata::fake()).unwrap();
-
-        // diffs: [0.0, -2.0] -> squared: [0.0, 4.0] -> mean: 2.0
-        assert!((metric.final_value().current() - 2.0).abs() < 1e-6);
-    }
-
-    #[test]
-    fn test_mse_shape_mismatch_panics() {
-        let device = Device::default();
-        let mut metric = MseMetric::new();
-
-        let input = MseInput::new(
-            Tensor::from_data([[1.0, 2.0]], &device),
-            Tensor::from_data([[1.0]], &device),
-        );
-
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
-            let _ = metric.update(&input, &MetricMetadata::fake());
-        }));
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_mse_clear() {
-        let device = Device::default();
-        let mut metric = MseMetric::new();
-
-        let input = MseInput::new(
-            Tensor::from_data([[1.0]], &device),
-            Tensor::from_data([[3.0]], &device),
-        );
-        let _ = metric.update(&input, &MetricMetadata::fake()).unwrap();
-        assert!(metric.final_value().current() > 0.0);
+        metric
+            .update(
+                &RegressionInput::new(
+                    Tensor::from_data(outputs, &device),
+                    Tensor::from_data(targets, &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+        assert!((metric.final_value().current() - 1.025).abs() < 1e-6);
 
         metric.clear();
-        assert!(metric.final_value().current().is_nan());
+        for range in [0..2, 2..5] {
+            metric
+                .update(
+                    &RegressionInput::new(
+                        Tensor::from_data(outputs, &device).slice([range.clone()]),
+                        Tensor::from_data(targets, &device).slice([range]),
+                    ),
+                    &MetricMetadata::fake(),
+                )
+                .unwrap();
+        }
+        assert!((metric.running_value().unwrap().current() - 1.025).abs() < 1e-6);
+        metric.compute().unwrap();
+        assert!((metric.final_value().current() - 1.025).abs() < 1e-6);
     }
 }
