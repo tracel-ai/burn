@@ -5,7 +5,10 @@ use burn_backend::{
     DType, DTypeUsageSet, DeviceSettings, EnvironmentBundle, EnvironmentError, EnvironmentId,
     EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken, TensorData,
 };
-use burn_ir::{BackendIr, GraphBindings, GraphId, HandleKind, OperationIr, TensorId, TensorIr};
+use burn_ir::{
+    BackendIr, CapturedGraphId, GraphBindings, GraphId, HandleKind, OperationIr, TensorId,
+    TensorIr,
+};
 use burn_router::{RouterClient, RouterTensor};
 use burn_std::{future::DynFut, sync::Mutex};
 
@@ -174,6 +177,27 @@ impl RouterClient for ShardClient {
         _origin: EnvironmentOrigin,
     ) -> Result<(), EnvironmentError> {
         Err(shard_environment())
+    }
+
+    fn graph_prepare(&self) -> Result<(), ExecutionError> {
+        self.interpreter.lock().graph_prepare()
+    }
+
+    fn graph_start_capture(&self) -> Result<(), ExecutionError> {
+        self.interpreter.lock().graph_start_capture()
+    }
+
+    fn graph_stop_capture(&self) -> Result<CapturedGraphId, ExecutionError> {
+        self.interpreter.lock().graph_stop_capture()
+    }
+
+    unsafe fn graph_replay(&self, graph: CapturedGraphId) -> Result<(), ExecutionError> {
+        // Safety: forwarded verbatim from this method's own contract.
+        unsafe { self.interpreter.lock().graph_replay(graph) }
+    }
+
+    fn graph_release(&self, graph: CapturedGraphId) {
+        self.interpreter.lock().graph_release(graph);
     }
 
     fn register_and_execute_graph(&self, _: GraphId, _: Vec<OperationIr>, _: GraphBindings) {
