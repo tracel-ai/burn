@@ -3,8 +3,8 @@ use std::slice;
 use burn_backend::DType;
 use burn_ir::{
     ActivationOperationIr, AttentionOpIr, BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr,
-    FloatOperationIr, IntOperationIr, MatmulOpIr, ModuleOperationIr, NumericOperationIr,
-    OperationIr, ReduceDimOpIr, ReduceOpIr, ScalarOpIr, TensorIr, UnaryOpIr,
+    CustomOpIr, FloatOperationIr, IntOperationIr, MatmulOpIr, ModuleOperationIr,
+    NumericOperationIr, OperationIr, ReduceDimOpIr, ReduceOpIr, ScalarOpIr, TensorIr, UnaryOpIr,
 };
 
 use crate::{Linearity, OpInputs, OpKind, ReducedDims, ReductionKind};
@@ -17,6 +17,8 @@ pub enum OpClass<'a> {
         inputs: OpInputs<&'a TensorIr>,
         out: &'a TensorIr,
     },
+    /// A custom op, which its rule classifies.
+    Custom(&'a CustomOpIr),
     /// No rule: the op gathers its inputs and runs whole on every member.
     Gathered,
 }
@@ -37,7 +39,8 @@ impl<'a> From<&'a OperationIr> for OpClass<'a> {
             OperationIr::Bool(op) => Self::bool(op),
             OperationIr::Activation(op) => Self::activation(op),
             OperationIr::Module(op) => Self::module(op),
-            OperationIr::Init(_) | OperationIr::Custom(_) | OperationIr::Drop(_) => Self::Gathered,
+            OperationIr::Custom(op) => Self::Custom(op),
+            OperationIr::Init(_) | OperationIr::Drop(_) => Self::Gathered,
         }
     }
 }

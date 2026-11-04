@@ -1205,6 +1205,7 @@ dependencies = [
  "burn-cubecl",
  "burn-flex",
  "burn-remote",
+ "burn-router",
  "burn-shard",
  "paste",
  "portable-atomic",
