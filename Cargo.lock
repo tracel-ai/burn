@@ -1431,6 +1431,7 @@ dependencies = [
  "burn-router",
  "burn-std",
  "burn-tensor",
+ "smallvec",
 ]
 
 [[package]]

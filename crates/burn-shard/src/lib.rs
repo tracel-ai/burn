@@ -6,6 +6,7 @@
 //! whole on every member. [`ShardBackend`] runs any backend's ops this way, one interpreter per member.
 
 mod backend;
+mod kind;
 mod resharding;
 mod rules;
 mod sharding;
@@ -13,8 +14,9 @@ mod sharding;
 pub use backend::{MemberDevice, ShardBackend, ShardError, ShardedComputeDevice};
 pub use sharding::{Sharding, ShardingError};
 
+use kind::{Linearity, OpKind, ReducedDims, ReductionKind};
 use resharding::Resharding;
 use rules::{
-    AttentionRule, ElementwiseRule, LayoutRule, MatmulRule, ReducedDims, ReshapeRule, SumRule,
+    AlongDimRule, AttentionRule, ElementwiseRule, LayoutRule, MatmulRule, ReduceRule, ReshapeRule,
 };
-use sharding::{OpSharding, ShardMember};
+use sharding::{OpInputs, OpOutputs, OpSharding, ShardMember};
