@@ -265,3 +265,71 @@ fn test_scatter_min_grad_values_only() {
         .to_data()
         .assert_eq(&TensorData::from([0.0, 1.0]), false);
 }
+
+// [2, 2] indices into a [3, 4] tensor, so a gradient read with zeroed strides on the
+// non-axis dim (or written over the tensor's shape) differs. Expected values from PyTorch.
+#[test]
+fn test_scatter_grad_with_smaller_indices() {
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::from_data(
+        TensorData::from([
+            [0.0, 1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0, 7.0],
+            [8.0, 9.0, 10.0, 11.0],
+        ]),
+        &device,
+    )
+    .require_grad();
+    let values = TestTensor::<2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device)
+        .require_grad();
+    let indices = TestTensorInt::<2>::from_data(TensorData::from([[2, 0], [1, 2]]), &device);
+    let weights = tensor.clone().detach() + 1.0;
+
+    let output = tensor
+        .clone()
+        .scatter(0, indices, values.clone(), IndexingUpdateOp::Add);
+    let grads = (output * weights).sum().backward();
+
+    tensor.grad(&grads).unwrap().to_data().assert_eq(
+        &TensorData::from([
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 11.0, 12.0],
+        ]),
+        false,
+    );
+    values
+        .grad(&grads)
+        .unwrap()
+        .to_data()
+        .assert_eq(&TensorData::from([[9.0, 2.0], [5.0, 10.0]]), false);
+}
+
+#[test]
+fn test_gather_grad_with_smaller_indices() {
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::from_data(
+        TensorData::from([
+            [0.0, 1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0, 7.0],
+            [8.0, 9.0, 10.0, 11.0],
+        ]),
+        &device,
+    )
+    .require_grad();
+    let indices = TestTensorInt::<2>::from_data(TensorData::from([[2, 0], [1, 2]]), &device);
+    let weights = TestTensor::<2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
+
+    let grads = (tensor.clone().gather(0, indices) * weights)
+        .sum()
+        .backward();
+
+    tensor.grad(&grads).unwrap().to_data().assert_eq(
+        &TensorData::from([
+            [0.0, 2.0, 0.0, 0.0],
+            [3.0, 0.0, 0.0, 0.0],
+            [1.0, 4.0, 0.0, 0.0],
+        ]),
+        false,
+    );
+}

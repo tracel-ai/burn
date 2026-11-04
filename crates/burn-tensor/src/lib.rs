@@ -87,10 +87,10 @@ pub use burn_derive::{__assert_shape, __debug_assert_shape, __einsum};
 // Re-exported types
 #[cfg(feature = "autodiff")]
 pub use burn_dispatch::GradientCheckpointingStrategy;
-#[cfg(feature = "shard")]
-pub use burn_dispatch::backends::{Sharding, ShardingError};
 pub use burn_std::{
-    AllocationProperty, Bytes, bf16, f16, flex32,
+    AllocationProperty, Bytes, bf16,
+    distributed::{Sharding, ShardingError},
+    f16, flex32,
     reader::{read_sync, try_read_sync},
     stream::StreamId,
 };
