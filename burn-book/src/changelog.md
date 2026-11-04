@@ -256,8 +256,8 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
 
 #### Sharded compute devices
 
-Experimental, behind the `shard` feature: `Device::shard_options(&devices).init()` makes one
-device whose tensors are split over `devices` (crate `burn-shard`).
+Experimental: with the `shard` feature, `Device::shard_options(&devices).init()` makes one device
+whose tensors are split over `devices` (crate `burn-shard`).
 
 - A tensor made from data on a sharded compute device stays on the host until it is used, so `from_data`
   followed by `with_sharding` uploads each member only its chunk, and a model that fits only once
@@ -288,6 +288,13 @@ device whose tensors are split over `devices` (crate `burn-shard`).
   `DispatchDevice::shard` take the device's custom ops: pass `ShardCustomOps::default()` for none.
   `ShardError` has a new `CustomOpsBackend` variant.
   ([#6395](https://github.com/tracel-ai/burn/pull/6395))
+- `Param::with_sharding` splits a parameter, and a record loaded into a module keeps each
+  parameter's split. A parameter split before it initializes stays lazy, and a record loaded into
+  it uploads each member only its chunk, before any load mapper runs. `Device::check_sharding`
+  checks a sharding against a shape without making a tensor. The sharding methods exist without
+  the `shard` feature and refuse with `ShardingError::NotSharded`.
+  ([#6397](https://github.com/tracel-ai/burn/pull/6397))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - A quantized tensor splits over a sharded compute device, its codes and scales cut as they are,
   so a quantized model's weights split for tensor parallelism. A split must give every member whole
   quantization blocks, and whole packed words along the packed axis. **Breaking:**
@@ -369,6 +376,10 @@ features) to keep using them. ([#6327](https://github.com/tracel-ai/burn/pull/63
 bounds are inferred from the actual field types, and generics can be shared between module fields
 and skipped configuration or caches. This makes reusable module definitions easier to write.
 ([#6059](https://github.com/tracel-ai/burn/pull/6059))
+
+Enum variants can also hold named fields, such as `Wide { first: Linear, second: Linear }`. Their
+tensors are saved under `Wide.first` and `Wide.second`, the same paths as a tuple variant wrapping
+a struct with those fields. ([#6388](https://github.com/tracel-ai/burn/pull/6388))
 
 #### Optimizer-step metrics
 
@@ -542,6 +553,9 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   ([#6004](https://github.com/tracel-ai/burn/pull/6004),
   [#6024](https://github.com/tracel-ai/burn/pull/6024))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- Run quantized `argmax`, `argmin`, `gather` and `quantize_dynamic` on the backend's own
+  implementations through device dispatch instead of dequantizing first.
+  ([#6383](https://github.com/tracel-ai/burn/pull/6383))
 - Add `Tensor::round_to(decimals)` for rounding to a specified number of decimal places.
   ([#5842](https://github.com/tracel-ai/burn/pull/5842))
 - Add dilation to average pooling with `AvgPoolOptions::with_dilation`, matching max pooling.
@@ -560,6 +574,10 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   `bool_scatter_nd` and `bool_gather_nd` methods.
   ([#6035](https://github.com/tracel-ai/burn/pull/6035),
   [#6047](https://github.com/tracel-ai/burn/pull/6047))
+- Allow `gather` and `scatter` indices smaller than the tensor on dimensions other than `dim`
+  (`indices.shape[d] <= tensor.shape[d]`), like PyTorch; `scatter` updates only the covered
+  positions. Larger indices are still rejected. Third-party backends must accept these shapes in
+  `*_gather` and `*_scatter`. ([#6381](https://github.com/tracel-ai/burn/pull/6381))
 - Report the runtime-stated capacity in bytes for workload sizing, now
   `Device::description()`'s `max_memory`. The value is distinct from currently free memory;
   backends without a reported capacity return `None`. ([#6250](https://github.com/tracel-ai/burn/pull/6250))

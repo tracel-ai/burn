@@ -1190,15 +1190,16 @@ impl TensorCheck {
             let tensor_dim_i = shape[i];
             let indices_dim_i = shape_indices[i];
 
-            if tensor_dim_i != indices_dim_i {
+            if indices_dim_i > tensor_dim_i {
                 check = check.register(
                     ops,
-                    TensorError::new(
-                        "The tensor shape should be the same as the index tensor shape."
-                            .to_string(),
-                    )
+                    TensorError::new(format!(
+                        "The index tensor must not be larger than the tensor on dimensions other \
+                         than the indexed one (dim={dim})."
+                    ))
                     .details(format!(
-                        "The shape differs at dimension {i}: {tensor_dim_i} != {indices_dim_i}"
+                        "At dimension {i}, the index tensor has size {indices_dim_i} and the \
+                         tensor has size {tensor_dim_i}."
                     )),
                 );
             }

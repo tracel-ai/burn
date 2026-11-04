@@ -1,6 +1,6 @@
 use burn_backend::ops::DimSplit;
 use burn_ir::TensorIr;
-use burn_std::DType;
+use burn_std::{DType, Shape};
 
 use crate::{
     Sharding::{self, PartialSum, Replicated, Split},
@@ -27,16 +27,43 @@ pub enum Resharding {
 }
 
 impl Resharding {
-    /// How `tensor` moves from `from` to `to`, or why it cannot: a split needs the dim, an index
-    /// per member along it, and for a quantized tensor whole quantization blocks and packed words
-    /// per member, since its codes and scales are cut as they are.
-    pub fn new(
+    /// How `tensor` moves from `from` to `to`, or why it cannot: as [`new`](Self::new), and a
+    /// quantized tensor's split must give each member whole quantization blocks and packed
+    /// words, since its codes and scales are cut as they are.
+    pub fn of_tensor(
         from: Sharding,
         to: Sharding,
         tensor: &TensorIr,
         num_members: usize,
     ) -> Result<Self, ShardingError> {
+        let resharding = Self::new(from, to, &tensor.shape, num_members)?;
+        let (DType::QFloat(scheme), Split { dim }) = (tensor.dtype, to) else {
+            return Ok(resharding);
+        };
         let shape = &tensor.shape;
+        let split = DimSplit {
+            dim,
+            len: shape[dim],
+            members: num_members,
+        };
+        match split.cuts_whole_quantized_units(&scheme, shape.num_dims()) {
+            true => Ok(resharding),
+            false => Err(ShardingError::QuantizedSplit {
+                dim,
+                shape: shape.clone(),
+                num_members,
+            }),
+        }
+    }
+
+    /// How a value of `shape` moves from `from` to `to`, or why it cannot: a split needs the dim
+    /// and an index per member along it.
+    pub fn new(
+        from: Sharding,
+        to: Sharding,
+        shape: &Shape,
+        num_members: usize,
+    ) -> Result<Self, ShardingError> {
         if let Split { dim } = to {
             if dim >= shape.num_dims() {
                 return Err(ShardingError::MissingDim {
@@ -50,20 +77,6 @@ impl Resharding {
                     shape: shape.clone(),
                     num_members,
                 });
-            }
-            if let DType::QFloat(scheme) = tensor.dtype {
-                let split = DimSplit {
-                    dim,
-                    len: shape[dim],
-                    members: num_members,
-                };
-                if !split.cuts_whole_quantized_units(&scheme, shape.num_dims()) {
-                    return Err(ShardingError::QuantizedSplit {
-                        dim,
-                        shape: shape.clone(),
-                        num_members,
-                    });
-                }
             }
         }
         Ok(match (from, to) {
@@ -84,7 +97,7 @@ impl Resharding {
 #[cfg(test)]
 mod tests {
     use burn_ir::{TensorId, TensorStatus};
-    use burn_std::{QuantScheme, ScaleDtype, Shape};
+    use burn_std::{QuantScheme, ScaleDtype};
 
     use super::*;
 
@@ -99,8 +112,7 @@ mod tests {
 
     #[test]
     fn a_split_along_a_dim_the_tensor_lacks_has_no_resharding() {
-        let resharding =
-            Resharding::new(Replicated, Split { dim: 2 }, &tensor([4, 6], DType::F32), 2);
+        let resharding = Resharding::new(Replicated, Split { dim: 2 }, &Shape::new([4, 6]), 2);
 
         assert!(matches!(
             resharding,
@@ -110,8 +122,7 @@ mod tests {
 
     #[test]
     fn a_dim_with_fewer_indices_than_members_has_no_resharding() {
-        let resharding =
-            Resharding::new(Replicated, Split { dim: 0 }, &tensor([2, 6], DType::F32), 3);
+        let resharding = Resharding::new(Replicated, Split { dim: 0 }, &Shape::new([2, 6]), 3);
 
         assert!(matches!(
             resharding,
@@ -121,16 +132,16 @@ mod tests {
 
     #[test]
     fn only_a_partial_sum_stays_partial() {
-        let tensor = tensor([4, 6], DType::F32);
+        let shape = Shape::new([4, 6]);
 
         assert_eq!(
-            Resharding::new(Split { dim: 0 }, PartialSum, &tensor, 2),
+            Resharding::new(Split { dim: 0 }, PartialSum, &shape, 2),
             Err(ShardingError::PartialSumFromWhole {
                 from: Split { dim: 0 }
             })
         );
         assert_eq!(
-            Resharding::new(PartialSum, PartialSum, &tensor, 2),
+            Resharding::new(PartialSum, PartialSum, &shape, 2),
             Ok(Resharding::Keep)
         );
     }
@@ -141,11 +152,11 @@ mod tests {
         let quantized = tensor([3, 6], DType::QFloat(scheme));
 
         assert!(matches!(
-            Resharding::new(Replicated, Split { dim: 1 }, &quantized, 2),
+            Resharding::of_tensor(Replicated, Split { dim: 1 }, &quantized, 2),
             Err(ShardingError::QuantizedSplit { dim: 1, .. })
         ));
         assert_eq!(
-            Resharding::new(Replicated, Split { dim: 0 }, &quantized, 2),
+            Resharding::of_tensor(Replicated, Split { dim: 0 }, &quantized, 2),
             Ok(Resharding::Slice { dim: 0 })
         );
     }

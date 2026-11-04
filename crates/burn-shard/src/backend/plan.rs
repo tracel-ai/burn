@@ -408,7 +408,7 @@ impl TensorShardings<'_> {
         outputs: &[Sharding],
     ) -> Option<ShardingError> {
         let input_refusal = op.inputs.iter().zip(inputs).find_map(|(input, &target)| {
-            Resharding::new(self.sharding(input), target, input, self.num_members).err()
+            Resharding::of_tensor(self.sharding(input), target, input, self.num_members).err()
         });
         let output_refusal = || {
             op.outputs
@@ -416,7 +416,8 @@ impl TensorShardings<'_> {
                 .zip(outputs)
                 .find_map(|(out, &target)| match target {
                     Sharding::Split { .. } => {
-                        Resharding::new(Sharding::Replicated, target, out, self.num_members).err()
+                        Resharding::of_tensor(Sharding::Replicated, target, out, self.num_members)
+                            .err()
                     }
                     _ => None,
                 })

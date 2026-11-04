@@ -41,6 +41,9 @@ pub trait DynShardInterpreter: Send {
     /// When the tensor is not on the sharded compute device.
     fn sharding(&self, id: &TensorId) -> Sharding;
 
+    /// How many members the tensors are split over.
+    fn num_members(&self) -> usize;
+
     /// A new tensor holding `data`, replicated. It stays on the host until it is used, so a split
     /// by `with_sharding`, or by an op that consumes it, uploads each member only its chunk.
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId;
@@ -172,6 +175,10 @@ impl<B: BackendIr> DynShardInterpreter for ShardInterpreter<B> {
 
     fn sharding(&self, id: &TensorId) -> Sharding {
         self.shardings[id]
+    }
+
+    fn num_members(&self) -> usize {
+        self.interpreters.len()
     }
 
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId {
@@ -470,7 +477,7 @@ impl<B: BackendIr> ShardInterpreter<B> {
         let out = op.outputs().next().expect("A deferred op has one output");
         // A split the tensor cannot take is left to the resharding after, which reports it.
         let split = matches!(sharding, Sharding::Split { .. })
-            && Resharding::new(Sharding::Replicated, sharding, out, self.interpreters.len())
+            && Resharding::of_tensor(Sharding::Replicated, sharding, out, self.interpreters.len())
                 .is_ok();
         match split {
             true => {
@@ -525,7 +532,7 @@ impl<B: BackendIr> ShardInterpreter<B> {
         current: Sharding,
         target: Sharding,
     ) -> Result<TensorId, ShardingError> {
-        let resharding = Resharding::new(current, target, tensor, self.interpreters.len())?;
+        let resharding = Resharding::of_tensor(current, target, tensor, self.interpreters.len())?;
         let id = self.new_tensor_id();
         match resharding {
             Resharding::Slice { dim } if self.on_host.contains_key(&tensor.id) => {
