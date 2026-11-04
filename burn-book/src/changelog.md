@@ -256,8 +256,8 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
 
 #### Sharded compute devices
 
-Experimental, behind the `shard` feature: `Device::shard_options(&devices).init()` makes one
-device whose tensors are split over `devices` (crate `burn-shard`).
+Experimental: with the `shard` feature, `Device::shard_options(&devices).init()` makes one device
+whose tensors are split over `devices` (crate `burn-shard`).
 
 - A tensor made from data on a sharded compute device stays on the host until it is used, so `from_data`
   followed by `with_sharding` uploads each member only its chunk, and a model that fits only once
@@ -288,6 +288,13 @@ device whose tensors are split over `devices` (crate `burn-shard`).
   `DispatchDevice::shard` take the device's custom ops: pass `ShardCustomOps::default()` for none.
   `ShardError` has a new `CustomOpsBackend` variant.
   ([#6395](https://github.com/tracel-ai/burn/pull/6395))
+- `Param::with_sharding` splits a parameter, and a record loaded into a module keeps each
+  parameter's split. A parameter split before it initializes stays lazy, and a record loaded into
+  it uploads each member only its chunk, before any load mapper runs. `Device::check_sharding`
+  checks a sharding against a shape without making a tensor. The sharding methods exist without
+  the `shard` feature and refuse with `ShardingError::NotSharded`.
+  ([#6397](https://github.com/tracel-ai/burn/pull/6397))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution
 
