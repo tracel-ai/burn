@@ -623,6 +623,9 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   [CubeCL #2002](https://github.com/tracel-ai/cubecl/pull/2002))
 - Fix in-place CubeCL operations panicking in debug builds on tensors with a zero-sized dimension.
   ([#6348](https://github.com/tracel-ai/burn/pull/6348))
+- Fix bool `to_device` between backends panicking when the target uses a different bool storage,
+  such as Flex to CUDA or Vulkan. The data now uses the target device's bool storage.
+  ([issue #6389](https://github.com/tracel-ai/burn/issues/6389))
 
 ### Checkpoints and interoperability
 

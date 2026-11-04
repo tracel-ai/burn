@@ -46,10 +46,15 @@ impl BoolTensorOps<Self> for Dispatch {
             tensor,
             device,
             bool_to_device,
-            |inner, device| {
-                let data =
-                    burn_backend::read_sync(B1::bool_into_data(inner)).expect("Should read data");
-                B2::bool_from_data(data, device)
+            |inner, target| {
+                // `BoolStore` variants are backend-specific storage layouts, so the source
+                // storage may be unsupported on the target: use the target device's bool storage.
+                let bool_dtype =
+                    burn_backend::get_or_init_device_settings::<Self>(device).bool_dtype;
+                let data = burn_backend::read_sync(B1::bool_into_data(inner))
+                    .expect("Should read data")
+                    .convert_dtype(bool_dtype.into());
+                B2::bool_from_data(data, target)
             }
         )
     }
