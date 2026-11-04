@@ -15,7 +15,6 @@ mod numeric;
 mod options;
 mod orderable;
 mod pad;
-#[cfg(feature = "shard")]
 mod shard;
 pub use pad::IntoPadding;
 mod take;
