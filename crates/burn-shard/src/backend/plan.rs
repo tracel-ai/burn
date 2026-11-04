@@ -341,10 +341,18 @@ impl TensorShardings<'_> {
     }
 
     /// A kind plans one output. A random op is deferred and a slice cut to each member's ranges
-    /// only as their built-in IR, so a custom op of those kinds gathers.
+    /// only as their built-in IR, and a reshape or expand carries its target shape in its own
+    /// scalars, which every member reads whole, so a custom op of those kinds gathers.
     fn custom_kind(&self, kind: OpKind, op: &CustomOpIr) -> Option<OpPlan> {
         match (kind, op.outputs.as_slice()) {
-            (OpKind::Random | OpKind::Slice { .. } | OpKind::SliceAssign { .. }, _) => None,
+            (
+                OpKind::Random
+                | OpKind::Slice { .. }
+                | OpKind::SliceAssign { .. }
+                | OpKind::Reshape
+                | OpKind::Expand,
+                _,
+            ) => None,
             (kind, [out]) => self.apply(kind, &op.inputs.iter().collect::<Vec<_>>(), out),
             _ => None,
         }

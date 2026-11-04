@@ -667,7 +667,7 @@ mod tests {
     use burn_std::{Bytes, FileReadCounter, QuantScheme, QuantStore, QuantValue, future::block_on};
 
     use super::*;
-    use crate::{CustomOpPlan, CustomOpRule};
+    use crate::{CustomOpPlan, CustomOpRule, OpKind};
 
     /// Runs its op collective, its one input taken as `input`.
     struct CollectiveRule {
@@ -680,6 +680,17 @@ mod tests {
                 inputs: vec![self.input],
                 outputs: vec![Sharding::Replicated],
             }
+        }
+    }
+
+    /// Plans its op as a built-in op of `kind`.
+    struct KindRule {
+        kind: OpKind<'static>,
+    }
+
+    impl CustomOpRule for KindRule {
+        fn plan<'a>(&self, _op: &'a CustomOpIr) -> CustomOpPlan<'a> {
+            CustomOpPlan::Kind(self.kind)
         }
     }
 
@@ -881,5 +892,37 @@ mod tests {
         interpreter.register_op(custom_op("gather", input, out));
 
         assert_fails_on_every_member(&interpreter, &out, "shorter than");
+    }
+
+    /// A built-in reshape keeps this split, but a custom one reads its target shape from its own
+    /// scalars, which no member's shard matches.
+    #[test]
+    fn a_custom_reshape_gathers_its_split_input() {
+        let custom_ops = ShardCustomOps::default().with_rule(
+            "reshape",
+            KindRule {
+                kind: OpKind::Reshape,
+            },
+        );
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], custom_ops).unwrap();
+        let x = interpreter.register_tensor_data(TensorData::new(vec![1f32; 24], [4, 6]));
+        let x = interpreter
+            .reshard(
+                whole(x, TensorStatus::ReadWrite),
+                Sharding::Split { dim: 0 },
+            )
+            .unwrap();
+        let out = interpreter.new_tensor_id();
+        let OperationIr::Custom(mut op) =
+            custom_op("reshape", whole(x, TensorStatus::ReadOnly), out)
+        else {
+            unreachable!()
+        };
+        op.outputs[0].shape = [4, 2, 3].into();
+
+        interpreter.register_op(OperationIr::Custom(op));
+
+        assert_eq!(interpreter.sharding(&out), Sharding::Replicated);
     }
 }

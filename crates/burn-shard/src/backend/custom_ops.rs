@@ -103,8 +103,8 @@ pub enum CustomOpPlan<'a> {
     /// Every input whole, and the operation run whole on every member.
     Gathered,
     /// Split as a built-in operation of this kind is, each member running the operation on its
-    /// own shards. An operation with several outputs, or of a random or slice kind, gathers
-    /// instead.
+    /// own shards: its tensors take the shards' shapes, and its scalars stay whole. An operation
+    /// with several outputs, or of a random, slice, reshape or expand kind, gathers instead.
     Kind(OpKind<'a>),
     /// Run once over every member by its [collective handler](CollectiveOpRegistry): each input
     /// reaches it sharded as `inputs` says, in input order, and each output comes out as
