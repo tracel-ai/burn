@@ -653,20 +653,11 @@ impl RelativeOps for ModuleOperationIr {
                 value: desc.value.to_relative(converter),
                 mask: desc.mask.as_ref().map(|m| m.to_relative(converter)),
                 attn_bias: desc.attn_bias.as_ref().map(|ab| ab.to_relative(converter)),
+                lengths: desc.lengths.as_ref().map(|l| l.to_relative(converter)),
+                pages: desc.pages.as_ref().map(|p| p.to_relative(converter)),
                 options: desc.options.clone(),
                 out: desc.out.to_relative(converter),
             }),
-            ModuleOperationIr::AttentionOverCache(desc) => {
-                ModuleOperationIr::AttentionOverCache(AttentionOverCacheOpIr {
-                    query: desc.query.to_relative(converter),
-                    key: desc.key.to_relative(converter),
-                    value: desc.value.to_relative(converter),
-                    pages: desc.pages.as_ref().map(|p| p.to_relative(converter)),
-                    lengths: desc.lengths.to_relative(converter),
-                    options: desc.options.clone(),
-                    out: desc.out.to_relative(converter),
-                })
-            }
             ModuleOperationIr::AttentionWithLogsumexp(desc) => {
                 ModuleOperationIr::AttentionWithLogsumexp(AttentionWithLogsumexpOpIr {
                     query: desc.query.to_relative(converter),

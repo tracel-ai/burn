@@ -338,9 +338,6 @@ pub enum ModuleOperationIr {
     /// Operation corresponding to [attention](burn_backend::ops::ModuleOps::attention).
     Attention(AttentionOpIr),
     /// Operation corresponding to
-    /// [attention_over_cache](burn_backend::ops::ModuleOps::attention_over_cache).
-    AttentionOverCache(AttentionOverCacheOpIr),
-    /// Operation corresponding to
     /// [attention_with_logsumexp](burn_backend::ops::ModuleOps::attention_with_logsumexp).
     AttentionWithLogsumexp(AttentionWithLogsumexpOpIr),
     /// Operation corresponding to
@@ -2147,18 +2144,10 @@ pub struct AttentionOpIr {
     pub value: TensorIr,
     pub mask: Option<TensorIr>,
     pub attn_bias: Option<TensorIr>,
-    pub options: AttentionOptionsIr,
-    pub out: TensorIr,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-#[allow(missing_docs)]
-pub struct AttentionOverCacheOpIr {
-    pub query: TensorIr,
-    pub key: TensorIr,
-    pub value: TensorIr,
+    /// The lengths of an attention over a key/value cache, the positions each sequence attends.
+    pub lengths: Option<TensorIr>,
+    /// The page table of an attention over a paged key/value cache.
     pub pages: Option<TensorIr>,
-    pub lengths: TensorIr,
     pub options: AttentionOptionsIr,
     pub out: TensorIr,
 }
@@ -4201,25 +4190,14 @@ impl ModuleOperationIr {
             ModuleOperationIr::InterpolateBackward(repr) => {
                 Box::new([&repr.x, &repr.grad].into_iter())
             }
-            ModuleOperationIr::Attention(repr) => {
-                if let Some(mask) = &repr.mask {
-                    if let Some(attn_bias) = &repr.attn_bias {
-                        Box::new([&repr.query, &repr.key, &repr.value, mask, attn_bias].into_iter())
-                    } else {
-                        Box::new([&repr.query, &repr.key, &repr.value, mask].into_iter())
-                    }
-                } else if let Some(attn_bias) = &repr.attn_bias {
-                    Box::new([&repr.query, &repr.key, &repr.value, attn_bias].into_iter())
-                } else {
-                    Box::new([&repr.query, &repr.key, &repr.value].into_iter())
-                }
-            }
-            ModuleOperationIr::AttentionOverCache(repr) => match &repr.pages {
-                Some(pages) => Box::new(
-                    [&repr.query, &repr.key, &repr.value, pages, &repr.lengths].into_iter(),
-                ),
-                None => Box::new([&repr.query, &repr.key, &repr.value, &repr.lengths].into_iter()),
-            },
+            ModuleOperationIr::Attention(repr) => Box::new(
+                [&repr.query, &repr.key, &repr.value]
+                    .into_iter()
+                    .chain(&repr.mask)
+                    .chain(&repr.attn_bias)
+                    .chain(&repr.lengths)
+                    .chain(&repr.pages),
+            ),
             ModuleOperationIr::AttentionWithLogsumexp(repr) => {
                 Box::new([&repr.query, &repr.key, &repr.value].into_iter())
             }
@@ -4374,7 +4352,6 @@ impl ModuleOperationIr {
             ModuleOperationIr::Interpolate(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::InterpolateBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Attention(repr) => Box::new([&repr.out].into_iter()),
-            ModuleOperationIr::AttentionOverCache(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::AttentionWithLogsumexp(repr) => {
                 Box::new([&repr.out, &repr.logsumexp].into_iter())
             }
@@ -4659,15 +4636,12 @@ impl ModuleOperationIr {
                 if let Some(attn_bias) = &mut repr.attn_bias {
                     attn_bias.mark_read_only(nodes, &mut output);
                 }
-            }
-            ModuleOperationIr::AttentionOverCache(repr) => {
-                repr.query.mark_read_only(nodes, &mut output);
-                repr.key.mark_read_only(nodes, &mut output);
-                repr.value.mark_read_only(nodes, &mut output);
+                if let Some(lengths) = &mut repr.lengths {
+                    lengths.mark_read_only(nodes, &mut output);
+                }
                 if let Some(pages) = &mut repr.pages {
                     pages.mark_read_only(nodes, &mut output);
                 }
-                repr.lengths.mark_read_only(nodes, &mut output);
             }
             ModuleOperationIr::AttentionWithLogsumexp(repr) => {
                 repr.query.mark_read_only(nodes, &mut output);
@@ -5037,22 +5011,12 @@ impl ModuleOperationIr {
                 if let Some(attn_bias) = &mut repr.attn_bias {
                     v.visit_tensor_mut(attn_bias);
                 }
-                v.visit_tensor_mut(&mut repr.out);
-                if let Some(scale) = &mut repr.options.scale {
-                    v.visit_scalar_mut(scale);
+                if let Some(lengths) = &mut repr.lengths {
+                    v.visit_tensor_mut(lengths);
                 }
-                if let Some(softcap) = &mut repr.options.softcap {
-                    v.visit_scalar_mut(softcap);
-                }
-            }
-            ModuleOperationIr::AttentionOverCache(repr) => {
-                v.visit_tensor_mut(&mut repr.query);
-                v.visit_tensor_mut(&mut repr.key);
-                v.visit_tensor_mut(&mut repr.value);
                 if let Some(pages) = &mut repr.pages {
                     v.visit_tensor_mut(pages);
                 }
-                v.visit_tensor_mut(&mut repr.lengths);
                 v.visit_tensor_mut(&mut repr.out);
                 if let Some(scale) = &mut repr.options.scale {
                     v.visit_scalar_mut(scale);

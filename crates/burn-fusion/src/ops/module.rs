@@ -4,7 +4,7 @@ use crate::{
 };
 use burn_backend::{
     ops::{
-        AttentionBackward, AttentionModuleOptions, ConvOptions, ConvTransposeOptions,
+        AttentionBackward, AttentionCache, AttentionModuleOptions, ConvOptions, ConvTransposeOptions,
         DeformConv2dBackward, DeformConvOptions, InterpolateOptions, MaxPool1dBackward,
         MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward,
         MaxPool3dWithIndices, ModuleOps,
@@ -1828,6 +1828,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         value: FloatTensor<Fusion<B>>,
         mask: Option<burn_backend::tensor::BoolTensor<Fusion<B>>>,
         attn_bias: Option<FloatTensor<Fusion<B>>>,
+        cache: Option<AttentionCache<Fusion<B>>>,
         options: burn_backend::ops::AttentionModuleOptions,
     ) -> FloatTensor<Fusion<B>> {
         make_ops!(
@@ -1842,6 +1843,10 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     .attn_bias
                     .as_ref()
                     .map(|ab| handles.get_float_tensor::<B>(ab));
+                let cache = args.lengths.as_ref().map(|lengths| AttentionCache {
+                    lengths: handles.get_int_tensor::<B>(lengths),
+                    pages: args.pages.as_ref().map(|p| handles.get_int_tensor::<B>(p)),
+                });
 
                 let output = B::attention(
                     query,
@@ -1849,6 +1854,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     value,
                     mask,
                     attn_bias,
+                    cache,
                     args.options.clone().into(),
                 );
 
@@ -1859,12 +1865,20 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let streams = StreamId::current();
 
         let client = query.client.clone();
+        let (lengths, pages) = match cache {
+            Some(AttentionCache { lengths, pages }) => {
+                (Some(lengths.into_ir()), pages.map(|p| p.into_ir()))
+            }
+            None => (None, None),
+        };
         let desc = AttentionOpIr::create(
             query.into_ir(),
             key.into_ir(),
             value.into_ir(),
             mask.map(|m| m.into_ir()),
             attn_bias.map(|ab| ab.into_ir()),
+            lengths,
+            pages,
             options.into(),
             || client.create_empty_handle(),
         );
@@ -1874,59 +1888,6 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                 streams,
                 OperationIr::Module(ModuleOperationIr::Attention(desc.clone())),
                 AttentionOps::<B>::new(desc),
-            )
-            .output()
-    }
-
-    fn attention_over_cache(
-        query: FloatTensor<Fusion<B>>,
-        key: FloatTensor<Fusion<B>>,
-        value: FloatTensor<Fusion<B>>,
-        pages: Option<IntTensor<Fusion<B>>>,
-        lengths: IntTensor<Fusion<B>>,
-        options: AttentionModuleOptions,
-    ) -> FloatTensor<Fusion<B>> {
-        make_ops!(
-            AttentionOverCacheOps,
-            AttentionOverCacheOpIr,
-            |args: &AttentionOverCacheOpIr, handles: &mut HandleContainer<B::Handle>| {
-                let query = handles.get_float_tensor::<B>(&args.query);
-                let key = handles.get_float_tensor::<B>(&args.key);
-                let value = handles.get_float_tensor::<B>(&args.value);
-                let pages = args.pages.as_ref().map(|p| handles.get_int_tensor::<B>(p));
-                let lengths = handles.get_int_tensor::<B>(&args.lengths);
-
-                let output = B::attention_over_cache(
-                    query,
-                    key,
-                    value,
-                    pages,
-                    lengths,
-                    args.options.clone().into(),
-                );
-
-                handles.register_float_tensor::<B>(&args.out.id, output);
-            }
-        );
-
-        let streams = StreamId::current();
-
-        let client = query.client.clone();
-        let desc = AttentionOverCacheOpIr::create(
-            query.into_ir(),
-            key.into_ir(),
-            value.into_ir(),
-            pages.map(|p| p.into_ir()),
-            lengths.into_ir(),
-            options.into(),
-            || client.create_empty_handle(),
-        );
-
-        client
-            .register(
-                streams,
-                OperationIr::Module(ModuleOperationIr::AttentionOverCache(desc.clone())),
-                AttentionOverCacheOps::<B>::new(desc),
             )
             .output()
     }

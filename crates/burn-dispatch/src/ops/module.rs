@@ -1,7 +1,7 @@
 use burn_backend::{
     IntDType,
     ops::{
-        AttentionBackward, BatchNormTrain, BatchNormTrainBackward, DeformConv2dBackward,
+        AttentionBackward, AttentionCache, BatchNormTrain, BatchNormTrainBackward, DeformConv2dBackward,
         MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices,
         MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
     },
@@ -663,26 +663,21 @@ impl ModuleOps<Self> for Dispatch {
         MaxPool1dBackward::new(x_grad)
     }
 
+    #[backend_dispatch(skip)]
     fn attention(
         query: FloatTensor<Self>,
         key: FloatTensor<Self>,
         value: FloatTensor<Self>,
         mask: Option<burn_backend::tensor::BoolTensor<Self>>,
         attn_bias: Option<FloatTensor<Self>>,
+        cache: Option<AttentionCache<Self>>,
         options: burn_backend::ops::AttentionModuleOptions,
     ) -> FloatTensor<Self> {
-        B::attention(query, key, value, mask, attn_bias, options)
-    }
-
-    fn attention_over_cache(
-        query: FloatTensor<Self>,
-        key: FloatTensor<Self>,
-        value: FloatTensor<Self>,
-        pages: Option<IntTensor<Self>>,
-        lengths: IntTensor<Self>,
-        options: burn_backend::ops::AttentionModuleOptions,
-    ) -> FloatTensor<Self> {
-        B::attention_over_cache(query, key, value, pages, lengths, options)
+        let (lengths, pages) = match cache {
+            Some(AttentionCache { lengths, pages }) => (Some(lengths), pages),
+            None => (None, None),
+        };
+        Self::attention_dispatch(query, key, value, mask, attn_bias, lengths, pages, options)
     }
 
     fn layer_norm(
@@ -932,6 +927,21 @@ impl Dispatch {
             indices,
         )
         .x_grad
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn attention_dispatch(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        mask: Option<burn_backend::tensor::BoolTensor<Self>>,
+        attn_bias: Option<FloatTensor<Self>>,
+        lengths: Option<IntTensor<Self>>,
+        pages: Option<IntTensor<Self>>,
+        options: burn_backend::ops::AttentionModuleOptions,
+    ) -> FloatTensor<Self> {
+        let cache = lengths.map(|lengths| AttentionCache { lengths, pages });
+        B::attention(query, key, value, mask, attn_bias, cache, options)
     }
 
     fn max_pool1d_with_indices_dispatch(

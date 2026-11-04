@@ -111,26 +111,73 @@ pub fn attention_fallback<B: Backend>(
     context::<B>(softmax.probabilities, value, shapes)
 }
 
-/// [`attention_over_cache`](crate::ops::ModuleOps::attention_over_cache) composed from tensor
-/// operations: the pages gathered into one sequence each, then [`attention_fallback`] over the
-/// whole capacity, the positions past each sequence's length masked, and the causal edge and the
-/// window placed at each query's own position.
-pub fn attention_over_cache_default<B: Backend>(
+/// The key/value cache an [attention](crate::ops::ModuleOps::attention) reads its keys and values
+/// from, held at a fixed capacity so that its shapes stay the same as it fills.
+pub struct AttentionCache<B: Backend> {
+    /// `[batch_size]`, the positions each sequence attends: at most the capacity and, for a causal
+    /// or windowed call, at least `seq_len_q`. Read on the device, never checked on the host.
+    pub lengths: IntTensor<B>,
+    /// `[batch_size, pages_per_sequence]`: position `s` of sequence `b` is at position
+    /// `s % page_size` of page `pages[b, s / page_size]`. With it, the key and the value are pools
+    /// of pages, `[num_pages, num_kv_heads, page_size, dim]`, and the capacity is
+    /// `pages_per_sequence · page_size`; without it, they are `[batch_size, num_kv_heads,
+    /// capacity, dim]`.
+    pub pages: Option<IntTensor<B>>,
+}
+
+impl<B: Backend> Clone for AttentionCache<B> {
+    fn clone(&self) -> Self {
+        Self {
+            lengths: self.lengths.clone(),
+            pages: self.pages.clone(),
+        }
+    }
+}
+
+impl<B: Backend> core::fmt::Debug for AttentionCache<B> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("AttentionCache")
+            .field("lengths", &self.lengths)
+            .field("pages", &self.pages)
+            .finish()
+    }
+}
+
+/// [`attention_fallback`] over a key/value `cache`: the pages gathered into one sequence each,
+/// then [`attention_fallback`] over the whole capacity, the positions past each sequence's length
+/// hidden with `mask`, and the causal edge and the window placed at each query's own position.
+pub fn attention_fallback_over_cache<B: Backend>(
     query: FloatTensor<B>,
     key: FloatTensor<B>,
     value: FloatTensor<B>,
-    pages: Option<IntTensor<B>>,
-    lengths: IntTensor<B>,
+    mask: Option<BoolTensor<B>>,
+    attn_bias: Option<FloatTensor<B>>,
+    cache: AttentionCache<B>,
     options: AttentionModuleOptions,
 ) -> FloatTensor<B> {
+    let AttentionCache { lengths, pages } = cache;
     let cache = AttendedCache::<B>::new(key, value, pages);
     let hidden = cache.hidden_keys(&query, lengths, &options);
+    let hidden = match mask {
+        Some(mask) => {
+            let scores = hidden.shape();
+            B::bool_or(hidden, B::bool_expand(mask, scores))
+        }
+        None => hidden,
+    };
     let options = AttentionModuleOptions {
         is_causal: false,
         sliding_window: None,
         ..options
     };
-    attention_fallback::<B>(query, cache.key, cache.value, Some(hidden), None, options)
+    attention_fallback::<B>(
+        query,
+        cache.key,
+        cache.value,
+        Some(hidden),
+        attn_bias,
+        options,
+    )
 }
 
 /// The keys and values a cache holds, one sequence each, as [`attention_fallback`] reads them:
