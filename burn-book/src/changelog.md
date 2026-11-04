@@ -162,6 +162,8 @@ positions when sequence lengths differ.
 - Speed up Flex CPU `clamp` and `sign` by letting their loops vectorize, and run F32/F64 `powi`
   with integer exponents other than 0, ±1 and ±2 with SIMD, matching the scalar results bit for
   bit. ([#6351](https://github.com/tracel-ai/burn/pull/6351)) [@antimora](https://github.com/antimora)
+- Halve peak memory and speed up Flex CPU `zeros` and `repeat_dim` by allocating the output once.
+  ([#6384](https://github.com/tracel-ai/burn/pull/6384))
 - Run GELU and sigmoid forward and backward operations in single CubeCL kernels.
   ([#6114](https://github.com/tracel-ai/burn/pull/6114)) [@ssoj13](https://github.com/ssoj13)
 - Allow more CubeCL slices to share their source buffer, avoiding copies of KV-cache prefixes.
