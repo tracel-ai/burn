@@ -38,7 +38,7 @@ impl OpPlan {
         shardings: &HashMap<TensorId, Sharding>,
         num_members: usize,
     ) -> Self {
-        GroupShardings {
+        TensorShardings {
             shardings,
             num_members,
         }
@@ -103,13 +103,13 @@ impl OpPlan {
     }
 }
 
-/// The shardings of a group's tensors, which pick the rule each op runs by.
-struct GroupShardings<'a> {
+/// The shardings of a sharded compute device's tensors, which pick the rule each op runs by.
+struct TensorShardings<'a> {
     shardings: &'a HashMap<TensorId, Sharding>,
     num_members: usize,
 }
 
-impl GroupShardings<'_> {
+impl TensorShardings<'_> {
     fn plan(&self, op: &OperationIr) -> Option<OpPlan> {
         match op {
             OperationIr::BaseFloat(BaseOperationIr::Reshape(desc))

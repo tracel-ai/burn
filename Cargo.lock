@@ -1204,8 +1204,8 @@ dependencies = [
  "burn-capture",
  "burn-cubecl",
  "burn-flex",
- "burn-group",
  "burn-remote",
+ "burn-shard",
  "paste",
  "portable-atomic",
  "rmp-serde",
@@ -1248,18 +1248,6 @@ dependencies = [
  "serde",
  "spin 0.12.3",
  "tracing",
-]
-
-[[package]]
-name = "burn-group"
-version = "0.23.0-pre.1"
-dependencies = [
- "burn-backend",
- "burn-flex",
- "burn-ir",
- "burn-router",
- "burn-std",
- "burn-tensor",
 ]
 
 [[package]]
@@ -1431,6 +1419,18 @@ dependencies = [
  "portable-atomic",
  "serde",
  "spin 0.12.3",
+]
+
+[[package]]
+name = "burn-shard"
+version = "0.23.0-pre.1"
+dependencies = [
+ "burn-backend",
+ "burn-flex",
+ "burn-ir",
+ "burn-router",
+ "burn-std",
+ "burn-tensor",
 ]
 
 [[package]]
