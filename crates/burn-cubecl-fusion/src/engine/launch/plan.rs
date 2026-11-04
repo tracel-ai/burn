@@ -2,7 +2,7 @@ use crate::{
     CubeFusionHandle,
     engine::{
         codegen::ir::{FuseArg, FuseOp, FuseType},
-        launch::{tiles::StorageTiling, vectorization::Vect},
+        launch::vectorization::Vect,
         trace::{RuntimeLayout, block::FuseBlock},
     },
 };
@@ -35,8 +35,6 @@ pub struct LaunchPlan<'a> {
     /// Metadata for shapes and strides passed from the host when they cannot be
     /// inferred from input tensors (e.g., complex deep fusions).
     pub runtime_layouts: Vec<RuntimeLayout>,
-    /// The storage tiles the plan walks instead of the logical dims, if any.
-    pub tiling: Option<StorageTiling>,
 }
 
 /// Information regarding the execution of a specific block of operations within a fusion.
@@ -130,14 +128,7 @@ impl LaunchPlan<'_> {
             blocks,
             vectorizations: Default::default(),
             runtime_layouts: Default::default(),
-            tiling: None,
         }
-    }
-
-    /// Walks every tensor over `tiling`'s physical dims, at their rank.
-    pub fn walk(&mut self, tiling: StorageTiling) {
-        self.rank = tiling.shape().rank();
-        self.tiling = Some(tiling);
     }
 }
 

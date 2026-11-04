@@ -9,7 +9,6 @@ use crate::{
         launch::{
             HandleInput,
             layout::{DimOrder, dim_order, is_contiguous_order, nested_dim_order, strides_for},
-            tiles::StorageTiling,
         },
         settings::{FuseSettings, RefLayoutSetting},
         trace::{FuseResources, RegisterTensor, RuntimeLayout, TensorView, block::FuseBlock},
@@ -109,15 +108,11 @@ impl<'a> OutputPlanner<'a> {
         core::mem::swap(&mut outputs, &mut self.outputs_sorted);
 
         for output in outputs.into_iter() {
-            let mut tensor_global = context
+            let tensor_global = context
                 .tensors
                 .get(&output.tensor_relative.id)
                 .unwrap()
                 .clone();
-            // Written over the walked tiles' physical dims; the IR keeps the logical shape.
-            if let Some(tiling) = &plan.tiling {
-                tensor_global.shape = tiling.shape().clone();
-            }
             let strides = strides_dyn_rank(&tensor_global.shape);
             let (kind, block_idx) = self.output_kind(plan, &tensor_global, &output);
 
@@ -371,10 +366,6 @@ impl<'a> OutputPlanner<'a> {
         shape: &Shape,
         shape_relative: &Shape,
     ) -> Strides {
-        if let Some(tiling) = &plan.tiling {
-            return tiling.output_strides();
-        }
-
         // Once a reference exists, the remaining outputs follow it, so their writes
         // are linear as well. Their shapes can differ from the reference's; the
         // dimension *order* is what carries over.
@@ -741,7 +732,7 @@ impl<'a> OutputPlanner<'a> {
             handle: client.empty(size),
             device: device.clone(),
             strides,
-            tiles: plan.tiling.as_ref().map(StorageTiling::tiles),
+            tiles: None,
             dtype,
             qparams: None,
         };
@@ -798,8 +789,8 @@ impl<'a> OutputPlanner<'a> {
                 // We modify the metadata instead.
                 remove_concrete_write(block, output.tensor_relative.id, output.pos_original);
 
-                // The strides are rewritten, which only rows allow; a plan walks no tiles
-                // through a view, so a tiled input was laid back in rows.
+                // The strides are rewritten, which only rows allow; a tiled input was laid
+                // back in rows as it entered.
                 assert!(
                     original_handle.handle.tiles.is_none(),
                     "fusion: a storage-tiled input cannot be restrided in place"
@@ -871,8 +862,8 @@ impl<'a> OutputPlanner<'a> {
         // We modify the metadata instead.
         remove_concrete_write(block, output.tensor_relative.id, output.pos_original);
 
-        // The strides are swapped as logical dims, which only rows are; a plan walks no tiles
-        // through a view, so a tiled input was laid back in rows.
+        // The strides are swapped as logical dims, which only rows are; a tiled input was
+        // laid back in rows as it entered.
         assert!(
             original_handle.handle.tiles.is_none(),
             "fusion: a storage-tiled input cannot have its dims swapped in place"
@@ -985,7 +976,7 @@ impl<'a> OutputPlanner<'a> {
 /// longer is — it reaches the vectorization axis through
 /// [FuseBlockConfig::vector_axis](crate::engine::codegen::FuseBlockConfig::vector_axis),
 /// which follows a permuted reference.
-pub(super) fn may_permute_layout(settings: &FuseSettings, ops: &[FuseOp]) -> bool {
+fn may_permute_layout(settings: &FuseSettings, ops: &[FuseOp]) -> bool {
     if !matches!(settings.ref_layout, RefLayoutSetting::Any) || !settings.choose_output_layout {
         return false;
     }

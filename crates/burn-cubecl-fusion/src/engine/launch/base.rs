@@ -3,7 +3,7 @@ use crate::{
     engine::{
         launch::{
             HandleInput, HandleOutput, LaunchPlan, executor::LaunchPlanExecutor,
-            input::InputPlanner, output::OutputPlanner, runner::TraceRunner, tiles::StorageTiling,
+            input::InputPlanner, output::OutputPlanner, runner::TraceRunner,
             vectorization::VectorizationPlanner,
         },
         trace::{FuseTrace, TraceError, TuneOutput},
@@ -34,10 +34,6 @@ impl<'a, Runner: TraceRunner> FuseTraceLauncher<'a, Runner> {
         context: &mut Context<CubeFusionHandle>,
     ) -> Result<TuneOutput, TraceError<Runner::Error>> {
         let mut plan = LaunchPlan::new(&self.trace.blocks);
-        if let Some(tiling) = StorageTiling::new(&self.trace.resources, &self.trace.blocks, context)
-        {
-            plan.walk(tiling);
-        }
 
         InputPlanner::new(&self.trace.resources, &self.trace.blocks).run(context, &mut plan);
 
