@@ -14,9 +14,11 @@ extend-exclude = [
     "*.map", # linker map files
 ]
 
+[type.md]
+# GitHub handles in contributor profile links are not dictionary words.
+extend-ignore-re = ['\[@[A-Za-z0-9-]+\]\(https://github\.com/[A-Za-z0-9-]+\)']
+
 [default.extend-words]
-# Contributor's GitHub handle: Infinty-ux.
-Infinty = "Infinty"
 # Don't correct "nd" (n-dimensional, as in scatter_nd/gather_nd)
 nd = "nd"
 # Don't correct "arange" which is intentional
