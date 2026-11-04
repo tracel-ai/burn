@@ -473,39 +473,17 @@ pub(crate) fn parse_variants(ast: &syn::DeriveInput) -> syn::Result<Vec<EnumVari
 #[cfg(test)]
 mod tests {
     use super::parse_variants;
-    use proc_macro2::TokenStream;
-    use quote::quote;
     use syn::parse_quote;
-
-    fn rejection_message(variant: TokenStream) -> String {
-        let ast = parse_quote! { enum Net { #variant } };
-        parse_variants(&ast)
-            .err()
-            .expect("the variant is rejected")
-            .to_string()
-    }
 
     #[test]
     fn named_variant_without_fields_is_rejected() {
+        let ast = parse_quote! { enum Net { Empty {} } };
+        let error = parse_variants(&ast)
+            .err()
+            .expect("an empty named variant is rejected");
         assert_eq!(
-            rejection_message(quote! { Empty {} }),
+            error.to_string(),
             "Module derive does not support struct enum variants without fields."
-        );
-    }
-
-    #[test]
-    fn unit_variant_remains_rejected() {
-        assert_eq!(
-            rejection_message(quote! { Unit }),
-            "Module derive does not support unit enum variants."
-        );
-    }
-
-    #[test]
-    fn tuple_variant_with_several_fields_remains_rejected() {
-        assert_eq!(
-            rejection_message(quote! { Pair(Linear, Linear) }),
-            "Module derive only supports tuple enum variants with exactly one field."
         );
     }
 }

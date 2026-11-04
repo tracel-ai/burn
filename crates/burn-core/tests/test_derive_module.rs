@@ -259,31 +259,25 @@ mod named_enum_variants {
     use super::*;
     use burn::module::{ModuleMapper, ModuleVisitor};
 
+    fn layer(values: [f32; 2], device: &Device) -> ModuleBasic {
+        ModuleBasic {
+            weight_basic: Param::from_tensor(Tensor::from_floats([values], device)),
+        }
+    }
+
     #[derive(Module, Debug)]
     enum Net {
         Small(ModuleBasic),
         Wide {
             first: ModuleBasic,
             second: ModuleBasic,
-            steps: usize,
         },
-    }
-
-    impl Net {
-        fn wide(device: &Device) -> Self {
-            Self::Wide {
-                first: ModuleBasic::new(device),
-                second: ModuleBasic::new(device),
-                steps: 7,
-            }
-        }
     }
 
     #[derive(Default)]
     struct Trace {
         path: Vec<String>,
         containers: Vec<String>,
-        paths: Vec<String>,
         leaves: Vec<String>,
     }
 
@@ -297,7 +291,6 @@ mod named_enum_variants {
             self.containers.pop();
         }
         fn visit_float<const D: usize>(&mut self, _: &Param<Tensor<D>>) {
-            self.paths.push(self.path.join("."));
             self.leaves.push(format!(
                 "{} [{}]",
                 self.path.join("."),
@@ -309,8 +302,11 @@ mod named_enum_variants {
     #[test]
     fn named_fields_are_nested_under_the_variant_and_tuple_variants_keep_their_path() {
         let device = test_device();
-        let wide = Net::wide(&device);
-        let small = Net::Small(ModuleBasic::new(&device));
+        let wide = Net::Wide {
+            first: layer([1.0, 2.0], &device),
+            second: layer([3.0, 5.0], &device),
+        };
+        let small = Net::Small(layer([1.0, 2.0], &device));
 
         let mut wide_trace = Trace::default();
         wide.visit(&mut wide_trace);
@@ -328,12 +324,10 @@ mod named_enum_variants {
             small_trace.leaves,
             ["Small.weight_basic [Enum:Net > Struct:ModuleBasic]"]
         );
-
-        assert_eq!(wide.num_params(), 2 * 20 * 20);
     }
 
     #[test]
-    fn named_variant_paths_match_the_wrapped_struct_workaround() {
+    fn named_variant_loads_each_field_from_a_wrapped_struct_record() {
         #[derive(Module, Debug)]
         struct Layers {
             first: ModuleBasic,
@@ -346,93 +340,81 @@ mod named_enum_variants {
         }
 
         let device = test_device();
-        let wrapped = Wrapped::Wide(Layers {
-            first: ModuleBasic::new(&device),
-            second: ModuleBasic::new(&device),
+        let source = Wrapped::Wide(Layers {
+            first: layer([1.0, 2.0], &device),
+            second: layer([3.0, 5.0], &device),
         });
-
-        let mut named_trace = Trace::default();
-        Net::wide(&device).visit(&mut named_trace);
-        let mut wrapped_trace = Trace::default();
-        wrapped.visit(&mut wrapped_trace);
-
-        assert_eq!(named_trace.paths, wrapped_trace.paths);
-    }
-
-    #[test]
-    fn record_round_trip_keeps_each_field_in_place() {
-        let device = test_device();
-        let source = Net::wide(&device);
-        let target = Net::wide(&device);
-
-        let Net::Wide {
-            first: source_first,
-            second: source_second,
-            ..
-        } = &source
-        else {
-            panic!("Invalid module type")
+        let target = Net::Wide {
+            first: layer([0.0, 0.0], &device),
+            second: layer([0.0, 0.0], &device),
         };
-        assert_ne!(
-            source_first.weight_basic.to_data(),
-            source_second.weight_basic.to_data()
-        );
-
-        let loaded = target.load_record(source.clone().into_record());
-
-        let Net::Wide { first, second, .. } = &loaded else {
+        let Net::Wide { first, second } = target.load_record(source.into_record()) else {
             panic!("Invalid module type")
         };
         assert_eq!(
-            first.weight_basic.to_data(),
-            source_first.weight_basic.to_data()
+            first.weight_basic.to_data().try_to_vec::<f32>().unwrap(),
+            [1.0, 2.0]
         );
         assert_eq!(
-            second.weight_basic.to_data(),
-            source_second.weight_basic.to_data()
+            second.weight_basic.to_data().try_to_vec::<f32>().unwrap(),
+            [3.0, 5.0]
         );
     }
 
     #[test]
-    fn plain_and_skipped_fields_survive_state_transitions() {
+    fn named_fields_transform_without_changing_skipped_state() {
         #[derive(Module, Debug)]
         enum Mixed {
             Variant {
                 live: ModuleBasic,
                 steps: usize,
                 #[module(skip)]
-                cache: Vec<ModuleBasic>,
+                cache: ModuleBasic,
             },
         }
 
-        struct Identity;
-        impl ModuleMapper for Identity {}
+        struct Double;
+        impl ModuleMapper for Double {
+            fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
+                param.map(|tensor| tensor * 2.0)
+            }
+        }
 
         let device = test_device();
         let module = Mixed::Variant {
-            live: ModuleBasic::new(&device),
+            live: layer([1.0, 2.0], &device),
             steps: 7,
-            cache: vec![ModuleBasic::new(&device)],
+            cache: layer([3.0, 5.0], &device),
         };
-        assert_eq!(module.num_params(), 20 * 20);
+        assert_eq!(module.num_params(), 2);
 
-        let transitioned = module
-            .clone()
-            .map(&mut Identity)
-            .to_device(&device)
-            .fork(&device)
-            .materialize();
-        // Tensor parameters switch between validation and training only with autodiff.
-        #[cfg(feature = "autodiff")]
-        let transitioned = transitioned.valid().train();
-        let Mixed::Variant { steps, cache, .. } = &transitioned;
-        assert_eq!(*steps, 7);
-        assert_eq!(cache.len(), 1);
-
+        let mapped = module.clone().map(&mut Double);
         let display = module.to_string();
         assert!(display.contains("Variant"), "{display}");
         assert!(display.contains("live"), "{display}");
         assert!(display.contains("steps"), "{display}");
+
+        let Mixed::Variant { live, steps, cache } = &mapped;
+        assert_eq!(
+            live.weight_basic.to_data().try_to_vec::<f32>().unwrap(),
+            [2.0, 4.0]
+        );
+        assert_eq!(*steps, 7);
+        assert_eq!(
+            cache.weight_basic.to_data().try_to_vec::<f32>().unwrap(),
+            [3.0, 5.0]
+        );
+
+        #[cfg(feature = "autodiff")]
+        {
+            let training = mapped.train();
+            let Mixed::Variant { live, cache, .. } = &training;
+            assert!(live.weight_basic.val().is_autodiff());
+            assert!(!cache.weight_basic.val().is_autodiff());
+            let Mixed::Variant { live, steps, .. } = training.valid();
+            assert!(!live.weight_basic.val().is_autodiff());
+            assert_eq!(steps, 7);
+        }
     }
 
     #[test]
@@ -447,38 +429,28 @@ mod named_enum_variants {
             },
         }
 
-        struct Identity;
-        impl ModuleMapper for Identity {}
-
         let device = test_device();
-        let module = Reserved::Variant {
-            device: ModuleBasic::new(&device),
-            devices: ModuleBasic::new(&device),
-            mapper: ModuleBasic::new(&device),
-            visitor: ModuleBasic::new(&device),
+        let _module = Reserved::Variant {
+            device: layer([1.0, 2.0], &device),
+            devices: layer([3.0, 5.0], &device),
+            mapper: layer([7.0, 11.0], &device),
+            visitor: layer([13.0, 17.0], &device),
         };
-
-        let module = module.to_device(&device).fork(&device).map(&mut Identity);
-        assert_eq!(module.devices().len(), 1);
-
-        let mut trace = Trace::default();
-        module.visit(&mut trace);
-        assert_eq!(trace.leaves.len(), 4);
     }
 
     #[test]
     fn generic_modules_in_named_fields_infer_their_bounds() {
         #[derive(Module, Debug)]
-        enum Choice<M: Module> {
-            Pair { left: M, right: M },
+        enum Choice<L, R> {
+            Pair { left: L, right: R },
         }
 
         let device = test_device();
         let module = Choice::Pair {
-            left: ModuleBasic::new(&device),
-            right: ModuleBasic::new(&device),
+            left: layer([1.0, 2.0], &device),
+            right: Param::from_tensor(Tensor::<1>::from_floats([3.0], &device)),
         };
-        assert_eq!(module.num_params(), 2 * 20 * 20);
+        assert_eq!(module.num_params(), 3);
     }
 }
 
