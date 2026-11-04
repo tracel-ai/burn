@@ -1,8 +1,86 @@
 use super::*;
+use burn_backend::ops::ModuleOps;
+use burn_dispatch::Dispatch;
 use burn_tensor::Shape;
+use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 use burn_tensor::module::conv_transpose3d;
 use burn_tensor::ops::ConvTransposeOptions;
+
+#[test]
+fn test_conv_transpose3d_bias_backward_channels_last() {
+    conv_transpose3d_bias_backward(channels_last_bias_output_grad())
+        .into_data()
+        .assert_eq(&TensorData::from([14.0, 16.0, 22.0]), false);
+}
+
+#[test]
+fn test_conv_transpose3d_bias_backward_bf16() {
+    let grad = channels_last_bias_output_grad();
+    if !grad.device().supports_dtype(burn_tensor::DType::BF16) {
+        return;
+    }
+    conv_transpose3d_bias_backward(grad.cast(burn_tensor::DType::BF16))
+        .into_data()
+        .assert_eq(&TensorData::from([14.0, 16.0, 22.0]), false);
+}
+
+#[test]
+fn test_conv_transpose3d_bias_backward_cancels_large_spatial_sums() {
+    // Each spatial sum in channel 0 overflows f16, but the complete sum is zero.
+    let grad = TestTensor::from_data(
+        [
+            [
+                [[[32768.0; 2]; 2]; 2],
+                [[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]],
+            ],
+            [
+                [[[-32768.0; 2]; 2]; 2],
+                [[[-1.0, -2.0], [-3.0, -4.0]], [[-5.0, -6.0], [-7.0, 8.0]]],
+            ],
+        ],
+        &Default::default(),
+    );
+
+    conv_transpose3d_bias_backward(grad)
+        .into_data()
+        .assert_eq(&TensorData::from([0.0, 16.0]), false);
+}
+
+fn channels_last_bias_output_grad() -> TestTensor<5> {
+    // Store NDHWC, then present NCDHW.
+    TestTensor::from_data(
+        [
+            [
+                [[[1.0, -5.0, 9.0], [2.0, 6.0, -10.0]]],
+                [[[-3.0, 7.0, 11.0], [4.0, -8.0, 12.0]]],
+            ],
+            [
+                [[[-2.0, 6.0, -10.0], [3.0, -7.0, 11.0]]],
+                [[[4.0, 8.0, 12.0], [5.0, 9.0, -13.0]]],
+            ],
+        ],
+        &Default::default(),
+    )
+    .permute([0, 4, 1, 2, 3])
+}
+
+// Reduces [batch, channels, depth, height, width] to [channels], preserving dtype and device.
+fn conv_transpose3d_bias_backward(output_grad: TestTensor<5>) -> TestTensor<1> {
+    let device = output_grad.device();
+    let dtype = output_grad.dtype();
+    let [batch, channels, depth, height, width] = output_grad.dims();
+    let input = TestTensor::<5>::zeros([batch, 1, depth, height, width], (&device, dtype));
+    let bias = TestTensor::<1>::zeros([channels], (&device, dtype));
+    let actual = TestTensor::from_dispatch(Dispatch::conv_transpose3d_bias_backward(
+        input.into_dispatch(),
+        bias.into_dispatch(),
+        output_grad.into_dispatch(),
+    ));
+    assert_eq!(actual.dtype(), dtype);
+    assert_eq!(actual.device(), device);
+    actual
+}
 
 #[test]
 fn test_conv_transpose3d_simple_1() {
