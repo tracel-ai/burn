@@ -56,6 +56,10 @@ impl InitRequest<'_> {
     }
 }
 
+/// Why a lazy parameter shared with a clone and wrapped by an init mapper is not split.
+const SHARED_INIT_MAPPED_REFUSAL: &str = "A lazy parameter with an init mapper is split before it \
+    is cloned: initializing it here would pass the mapper, which may change its layout";
+
 /// Where a loaded value takes its parameter's split.
 #[derive(Clone, Copy)]
 enum LoadSplit {
@@ -547,15 +551,10 @@ impl<T: Parameter> Param<T> {
                             // Detaching here prevents the map_to_device fallback from dropping it.
                             let reparameterization = base.reparameterization.take();
                             let base = base
-                                .map_to_device(device, |value| value.load_to_device(device))
+                                .placed_for_init(device, request.sharding)
                                 .with_dyn_reparameterization(
                                     reparameterization.map(|state| state.to_device_dyn(device)),
                                 );
-                            // The split is of the base's layout, so it applies before `func`.
-                            let base = match request.sharding {
-                                Some(sharding) => base.with_sharding(sharding),
-                                None => base,
-                            };
                             let value = base.val().set_require_grad(false);
                             func(value).set_require_grad(request.require_grad)
                         }),
@@ -627,10 +626,7 @@ impl<T: Parameter> Param<T> {
             None => {}
         }
         if self.lazy_init_mapped() {
-            panic!(
-                "A lazy parameter with an init mapper is split before it is cloned: initializing it \
-                 here would pass the mapper, which may change its layout"
-            );
+            panic!("{SHARED_INIT_MAPPED_REFUSAL}");
         }
         let reparameterization = self.reparameterization.take();
         self.map(|value| {
@@ -714,6 +710,28 @@ impl<T: Parameter> Param<T> {
         match retargeted {
             Some(()) => self,
             None => self.map(move_value),
+        }
+    }
+
+    /// The parameter on `device`, split as `sharding` says in its layout before its own init
+    /// mapper, as the base an init mapper wrapping it initializes.
+    fn placed_for_init(mut self, device: &Device, sharding: Option<Sharding>) -> Self {
+        let deferred = self.update_uninitialized(|uninitialized| {
+            uninitialized.device = device
+                .clone()
+                .with_autodiff_context_from(&uninitialized.device);
+            uninitialized.sharding = sharding;
+        });
+        if deferred.is_some() {
+            return self;
+        }
+        if sharding.is_some() && self.lazy_init_mapped() {
+            panic!("{SHARED_INIT_MAPPED_REFUSAL}");
+        }
+        let placed = self.map_to_device(device, |value| value.load_to_device(device));
+        match sharding {
+            Some(sharding) => placed.with_sharding(sharding),
+            None => placed,
         }
     }
 
@@ -1056,6 +1074,20 @@ mod tests {
         let _clone = param.clone();
 
         let _ = param.with_sharding(Sharding::Split { dim: 0 });
+    }
+
+    #[cfg(feature = "shard")]
+    #[test]
+    #[should_panic(expected = "split before it is cloned")]
+    fn a_shared_init_mapped_base_under_another_init_mapper_is_refused() {
+        let base = lazy_ones(test_sharded_device(), false)
+            .init_mapper(|value: Tensor<2>| value.transpose());
+        let _clone = base.clone();
+        let param = base
+            .init_mapper(|value: Tensor<2>| value)
+            .with_sharding(Sharding::Split { dim: 1 });
+
+        let _ = param.val();
     }
 
     #[cfg(feature = "shard")]
