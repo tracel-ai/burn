@@ -282,6 +282,7 @@ whose tensors are split over `devices` (crate `burn-shard`).
   it uploads each member only its chunk, before any load mapper runs. `Device::check_sharding`
   checks a sharding against a shape without making a tensor. The sharding methods exist without
   the `shard` feature and refuse with `ShardingError::NotSharded`.
+  ([#6397](https://github.com/tracel-ai/burn/pull/6397))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution
