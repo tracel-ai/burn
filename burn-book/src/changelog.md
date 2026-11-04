@@ -438,6 +438,12 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 
 #### Modules, losses, and metrics
 
+- Add regression evaluation metrics (`MseMetric`, `MaeMetric`, `R2ScoreMetric`) to
+  `burn-train`, sharing `RegressionInput` and supported directly by `RegressionOutput`.
+  R² accumulates centered statistics across batches and averages target scores uniformly.
+  ([#6390](https://github.com/tracel-ai/burn/pull/6390),
+  [#6042](https://github.com/tracel-ai/burn/pull/6042))
+  [@divakantpandey](https://github.com/divakantpandey), [@Infinty-ux](https://github.com/Infinty-ux)
 - Reduce classification metric memory use by storing confusion codes as U8 on devices that support
   it, retaining the default integer dtype otherwise.
   ([#6224](https://github.com/tracel-ai/burn/pull/6224))
