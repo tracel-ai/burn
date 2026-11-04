@@ -288,6 +288,13 @@ device whose tensors are split over `devices` (crate `burn-shard`).
   `DispatchDevice::shard` take the device's custom ops: pass `ShardCustomOps::default()` for none.
   `ShardError` has a new `CustomOpsBackend` variant.
   ([#6395](https://github.com/tracel-ai/burn/pull/6395))
+- A quantized tensor splits over a sharded compute device, its codes and scales cut as they are,
+  so a quantized model's weights split for tensor parallelism. A split must give every member whole
+  quantization blocks, and whole packed words along the packed axis. **Breaking:**
+  `ShardingError::Quantized` is replaced by `ShardingError::QuantizedSplit`, returned for a split
+  that would cut either.
+  ([#6396](https://github.com/tracel-ai/burn/pull/6396))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution
 

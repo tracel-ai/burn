@@ -29,9 +29,11 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
     ///
     /// # Errors
     ///
-    /// When the tensor is quantized or not on a [sharded compute device](crate::shard), when `sharding` is
-    /// a partial sum and the tensor is not one, or when it splits a dim the tensor lacks or one
-    /// shorter than the sharded compute device.
+    /// When the tensor is not on a [sharded compute device](crate::shard), when `sharding` is a
+    /// partial sum and the tensor is not one, when it splits a dim the tensor lacks or one shorter
+    /// than the sharded compute device, or, for a quantized tensor, when a member's chunk would
+    /// not hold whole quantization blocks, or whole packed words along its packed axis: its codes
+    /// and scales are cut as they are.
     pub fn try_with_sharding(&self, sharding: Sharding) -> Result<Self, ShardingError> {
         let (kind, tensor) = self.primitive.clone().into_parts();
         let resharded = tensor.try_with_sharding(sharding)?;
