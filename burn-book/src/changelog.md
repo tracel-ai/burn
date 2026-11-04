@@ -24,9 +24,9 @@ needs the new arm, and remote clients and servers must be upgraded together (pro
 
 ### Random operation keys
 
-Random operations now reserve a `RandomKey` when requested, before group, fusion, or remote queues
+Random operations now reserve a `RandomKey` when requested, before shard, fusion, or remote queues
 execute them. Even a draw dropped before execution consumes one key. Reseeding leaves pending
-draws unchanged, and group shards no longer depend on fusion worker scheduling. Seeded sequences change from previous versions; equality across devices
+draws unchanged, and sharded tensors no longer depend on fusion worker scheduling. Seeded sequences change from previous versions; equality across devices
 or different shardings is not guaranteed.
 
 Backend implementors must provide `Backend::next_random_key` and accept a `RandomKey` in
@@ -269,19 +269,22 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   tensor-parallel decode. ([#6293](https://github.com/tracel-ai/burn/pull/6293))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
-#### Device groups
+#### Sharded compute devices
 
-- A tensor made from data on a device group stays on the host until it is used, so `from_data`
+Experimental, behind the `shard` feature: `Device::shard_options(&devices).init()` makes one
+device whose tensors are split over `devices` (crate `burn-shard`).
+
+- A tensor made from data on a sharded compute device stays on the host until it is used, so `from_data`
   followed by `with_sharding` uploads each member only its chunk, and a model that fits only once
   split can be loaded. ([#6232](https://github.com/tracel-ai/burn/pull/6232))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
-- A random tensor on a device group waits until it is first used, and a split use, such as a
+- A random tensor on a sharded compute device waits until it is first used, and a split use, such as a
   dropout mask over a split activation, has each member generate only its shard instead of copying
   the whole tensor from the first member. Its seed is captured on creation, and each shard derives its own
   seed, so its values can differ from one device's with the same seed. ([#6272](https://github.com/tracel-ai/burn/pull/6272))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - Attention split on its batch or heads, and `swap_dims`, `permute`, `expand`, `slice` and
-  `slice_assign` on a device group keep their input's split instead of gathering it, so a
+  `slice_assign` on a sharded compute device keep their input's split instead of gathering it, so a
   tensor-parallel transformer layer communicates only in its all-reduces.
   ([#6372](https://github.com/tracel-ai/burn/pull/6372))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
@@ -319,7 +322,7 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   keeps running. On the client, a lost connection ends the session instead of panicking inside an
   operation: every later `flush`, `sync` and read reports why as a poisoned device
   (`ExecutionError::is_device_poisoned`), and a `to_device` across it yields a tensor whose read
-  reports the same. A group's `flush` reports a member's error instead of holding it for `sync`.
+  reports the same. A sharded compute device's `flush` reports a member's error instead of holding it for `sync`.
   **Breaking:** `RouterClient::flush` returns `Result<(), ExecutionError>`.
   ([#6329](https://github.com/tracel-ai/burn/pull/6329))
 - Servers answer device queries registered with `with_device_query`, asked by
@@ -637,6 +640,9 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   [CubeCL #2002](https://github.com/tracel-ai/cubecl/pull/2002))
 - Fix in-place CubeCL operations panicking in debug builds on tensors with a zero-sized dimension.
   ([#6348](https://github.com/tracel-ai/burn/pull/6348))
+- Fix bool `to_device` between backends panicking when the target uses a different bool storage,
+  such as Flex to CUDA or Vulkan. The data now uses the target device's bool storage.
+  ([issue #6389](https://github.com/tracel-ai/burn/issues/6389))
 
 ### Checkpoints and interoperability
 
