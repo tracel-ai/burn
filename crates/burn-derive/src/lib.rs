@@ -50,7 +50,9 @@ pub(crate) mod shared;
 /// the same type parameter can also appear in a participating field.
 ///
 /// Named and tuple structs support recursive children such as `Vec<Self>` and
-/// `Option<Box<Self>>`. Enums support variants containing a single unnamed field.
+/// `Option<Box<Self>>`. Enum variants can hold a single unnamed field, or named fields such as
+/// `Wide { first: Linear, second: Linear }`; their tensors are saved under `Wide.first` and
+/// `Wide.second`.
 ///
 /// # Field Attributes
 ///
