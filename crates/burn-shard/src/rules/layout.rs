@@ -1,4 +1,5 @@
 use burn_std::{Shape, Slice};
+use smallvec::smallvec;
 
 use crate::{
     OpSharding,
@@ -90,10 +91,10 @@ impl LayoutRule {
         range.is_none_or(|range| range.step == 1 && range.to_range(len) == (0..len))
     }
 
-    /// Every input of the op shares the one sharding.
-    pub fn sharding<const N: usize>(&self) -> OpSharding<N> {
+    /// Every one of the op's `num_inputs` shares the one sharding.
+    pub fn sharding(&self, num_inputs: usize) -> OpSharding {
         OpSharding {
-            inputs: [self.input; N],
+            inputs: smallvec![self.input; num_inputs],
             output: self.output,
         }
     }
@@ -107,21 +108,21 @@ mod tests {
     fn heads_split_moves_with_its_dim_when_heads_go_outward() {
         let rule = LayoutRule::swap(Split { dim: 2 }, 1, 2);
 
-        assert_eq!(rule.sharding::<1>().output, Split { dim: 1 });
+        assert_eq!(rule.sharding(1).output, Split { dim: 1 });
     }
 
     #[test]
     fn a_split_follows_its_dim_through_a_permutation() {
         let rule = LayoutRule::permute(Split { dim: 0 }, &[2, 0, 1]);
 
-        assert_eq!(rule.sharding::<1>().output, Split { dim: 1 });
+        assert_eq!(rule.sharding(1).output, Split { dim: 1 });
     }
 
     #[test]
     fn a_split_stays_on_its_dim_when_expand_prepends_dims() {
         let rule = LayoutRule::expand(Split { dim: 1 }, 4, 5);
 
-        assert_eq!(rule.sharding::<1>().output, Split { dim: 2 });
+        assert_eq!(rule.sharding(1).output, Split { dim: 2 });
     }
 
     #[test]
@@ -131,7 +132,7 @@ mod tests {
 
         let rule = LayoutRule::slice(Split { dim: 1 }, &ranges, &shape);
 
-        assert_eq!(rule.sharding::<1>().output, Split { dim: 1 });
+        assert_eq!(rule.sharding(1).output, Split { dim: 1 });
     }
 
     #[test]
@@ -141,7 +142,7 @@ mod tests {
 
         let rule = LayoutRule::slice(Split { dim: 1 }, &ranges, &shape);
 
-        assert_eq!(rule.sharding::<1>().inputs, [Replicated]);
+        assert_eq!(rule.sharding(1).inputs[..], [Replicated]);
     }
 
     #[test]
@@ -152,9 +153,9 @@ mod tests {
         let rule = LayoutRule::slice_assign(Replicated, Split { dim: 1 }, &ranges, &shape);
 
         assert_eq!(
-            rule.sharding::<2>(),
+            rule.sharding(2),
             OpSharding {
-                inputs: [Split { dim: 1 }; 2],
+                inputs: smallvec![Split { dim: 1 }; 2],
                 output: Split { dim: 1 },
             }
         );
@@ -164,6 +165,6 @@ mod tests {
     fn a_partial_sum_stays_partial() {
         let rule = LayoutRule::swap(PartialSum, 0, 1);
 
-        assert_eq!(rule.sharding::<1>().output, PartialSum);
+        assert_eq!(rule.sharding(1).output, PartialSum);
     }
 }
