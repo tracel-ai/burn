@@ -32,16 +32,12 @@ impl<'a> InputPlanner<'a> {
                     // a clone in the container during planning made `can_mut()` always
                     // false, disabling every in-place alias. On execution failure the
                     // handle is restored by [FuseTraceLauncher::rollback](super::base).
+                    // A fused kernel reads its inputs as rows, so a storage-tiled one is laid
+                    // back in rows first.
                     let handle = context
                         .handles
-                        .get_handle(&tensor_global.id, &tensor_relative.status);
-                    // A fused kernel reads its inputs as rows; a storage-tiled tensor is read
-                    // only by the matmul it was tiled for, which falls back before this.
-                    assert!(
-                        handle.tiles.is_none(),
-                        "fusion: a storage-tiled tensor reached a fused kernel; it is read only \
-                         by the matmul it was tiled for, so untile it for anything else"
-                    );
+                        .get_handle(&tensor_global.id, &tensor_relative.status)
+                        .untile(tensor_global.shape.clone());
 
                     let mut new_strides = handle.strides.clone();
 
