@@ -277,6 +277,17 @@ device whose tensors are split over `devices` (crate `burn-shard`).
   their input's split or partial sum where the math allows, instead of gathering it.
   ([#6387](https://github.com/tracel-ai/burn/pull/6387))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- Backend extensions run on a sharded compute device: list `ShardedCompute` beside `Fusion` in
+  `#[backend_extension]` and pass the handlers with `ShardOptions::with_custom_ops`. A custom op
+  gathers its inputs, unless a `CustomOpRule` splits it like a built-in op of a given kind or runs it
+  once over every member through a `CollectiveOpRegistry` handler. `ShardedComputeDevice::members`
+  lists the members' devices, for an extension that checks what their hardware supports.
+  ([#6395](https://github.com/tracel-ai/burn/pull/6395))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- **Breaking (experimental):** `ShardedComputeDevice::with_member_settings` and
+  `DispatchDevice::shard` take the device's custom ops: pass `ShardCustomOps::default()` for none.
+  `ShardError` has a new `CustomOpsBackend` variant.
+  ([#6395](https://github.com/tracel-ai/burn/pull/6395))
 
 #### Remote execution
 

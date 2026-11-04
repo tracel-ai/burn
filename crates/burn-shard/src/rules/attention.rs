@@ -44,7 +44,7 @@ impl AttentionRule {
         OpSharding {
             inputs: inputs
                 .iter()
-                .map(|shape| ElementwiseRule::input_sharding(output, shape))
+                .map(|shape| ElementwiseRule::input_sharding(output, shape, shape.num_dims()))
                 .collect(),
             output,
         }
