@@ -15,8 +15,9 @@ impl ElementwiseRule {
         Self { linearity }
     }
 
-    /// Where the inputs must be for the op to run on every member, and where its output lands.
-    pub fn sharding(self, inputs: &[Sharding], shapes: &[&Shape]) -> OpSharding {
+    /// Where the inputs must be for the op to run on every member, and where its output of
+    /// `num_dims` dims lands. An input with fewer dims lines them up with the output's last ones.
+    pub fn sharding(self, inputs: &[Sharding], shapes: &[&Shape], num_dims: usize) -> OpSharding {
         if self.keeps_partial_sum(inputs) {
             return OpSharding {
                 inputs: SmallVec::from_slice(inputs),
@@ -26,22 +27,31 @@ impl ElementwiseRule {
 
         let output = inputs
             .iter()
-            .copied()
-            .find(|sharding| matches!(sharding, Sharding::Split { .. }))
+            .zip(shapes)
+            .find_map(|(sharding, shape)| match sharding {
+                Sharding::Split { dim } => Some(Sharding::Split {
+                    dim: dim + num_dims - shape.num_dims(),
+                }),
+                _ => None,
+            })
             .unwrap_or(Sharding::Replicated);
         OpSharding {
             inputs: shapes
                 .iter()
-                .map(|shape| Self::input_sharding(output, shape))
+                .map(|shape| Self::input_sharding(output, shape, num_dims))
                 .collect(),
             output,
         }
     }
 
-    /// An input of length 1 along the split dim broadcasts, so it stays whole.
-    pub fn input_sharding(output: Sharding, shape: &Shape) -> Sharding {
+    /// Where an input of `shape` must be for an output of `num_dims` dims sharded as `output`. It
+    /// broadcasts along a split dim it lacks or holds with length 1, so it stays whole.
+    pub fn input_sharding(output: Sharding, shape: &Shape, num_dims: usize) -> Sharding {
         match output {
-            Sharding::Split { dim } if shape[dim] == 1 => Sharding::Replicated,
+            Sharding::Split { dim } => match (dim + shape.num_dims()).checked_sub(num_dims) {
+                Some(dim) if shape[dim] != 1 => Sharding::Split { dim },
+                _ => Sharding::Replicated,
+            },
             sharding => sharding,
         }
     }
@@ -68,8 +78,11 @@ mod tests {
     #[test]
     fn partial_plus_replicated_is_reduced_first() {
         let shape = Shape::new([4, 6]);
-        let sharding = ElementwiseRule::new(Linearity::Linear)
-            .sharding(&[PartialSum, Replicated], &[&shape, &shape]);
+        let sharding = ElementwiseRule::new(Linearity::Linear).sharding(
+            &[PartialSum, Replicated],
+            &[&shape, &shape],
+            2,
+        );
 
         assert_eq!(sharding.output, Replicated);
         assert_eq!(sharding.inputs[..], [Replicated, Replicated]);
@@ -78,8 +91,11 @@ mod tests {
     #[test]
     fn partial_times_replicated_stays_partial() {
         let shape = Shape::new([4, 6]);
-        let sharding = ElementwiseRule::new(Linearity::Multilinear)
-            .sharding(&[Replicated, PartialSum], &[&shape, &shape]);
+        let sharding = ElementwiseRule::new(Linearity::Multilinear).sharding(
+            &[Replicated, PartialSum],
+            &[&shape, &shape],
+            2,
+        );
 
         assert_eq!(sharding.output, PartialSum);
     }
@@ -89,6 +105,7 @@ mod tests {
         let sharding = ElementwiseRule::new(Linearity::Linear).sharding(
             &[Split { dim: 0 }, Replicated],
             &[&Shape::new([4, 6]), &Shape::new([1, 6])],
+            2,
         );
 
         assert_eq!(sharding.inputs[..], [Split { dim: 0 }, Replicated]);
@@ -97,9 +114,24 @@ mod tests {
     #[test]
     fn partial_meeting_a_split_input_is_reduce_scattered() {
         let shape = Shape::new([4, 6]);
-        let sharding = ElementwiseRule::new(Linearity::Linear)
-            .sharding(&[PartialSum, Split { dim: 1 }], &[&shape, &shape]);
+        let sharding = ElementwiseRule::new(Linearity::Linear).sharding(
+            &[PartialSum, Split { dim: 1 }],
+            &[&shape, &shape],
+            2,
+        );
 
         assert_eq!(sharding.inputs[..], [Split { dim: 1 }, Split { dim: 1 }]);
+    }
+
+    #[test]
+    fn a_lower_rank_input_lines_up_with_the_last_dims() {
+        let (x, weight) = (Shape::new([4, 6]), Shape::new([6]));
+        let rule = ElementwiseRule::new(Linearity::Multilinear);
+
+        let by_columns = rule.sharding(&[Split { dim: 1 }, Replicated], &[&x, &weight], 2);
+        let by_rows = rule.sharding(&[Split { dim: 0 }, Replicated], &[&x, &weight], 2);
+
+        assert_eq!(by_columns.inputs[..], [Split { dim: 1 }, Split { dim: 0 }]);
+        assert_eq!(by_rows.inputs[..], [Split { dim: 0 }, Replicated]);
     }
 }

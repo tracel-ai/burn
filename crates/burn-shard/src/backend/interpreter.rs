@@ -8,12 +8,16 @@ use burn_backend::{
     DType, DTypeUsageSet, DeviceSettings, ExecutionError, TensorData, ops::DimSplit,
 };
 use burn_ir::{
-    BackendIr, BaseOperationIr, IrVisitorMut, OperationIr, TensorId, TensorIr, TensorStatus,
+    BackendIr, BaseOperationIr, IrVisitorMut, OperationIr, TensorError, TensorId, TensorIr,
+    TensorStatus,
 };
 use burn_router::TensorInterpreter;
 use burn_std::{QuantConfig, Slice, future::DynFut};
 
-use super::{MemberDevice, ShardError};
+use super::{
+    CollectiveMember, CollectiveOpRegistry, MemberDevice, ShardCustomOps, ShardError,
+    custom_ops::{CustomOpRuleMap, MemberCustomOps},
+};
 use super::{
     plan::{Execution, OpPlan},
     tensor::ShardedTensor,
@@ -84,21 +88,35 @@ pub struct ShardInterpreter<B: BackendIr> {
     // Ordered by id, the order the ops were issued, so running several at once is reproducible.
     pending_ops: BTreeMap<TensorId, OperationIr>,
     next_id: u64,
+    collectives: CollectiveOpRegistry<B>,
+    rules: CustomOpRuleMap,
 }
 
 impl<B: BackendIr> ShardInterpreter<B> {
-    pub fn new(devices: Vec<B::Device>) -> Self {
-        Self {
+    /// The members of `devices` run the custom operations of `custom_ops`.
+    ///
+    /// # Errors
+    ///
+    /// When `custom_ops` are another backend's.
+    pub fn new(devices: Vec<B::Device>, custom_ops: ShardCustomOps) -> Result<Self, ShardError> {
+        let MemberCustomOps {
+            handlers,
+            collectives,
+            rules,
+        } = MemberCustomOps::<B>::try_from(custom_ops)?;
+        Ok(Self {
             interpreters: devices
                 .iter()
-                .map(|device| TensorInterpreter::new(device.clone()))
+                .map(|device| TensorInterpreter::with_custom_ops(device.clone(), handlers.clone()))
                 .collect(),
             devices,
             shardings: HashMap::new(),
             on_host: HashMap::new(),
             pending_ops: BTreeMap::new(),
             next_id: 0,
-        }
+            collectives,
+            rules,
+        })
     }
 
     /// Each default dtype is the first of the `members`' own that every member supports, so a
@@ -238,7 +256,10 @@ impl<B: BackendIr> DynShardInterpreter for ShardInterpreter<B> {
 
 impl<B: BackendIr> ShardInterpreter<B> {
     fn run(&mut self, mut op: OperationIr) {
-        let plan = OpPlan::new(&op, &self.shardings, self.interpreters.len());
+        let plan = OpPlan::new(&op, &self.shardings, &self.rules, self.interpreters.len());
+        if let Some(error) = self.failure(&op, &plan) {
+            return self.fail(&op, &error);
+        }
         let temporaries = self.shard_inputs(&mut op, &plan);
         for (id, sharding) in plan.output_shardings() {
             self.shardings.insert(*id, *sharding);
@@ -247,6 +268,8 @@ impl<B: BackendIr> ShardInterpreter<B> {
         match plan.execution() {
             Execution::Eager => self.run_on_every_member(&op),
             Execution::Deferred => self.keep_pending(&op),
+            Execution::Collective => self.run_collective(&op),
+            Execution::Refused(_) => unreachable!("A refused op fails before it runs"),
         }
 
         for input in op.inputs() {
@@ -299,6 +322,12 @@ impl<B: BackendIr> ShardInterpreter<B> {
     }
 
     fn run_on(&mut self, member: usize, op: &OperationIr) {
+        let op = self.member_op(member, op);
+        self.interpreters[member].register_op(op);
+    }
+
+    /// `op` as `member` runs it, on its own shards.
+    fn member_op(&self, member: usize, op: &OperationIr) -> OperationIr {
         let mut op = op.clone();
         op.visit_mut(&mut MemberShapes {
             member: ShardMember {
@@ -308,7 +337,87 @@ impl<B: BackendIr> ShardInterpreter<B> {
             shardings: &self.shardings,
         });
         self.localize_slice_ranges(&mut op);
-        self.interpreters[member].register_op(op);
+        op
+    }
+
+    /// Why `op` fails on every member without running: an input a failure claimed, as a
+    /// member's own interpreter fails an op, a rule its inputs cannot follow, or a collective
+    /// op with no handler. Checked before any input is resharded, which reads every shard.
+    fn failure(&mut self, op: &OperationIr, plan: &OpPlan) -> Option<TensorError> {
+        let input_error = self
+            .interpreters
+            .iter_mut()
+            .find_map(|interpreter| interpreter.handles_mut().input_error(op).cloned());
+        if let Some(error) = input_error {
+            return Some(error.propagated());
+        }
+        let custom = match op {
+            OperationIr::Custom(custom) => custom,
+            _ => return None,
+        };
+        let reason = match plan.execution() {
+            Execution::Refused(error) => {
+                format!(
+                    "`{}` cannot run on the sharded compute device: {error}",
+                    custom.id
+                )
+            }
+            Execution::Collective if self.collectives.get(&custom.id).is_none() => format!(
+                "No collective handler registered for `{}`. Register one in the \
+                 `CollectiveOpRegistry` the sharded compute device is made with.",
+                custom.id
+            ),
+            _ => return None,
+        };
+        Some(TensorError::new(ExecutionError::with_context(reason)))
+    }
+
+    /// Fails the outputs of `op` on every member with `error`, and gives up the inputs it
+    /// consumes.
+    fn fail(&mut self, op: &OperationIr, error: &TensorError) {
+        for out in op.outputs() {
+            self.shardings.insert(out.id, Sharding::Replicated);
+        }
+        for interpreter in &mut self.interpreters {
+            interpreter.handles_mut().set_output_errors(op, error);
+        }
+        for input in op.inputs() {
+            if input.status == TensorStatus::ReadWrite {
+                self.drop_tensor(input.id);
+            }
+        }
+    }
+
+    /// Runs a custom op once over every member by its collective handler.
+    fn run_collective(&mut self, op: &OperationIr) {
+        let OperationIr::Custom(custom) = op else {
+            unreachable!("Only a custom op is planned collective")
+        };
+        let ops: Vec<OperationIr> = (0..self.interpreters.len())
+            .map(|member| self.member_op(member, op))
+            .collect();
+        let handler = self
+            .collectives
+            .get(&custom.id)
+            .cloned()
+            .expect("A collective op without a handler fails before it runs");
+        let mut members: Vec<CollectiveMember<'_, B>> = self
+            .interpreters
+            .iter_mut()
+            .zip(&ops)
+            .zip(&self.devices)
+            .map(|((interpreter, op), device)| {
+                let OperationIr::Custom(op) = op else {
+                    unreachable!("A member's op is the op it was cut from")
+                };
+                CollectiveMember {
+                    handles: interpreter.handles_mut(),
+                    op,
+                    device,
+                }
+            })
+            .collect();
+        handler(&mut members);
     }
 
     /// Gives a slice the ranges of the shard one member holds, since a backend may reject the
@@ -561,10 +670,74 @@ impl IrVisitorMut for MemberShapes<'_> {
 #[cfg(test)]
 mod tests {
     use burn_flex::{Flex, FlexDevice};
-    use burn_ir::{FloatOperationIr, MatmulOpIr};
+    use burn_ir::{CustomOpIr, FloatOperationIr, MatmulOpIr};
     use burn_std::{Bytes, FileReadCounter, QuantScheme, QuantStore, QuantValue, future::block_on};
 
     use super::*;
+    use crate::{CustomOpPlan, CustomOpRule, OpKind};
+
+    /// Runs its op collective, its one input taken as `input`.
+    struct CollectiveRule {
+        input: Sharding,
+    }
+
+    impl CustomOpRule for CollectiveRule {
+        fn plan<'a>(&self, _op: &'a CustomOpIr) -> CustomOpPlan<'a> {
+            CustomOpPlan::Collective {
+                inputs: vec![self.input],
+                outputs: vec![Sharding::Replicated],
+            }
+        }
+    }
+
+    /// Plans its op as a built-in op of `kind`.
+    struct KindRule {
+        kind: OpKind<'static>,
+    }
+
+    impl CustomOpRule for KindRule {
+        fn plan<'a>(&self, _op: &'a CustomOpIr) -> CustomOpPlan<'a> {
+            CustomOpPlan::Kind(self.kind)
+        }
+    }
+
+    /// The custom op `id` reading `input` and writing `out`, of the input's shape.
+    fn custom_op(id: &str, input: TensorIr, out: TensorId) -> OperationIr {
+        OperationIr::Custom(CustomOpIr {
+            id: id.into(),
+            outputs: vec![TensorIr {
+                id: out,
+                status: TensorStatus::NotInit,
+                ..input.clone()
+            }],
+            inputs: vec![input],
+            scalars: Vec::new(),
+        })
+    }
+
+    /// A Flex pair whose custom ops `ids` are each run collective, `input` as their input.
+    fn collective_pair(
+        ids: &[&str],
+        input: Sharding,
+        collectives: CollectiveOpRegistry<Flex>,
+    ) -> ShardInterpreter<Flex> {
+        let custom_ops = ids.iter().fold(
+            ShardCustomOps::default().with_collectives(collectives),
+            |custom_ops, id| custom_ops.with_rule(id, CollectiveRule { input }),
+        );
+        ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], custom_ops).unwrap()
+    }
+
+    fn assert_fails_on_every_member(
+        interpreter: &ShardInterpreter<Flex>,
+        id: &TensorId,
+        why: &str,
+    ) {
+        for member in &interpreter.interpreters {
+            let failure = member.read_failure(id).expect("The output failed");
+            assert!(failure.contains(why), "{failure}");
+        }
+    }
 
     fn whole(id: TensorId, status: TensorStatus) -> TensorIr {
         TensorIr {
@@ -577,7 +750,9 @@ mod tests {
 
     #[test]
     fn a_split_of_data_uploads_no_member_the_whole_tensor() {
-        let mut interpreter = ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice]);
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], ShardCustomOps::default())
+                .unwrap();
         let id = interpreter.register_tensor_data(TensorData::new(vec![0f32; 24], [4, 6]));
 
         let split = interpreter
@@ -595,7 +770,9 @@ mod tests {
 
     #[test]
     fn data_an_op_consumes_split_is_cut_on_the_host() {
-        let mut interpreter = ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice]);
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], ShardCustomOps::default())
+                .unwrap();
         let x = interpreter.register_tensor_data(TensorData::new(vec![1f32; 24], [4, 6]));
         let x = interpreter
             .reshard(
@@ -647,7 +824,9 @@ mod tests {
             .with_store(QuantStore::Native);
         let data = TensorData::quantized(vec![1i8; 24], [4, 6], scheme, &[0.1], None);
         let dtype = data.dtype();
-        let mut interpreter = ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice]);
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], ShardCustomOps::default())
+                .unwrap();
         let id = interpreter.register_tensor_data(data);
 
         let refused = interpreter.reshard(
@@ -662,5 +841,95 @@ mod tests {
         for member in &interpreter.interpreters {
             assert!(member.read_failure(&id).is_some());
         }
+    }
+
+    #[test]
+    fn a_collective_op_without_a_handler_fails_its_outputs() {
+        let mut interpreter = collective_pair(
+            &["gather"],
+            Sharding::Replicated,
+            CollectiveOpRegistry::new(),
+        );
+        let x = interpreter.register_tensor_data(TensorData::new(vec![1f32; 24], [4, 6]));
+        let out = interpreter.new_tensor_id();
+
+        interpreter.register_op(custom_op("gather", whole(x, TensorStatus::ReadOnly), out));
+
+        assert_fails_on_every_member(&interpreter, &out, "No collective handler registered");
+    }
+
+    /// The failed input is replicated and the op asks for it split, so a resharding before the
+    /// check would read the shards the failure never wrote.
+    #[test]
+    fn a_collective_op_reading_a_failed_input_fails_without_running() {
+        let mut collectives = CollectiveOpRegistry::<Flex>::new();
+        collectives.register("second", |_| panic!("The handler ran on a failed input"));
+        let mut interpreter = collective_pair(
+            &["first", "second"],
+            Sharding::Split { dim: 0 },
+            collectives,
+        );
+        let x = interpreter.register_tensor_data(TensorData::new(vec![1f32; 24], [4, 6]));
+        let (failed, out) = (interpreter.new_tensor_id(), interpreter.new_tensor_id());
+
+        interpreter.register_op(custom_op("first", whole(x, TensorStatus::ReadOnly), failed));
+        interpreter.register_op(custom_op(
+            "second",
+            whole(failed, TensorStatus::ReadWrite),
+            out,
+        ));
+
+        assert_fails_on_every_member(&interpreter, &out, "skipped 1 operation");
+    }
+
+    #[test]
+    fn a_collective_op_whose_input_cannot_take_its_sharding_fails_its_outputs() {
+        let mut interpreter = collective_pair(
+            &["gather"],
+            Sharding::Split { dim: 0 },
+            CollectiveOpRegistry::new(),
+        );
+        let x = interpreter.register_tensor_data(TensorData::new(vec![1f32; 6], [1, 6]));
+        let out = interpreter.new_tensor_id();
+        let input = TensorIr {
+            shape: [1, 6].into(),
+            ..whole(x, TensorStatus::ReadOnly)
+        };
+
+        interpreter.register_op(custom_op("gather", input, out));
+
+        assert_fails_on_every_member(&interpreter, &out, "shorter than");
+    }
+
+    /// A built-in reshape keeps this split, but a custom one reads its target shape from its own
+    /// scalars, which no member's shard matches.
+    #[test]
+    fn a_custom_reshape_gathers_its_split_input() {
+        let custom_ops = ShardCustomOps::default().with_rule(
+            "reshape",
+            KindRule {
+                kind: OpKind::Reshape,
+            },
+        );
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], custom_ops).unwrap();
+        let x = interpreter.register_tensor_data(TensorData::new(vec![1f32; 24], [4, 6]));
+        let x = interpreter
+            .reshard(
+                whole(x, TensorStatus::ReadWrite),
+                Sharding::Split { dim: 0 },
+            )
+            .unwrap();
+        let out = interpreter.new_tensor_id();
+        let OperationIr::Custom(mut op) =
+            custom_op("reshape", whole(x, TensorStatus::ReadOnly), out)
+        else {
+            unreachable!()
+        };
+        op.outputs[0].shape = [4, 2, 3].into();
+
+        interpreter.register_op(OperationIr::Custom(op));
+
+        assert_eq!(interpreter.sharding(&out), Sharding::Replicated);
     }
 }

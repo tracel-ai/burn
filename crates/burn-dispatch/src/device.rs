@@ -8,7 +8,7 @@ use burn_backend::Shape;
 #[cfg(feature = "capture")]
 use burn_capture::CaptureDevice;
 #[cfg(feature = "shard")]
-use burn_shard::{ShardError, ShardedComputeDevice, Sharding, ShardingError};
+use burn_shard::{ShardCustomOps, ShardError, ShardedComputeDevice, Sharding, ShardingError};
 
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
@@ -393,20 +393,23 @@ impl DispatchDevice {
     /// rest of the process.
     ///
     /// Each of its default dtypes is the first of the members' configured ones, in member order,
-    /// that every member supports.
+    /// that every member supports. Every member runs the handlers of `custom_ops`.
     ///
     /// # Errors
     ///
     /// When `devices` is empty or mixes backends, when they are not Cube or Flex devices, when no
-    /// member's default for a dtype runs on every member, or when the members quantize
-    /// differently. An autodiff sharded compute device is made of plain devices,
-    /// then made autodiff.
+    /// member's default for a dtype runs on every member, when the members quantize
+    /// differently, or when `custom_ops` are another backend's. An autodiff sharded compute device
+    /// is made of plain devices, then made autodiff.
     ///
     /// # Panics
     ///
     /// When the process already has 65,536 sharded compute devices.
     #[cfg(feature = "shard")]
-    pub fn shard(devices: alloc::vec::Vec<DispatchDevice>) -> Result<Self, ShardError> {
+    pub fn shard(
+        devices: alloc::vec::Vec<DispatchDevice>,
+        custom_ops: ShardCustomOps,
+    ) -> Result<Self, ShardError> {
         if let Some(error) = devices.iter().find_map(Self::refused_as_member) {
             return Err(error);
         }
@@ -414,12 +417,16 @@ impl DispatchDevice {
             #[cfg(cube_backend)]
             Some(Self::Cube(_)) => {
                 let members = shard_members!(devices, Cube)?;
-                ShardedComputeDevice::with_member_settings::<crate::backends::Cube>(&members)
+                ShardedComputeDevice::with_member_settings::<crate::backends::Cube>(
+                    &members, custom_ops,
+                )
             }
             #[cfg(feature = "flex")]
             Some(Self::Flex(_)) => {
                 let members = shard_members!(devices, Flex)?;
-                ShardedComputeDevice::with_member_settings::<crate::backends::Flex>(&members)
+                ShardedComputeDevice::with_member_settings::<crate::backends::Flex>(
+                    &members, custom_ops,
+                )
             }
             Some(other) => unreachable!("{other:?} was refused as a member"),
             None => Err(ShardError::NoDevices),

@@ -1,5 +1,5 @@
 use burn_backend::RandomKey;
-use std::sync::Arc;
+use std::{any::Any, sync::Arc};
 
 use burn_backend::{
     DType, DTypeUsageSet, DeviceSettings, EnvironmentBundle, EnvironmentError, EnvironmentId,
@@ -19,19 +19,28 @@ pub struct ShardClient {
     device: ShardedComputeDevice,
     interpreter: Arc<Mutex<dyn DynShardInterpreter>>,
     settings: DeviceSettings,
+    /// The members' devices, in member order, as a `Vec` of their backend's device.
+    members: Arc<dyn Any + Send + Sync>,
 }
 
 impl ShardClient {
-    pub fn new(
+    pub fn new<D: Any + Send + Sync>(
         device: ShardedComputeDevice,
         interpreter: impl DynShardInterpreter + 'static,
         settings: DeviceSettings,
+        members: Vec<D>,
     ) -> Self {
         Self {
             device,
             interpreter: Arc::new(Mutex::new(interpreter)),
             settings,
+            members: Arc::new(members),
         }
+    }
+
+    /// The members' devices, in member order, when they are `D`.
+    pub fn members<D: Any + Clone>(&self) -> Option<Vec<D>> {
+        self.members.downcast_ref::<Vec<D>>().cloned()
     }
 
     pub fn settings(&self) -> DeviceSettings {

@@ -22,7 +22,7 @@ use quote::{format_ident, quote};
 /// The router backend the client is implemented for. Generated generic parameters carry a `__`
 /// prefix so they cannot shadow a type the trait's signatures name.
 fn router() -> TokenStream {
-    quote!(burn::backend::remote_extension::BackendRouter<__R>)
+    quote!(burn::backend::router_extension::BackendRouter<__R>)
 }
 
 /// The client implementation and the server handlers of `model`, both behind `gate`.
@@ -46,13 +46,13 @@ pub fn expand(model: &LazyTrait<'_>, gate: &TokenStream) -> TokenStream {
     let vis = model.vis;
     let handlers = format_ident!("{trait_name}Handlers");
     let doc = format!(
-        "The server side of [`{trait_name}`] on the remote backend: one custom operation handler \
-         per method.\n\nRegister them with the registry the server is given for the backend it \
-         hosts, once, before serving."
+        "What runs [`{trait_name}`] on a remote server or a sharded compute device's members: \
+         one custom operation handler per method.\n\nRegister them, once, with the registry \
+         given to the server or the sharded compute device for the backend it runs."
     );
     quote! {
         #gate
-        impl<__R: burn::backend::remote_extension::RouterChannel> #trait_name for burn::backend::remote_extension::BackendRouter<__R> {
+        impl<__R: burn::backend::router_extension::RouterChannel> #trait_name for burn::backend::router_extension::BackendRouter<__R> {
             #(#methods)*
         }
 
@@ -70,7 +70,7 @@ pub fn expand(model: &LazyTrait<'_>, gate: &TokenStream) -> TokenStream {
             ///
             /// If another handler already claims one of the methods' operation ids, as two
             /// methods given the same `#[fusion(id = ..)]` do.
-            pub fn register<__B>(registry: &mut burn::backend::remote_extension::CustomOpRegistry<__B>)
+            pub fn register<__B>(registry: &mut burn::backend::router_extension::CustomOpRegistry<__B>)
             where
                 __B: burn::backend::fusion::custom::BackendIr + #trait_name,
             {
@@ -163,7 +163,7 @@ impl<'a> RemoteMethod<'a> {
         let attrs = method.attrs();
         quote! {
             #(#attrs)* #signature {
-                use burn::backend::remote_extension::RouterClient as _;
+                use burn::backend::router_extension::RouterClient as _;
                 #(#metadata_inputs)*
                 let __meta = (#expr)(#(#metadata_args),*);
                 #[allow(unused_mut)]
@@ -175,7 +175,7 @@ impl<'a> RemoteMethod<'a> {
                 let mut __device_id = None;
                 let mut __inputs = Vec::new();
                 {
-                    let mut __input = |tensor: burn::backend::remote_extension::RouterTensor<<__R as burn::backend::remote_extension::RouterChannel>::Client>| {
+                    let mut __input = |tensor: burn::backend::router_extension::RouterTensor<<__R as burn::backend::router_extension::RouterChannel>::Client>| {
                         #[cfg(debug_assertions)] {
                             let id = burn::backend::Device::to_id(&tensor.client.device());
                             assert_eq!(*__device_id.get_or_insert(id), id, "custom operation inputs must share a device");
@@ -250,7 +250,7 @@ impl<'a> RemoteMethod<'a> {
         let gates = method.gates();
         quote! {
             #(#gates)*
-            registry.try_register(#id, burn::backend::remote_extension::HandlerSource::new::<Self>(#name), |__handles, __ir, _| {
+            registry.try_register(#id, burn::backend::router_extension::HandlerSource::new::<Self>(#name), |__handles, __ir, _| {
                 let mut __inputs = __ir.inputs.iter();
                 let mut __scalars = __ir.scalars.iter();
                 #(#decodes)*
@@ -535,7 +535,7 @@ mod tests {
                 }
             },
         );
-        assert!(out.contains("for burn :: backend :: remote_extension :: BackendRouter < __R >"));
+        assert!(out.contains("for burn :: backend :: router_extension :: BackendRouter < __R >"));
         assert!(out.contains("pub struct ExtHandlers"));
         assert!(out.contains("decode_scalar"));
         // The Fusion wrapper appends the extension's scalars under the remote gate.
