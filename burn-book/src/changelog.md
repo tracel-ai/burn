@@ -535,6 +535,9 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   ([#6004](https://github.com/tracel-ai/burn/pull/6004),
   [#6024](https://github.com/tracel-ai/burn/pull/6024))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- Run quantized `argmax`, `argmin`, `gather` and `quantize_dynamic` on the backend's own
+  implementations through device dispatch instead of dequantizing first.
+  ([#6383](https://github.com/tracel-ai/burn/pull/6383))
 - Add `Tensor::round_to(decimals)` for rounding to a specified number of decimal places.
   ([#5842](https://github.com/tracel-ai/burn/pull/5842))
 - Add dilation to average pooling with `AvgPoolOptions::with_dilation`, matching max pooling.
