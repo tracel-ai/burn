@@ -520,7 +520,7 @@ impl<B: BackendIr> ShardInterpreter<B> {
             }
             _ => return,
         };
-        if let Sharding::Split { dim } = self.shardings.get(&tensor.id)
+        if let Some(dim) = self.shardings.get(&tensor.id).split_dim()
             && let Some(range) = ranges.get_mut(dim)
         {
             *range = Slice::full();
@@ -721,15 +721,21 @@ mod tests {
         sharding: Sharding,
     ) -> (TensorId, TensorData) {
         let num_members = interpreter.num_members();
-        let chunks: Vec<TensorData> = match sharding {
-            Sharding::Split { dim } => DimSplit {
-                dim,
-                len: data.shape()[dim],
-                members: num_members,
+        let chunks: Vec<TensorData> = match (sharding.split_dim(), sharding.num_chunks(num_members))
+        {
+            (Some(dim), Some(chunks)) => {
+                let cut: Vec<_> = DimSplit {
+                    dim,
+                    len: data.shape()[dim],
+                    members: chunks,
+                }
+                .data_chunks(data)
+                .collect();
+                (0..num_members)
+                    .map(|index| cut[ShardMember { index, num_members }.chunk(chunks)].clone())
+                    .collect()
             }
-            .data_chunks(data)
-            .collect(),
-            Sharding::Replicated | Sharding::PartialSum => vec![data.clone(); num_members],
+            _ => vec![data.clone(); num_members],
         };
         let value = match sharding {
             Sharding::PartialSum => {
@@ -752,20 +758,26 @@ mod tests {
     #[test]
     fn every_sharding_reshards_to_every_other_and_keeps_its_value() {
         let data = TensorData::new((0..24).map(|i| i as f32).collect::<Vec<_>>(), [4, 6]);
-        let shardings = [
-            Sharding::Replicated,
-            Sharding::PartialSum,
-            Sharding::Split { dim: 0 },
-            Sharding::Split { dim: 1 },
-        ];
         for num_members in 1..=4 {
+            let mut shardings = vec![
+                Sharding::Replicated,
+                Sharding::PartialSum,
+                Sharding::Split { dim: 0 },
+                Sharding::Split { dim: 1 },
+            ];
+            if num_members == 4 {
+                shardings.extend([
+                    Sharding::ReplicatedSplit { dim: 0, groups: 2 },
+                    Sharding::ReplicatedSplit { dim: 1, groups: 2 },
+                ]);
+            }
             let mut interpreter = ShardInterpreter::<Flex>::new(
                 vec![FlexDevice; num_members],
                 ShardCustomOps::default(),
             )
             .unwrap();
-            for from in shardings {
-                for to in shardings {
+            for &from in &shardings {
+                for &to in &shardings {
                     if to == Sharding::PartialSum && from != Sharding::PartialSum {
                         continue;
                     }
