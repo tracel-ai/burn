@@ -117,6 +117,7 @@ fn attention_split_on_the_heads_stays_split() {
         Tensor::from_data(value.clone(), &flex),
         None,
         None,
+        None,
         Default::default(),
     )
     .into_data();
@@ -127,6 +128,7 @@ fn attention_split_on_the_heads_stays_split() {
         sharded::<4>(query, &device, heads),
         sharded(key, &device, heads),
         sharded(value, &device, heads),
+        None,
         None,
         None,
         Default::default(),
