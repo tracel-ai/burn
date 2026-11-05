@@ -436,7 +436,7 @@ whose tensors are split over `devices` (crate `burn-shard`).
   splits its query heads over every member against such keys and values, and the matmul, layout
   and elementwise ops keep it. **Breaking (experimental):** `Sharding` has a new variant, and
   `ShardingError` a new `Groups` variant for groups that do not divide the members.
-  ([#TBD](https://github.com/tracel-ai/burn/pull/TBD))
+  ([#6418](https://github.com/tracel-ai/burn/pull/6418))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 ### Tensors
