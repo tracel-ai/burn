@@ -110,6 +110,8 @@ impl Device {
 
 #[cfg(all(test, not(feature = "shard")))]
 mod tests {
+    use alloc::vec;
+
     use crate::{Device, Sharding, Shards, ShardsError, Tensor};
 
     #[test]
