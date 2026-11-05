@@ -123,7 +123,7 @@ pub mod backends {
     #[cfg(feature = "shard")]
     pub use burn_shard::ShardBackend as ShardedCompute;
     #[cfg(feature = "shard")]
-    pub use burn_shard::{ShardError, Sharding, ShardingError};
+    pub use burn_shard::{ShardError, Sharding, ShardingError, Shards, ShardsError};
 }
 
 // Re-export devices

@@ -1,65 +1,85 @@
+use alloc::vec::Vec;
+
 #[cfg(feature = "shard")]
 use crate::ops::BridgeTensor;
-use crate::{Device, Shape, Sharding, ShardingError, Tensor, kind::Basic};
+use crate::{
+    Device, Sharding, Shards, ShardsError, Tensor,
+    kind::{Autodiff, Basic},
+};
 
-impl<const D: usize, K: Basic> Tensor<D, K> {
-    /// The same value, split over its sharded compute device as `sharding` says.
+impl<const D: usize, K: Autodiff> Tensor<D, K> {
+    /// The tensor `shards` make up over the sharded compute device `device`.
     ///
-    /// A tracked tensor records the change, and its gradient flows back through it unchanged. To
-    /// shard a parameter, shard it before requiring its gradient, as with
-    /// [`to_device`](Tensor::to_device).
+    /// Shard `i` is member `i`'s part, already on that member's device (see
+    /// [`Device::shard_members`]): the whole value when replicated or a partial sum, and its chunk
+    /// of the split dim when split. Chunks are balanced in member order, the first members holding
+    /// one more index when the dim does not divide. Nothing moves between members, so a caller
+    /// that makes each shard on its member never holds the whole tensor anywhere.
     ///
-    /// Splitting a tensor made from data before any op uses it uploads each member only its
-    /// chunk.
-    ///
-    /// # Panics
-    ///
-    /// When [`try_with_sharding`](Self::try_with_sharding) refuses the sharding.
-    pub fn with_sharding(self, sharding: Sharding) -> Self {
-        #[cfg(feature = "shard")]
-        {
-            // Owning the tensor lets the sharded compute device free the old shards as it
-            // reshards, and work in place.
-            let (kind, tensor) = self.primitive.into_parts();
-            let resharded = tensor
-                .try_with_sharding(sharding)
-                .unwrap_or_else(|error| panic!("{error}"));
-            Self::new(BridgeTensor::from_parts(kind, resharded))
-        }
-        #[cfg(not(feature = "shard"))]
-        {
-            let _ = (self, sharding);
-            panic!(
-                "{} (the `shard` feature is not enabled)",
-                ShardingError::NotSharded
-            )
-        }
-    }
-
-    /// The same value, split over its sharded compute device as `sharding` says, or why it cannot
-    /// be. A refusal leaves this tensor as it was.
+    /// A shard's autodiff tracking is dropped. On an autodiff sharded compute device the tensor is
+    /// a new leaf: require its gradient afterwards.
     ///
     /// # Errors
     ///
-    /// When the tensor is not on a sharded compute device, which needs the `shard` feature, when
-    /// `sharding` is a partial sum and the tensor is not one, when it splits a dim the tensor lacks
-    /// or one shorter than the sharded compute device, or, for a quantized tensor, when a member's
-    /// chunk would not hold whole quantization blocks, or whole packed words along its packed axis:
-    /// its codes and scales are cut as they are.
-    pub fn try_with_sharding(&self, sharding: Sharding) -> Result<Self, ShardingError> {
+    /// When `device` is not a sharded compute device, which needs the `shard` feature, when there
+    /// is not one shard per member, when shard `i` is not on member `i`'s device, when the shards
+    /// differ in dtype or quantization scheme, when a partial sum is not of floats or ints, or
+    /// when a shard's shape is not its member's part, a quantized chunk holding whole
+    /// quantization blocks and packed words.
+    pub fn from_shards(shards: Shards<Self>, device: &Device) -> Result<Self, ShardsError> {
         #[cfg(feature = "shard")]
         {
-            let (kind, tensor) = self.primitive.clone().into_parts();
-            let resharded = tensor.try_with_sharding(sharding)?;
-            Ok(Self::new(BridgeTensor::from_parts(kind, resharded)))
+            let mut kind = None;
+            let shards = shards.map(|shard| {
+                let (shard_kind, tensor) = shard.without_autodiff().primitive.into_parts();
+                kind.get_or_insert(shard_kind);
+                tensor
+            });
+            let plain = device.clone().inner();
+            let joined = burn_dispatch::DispatchTensor::from_shards(shards, plain.as_dispatch())?;
+            let kind = kind.expect("A sharded compute device takes a shard per member");
+            let tensor = Self::new(BridgeTensor::from_parts(kind, joined));
+            #[cfg(feature = "autodiff")]
+            if let Some(strategy) = device.gradient_checkpointing_strategy() {
+                return Ok(tensor
+                    .autodiff()
+                    .with_gradient_checkpointing_strategy(strategy));
+            }
+            Ok(tensor)
         }
         #[cfg(not(feature = "shard"))]
         {
-            let _ = sharding;
-            Err(ShardingError::NotSharded)
+            let _ = (shards, device);
+            Err(ShardsError::NotSharded)
         }
     }
 
+    /// Each member's shard of the tensor, on that member's device, and how they make up its
+    /// value. The shards are not tracked by autodiff.
+    ///
+    /// # Panics
+    ///
+    /// When the tensor is not on a sharded compute device.
+    pub fn into_shards(self) -> Shards<Self> {
+        #[cfg(feature = "shard")]
+        {
+            let (kind, tensor) = self.without_autodiff().primitive.into_parts();
+            tensor
+                .into_shards()
+                .map(|shard| Self::new(BridgeTensor::from_parts(kind, shard)))
+        }
+        #[cfg(not(feature = "shard"))]
+        {
+            let _ = self;
+            panic!(
+                "{} (the `shard` feature is not enabled)",
+                ShardsError::NotSharded
+            )
+        }
+    }
+}
+
+impl<const D: usize, K: Basic> Tensor<D, K> {
     /// How the tensor is split over its sharded compute device, or `None` when it is not on one.
     pub fn sharding(&self) -> Option<Sharding> {
         #[cfg(feature = "shard")]
@@ -73,28 +93,24 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
 }
 
 impl Device {
-    /// Why a tensor of `shape` made on this device cannot take `sharding`, if it cannot, without
-    /// making the tensor.
-    ///
-    /// # Errors
-    ///
-    /// As [`try_with_sharding`](Tensor::try_with_sharding) for a replicated, unquantized tensor.
-    pub fn check_sharding(&self, shape: &Shape, sharding: Sharding) -> Result<(), ShardingError> {
+    /// The members of this sharded compute device, in member order, or `None` when it is not one:
+    /// the devices the shards of [`Tensor::from_shards`] are made on. They are plain devices, an
+    /// autodiff sharded compute device's included.
+    pub fn shard_members(&self) -> Option<Vec<Device>> {
         #[cfg(feature = "shard")]
         {
-            self.as_dispatch().check_sharding(shape, sharding)
+            self.as_dispatch()
+                .shard_members()
+                .map(|members| members.into_iter().map(Device::new).collect())
         }
         #[cfg(not(feature = "shard"))]
-        {
-            let _ = (shape, sharding);
-            Err(ShardingError::NotSharded)
-        }
+        None
     }
 }
 
 #[cfg(all(test, not(feature = "shard")))]
 mod tests {
-    use crate::{Device, Shape, Sharding, ShardingError, Tensor};
+    use crate::{Device, Sharding, Shards, ShardsError, Tensor};
 
     #[test]
     fn without_the_shard_feature_nothing_is_sharded() {
@@ -102,13 +118,17 @@ mod tests {
         let tensor = Tensor::<1>::zeros([4], &device);
 
         assert_eq!(tensor.sharding(), None);
+        assert_eq!(device.shard_members(), None);
         assert_eq!(
-            tensor.try_with_sharding(Sharding::Split { dim: 0 }).err(),
-            Some(ShardingError::NotSharded)
-        );
-        assert_eq!(
-            device.check_sharding(&Shape::new([4]), Sharding::Replicated),
-            Err(ShardingError::NotSharded)
+            Tensor::<1>::from_shards(
+                Shards {
+                    shards: vec![tensor],
+                    sharding: Sharding::Replicated,
+                },
+                &device
+            )
+            .err(),
+            Some(ShardsError::NotSharded)
         );
     }
 }
