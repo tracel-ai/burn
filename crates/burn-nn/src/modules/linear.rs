@@ -6,7 +6,7 @@ use burn::config::Config;
 use burn::instrument::{self, Bounds, compute};
 use burn::module::Param;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use burn::tensor::module::{lay_out_for_matmul, linear};
+use burn::tensor::module::{linear, prepare_linear_weight};
 use burn::tensor::{Device, Tensor, assert_shape};
 
 /// Configuration to create a [`Linear`] layer using the [init function](LinearConfig::init).
@@ -38,9 +38,9 @@ pub enum LinearLayout {
     Row,
     /// Parameters are stored in Col major.
     Col,
-    /// The weight is stored the way the device's matmul reads it best
-    /// ([`lay_out_for_matmul`]), once at init and once at load. It's saved in rows, as `Row`.
-    Matmul,
+    /// The backend stores the weight however its linear reads it best, once at init and once
+    /// at load. It's saved in rows, as `Row`.
+    Device,
 }
 
 /// Applies a linear transformation to the input tensor.
@@ -100,12 +100,12 @@ impl LinearConfig {
                         tensor
                     })
             }
-            LinearLayout::Matmul => {
+            LinearLayout::Device => {
                 let shape = [self.d_input, self.d_output];
                 self.initializer
                     .init_with(shape, Some(self.d_input), Some(self.d_output), device)
-                    .init_mapper(lay_out_for_matmul)
-                    .load_mapper(lay_out_for_matmul)
+                    .init_mapper(prepare_linear_weight)
+                    .load_mapper(prepare_linear_weight)
             }
         };
         let bias = if self.bias {
@@ -436,28 +436,38 @@ mod tests {
         data_1.assert_approx_eq::<f32>(&data_2, Default::default());
     }
 
-    /// The layouts draw the same values, so a `Matmul` layer computes what a `Row` one does.
+    /// A `Row` layer holding the same values as `linear`, whatever layout `linear`'s weight has.
+    fn row_copy(linear: &Linear, device: &Device) -> Linear {
+        Linear {
+            weight: Param::from_tensor(Tensor::from_data(linear.weight.val().into_data(), device)),
+            bias: linear
+                .bias
+                .as_ref()
+                .map(|bias| Param::from_tensor(Tensor::from_data(bias.val().into_data(), device))),
+        }
+    }
+
+    /// A `Device` layer computes what a `Row` layer holding the same values does.
     #[test]
-    fn matmul_row_same_result() {
+    fn device_row_same_result() {
         let device = Device::default();
         let signal = Tensor::<2>::random([8, 64], burn::tensor::Distribution::Default, &device);
-        let init = |layout| {
-            device.seed(0);
-            LinearConfig::new(64, 128).with_layout(layout).init(&device)
-        };
+        let linear = LinearConfig::new(64, 128)
+            .with_layout(LinearLayout::Device)
+            .init(&device);
 
-        let row = init(LinearLayout::Row).forward(signal.clone());
-        let matmul = init(LinearLayout::Matmul).forward(signal);
+        let row = row_copy(&linear, &device).forward(signal.clone());
+        let device_layout = linear.forward(signal);
 
-        matmul
+        device_layout
             .into_data()
             .assert_approx_eq::<f32>(&row.into_data(), Tolerance::rel_abs(1e-3, 1e-4));
     }
 
     #[test]
-    fn matmul_layout_round_trip() {
+    fn device_layout_round_trip() {
         let device = Device::default();
-        let config = LinearConfig::new(64, 128).with_layout(LinearLayout::Matmul);
+        let config = LinearConfig::new(64, 128).with_layout(LinearLayout::Device);
 
         assert_layout_round_trip(config.init(&device), &config);
     }
@@ -465,18 +475,19 @@ mod tests {
     /// The gradient reaches the weight through its layout, and a step on it keeps the values a
     /// step on a `Row` weight gives.
     #[test]
-    fn matmul_layout_trains_like_row() {
+    fn device_layout_trains_like_row() {
         let device = Device::default().autodiff();
         let signal = Tensor::<2>::random([8, 64], burn::tensor::Distribution::Default, &device);
-        let step = |layout| {
-            device.seed(0);
-            let linear = LinearConfig::new(64, 128).with_layout(layout).init(&device);
+        let step = |linear: Linear| {
             let grads = linear.forward(signal.clone()).sum().backward();
             let grad = linear.weight.grad(&grads).unwrap();
             (linear.weight.val().inner() - grad * 0.1).into_data()
         };
+        let linear = LinearConfig::new(64, 128)
+            .with_layout(LinearLayout::Device)
+            .init(&device);
+        let row = row_copy(&linear, &device);
 
-        step(LinearLayout::Matmul)
-            .assert_approx_eq::<f32>(&step(LinearLayout::Row), Tolerance::rel_abs(1e-3, 1e-4));
+        step(linear).assert_approx_eq::<f32>(&step(row), Tolerance::rel_abs(1e-3, 1e-4));
     }
 }

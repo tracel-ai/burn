@@ -292,11 +292,11 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         panic!("Can't differentiate linear_bias_backward.");
     }
 
-    fn lay_out_for_matmul(weight: AutodiffTensor<B>) -> AutodiffTensor<B> {
+    fn prepare_linear_weight(weight: AutodiffTensor<B>) -> AutodiffTensor<B> {
         #[derive(Debug)]
-        struct LayOutForMatmul;
+        struct PrepareLinearWeight;
 
-        impl<B: Backend> Backward<B, 1> for LayOutForMatmul {
+        impl<B: Backend> Backward<B, 1> for PrepareLinearWeight {
             type State = ();
 
             fn backward(
@@ -310,10 +310,10 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             }
         }
 
-        LayOutForMatmul
+        PrepareLinearWeight
             .prepare::<C>([weight.node()])
             .compute_bound()
-            .stateless(B::lay_out_for_matmul(weight.primitive))
+            .stateless(B::prepare_linear_weight(weight.primitive))
     }
 
     fn conv1d(

@@ -15,7 +15,7 @@ use cubek::std::{
 /// The weight is stored in the tile as cubek stores a matrix for a product ([`matrix_storage`]).
 /// A quantized weight, one already storage-tiled, and one of fewer than two dims or with an empty
 /// dim come back as they lie.
-pub fn lay_out_for_matmul(weight: CubeTensor) -> CubeTensor {
+pub fn tile_matmul_rhs(weight: CubeTensor) -> CubeTensor {
     let [.., k, n] = weight.meta.shape()[..] else {
         return weight;
     };

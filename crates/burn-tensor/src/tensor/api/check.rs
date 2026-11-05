@@ -570,14 +570,14 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn lay_out_for_matmul<const D: usize>() -> Self {
+    pub(crate) fn prepare_linear_weight<const D: usize>() -> Self {
         let check = Self::Ok;
 
         if D < 2 {
             return check.register(
-                "Lay out for matmul",
+                "Prepare linear weight",
                 TensorError::new(format!(
-                    "Lay out for matmul requires a weight with at least 2 dimensions, but got {D} \
+                    "Prepare linear weight requires a weight with at least 2 dimensions, but got {D} \
                      dimension(s)."
                 )),
             );

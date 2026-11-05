@@ -194,7 +194,7 @@ mod storage_tiled {
         CubeBackend, CubeDevice,
         kernel::{
             into_contiguous,
-            matmul::{MatmulStrategy, lay_out_for_matmul, matmul},
+            matmul::{MatmulStrategy, matmul, tile_matmul_rhs},
             slice, untile,
         },
         ops::{expand, from_data, into_data_sync, permute, reshape, swap_dims},
@@ -260,14 +260,14 @@ mod storage_tiled {
     /// device's vector read rather than in a hand-picked tile, and every routine reads them, for
     /// a decode row and for many rows.
     #[test]
-    fn a_weight_laid_out_for_matmul_computes_the_same_product() {
+    fn a_weight_tiled_for_matmul_computes_the_same_product() {
         use cubek::matmul::tiled::storage::{StoredValues, stored_tile};
         use cubek::microkernel::matmul::MatmulOperand;
         use cubek::std::Hardware;
 
         let device = CubeDevice::default();
         let rhs = tensor(&[256, 512], &device, 2);
-        let weight = lay_out_for_matmul(rhs.clone());
+        let weight = tile_matmul_rhs(rhs.clone());
         let element = dtype_to_storage_type(DType::F32);
         let stores_tiles = stored_tile(
             &Hardware::from_client(&rhs.client),
@@ -290,7 +290,7 @@ mod storage_tiled {
             let plain = values(plain.unwrap());
             for strategy in strategies() {
                 let laid = matmul(lhs.clone(), weight.clone(), None, strategy, DType::F32);
-                assert_close(&values(laid.unwrap()), &plain, "weight laid out for matmul");
+                assert_close(&values(laid.unwrap()), &plain, "weight tiled for matmul");
             }
         }
     }
@@ -299,7 +299,7 @@ mod storage_tiled {
     #[test]
     fn a_weight_no_tile_divides_lies_as_it_is() {
         let device = CubeDevice::default();
-        let weight = lay_out_for_matmul(tensor(&[3, 5], &device, 2));
+        let weight = tile_matmul_rhs(tensor(&[3, 5], &device, 2));
         assert!(!weight.meta.is_tiled());
     }
 

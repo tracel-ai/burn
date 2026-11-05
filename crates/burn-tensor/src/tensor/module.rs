@@ -1048,24 +1048,24 @@ pub fn max_pool3d_with_indices(
     )
 }
 
-/// Lays out `weight`, `[..., k, n]`, the way the device's matmul reads it best for
-/// `x.matmul(weight)`, so that a weight used in many products is laid out once.
+/// The hook a `Linear` layer calls on its weight, `[..., d_input, d_output]`, at init and at load
+/// ([`ModuleOps::prepare_linear_weight`](burn_backend::ops::ModuleOps::prepare_linear_weight)).
+/// Not meant to be called elsewhere: which layout comes back is the backend's choice.
 ///
-/// The values are unchanged and every operation takes the result. The backend may copy the
-/// weight into a storage layout its matmul reads faster, or return it as it lies. Either way,
-/// its shape, dtype and device are those of `weight`. A quantized weight comes back as it lies.
+/// The values, shape, dtype and device are unchanged. A quantized weight comes back as it lies.
 ///
 /// # Panics
 ///
 /// If `weight` has fewer than 2 dimensions.
-pub fn lay_out_for_matmul<const D: usize>(weight: Tensor<D>) -> Tensor<D> {
-    check!(TensorCheck::lay_out_for_matmul::<D>());
+#[doc(hidden)]
+pub fn prepare_linear_weight<const D: usize>(weight: Tensor<D>) -> Tensor<D> {
+    check!(TensorCheck::prepare_linear_weight::<D>());
 
     if let DType::QFloat(_) = weight.dtype() {
         return weight;
     }
 
-    Tensor::new(BridgeTensor::float(Dispatch::lay_out_for_matmul(
+    Tensor::new(BridgeTensor::float(Dispatch::prepare_linear_weight(
         weight.primitive.into_float(),
     )))
 }

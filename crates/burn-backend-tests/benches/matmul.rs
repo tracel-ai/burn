@@ -229,18 +229,18 @@ macro_rules! bench_backend {
                 }
             }
 
-            // The transformer products against a weight in rows and against the same weight laid
-            // out for matmul, at the device's float dtype, the one the layout is chosen for.
+            // The transformer products against a weight in rows and against the same weight
+            // prepared for linear, at the device's float dtype, the one the layout is chosen for.
             #[divan::bench_group(name = "laid_out")]
             mod laid_out {
                 use super::*;
-                use burn_tensor::module::lay_out_for_matmul;
+                use burn_tensor::module::prepare_linear_weight;
 
                 #[divan::bench(args = [false, true])]
                 fn prefill_512x4096_4096x4096(bencher: Bencher, laid: bool) {
                     let a = make_matrix(512, 4096);
                     let b = make_matrix(4096, 4096);
-                    let b = if laid { lay_out_for_matmul(b) } else { b };
+                    let b = if laid { prepare_linear_weight(b) } else { b };
                     bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
@@ -248,7 +248,7 @@ macro_rules! bench_backend {
                 fn decode_8x4096_4096x12288(bencher: Bencher, laid: bool) {
                     let a = make_matrix(8, 4096);
                     let b = make_matrix(4096, 12288);
-                    let b = if laid { lay_out_for_matmul(b) } else { b };
+                    let b = if laid { prepare_linear_weight(b) } else { b };
                     bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
@@ -256,7 +256,7 @@ macro_rules! bench_backend {
                 fn decode_1x4096_4096x4096(bencher: Bencher, laid: bool) {
                     let a = make_matrix(1, 4096);
                     let b = make_matrix(4096, 4096);
-                    let b = if laid { lay_out_for_matmul(b) } else { b };
+                    let b = if laid { prepare_linear_weight(b) } else { b };
                     bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
             }

@@ -49,7 +49,6 @@ mod gelu;
 mod gradients;
 mod graph_reuse;
 mod hypot;
-mod lay_out_for_matmul;
 mod linear;
 mod log;
 mod log1p;
@@ -69,6 +68,7 @@ mod neg;
 mod nonzero;
 mod permute;
 mod pow;
+mod prepare_linear_weight;
 #[cfg(feature = "quantization")]
 mod quantization;
 mod recip;

@@ -18,8 +18,8 @@ use burn_backend::{
 use burn_std::{DType, FloatDType, IntDType};
 
 impl ModuleOps<Self> for CubeBackend {
-    fn lay_out_for_matmul(weight: FloatTensor<Self>) -> FloatTensor<Self> {
-        kernel::matmul::lay_out_for_matmul(weight)
+    fn prepare_linear_weight(weight: FloatTensor<Self>) -> FloatTensor<Self> {
+        kernel::matmul::tile_matmul_rhs(weight)
     }
 
     fn conv1d(

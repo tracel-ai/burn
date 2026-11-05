@@ -44,7 +44,7 @@ pub(crate) fn cast_from_f32<E: Element + Pod + Copy>(
 }
 
 impl ModuleOps<Flex> for Flex {
-    fn lay_out_for_matmul(weight: FloatTensor<Flex>) -> FloatTensor<Flex> {
+    fn prepare_linear_weight(weight: FloatTensor<Flex>) -> FloatTensor<Flex> {
         weight
     }
 

@@ -5,20 +5,17 @@ Changes for the next release. For published releases, see
 
 ## Unreleased
 
-### Weights laid out for matmul
+### `LinearLayout::Device`
 
-`burn::tensor::module::lay_out_for_matmul(weight)` lays a `[..., k, n]` weight out the way the
-device's matmul reads it best for `x.matmul(weight)`, so a weight used in many products is laid
-out once, at load. The result holds the same values and every operation takes it, training
-included. On CubeCL backends, it's stored in the tiles the device's matmul reads, where a tile
-divides `k` and `n`; other backends return it as it lies, and so do quantized weights.
-
-`LinearLayout::Matmul` makes a `Linear` lay its weight out this way at init and at load. Records
-still save it in rows, as `LinearLayout::Row` does, so a `Row` record loads into a `Matmul`
-layer and back.
+`LinearLayout::Device` lets the backend store a `Linear`'s weight however its linear reads it best,
+once at init and once at load, so a weight used in many products is prepared once. The values are
+unchanged and every operation takes the weight, training included. On CubeCL backends it's stored
+in the tiles the device's matmul reads, where a tile divides the weight; other backends keep it as
+it lies, and so do quantized weights. Records still save it in rows, as `LinearLayout::Row` does,
+so a `Row` record loads into a `Device` layer and back.
 
 **Breaking for backend implementors:** `ModuleOps` gains the required method
-`lay_out_for_matmul`. Returning the weight unchanged is a correct implementation.
+`prepare_linear_weight`. Returning the weight unchanged is a correct implementation.
 ([#6374](https://github.com/tracel-ai/burn/pull/6374)) [@louisfd](https://github.com/louisfd)
 
 ### Attention over a key/value cache

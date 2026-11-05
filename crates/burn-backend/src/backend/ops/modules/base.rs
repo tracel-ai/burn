@@ -370,15 +370,18 @@ pub trait ModuleOps<B: Backend> {
     fn linear_bias_backward(output_grad: FloatTensor<B>) -> FloatTensor<B> {
         linear::linear_bias_backward::<B>(output_grad)
     }
-    /// Lays out a weight the way this device's matmul reads it best, for `x.matmul(weight)`.
+
+    /// A linear layer's weight, stored however this backend's [`linear`](ModuleOps::linear)
+    /// reads it best. `Linear` calls it once at init and once at load, so the weight is
+    /// prepared once rather than at each forward.
     ///
-    /// The values are unchanged and every operation takes the result. The backend may copy the
-    /// weight into a storage layout its matmul reads faster, or return it as it lies.
+    /// The values are unchanged and every operation takes the result. Returning the weight as
+    /// it lies is a correct implementation.
     ///
     /// # Shapes
     ///
     /// weight: `[..., k, n]`
-    fn lay_out_for_matmul(weight: FloatTensor<B>) -> FloatTensor<B>;
+    fn prepare_linear_weight(weight: FloatTensor<B>) -> FloatTensor<B>;
 
     /// One dimensional convolution.
     ///

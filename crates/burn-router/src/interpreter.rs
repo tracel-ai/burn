@@ -1620,10 +1620,10 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::linear_bias_backward(output_grad);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationIr::LayOutForMatmul(desc) => {
+                ModuleOperationIr::PrepareLinearWeight(desc) => {
                     let weight = handles.get_float_tensor::<B>(&desc.input);
 
-                    let output = B::lay_out_for_matmul(weight);
+                    let output = B::prepare_linear_weight(weight);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 ModuleOperationIr::Conv1d(desc) => {

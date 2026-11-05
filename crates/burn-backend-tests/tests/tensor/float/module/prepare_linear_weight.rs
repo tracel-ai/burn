@@ -1,12 +1,12 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::module::lay_out_for_matmul;
+use burn_tensor::module::prepare_linear_weight;
 
 // `[64, 128]` and `[2, 32, 64]` are divided by any tile a backend stores a weight in; `[3, 5]` by
 // none, so it stays as it lies.
 
 #[test]
-fn lay_out_for_matmul_keeps_the_values() {
+fn prepare_linear_weight_keeps_the_values() {
     let device = Default::default();
     let weight = TestTensorInt::<1>::arange(0..64 * 128, &device)
         .float()
@@ -21,18 +21,21 @@ fn lay_out_for_matmul_keeps_the_values() {
         .reshape([3, 5]);
 
     assert_eq!(
-        lay_out_for_matmul(weight.clone()).into_data(),
+        prepare_linear_weight(weight.clone()).into_data(),
         weight.into_data()
     );
     assert_eq!(
-        lay_out_for_matmul(batched.clone()).into_data(),
+        prepare_linear_weight(batched.clone()).into_data(),
         batched.into_data()
     );
-    assert_eq!(lay_out_for_matmul(odd.clone()).into_data(), odd.into_data());
+    assert_eq!(
+        prepare_linear_weight(odd.clone()).into_data(),
+        odd.into_data()
+    );
 }
 
 #[test]
-fn lay_out_for_matmul_gives_the_same_product() {
+fn prepare_linear_weight_gives_the_same_product() {
     let device = Default::default();
     let x = TestTensorInt::<1>::arange(0..16 * 64, &device)
         .float()
@@ -43,7 +46,7 @@ fn lay_out_for_matmul_gives_the_same_product() {
         .reshape([64, 128])
         .sin();
 
-    let laid = x.clone().matmul(lay_out_for_matmul(weight.clone()));
+    let laid = x.clone().matmul(prepare_linear_weight(weight.clone()));
 
     laid.into_data().assert_approx_eq::<FloatElem>(
         &x.matmul(weight).into_data(),
@@ -52,14 +55,14 @@ fn lay_out_for_matmul_gives_the_same_product() {
 }
 
 #[test]
-fn lay_out_for_matmul_takes_elementwise_ops() {
+fn prepare_linear_weight_takes_elementwise_ops() {
     let device = Default::default();
     let weight = TestTensorInt::<1>::arange(0..64 * 128, &device)
         .float()
         .reshape([64, 128])
         .sin();
 
-    let stepped = (lay_out_for_matmul(weight.clone()) * 2.0 + 1.0).exp();
+    let stepped = (prepare_linear_weight(weight.clone()) * 2.0 + 1.0).exp();
 
     stepped.into_data().assert_approx_eq::<FloatElem>(
         &(weight * 2.0 + 1.0).exp().into_data(),

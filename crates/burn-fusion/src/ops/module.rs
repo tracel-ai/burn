@@ -38,13 +38,13 @@ macro_rules! make_ops {
 }
 
 impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
-    fn lay_out_for_matmul(weight: FloatTensor<Self>) -> FloatTensor<Self> {
+    fn prepare_linear_weight(weight: FloatTensor<Self>) -> FloatTensor<Self> {
         make_ops!(
-            LayOutForMatmulOps,
+            PrepareLinearWeightOps,
             UnaryOpIr,
             |args: &UnaryOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let weight = handles.get_float_tensor::<B>(&args.input);
-                let output = B::lay_out_for_matmul(weight);
+                let output = B::prepare_linear_weight(weight);
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
             }
@@ -58,8 +58,8 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::Module(ModuleOperationIr::LayOutForMatmul(desc.clone())),
-                LayOutForMatmulOps::<B>::new(desc),
+                OperationIr::Module(ModuleOperationIr::PrepareLinearWeight(desc.clone())),
+                PrepareLinearWeightOps::<B>::new(desc),
             )
             .output()
     }
