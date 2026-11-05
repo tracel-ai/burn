@@ -43,4 +43,4 @@ jobs:
         # Looking for vulnerabilities
         run: |
           cargo test --no-fail-fast -p burn-std -p burn-tensor -p burn-backend -p burn-flex
-          cargo test --no-fail-fast -p burn-backend-tests --no-default-features --features flex,std
+          cargo test --no-fail-fast -p burn-backend-tests --no-default-features --features flex,std,flex-simd,flex-rayon
