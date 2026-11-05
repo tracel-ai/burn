@@ -190,10 +190,10 @@ mod tests {
         let data = TensorData::from([true, false, true]);
         let tensor = Dispatch::bool_from_data(data.clone(), &flex);
 
-        let moved = Dispatch::bool_to_device(tensor, &cube);
+        let target_dtype = get_or_init_device_settings::<Dispatch>(&cube).bool_dtype;
+        let moved = Dispatch::bool_to_device(tensor, &cube, target_dtype);
 
         let moved = burn_backend::read_sync(Dispatch::bool_into_data(moved)).unwrap();
-        let target_dtype = get_or_init_device_settings::<Dispatch>(&cube).bool_dtype;
         assert_eq!(moved.dtype(), target_dtype.into());
         moved.convert_dtype(data.dtype()).assert_eq(&data, true);
     }

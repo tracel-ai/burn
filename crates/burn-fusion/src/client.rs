@@ -405,11 +405,12 @@ where
         client_src: Self,
         client_dst: Self,
         stream: StreamId,
+        out_dtype: burn_backend::BoolDType,
     ) -> FusionTensor<R>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let dtype = tensor.dtype;
+        let dtype = out_dtype.into();
         let client_dst_cloned = client_dst.clone();
         let shape = tensor.shape.clone();
         let id = client_src.create_empty_handle();
@@ -420,7 +421,7 @@ where
         held::release();
         match bool_tensor.unwrap() {
             Ok(bool_tensor) => {
-                let bool_tensor = B::bool_to_device(bool_tensor, client_dst.device());
+                let bool_tensor = B::bool_to_device(bool_tensor, client_dst.device(), out_dtype);
                 client_dst.server.submit(move |server_dst| {
                     server_dst
                         .handles

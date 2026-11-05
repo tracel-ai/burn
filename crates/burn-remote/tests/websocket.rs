@@ -1655,3 +1655,81 @@ fn a_tensor_many_frames_long_is_uploaded_and_read_back() {
     assert_eq!(doubled, expected);
     rt.shutdown_background();
 }
+
+mod bool_transfer {
+    use super::*;
+    use burn_tensor::{BoolStore, DeviceConfig};
+
+    fn same_server_devices(rt: &tokio::runtime::Runtime) -> (Device, Device) {
+        let host = serve(rt, BackendServer::<Flex>::new(vec![Default::default(); 2]));
+        let source = Device::remote_options(&host)
+            .device_index(0)
+            .init()
+            .unwrap();
+        let target = Device::remote_options(&host)
+            .device_index(1)
+            .init()
+            .unwrap();
+        (source, target)
+    }
+
+    fn assert_bool_transfer(mut source: Device, target: Device) {
+        // Distinct storage tags exercise conversion even though Flex uses one byte for both.
+        source
+            .configure(DeviceConfig::default().bool_dtype(BoolStore::U8))
+            .unwrap();
+        let data = TensorData::from([true, false, true, true]);
+        let moved = Tensor::<1, Bool>::from_data(data.clone(), &source).to_device(&target);
+
+        assert_eq!(moved.dtype(), DType::Bool(BoolStore::Native));
+        moved.to_data().assert_eq(&data, true);
+        let returned = moved.to_device(&source);
+        let dtype = DType::Bool(BoolStore::U8);
+        assert_eq!(returned.dtype(), dtype);
+        returned
+            .into_data()
+            .assert_eq(&data.convert_dtype(dtype), true);
+    }
+
+    #[test]
+    fn bool_move_updates_metadata_on_same_server() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (source, target) = same_server_devices(&rt);
+
+        assert_bool_transfer(source, target);
+
+        rt.shutdown_background();
+    }
+
+    #[test]
+    fn bool_move_converts_storage_between_servers() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let source_host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+        let target_host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+        let source = Device::remote_options(&source_host).init().unwrap();
+        let target = Device::remote_options(&target_host).init().unwrap();
+
+        assert_bool_transfer(source, target);
+
+        rt.shutdown_background();
+    }
+
+    #[test]
+    fn bool_move_preserves_matching_storage() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (mut source, mut target) = same_server_devices(&rt);
+        for device in [&mut source, &mut target] {
+            device
+                .configure(DeviceConfig::default().bool_dtype(BoolStore::U8))
+                .unwrap();
+        }
+
+        // A redundant cast through the server's Native default would normalize these bytes.
+        let data = TensorData::from_bytes_vec(vec![2, 0, 255], [3], DType::Bool(BoolStore::U8));
+        let moved = Tensor::<1, Bool>::from_data(data.clone(), &source).to_device(&target);
+
+        assert_eq!(moved.dtype(), data.dtype());
+        assert_eq!(moved.into_data().as_slice::<u8>().unwrap(), &[2, 0, 255]);
+        rt.shutdown_background();
+    }
+}

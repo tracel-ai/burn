@@ -17,7 +17,7 @@ Backend implementors must provide `Backend::next_random_key` and accept a `Rando
 implicit generator. `Tensor::random` and `random_like` reserve keys at the tensor bridge;
 direct backend callers must supply a key. Use `RandomKey::split` to derive child keys.
 Router clients must also implement `next_random_key`; random-operation IR now carries a key
-scalar, so remote clients and servers must be upgraded together (protocol version 11).
+scalar, so remote clients and servers must be upgraded together (protocol version 12).
 Remote clients reserve keys locally without waiting for queued service work.
 
 Capture preserves explicit backend keys. Implicit random operations (`Tensor::random` and
@@ -675,7 +675,15 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   ([#6348](https://github.com/tracel-ai/burn/pull/6348))
 - Fix bool `to_device` between backends panicking when the target uses a different bool storage,
   such as Flex to CUDA or Vulkan. The data now uses the target device's bool storage.
-  ([issue #6389](https://github.com/tracel-ai/burn/issues/6389))
+  Moves between CubeCL devices use the destination's configured bool storage in both directions,
+  converting on a device that supports both representations. CubeCL bool casts normalize every nonzero
+  true value to 1, and fusion and remote transfers report the resulting storage dtype.
+  **Breaking for third-party backends:** `BoolTensorOps::bool_to_device` and
+  `MultiBackendBridge::change_backend_bool` now take an `out_dtype: BoolDType` argument;
+  `RouterChannel::change_client_backend` takes a destination `DType`. Resolve the destination
+  storage at the caller and forward it through wrappers to avoid intermediate conversions.
+  ([issue #6389](https://github.com/tracel-ai/burn/issues/6389),
+  [issue #6391](https://github.com/tracel-ai/burn/issues/6391))
 
 ### Checkpoints and interoperability
 

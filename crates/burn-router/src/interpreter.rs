@@ -140,7 +140,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 ctx.handles.register_int_tensor::<B>(&id, tensor);
             }
             HandleKind::Bool(tensor) => {
-                let tensor = B::bool_to_device(tensor, &self.device);
+                let dtype = tensor.dtype().into();
+                let tensor = B::bool_to_device(tensor, &self.device, dtype);
                 ctx.handles.register_bool_tensor::<B>(&id, tensor);
             }
             HandleKind::Quantized(tensor) => {

@@ -40,7 +40,7 @@ use std::sync::{Arc, Mutex};
 use burn_backend::tensor::FloatTensor;
 use burn_ir::{BackendIr, GraphBindings, GraphId, HandleKind, TensorError, TensorId, TensorIr};
 use burn_router::{Graph, TensorInterpreter};
-use burn_std::{ExecutionError, id::StreamId};
+use burn_std::{DType, ExecutionError, id::StreamId};
 use serde_bytes::ByteBuf;
 #[cfg(not(target_family = "wasm"))]
 use std::{
@@ -329,7 +329,12 @@ where
                 self.on_stream(stream_id, |runner| runner.register_alias(new_id, src_id));
                 Ok(())
             }
-            Task::RegisterTensorRemote(stream_id, remote, new_id) => {
+            Task::RegisterTensorRemote {
+                stream_id,
+                tensor: remote,
+                new_id,
+                dtype,
+            } => {
                 log::trace!(
                     "Registering remote tensor (transfer {:?} from {:?})",
                     remote.capability,
@@ -360,6 +365,10 @@ where
                 // Register on the client stream that will consume `new_id`, carried over the
                 // wire — not the arbitrary tokio worker running this task.
                 self.on_stream(stream_id, |runner| {
+                    let data = match dtype {
+                        DType::Bool(_) => data.convert_dtype(dtype),
+                        _ => data,
+                    };
                     runner.register_tensor_data_id(new_id, data)
                 });
                 Ok(())
@@ -388,6 +397,7 @@ where
                 stream_id,
                 transfer_id,
                 new_id,
+                dtype,
             } => {
                 // Target side of a same-host transfer. Wait for the source to expose the
                 // primitive, then move it onto this session's device and register it. Awaited
@@ -396,9 +406,7 @@ where
                 // blocks only this session's worker, not the source session's.
                 match self.local_comm.take(transfer_id).await {
                     Ok(kind) => {
-                        self.on_stream(stream_id, |runner| {
-                            runner.register_tensor_to_device(new_id, kind)
-                        });
+                        self.register_transferred_tensor(stream_id, new_id, kind, dtype);
                         self.emit_transfer(None, TransferScope::Local, TransferPhase::Completed);
                     }
                     Err(error) => {
@@ -761,6 +769,24 @@ where
             })
     }
 
+    /// Apply the client's bool storage setting, which can differ from the server's defaults.
+    fn register_transferred_tensor(
+        &mut self,
+        stream: StreamId,
+        id: TensorId,
+        tensor: HandleKind<B>,
+        dtype: DType,
+    ) {
+        self.on_stream(stream, |runner| match (tensor, dtype) {
+            (HandleKind::Bool(tensor), DType::Bool(dtype)) => {
+                let device = runner.device();
+                let tensor = B::bool_to_device(tensor, &device, dtype);
+                runner.handles_mut().register_bool_tensor::<B>(&id, tensor);
+            }
+            (tensor, _) => runner.register_tensor_to_device(id, tensor),
+        });
+    }
+
     fn emit_op(&self, stream: StreamId, op: &OperationIr) {
         self.probe
             .emit(|| TelemetryEvent::unfused_op(self.session_id, stream, op));
@@ -1038,6 +1064,7 @@ mod tests {
                 stream_id,
                 transfer_id: LocalTransferId::from(0),
                 new_id: target.id,
+                dtype: target.dtype,
             },
         ] {
             handler.process_task(task).await.unwrap();
