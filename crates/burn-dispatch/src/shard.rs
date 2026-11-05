@@ -122,7 +122,9 @@ impl BackendTensor<ShardedCompute> {
             BackendTensor::Bool(tensor) => {
                 BackendTensor::Bool(tensor.client.clone().reshard(tensor, sharding)?)
             }
-            BackendTensor::Quantized(_) => return Err(ShardingError::Quantized),
+            BackendTensor::Quantized(tensor) => {
+                BackendTensor::Quantized(tensor.client.clone().reshard(tensor, sharding)?)
+            }
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(_) => {
                 unreachable!("An autodiff tensor is wrapped in its own kind")
