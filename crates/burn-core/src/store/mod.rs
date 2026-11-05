@@ -434,7 +434,14 @@ mod tests {
     use crate as burn;
     use crate::module::{Flag, Module, Param, ParamGroup};
     use crate::tensor::Tensor;
+    #[cfg(feature = "shard")]
+    use crate::test_sharded_device;
     use burn_tensor::Device;
+    #[cfg(feature = "shard")]
+    use burn_tensor::{
+        Sharding::{Replicated, Split},
+        quantization::QuantScheme,
+    };
 
     #[derive(Module, Debug)]
     struct Tiny {
@@ -733,5 +740,103 @@ mod tests {
             vec![1.0; 6],
             "the recorded values must land, mapped back to the live form"
         );
+    }
+
+    #[cfg(all(feature = "shard", feature = "autodiff"))]
+    #[test]
+    fn a_record_loads_into_a_lazy_param_split_as_it_was_given() {
+        let record = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &Device::flex()).into_record();
+        let device = test_sharded_device().autodiff();
+        let weight = Param::<Tensor<2>>::uninitialized(
+            crate::module::ParamId::new(),
+            |_, _| panic!("a loaded param is never initialized"),
+            device.clone(),
+            true,
+            [2, 2].into(),
+        )
+        .with_sharding(Split { dim: 1 });
+        let target = Tiny {
+            weight,
+            bias: Param::from_data([0.0, 0.0], &device),
+        };
+
+        let loaded = target.load_record(record);
+
+        let weight = loaded.weight.val();
+        assert_eq!(weight.sharding(), Some(Split { dim: 1 }));
+        assert!(weight.is_require_grad());
+        assert_eq!(weights(&loaded), (vec![1.0, 2.0, 3.0, 4.0], vec![5.0, 6.0]));
+    }
+
+    #[cfg(feature = "shard")]
+    #[test]
+    fn a_lazy_param_is_split_in_the_record_layout_before_its_load_mapper() {
+        let record = ColLike::new(1.0, &Device::flex()).into_record();
+        let mut target = ColLike::new(0.0, &test_sharded_device());
+        target.weight = target.weight.with_sharding(Split { dim: 0 });
+
+        let loaded = target.load_record(record);
+
+        let weight = loaded.weight.val();
+        assert_eq!(weight.dims(), [2, 3]);
+        assert_eq!(weight.sharding(), Some(Split { dim: 1 }));
+        assert_eq!(weight.try_into_vec_as::<f32>().unwrap(), vec![1.0; 6]);
+    }
+
+    #[cfg(feature = "shard")]
+    #[test]
+    fn a_lazy_param_split_before_its_mappers_keeps_the_split_through_them() {
+        let record = ColLike::new(1.0, &Device::flex()).into_record();
+        let weight = Param::<Tensor<2>>::uninitialized(
+            crate::module::ParamId::new(),
+            |_, _| panic!("a loaded param is never initialized"),
+            test_sharded_device(),
+            false,
+            [3, 2].into(),
+        )
+        .with_sharding(Split { dim: 0 })
+        .init_mapper(|t: Tensor<2>| t.transpose())
+        .load_mapper(|t: Tensor<2>| t.transpose());
+
+        let loaded = ColLike { weight }.load_record(record);
+
+        let weight = loaded.weight.val();
+        assert_eq!(weight.sharding(), Some(Split { dim: 1 }));
+        assert_eq!(weight.try_into_vec_as::<f32>().unwrap(), vec![1.0; 6]);
+    }
+
+    #[cfg(feature = "shard")]
+    #[test]
+    fn an_initialized_param_is_split_as_its_value_after_its_load_mapper() {
+        let record = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &Device::flex()).into_record();
+        let mut target = Tiny::new([[0.0; 2]; 2], [0.0; 2], &test_sharded_device());
+        target.weight = target
+            .weight
+            .load_mapper(|weight: Tensor<2>| weight.transpose())
+            .with_sharding(Split { dim: 0 });
+
+        let loaded = target.load_record(record);
+
+        assert_eq!(loaded.weight.val().sharding(), Some(Split { dim: 0 }));
+        assert_eq!(weights(&loaded), (vec![1.0, 3.0, 2.0, 4.0], vec![5.0, 6.0]));
+    }
+
+    #[cfg(feature = "shard")]
+    #[test]
+    fn a_quantized_record_loads_replicated_into_a_split_param() {
+        let device = Device::flex();
+        let quantized = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device)
+            .quantize_dynamic(&QuantScheme::default());
+        let record = Tiny {
+            weight: Param::from_tensor(quantized),
+            bias: Param::from_data([5.0, 6.0], &device),
+        }
+        .into_record();
+        let mut target = Tiny::new([[0.0; 2]; 2], [0.0; 2], &test_sharded_device());
+        target.weight = target.weight.with_sharding(Split { dim: 0 });
+
+        let loaded = target.load_record(record);
+
+        assert_eq!(loaded.weight.val().sharding(), Some(Replicated));
     }
 }

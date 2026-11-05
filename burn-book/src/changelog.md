@@ -21,6 +21,25 @@ layer and back.
 `lay_out_for_matmul`. Returning the weight unchanged is a correct implementation.
 ([#6374](https://github.com/tracel-ai/burn/pull/6374)) [@louisfd](https://github.com/louisfd)
 
+### Attention over a key/value cache
+
+`burn::tensor::module::attention` takes an optional `AttentionCache`: the key and value are then a
+cache held at a fixed capacity, each sequence attending its first `lengths[b]` positions, with the
+queries as the last attended ones. The cache is contiguous, `[batch, kv_heads, capacity, dim]`
+(`AttentionCache::new(lengths)`), or paged: pools of pages and a `[batch, pages_per_sequence]`
+table naming each sequence's pages (`AttentionCache::paged(lengths, pages)`). Since the lengths are
+read on the device, a decode keeps the same shapes at every step. Causal masking and the sliding
+window apply at each query's own position, and a mask or an additive bias spans the capacity.
+
+On CubeCL backends it runs cubek's tile routines, the same ones as an attention without a cache
+(with a softcap, a bias, or a mask over a cache, it composes from tensor operations, as other
+backends do). Autodiff composes it from tensor operations.
+
+**Breaking:** `attention` and `ModuleOps::attention` take the cache as a new argument before
+`options`; pass `None` for an attention over the key and value as given. `AttentionOpIr` gains
+`lengths` and `pages`, so remote clients and servers must be upgraded together (protocol
+version 12).
+
 ### Random operation keys
 
 Random operations now reserve a `RandomKey` when requested, before shard, fusion, or remote queues
@@ -272,8 +291,8 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
 
 #### Sharded compute devices
 
-Experimental, behind the `shard` feature: `Device::shard_options(&devices).init()` makes one
-device whose tensors are split over `devices` (crate `burn-shard`).
+Experimental: with the `shard` feature, `Device::shard_options(&devices).init()` makes one device
+whose tensors are split over `devices` (crate `burn-shard`).
 
 - A tensor made from data on a sharded compute device stays on the host until it is used, so `from_data`
   followed by `with_sharding` uploads each member only its chunk, and a model that fits only once
@@ -304,6 +323,13 @@ device whose tensors are split over `devices` (crate `burn-shard`).
   `DispatchDevice::shard` take the device's custom ops: pass `ShardCustomOps::default()` for none.
   `ShardError` has a new `CustomOpsBackend` variant.
   ([#6395](https://github.com/tracel-ai/burn/pull/6395))
+- `Param::with_sharding` splits a parameter, and a record loaded into a module keeps each
+  parameter's split. A parameter split before it initializes stays lazy, and a record loaded into
+  it uploads each member only its chunk, before any load mapper runs. `Device::check_sharding`
+  checks a sharding against a shape without making a tensor. The sharding methods exist without
+  the `shard` feature and refuse with `ShardingError::NotSharded`.
+  ([#6397](https://github.com/tracel-ai/burn/pull/6397))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution
 
@@ -379,6 +405,10 @@ bounds are inferred from the actual field types, and generics can be shared betw
 and skipped configuration or caches. This makes reusable module definitions easier to write.
 ([#6059](https://github.com/tracel-ai/burn/pull/6059))
 
+Enum variants can also hold named fields, such as `Wide { first: Linear, second: Linear }`. Their
+tensors are saved under `Wide.first` and `Wide.second`, the same paths as a tuple variant wrapping
+a struct with those fields. ([#6388](https://github.com/tracel-ai/burn/pull/6388))
+
 #### Optimizer-step metrics
 
 **Breaking:** Replace `metric_train_numeric(LearningRateMetric::new())` with
@@ -443,6 +473,12 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 
 #### Modules, losses, and metrics
 
+- Add regression evaluation metrics (`MseMetric`, `MaeMetric`, `R2ScoreMetric`) to
+  `burn-train`, sharing `RegressionInput` and supported directly by `RegressionOutput`.
+  R² accumulates centered statistics across batches and averages target scores uniformly.
+  ([#6390](https://github.com/tracel-ai/burn/pull/6390),
+  [#6042](https://github.com/tracel-ai/burn/pull/6042))
+  [@divakantpandey](https://github.com/divakantpandey), [@Infinty-ux](https://github.com/Infinty-ux)
 - Reduce classification metric memory use by storing confusion codes as U8 on devices that support
   it, retaining the default integer dtype otherwise.
   ([#6224](https://github.com/tracel-ai/burn/pull/6224))
@@ -551,6 +587,9 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   ([#6004](https://github.com/tracel-ai/burn/pull/6004),
   [#6024](https://github.com/tracel-ai/burn/pull/6024))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- Run quantized `argmax`, `argmin`, `gather` and `quantize_dynamic` on the backend's own
+  implementations through device dispatch instead of dequantizing first.
+  ([#6383](https://github.com/tracel-ai/burn/pull/6383))
 - Add `Tensor::round_to(decimals)` for rounding to a specified number of decimal places.
   ([#5842](https://github.com/tracel-ai/burn/pull/5842))
 - Add dilation to average pooling with `AvgPoolOptions::with_dilation`, matching max pooling.
@@ -569,6 +608,10 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   `bool_scatter_nd` and `bool_gather_nd` methods.
   ([#6035](https://github.com/tracel-ai/burn/pull/6035),
   [#6047](https://github.com/tracel-ai/burn/pull/6047))
+- Allow `gather` and `scatter` indices smaller than the tensor on dimensions other than `dim`
+  (`indices.shape[d] <= tensor.shape[d]`), like PyTorch; `scatter` updates only the covered
+  positions. Larger indices are still rejected. Third-party backends must accept these shapes in
+  `*_gather` and `*_scatter`. ([#6381](https://github.com/tracel-ai/burn/pull/6381))
 - Report the runtime-stated capacity in bytes for workload sizing, now
   `Device::description()`'s `max_memory`. The value is distinct from currently free memory;
   backends without a reported capacity return `None`. ([#6250](https://github.com/tracel-ai/burn/pull/6250))

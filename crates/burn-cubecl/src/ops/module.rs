@@ -9,9 +9,10 @@ use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_backend::{
     TensorMetadata,
     ops::{
-        AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
-        DeformConvOptions, FloatTensorOps, InterpolateOptions, MaxPool2dBackward,
-        MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
+        AttentionCache, AttentionModuleOptions, ConvOptions, ConvTransposeOptions,
+        DeformConv2dBackward, DeformConvOptions, FloatTensorOps, InterpolateOptions,
+        MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices,
+        ModuleOps,
     },
 };
 use burn_std::{DType, FloatDType, IntDType};
@@ -469,6 +470,7 @@ impl ModuleOps<Self> for CubeBackend {
         value: FloatTensor<Self>,
         mask: Option<BoolTensor<Self>>,
         attn_bias: Option<FloatTensor<Self>>,
+        cache: Option<AttentionCache<Self>>,
         options: AttentionModuleOptions,
     ) -> FloatTensor<Self> {
         kernel::attention::attention(
@@ -477,6 +479,7 @@ impl ModuleOps<Self> for CubeBackend {
             value,
             mask,
             attn_bias,
+            cache,
             options,
             Default::default(),
         )
