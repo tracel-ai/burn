@@ -95,7 +95,11 @@ impl<T: Int, N: Size> BinaryOpInt<T, N> for PowiOp {
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         let dtype = elem_type_of::<T>().comptime();
         if comptime!(dtype.is_signed_int()) {
-            powi_int(lhs, narrow_signed_exponent(rhs))
+            if T::size_bits().comptime() <= 32 {
+                powi_int(lhs, Vector::<i32, N>::cast_from(rhs))
+            } else {
+                powi_wide_signed(lhs, rhs)
+            }
         } else {
             // An unsigned exponent is never negative. Reading it as `u32` keeps exponents above
             // `i32::MAX` as large powers.
@@ -104,22 +108,32 @@ impl<T: Int, N: Size> BinaryOpInt<T, N> for PowiOp {
     }
 }
 
-/// Narrows a signed exponent to `i32` for [`powi_int`], keeping its sign and parity: a negative
-/// power, and any power of -1, depends only on those. Exponents outside `i32` saturate.
+/// Preserves the unsigned power for non-negative lanes and the sign and parity of negative lanes.
 #[cube]
-fn narrow_signed_exponent<T: Int, N: Size>(exp: Vector<T, N>) -> Vector<i32, N> {
-    if T::size_bits().comptime() <= 32 {
-        Vector::cast_from(exp)
-    } else {
-        // A plain cast keeps only the low 32 bits, which can turn a negative exponent into a
-        // non-negative one, such as `-2^32` into 0.
-        let min = Vector::new(T::new(i32::MIN as i64));
-        let max = Vector::new(T::new(i32::MAX as i64));
-        let saturated = clamp(exp, min, max);
-        // Saturating keeps the sign. Putting the original low bit back keeps the parity.
-        let one = Vector::<T, N>::one();
-        Vector::cast_from((saturated & Vector::new(T::new(-2))) | (exp & one))
+fn powi_wide_signed<T: Int, N: Size>(base: Vector<T, N>, exp: Vector<T, N>) -> Vector<T, N> {
+    let negative = exp.less_than(&Vector::zero());
+    let mut has_negative = false;
+    let mut has_non_negative = false;
+    #[unroll]
+    for lane in 0..exp.vector_size() {
+        has_negative |= negative.extract(lane);
+        has_non_negative |= !negative.extract(lane);
     }
+
+    // Vectors with one exponent sign only need one power calculation.
+    if !has_negative {
+        return powi_unsigned(base, Vector::<u32, N>::cast_from(exp));
+    }
+
+    // Negative integer powers depend only on parity, including exponents below i32::MIN.
+    let negative_exp = (exp & Vector::one()) | Vector::new(T::new(-2));
+    let truncated = powi_int(base, Vector::<i32, N>::cast_from(negative_exp));
+    if !has_non_negative {
+        return truncated;
+    }
+
+    let power = powi_unsigned(base, Vector::<u32, N>::cast_from(exp));
+    select_many(negative, truncated, power)
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
