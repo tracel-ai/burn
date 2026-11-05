@@ -2126,6 +2126,13 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         .attn_bias
                         .as_ref()
                         .map(|ab| handles.get_float_tensor::<B>(ab));
+                    let cache =
+                        desc.lengths
+                            .as_ref()
+                            .map(|lengths| burn_backend::ops::AttentionCache {
+                                lengths: handles.get_int_tensor::<B>(lengths),
+                                pages: desc.pages.as_ref().map(|p| handles.get_int_tensor::<B>(p)),
+                            });
 
                     let output = B::attention(
                         query,
@@ -2133,6 +2140,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         value,
                         mask,
                         attn_bias,
+                        cache,
                         desc.options.clone().into(),
                     );
 

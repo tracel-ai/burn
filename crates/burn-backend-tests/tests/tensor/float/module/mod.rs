@@ -4,6 +4,7 @@ mod adaptive_avgpool1d;
 mod adaptive_avgpool2d;
 mod adaptive_avgpool3d;
 mod attention;
+mod attention_cache;
 mod avgpool1d;
 mod avgpool2d;
 mod avgpool3d;

@@ -384,7 +384,7 @@ impl AttentionInputs {
             ),
             None => (None, None),
         };
-        B::attention(query, key, value, mask, bias, options)
+        B::attention(query, key, value, mask, bias, None, options)
     }
 }
 

@@ -5,6 +5,25 @@ Changes for the next release. For published releases, see
 
 ## Unreleased
 
+### Attention over a key/value cache
+
+`burn::tensor::module::attention` takes an optional `AttentionCache`: the key and value are then a
+cache held at a fixed capacity, each sequence attending its first `lengths[b]` positions, with the
+queries as the last attended ones. The cache is contiguous, `[batch, kv_heads, capacity, dim]`
+(`AttentionCache::new(lengths)`), or paged: pools of pages and a `[batch, pages_per_sequence]`
+table naming each sequence's pages (`AttentionCache::paged(lengths, pages)`). Since the lengths are
+read on the device, a decode keeps the same shapes at every step. Causal masking and the sliding
+window apply at each query's own position, and a mask or an additive bias spans the capacity.
+
+On CubeCL backends it runs cubek's tile routines, the same ones as an attention without a cache
+(with a softcap, a bias, or a mask over a cache, it composes from tensor operations, as other
+backends do). Autodiff composes it from tensor operations.
+
+**Breaking:** `attention` and `ModuleOps::attention` take the cache as a new argument before
+`options`; pass `None` for an attention over the key and value as given. `AttentionOpIr` gains
+`lengths` and `pages`, so remote clients and servers must be upgraded together (protocol
+version 12).
+
 ### Random operation keys
 
 Random operations now reserve a `RandomKey` when requested, before shard, fusion, or remote queues

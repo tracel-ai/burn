@@ -78,6 +78,7 @@ fn attention_grads_match_composed_ops() {
                     v.clone(),
                     masked.then_some(mask),
                     bias,
+                    None,
                     options,
                 )
             };
@@ -145,7 +146,7 @@ fn attention_grouped_query_grads_match_repeated_kv() {
                 softcap: Some(5.0),
                 ..Default::default()
             };
-            let output = attention(q.clone(), k_in, v_in, None, None, options);
+            let output = attention(q.clone(), k_in, v_in, None, None, None, options);
             let grads = (output.clone() * output.clone()).sum().backward();
             [
                 output.inner(),
