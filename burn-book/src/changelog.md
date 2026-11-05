@@ -326,6 +326,10 @@ whose tensors are split over `devices` (crate `burn-shard`).
   the tensor's last other handle at the same moment, failing a sharded compute device's read with
   `no entry found for key`. ([#6405](https://github.com/tracel-ai/burn/pull/6405))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- The `tensor-parallelism-text` example runs the `text-classification` transformer split over
+  several GPUs, its attention by heads and its feed-forward by columns then rows, and checks it
+  against one device.
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution
 
