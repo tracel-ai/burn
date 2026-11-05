@@ -11,9 +11,10 @@ impl<const D: usize, K: Autodiff> Tensor<D, K> {
     /// The tensor `shards` make up over the sharded compute device `device`.
     ///
     /// Shard `i` is member `i`'s part, already on that member's device (see
-    /// [`Device::shard_members`]): the whole value when replicated or a partial sum, and its chunk
-    /// of the split dim when split. Chunks are balanced in member order, the first members holding
-    /// one more index when the dim does not divide. Nothing moves between members, so a caller
+    /// [`Device::shard_members`]): the whole value when replicated or a partial sum, its chunk
+    /// of the split dim when split, and its group's chunk when a replicated split. Chunks are
+    /// balanced in member order, the first members holding one more index when the dim does not
+    /// divide. Nothing moves between members, so a caller
     /// that makes each shard on its member never holds the whole tensor anywhere.
     ///
     /// Quantized shards of a split must share a per-tensor or two-level global scale, which the

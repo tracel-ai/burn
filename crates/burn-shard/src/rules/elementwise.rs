@@ -28,11 +28,9 @@ impl ElementwiseRule {
         let output = inputs
             .iter()
             .zip(shapes)
-            .find_map(|(sharding, shape)| match sharding {
-                Sharding::Split { dim } => Some(Sharding::Split {
-                    dim: dim + num_dims - shape.num_dims(),
-                }),
-                _ => None,
+            .find_map(|(sharding, shape)| {
+                let dim = sharding.split_dim()?;
+                Some(sharding.on_dim(dim + num_dims - shape.num_dims()))
             })
             .unwrap_or(Sharding::Replicated);
         OpSharding {
@@ -47,12 +45,12 @@ impl ElementwiseRule {
     /// Where an input of `shape` must be for an output of `num_dims` dims sharded as `output`. It
     /// broadcasts along a split dim it lacks or holds with length 1, so it stays whole.
     pub fn input_sharding(output: Sharding, shape: &Shape, num_dims: usize) -> Sharding {
-        match output {
-            Sharding::Split { dim } => match (dim + shape.num_dims()).checked_sub(num_dims) {
-                Some(dim) if shape[dim] != 1 => Sharding::Split { dim },
-                _ => Sharding::Replicated,
-            },
-            sharding => sharding,
+        let Some(dim) = output.split_dim() else {
+            return output;
+        };
+        match (dim + shape.num_dims()).checked_sub(num_dims) {
+            Some(dim) if shape[dim] != 1 => output.on_dim(dim),
+            _ => Sharding::Replicated,
         }
     }
 
@@ -73,7 +71,7 @@ impl ElementwiseRule {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use Sharding::{PartialSum, Replicated, Split};
+    use Sharding::{PartialSum, Replicated, ReplicatedSplit, Split};
 
     #[test]
     fn partial_plus_replicated_is_reduced_first() {
@@ -133,5 +131,20 @@ mod tests {
 
         assert_eq!(by_columns.inputs[..], [Split { dim: 1 }, Split { dim: 0 }]);
         assert_eq!(by_rows.inputs[..], [Split { dim: 0 }, Replicated]);
+    }
+
+    #[test]
+    fn a_replicated_split_meets_replicated_rope_tables_without_a_collective() {
+        let (heads, table) = (Shape::new([1, 2, 5, 8]), Shape::new([5, 8]));
+        let kv = ReplicatedSplit { dim: 1, groups: 2 };
+
+        let sharding = ElementwiseRule::new(Linearity::Multilinear).sharding(
+            &[kv, Replicated],
+            &[&heads, &table],
+            4,
+        );
+
+        assert_eq!(sharding.output, kv);
+        assert_eq!(sharding.inputs[..], [kv, Replicated]);
     }
 }

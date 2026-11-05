@@ -430,6 +430,15 @@ whose tensors are split over `devices` (crate `burn-shard`).
   [#6408](https://github.com/tracel-ai/burn/pull/6408))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- `Sharding::ReplicatedSplit { dim, groups }` splits a tensor into `groups` chunks, each held by a
+  contiguous group of members, for key and value heads that pairs of members share when a model
+  has fewer of them than members. The members' order on the device picks the pairs. Attention
+  splits its query heads over every member against such keys and values, and the matmul, layout
+  and elementwise ops keep it. **Breaking (experimental):** `Sharding` has a new variant, and
+  `ShardingError` a new `Groups` variant for groups that do not divide the members.
+  ([#TBD](https://github.com/tracel-ai/burn/pull/TBD))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 ### Tensors
 
 #### Boolean indexing
