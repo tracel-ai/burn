@@ -261,6 +261,215 @@ mod tests {
     use burn::tensor::{Distribution, TensorData, loss::cross_entropy_with_logits};
     type FT = f32;
 
+    #[test]
+    fn high_confidence_cross_entropy_loss() {
+        let device = Device::default();
+        let logits = Tensor::<2>::from_data([[9.0f32, -9.0, -9.0]], &device);
+        let targets = Tensor::<1, Int>::from_data([0i32], &device);
+        let loss = CrossEntropyLossConfig::new()
+            .init(&device)
+            .forward(logits, targets)
+            .into_scalar::<f32>();
+
+        // Independent f64 reference: ln_1p(2 * exp(-18)).
+        let expected = 3.04599590255207e-8;
+        assert!(loss > 0.0, "expected a positive loss, got {loss}");
+        assert!((f64::from(loss) - expected).abs() <= expected * 1e-5);
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn high_confidence_cross_entropy_gradient() {
+        let device = Device::default().autodiff();
+        let logits = Tensor::<2>::from_data([[9.0f32, -9.0, -9.0]], &device).require_grad();
+        let targets = Tensor::<1, Int>::from_data([0i32], &device);
+        let loss = CrossEntropyLossConfig::new()
+            .init(&device)
+            .forward(logits.clone(), targets);
+        let grads = loss.backward();
+        let grad = logits.grad(&grads).unwrap().into_data();
+        let values: Vec<f64> = grad.iter::<f64>().collect();
+
+        assert!(
+            values[0] < 0.0,
+            "correct-class gradient vanished: {values:?}"
+        );
+        // p_other = exp(-18) / (1 + 2 * exp(-18)); g_target = -2 * p_other.
+        grad.assert_approx_eq::<f32>(
+            &TensorData::from([[
+                -3.045995856161616e-8,
+                1.522997928080808e-8,
+                1.522997928080808e-8,
+            ]]),
+            Tolerance::relative(1e-5),
+        );
+        let total: f64 = values.iter().sum();
+        let magnitude: f64 = values.iter().map(|value| value.abs()).sum();
+        assert!(
+            total.abs() <= 1e-5 * magnitude,
+            "gradient sum {total}: {values:?}"
+        );
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn single_class_cross_entropy_has_zero_loss_and_gradient() {
+        let device = Device::default().autodiff();
+        let logits = Tensor::<2>::from_data([[9.0f32]], &device).require_grad();
+        let targets = Tensor::<1, Int>::from_data([0i32], &device);
+        let loss = CrossEntropyLossConfig::new()
+            .init(&device)
+            .forward(logits.clone(), targets);
+        assert_eq!(loss.clone().into_scalar::<f32>(), 0.0);
+        let grads = loss.backward();
+        logits
+            .grad(&grads)
+            .unwrap()
+            .into_data()
+            .assert_eq(&TensorData::from([[0.0f32]]), false);
+    }
+
+    #[cfg(feature = "std")]
+    fn assert_mixed_confidence_reference(
+        config: CrossEntropyLossConfig,
+        expected_loss: f64,
+        expected_gradients: &[[f64; 3]],
+    ) {
+        // Correct with high confidence; ordinary prediction; wrong with high confidence.
+        let mut scores = vec![9.0f32, -9.0, -9.0, 1.0, -1.0, 0.5, 9.0, -9.0, -9.0];
+        let mut targets = vec![0i32, 1, 1];
+        // When padding is configured, a fourth row must have no loss or gradient contribution.
+        if config.pad_tokens.is_some() {
+            scores.extend([-1.0, 2.0, 0.0]);
+            targets.push(2);
+        }
+        let rows = targets.len();
+        let device = Device::default().autodiff();
+        let logits =
+            Tensor::<2>::from_data(TensorData::new(scores, [rows, 3]), &device).require_grad();
+        let targets = Tensor::<1, Int>::from_data(TensorData::new(targets, [rows]), &device);
+        let loss = config.init(&device).forward(logits.clone(), targets);
+        loss.clone()
+            .into_data()
+            .convert::<f64>()
+            .assert_approx_eq::<f64>(
+                &TensorData::from([expected_loss]),
+                Tolerance::relative(1e-5),
+            );
+        let grads = loss.backward();
+        let expected: Vec<f64> = expected_gradients.iter().flatten().copied().collect();
+        logits
+            .grad(&grads)
+            .unwrap()
+            .into_data()
+            .convert::<f64>()
+            .assert_approx_eq::<f64>(
+                &TensorData::new(expected, [rows, 3]),
+                Tolerance::relative(1e-5),
+            );
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn cross_entropy_mixed_confidence_matches_reference() {
+        // Independent 80-digit decimal reference, including the mean over three rows.
+        assert_mixed_confidence_reference(
+            CrossEntropyLossConfig::new(),
+            6.851652326853969,
+            &[
+                [
+                    -1.0153319520538717e-8,
+                    5.0766597602693584e-9,
+                    5.0766597602693584e-9,
+                ],
+                [
+                    0.19136566432256485,
+                    -0.3074348069504765,
+                    0.11606914262791161,
+                ],
+                [
+                    0.3333333231800138,
+                    -0.33333332825667356,
+                    5.0766597602693584e-9,
+                ],
+            ],
+        );
+    }
+
+    #[cfg(feature = "std")]
+    fn assert_weighted_padded_reference(smoothing: Option<f32>) {
+        let config = CrossEntropyLossConfig::new()
+            .with_weights(Some(vec![2.0, 3.0, 5.0]))
+            .with_pad_tokens(Some(vec![2]))
+            .with_smoothing(smoothing);
+        // Target weights sum to 8; the padded row's weight is excluded.
+        assert_mixed_confidence_reference(
+            config,
+            7.708108863903221,
+            &[
+                [
+                    -7.614989640404038e-9,
+                    3.807494820202019e-9,
+                    3.807494820202019e-9,
+                ],
+                [
+                    0.21528637236288545,
+                    -0.34586415781928603,
+                    0.13057778545640056,
+                ],
+                [
+                    0.37499998857751554,
+                    -0.37499999428875774,
+                    5.711242230303029e-9,
+                ],
+                [0.0, 0.0, 0.0],
+            ],
+        );
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn cross_entropy_weighted_padded_matches_reference() {
+        assert_weighted_padded_reference(None);
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn cross_entropy_weighted_padded_zero_smoothing_matches_reference() {
+        assert_weighted_padded_reference(Some(0.0));
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn cross_entropy_weighted_padded_smoothed_matches_reference() {
+        let config = CrossEntropyLossConfig::new()
+            .with_weights(Some(vec![2.0, 3.0, 5.0]))
+            .with_pad_tokens(Some(vec![2]))
+            .with_smoothing(Some(0.1));
+        assert_mixed_confidence_reference(
+            config,
+            8.195837851702978,
+            &[
+                [
+                    0.033333325210677715,
+                    -0.012499995938672192,
+                    -0.020833329272005523,
+                ],
+                [
+                    0.20934510983358418,
+                    -0.3205404262395003,
+                    0.11119531640591614,
+                ],
+                [
+                    0.37083332178393236,
+                    -0.34999999422529954,
+                    -0.020833327558632857,
+                ],
+                [0.0, 0.0, 0.0],
+            ],
+        );
+    }
+
     macro_rules! setup {
         () => {{
             let [batch_size, num_targets] = [4, 5];
