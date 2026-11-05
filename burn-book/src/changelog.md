@@ -304,7 +304,7 @@ whose tensors are split over `devices` (crate `burn-shard`).
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - Fix a router tensor read that could find its tensor already dropped when another thread gave up
   the tensor's last other handle at the same moment, failing a sharded compute device's read with
-  `no entry found for key`. ([#PR](https://github.com/tracel-ai/burn/pull/PR))
+  `no entry found for key`. ([#6405](https://github.com/tracel-ai/burn/pull/6405))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution
