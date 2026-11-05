@@ -582,7 +582,8 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   [#6047](https://github.com/tracel-ai/burn/pull/6047))
 - Allow `gather` and `scatter` indices smaller than the tensor on dimensions other than `dim`
   (`indices.shape[d] <= tensor.shape[d]`), like PyTorch; `scatter` updates only the covered
-  positions. Larger indices are still rejected. Third-party backends must accept these shapes in
+  positions. CubeCL also fuses these gathers with compatible element-wise operations.
+  Larger indices are still rejected. Third-party backends must accept these shapes in
   `*_gather` and `*_scatter`. ([#6381](https://github.com/tracel-ai/burn/pull/6381))
 - Report the runtime-stated capacity in bytes for workload sizing, now
   `Device::description()`'s `max_memory`. The value is distinct from currently free memory;
