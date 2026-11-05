@@ -22,6 +22,9 @@ env:
   # from wgpu repo: https://github.com/gfx-rs/wgpu/blob/trunk/.github/workflows/ci.yml
 
   # GCP runners
+  # GPU jobs have a two-hour timeout and a three-hour runner lifetime.
+  # Snowpiercer starts the lifetime at queued-job intake; the extra hour covers
+  # capacity fallback, VM provisioning, and runner bootstrap before the job starts.
   GCP_RUNNERS_IMAGE_FAMILY: "tracel-ci-ubuntu-2404-amd64-nvidia"
   GCP_RUNNERS_MACHINE_TYPE: "g2-standard-4"
   # All G2/L4 zones, checked against the Snowpiercer GPU pool allowlist.
@@ -81,12 +84,12 @@ jobs:
 
   linux-std-cuda-tests:
     needs: [prepare-checks]
-    timeout-minutes: 60
+    timeout-minutes: 120
     # '@id:' label must be unique within this worklow
     runs-on:
       [
         "@id:burn-cuda-job-${{github.run_id}}-${{github.run_attempt}}",
-        "@max-lifetime-secs:5400",
+        "@max-lifetime-secs:10800",
         "@pr_number:${{ inputs.pr_number }}",
         "@organization:tracel-ai",
         "@repository:burn",
@@ -125,12 +128,12 @@ jobs:
 
   linux-std-vulkan-tests:
     needs: [prepare-checks]
-    timeout-minutes: 80
+    timeout-minutes: 120
     # '@id:' label must be unique within this worklow
     runs-on:
       [
         "@id:burn-vulkan-job-${{github.run_id}}-${{github.run_attempt}}",
-        "@max-lifetime-secs:5400",
+        "@max-lifetime-secs:10800",
         "@pr_number:${{ inputs.pr_number }}",
         "@organization:tracel-ai",
         "@repository:burn",
@@ -168,12 +171,12 @@ jobs:
 
   linux-std-wgpu-tests:
     needs: [prepare-checks]
-    timeout-minutes: 80
+    timeout-minutes: 120
     # '@id:' label must be unique within this worklow
     runs-on:
       [
         "@id:burn-wgpu-job-${{github.run_id}}-${{github.run_attempt}}",
-        "@max-lifetime-secs:5400",
+        "@max-lifetime-secs:10800",
         "@pr_number:${{ inputs.pr_number }}",
         "@organization:tracel-ai",
         "@repository:burn",
