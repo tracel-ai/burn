@@ -289,7 +289,8 @@ jobs:
   macos-std-tests:
     runs-on: blaze/macos-15
     needs: [prepare-checks, code-quality]
-    timeout-minutes: 60
+    # The std and autodiff suites alone take about 45 minutes on this runner.
+    timeout-minutes: 120
     # Keep the stragegy to be able to easily add new rust versions if required
     strategy:
       matrix:
