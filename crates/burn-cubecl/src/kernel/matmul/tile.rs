@@ -69,7 +69,6 @@ pub(crate) fn launch(
         lhs,
         rhs,
         out: dtype_to_storage_type(out_dtype),
-        routes: None,
         destination: Some(handle_of(out)),
     };
     plan.launch(&call).map_err(invalid)?;
