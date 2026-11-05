@@ -619,6 +619,8 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
 
 #### Fusion and correctness fixes
 
+- Fix incorrect Vulkan results on NVIDIA GPUs caused by shared-memory atomic operations returning
+  zero. ([CubeCL #2059](https://github.com/tracel-ai/cubecl/pull/2059)) [@laggui](https://github.com/laggui)
 - Fix `chunk` panicking when the requested number of chunks cannot all be filled. It now returns
   fewer chunks, as documented; for example, 6 elements in 4 chunks give 3 chunks of 2.
   ([#6263](https://github.com/tracel-ai/burn/pull/6263), [@b84330808](https://github.com/b84330808))
