@@ -175,7 +175,9 @@ where
         self.try_sync(sync_fn).unwrap_or_resume()
     }
 
-    /// Register all lazy computation.
+    /// Register all lazy computation, then run `sync_fn` as the calling stream, the one its
+    /// operations just ran on: a closure arming that stream's allocation mode, or reading its
+    /// memory, acts on the stream the caller's operations allocate from, not the server thread's.
     ///
     /// # Errors
     ///
@@ -187,7 +189,7 @@ where
         let id = StreamId::current();
         self.server.submit_blocking(move |server| {
             server.drain_stream(id);
-            sync_fn()
+            id.executes(sync_fn)
         })
     }
 
