@@ -233,6 +233,14 @@ mod tests {
             unimplemented!()
         }
 
+        fn register_and_execute_graph(
+            &self,
+            _graph_id: GraphId,
+            _relative_graph: Vec<OperationIr>,
+            _bindings: GraphBindings,
+        ) {
+        }
+
         fn execute_graph(&self, _graph_id: GraphId, _bindings: GraphBindings) {}
 
         fn register_alias(&self, _new_id: TensorId, _src_id: TensorId) {}
