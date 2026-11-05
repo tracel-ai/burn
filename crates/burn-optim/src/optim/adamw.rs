@@ -2,8 +2,7 @@ use burn_core as burn;
 
 use crate::RecordState;
 use burn::config::Config;
-use burn::tensor::Device;
-use burn::tensor::Tensor;
+use burn::tensor::{DType, Device, FloatDType, Tensor};
 
 use super::{AdaptiveMomentumState, Optimizer, module_optimizer::ModuleOptimizer};
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
@@ -43,6 +42,8 @@ pub struct AdamWConfig {
 
 /// AdamW optimizer.
 ///
+/// Half-precision parameters use `f32` updates and state.
+///
 /// See:
 /// - [Decoupled Weight Decay Regularization, Loshchilov and Hutter, 2019](https://arxiv.org/abs/1711.05101).
 /// - [Cautious Weight Decay, 2025](https://arxiv.org/abs/2510.12402)
@@ -78,7 +79,34 @@ impl Optimizer for AdamW {
         // State of the optimizer.
         state: Option<Self::State<D>>,
     ) -> (Tensor<D>, Option<Self::State<D>>) {
-        let (raw_delta, momentum_state) = self.momentum.transform(grad, state.map(|s| s.momentum));
+        let dtype = tensor.dtype();
+        // Squaring and adding epsilon in half precision can underflow, even for ordinary
+        // gradients. Keep the accumulated statistics and the whole update in f32.
+        let (tensor, grad) = match dtype {
+            DType::F16 | DType::BF16 => (tensor.cast(FloatDType::F32), grad.cast(FloatDType::F32)),
+            _ => (tensor, grad),
+        };
+
+        let momentum_state = state.map(|s| {
+            let mut m = s.momentum;
+            if matches!(dtype, DType::F16 | DType::BF16) {
+                m.moment_1 = match m.moment_1.dtype() {
+                    DType::F16 | DType::BF16 => m.moment_1.cast(FloatDType::F32),
+                    _ => m.moment_1,
+                };
+                m.moment_2 = match m.moment_2.dtype() {
+                    DType::F16 | DType::BF16 => m.moment_2.cast(FloatDType::F32),
+                    _ => m.moment_2,
+                };
+                m.max_moment_2 = m.max_moment_2.map(|max_m| match max_m.dtype() {
+                    DType::F16 | DType::BF16 => max_m.cast(FloatDType::F32),
+                    _ => max_m,
+                });
+            }
+            m
+        });
+
+        let (raw_delta, momentum_state) = self.momentum.transform(grad, momentum_state);
 
         let decay_rate = lr * (self.weight_decay as f64);
 
@@ -98,6 +126,11 @@ impl Optimizer for AdamW {
         };
 
         let tensor_updated = decayed_tensor - raw_delta.mul_scalar(lr);
+        let tensor_updated = match dtype {
+            DType::F16 => tensor_updated.cast(FloatDType::F16),
+            DType::BF16 => tensor_updated.cast(FloatDType::BF16),
+            _ => tensor_updated,
+        };
 
         let state = AdamWState {
             momentum: momentum_state,
@@ -233,7 +266,7 @@ mod tests {
     use crate::optim::test_utils::assert_optimizer_resume;
     use burn::module::Param;
     use burn::tensor::Tolerance;
-    use burn::tensor::{Tensor, TensorData};
+    use burn::tensor::{FloatDType, Tensor, TensorData};
     use burn_nn::{Linear, LinearConfig};
 
     type FT = f32;
@@ -554,6 +587,43 @@ mod tests {
 
         let state_updated = linear;
         assert!(!state_updated.weight.to_data().as_slice::<f32>().unwrap()[0].is_nan());
+    }
+
+    #[test]
+    fn test_adamw_optimizer_reduced_precision_no_nan() {
+        let device = Device::default();
+        for dtype in [FloatDType::F16, FloatDType::BF16] {
+            if !device.supports_dtype(dtype) {
+                continue;
+            }
+            for amsgrad in [false, true] {
+                let optimizer = AdamWConfig::new()
+                    .with_epsilon(1e-8)
+                    .with_amsgrad(amsgrad)
+                    .build();
+                let param = Tensor::<1>::from_floats([1.0, 2.0], &device).cast(dtype);
+                let grad = Tensor::<1>::from_floats([1e-4, 1e-4], &device).cast(dtype);
+                let (updated, state) = optimizer.step(1e-4, param, grad.clone(), None);
+                let (updated, state) = optimizer.step(1e-4, updated, grad, state);
+
+                assert_eq!(updated.dtype(), dtype.into());
+                for val in updated.to_data().iter::<f32>() {
+                    assert!(
+                        !val.is_nan() && !val.is_infinite(),
+                        "Expected finite values for {dtype:?} (amsgrad={amsgrad}), got {val}"
+                    );
+                }
+                let state = state.unwrap();
+                assert_eq!(state.momentum.moment_1.dtype(), DType::F32);
+                assert_eq!(state.momentum.moment_2.dtype(), DType::F32);
+                if amsgrad {
+                    assert_eq!(
+                        state.momentum.max_moment_2.as_ref().unwrap().dtype(),
+                        DType::F32
+                    );
+                }
+            }
+        }
     }
 
     fn given_linear_layer(weight: TensorData, bias: TensorData, device: &Device) -> Linear {

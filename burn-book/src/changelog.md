@@ -445,6 +445,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 
 #### Modules, losses, and metrics
 
+- Prevent NaNs and infinite updates in `Adam` and `AdamW` when optimizing half-precision
+  (`F16`, `BF16`) parameters by keeping moments and parameter updates in `F32`.
+  ([#6401](https://github.com/tracel-ai/burn/issues/6401))
 - Add regression evaluation metrics (`MseMetric`, `MaeMetric`, `R2ScoreMetric`) to
   `burn-train`, sharing `RegressionInput` and supported directly by `RegressionOutput`.
   R² accumulates centered statistics across batches and averages target scores uniformly.

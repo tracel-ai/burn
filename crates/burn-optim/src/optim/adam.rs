@@ -3,8 +3,7 @@ use burn_core as burn;
 use crate::RecordState;
 
 use burn::config::Config;
-use burn::tensor::Device;
-use burn::tensor::Tensor;
+use burn::tensor::{DType, Device, FloatDType, Tensor};
 
 use super::{
     Optimizer,
@@ -40,6 +39,8 @@ pub struct AdamConfig {
 
 /// Adam optimizer.
 ///
+/// Half-precision parameters use `f32` updates and state.
+///
 /// See:
 /// - [Adam: A Method for Stochastic Optimization](https://arxiv.org/pdf/1412.6980.pdf).
 /// - [On the Convergence of Adam and Beyond](https://openreview.net/forum?id=ryQu7f-RZ)
@@ -63,12 +64,35 @@ impl Optimizer for Adam {
         &self,
         lr: LearningRate,
         tensor: Tensor<D>,
-        mut grad: Tensor<D>,
+        grad: Tensor<D>,
         state: Option<Self::State<D>>,
     ) -> (Tensor<D>, Option<Self::State<D>>) {
+        let dtype = tensor.dtype();
+        // Squaring and adding epsilon in half precision can underflow, even for ordinary
+        // gradients. Keep the accumulated statistics and the whole update in f32.
+        let (tensor, mut grad) = match dtype {
+            DType::F16 | DType::BF16 => (tensor.cast(FloatDType::F32), grad.cast(FloatDType::F32)),
+            _ => (tensor, grad),
+        };
+
         let mut state_momentum = None;
 
-        if let Some(state) = state {
+        if let Some(mut state) = state {
+            if matches!(dtype, DType::F16 | DType::BF16) {
+                state.momentum.moment_1 = match state.momentum.moment_1.dtype() {
+                    DType::F16 | DType::BF16 => state.momentum.moment_1.cast(FloatDType::F32),
+                    _ => state.momentum.moment_1,
+                };
+                state.momentum.moment_2 = match state.momentum.moment_2.dtype() {
+                    DType::F16 | DType::BF16 => state.momentum.moment_2.cast(FloatDType::F32),
+                    _ => state.momentum.moment_2,
+                };
+                state.momentum.max_moment_2 =
+                    state.momentum.max_moment_2.map(|m| match m.dtype() {
+                        DType::F16 | DType::BF16 => m.cast(FloatDType::F32),
+                        _ => m,
+                    });
+            }
             state_momentum = Some(state.momentum);
         }
 
@@ -81,7 +105,14 @@ impl Optimizer for Adam {
         let state = AdamState::new(state_momentum);
         let delta = grad.mul_scalar(lr);
 
-        (tensor - delta, Some(state))
+        let tensor = tensor - delta;
+        let tensor = match dtype {
+            DType::F16 => tensor.cast(FloatDType::F16),
+            DType::BF16 => tensor.cast(FloatDType::BF16),
+            _ => tensor,
+        };
+
+        (tensor, Some(state))
     }
 
     fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
@@ -237,7 +268,7 @@ mod tests {
     use super::*;
     use crate::GradientsParams;
     use burn::module::Param;
-    use burn::tensor::{Tensor, TensorData};
+    use burn::tensor::{FloatDType, Tensor, TensorData};
     use burn_nn::{Linear, LinearConfig};
 
     const LEARNING_RATE: LearningRate = 0.01;
@@ -484,6 +515,43 @@ mod tests {
 
         let state_updated = linear;
         assert!(!state_updated.weight.to_data().as_slice::<f32>().unwrap()[0].is_nan());
+    }
+
+    #[test]
+    fn test_adam_optimizer_reduced_precision_no_nan() {
+        let device = Device::default();
+        for dtype in [FloatDType::F16, FloatDType::BF16] {
+            if !device.supports_dtype(dtype) {
+                continue;
+            }
+            for amsgrad in [false, true] {
+                let optimizer = AdamConfig::new()
+                    .with_epsilon(1e-8)
+                    .with_amsgrad(amsgrad)
+                    .build();
+                let param = Tensor::<1>::from_floats([1.0, 2.0], &device).cast(dtype);
+                let grad = Tensor::<1>::from_floats([1e-4, 1e-4], &device).cast(dtype);
+                let (updated, state) = optimizer.step(1e-4, param, grad.clone(), None);
+                let (updated, state) = optimizer.step(1e-4, updated, grad, state);
+
+                assert_eq!(updated.dtype(), dtype.into());
+                for val in updated.to_data().iter::<f32>() {
+                    assert!(
+                        !val.is_nan() && !val.is_infinite(),
+                        "Expected finite values for {dtype:?} (amsgrad={amsgrad}), got {val}"
+                    );
+                }
+                let state = state.unwrap();
+                assert_eq!(state.momentum.moment_1.dtype(), DType::F32);
+                assert_eq!(state.momentum.moment_2.dtype(), DType::F32);
+                if amsgrad {
+                    assert_eq!(
+                        state.momentum.max_moment_2.as_ref().unwrap().dtype(),
+                        DType::F32
+                    );
+                }
+            }
+        }
     }
 
     fn given_linear_layer(weight: TensorData, bias: TensorData, device: &Device) -> Linear {
