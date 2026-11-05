@@ -38,8 +38,16 @@ pub enum Sharding {
 pub enum ShardingError {
     /// Only a tensor on a sharded compute device has a sharding.
     NotSharded,
-    /// Quantized tensors are not split over a sharded compute device.
-    Quantized,
+    /// A quantized tensor splits only into whole quantization blocks, so that no code or scale
+    /// changes, and into whole packed words along its packed axis, which a device stores it in.
+    QuantizedSplit {
+        /// The dim asked for.
+        dim: usize,
+        /// The tensor's shape.
+        shape: Shape,
+        /// The sharded compute device's number of members.
+        num_members: usize,
+    },
     /// The split dim is not one of the tensor's.
     MissingDim {
         /// The dim asked for.
@@ -70,9 +78,14 @@ impl core::fmt::Display for ShardingError {
                 f,
                 "Only a tensor on a sharded compute device has a sharding"
             ),
-            Self::Quantized => write!(
+            Self::QuantizedSplit {
+                dim,
+                shape,
+                num_members,
+            } => write!(
                 f,
-                "Quantized tensors are not split over a sharded compute device"
+                "Splitting dim {dim} of a quantized tensor of shape {shape:?} over \
+                 {num_members} members would cut its quantization blocks or packed words"
             ),
             Self::MissingDim { dim, shape } => {
                 write!(f, "A tensor of shape {shape:?} has no dim {dim} to split")

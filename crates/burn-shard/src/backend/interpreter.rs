@@ -477,13 +477,8 @@ impl<B: BackendIr> ShardInterpreter<B> {
         let out = op.outputs().next().expect("A deferred op has one output");
         // A split the tensor cannot take is left to the resharding after, which reports it.
         let split = matches!(sharding, Sharding::Split { .. })
-            && Resharding::new(
-                Sharding::Replicated,
-                sharding,
-                &out.shape,
-                self.interpreters.len(),
-            )
-            .is_ok();
+            && Resharding::of_tensor(Sharding::Replicated, sharding, out, self.interpreters.len())
+                .is_ok();
         match split {
             true => {
                 self.shardings.insert(id, sharding);
@@ -537,11 +532,11 @@ impl<B: BackendIr> ShardInterpreter<B> {
         current: Sharding,
         target: Sharding,
     ) -> Result<TensorId, ShardingError> {
-        let resharding = Resharding::new(current, target, &tensor.shape, self.interpreters.len())?;
+        let resharding = Resharding::of_tensor(current, target, tensor, self.interpreters.len())?;
         let id = self.new_tensor_id();
         match resharding {
             Resharding::Slice { dim } if self.on_host.contains_key(&tensor.id) => {
-                self.upload_chunks(tensor, id, dim)?
+                self.upload_chunks(tensor, id, dim)
             }
             resharding => self.reshard_on_members(tensor, current, resharding, id)?,
         }
@@ -561,22 +556,14 @@ impl<B: BackendIr> ShardInterpreter<B> {
         self.upload(tensor.id);
         let shards = self
             .take_shards(tensor, current)
-            .reshard(resharding, &tensor.shape)?;
+            .reshard(resharding, &tensor.shape);
         self.register_shards(id, shards);
         Ok(())
     }
 
     /// Cuts a tensor still on the host along `dim` and uploads each member only its chunk, under
     /// `id`. The data leaves the host when the tensor is given up.
-    fn upload_chunks(
-        &mut self,
-        tensor: &TensorIr,
-        id: TensorId,
-        dim: usize,
-    ) -> Result<(), ShardingError> {
-        if matches!(tensor.dtype, DType::QFloat(_)) {
-            return Err(ShardingError::Quantized);
-        }
+    fn upload_chunks(&mut self, tensor: &TensorIr, id: TensorId, dim: usize) {
         let split = DimSplit {
             dim,
             len: tensor.shape[dim],
@@ -589,7 +576,6 @@ impl<B: BackendIr> ShardInterpreter<B> {
         if tensor.status == TensorStatus::ReadWrite {
             self.drop_tensor(tensor.id);
         }
-        Ok(())
     }
 
     /// The data of a tensor still on the host, which leaves it when the tensor is given up.
@@ -671,7 +657,9 @@ impl IrVisitorMut for MemberShapes<'_> {
 mod tests {
     use burn_flex::{Flex, FlexDevice};
     use burn_ir::{CustomOpIr, FloatOperationIr, MatmulOpIr};
-    use burn_std::{Bytes, FileReadCounter, QuantScheme, QuantStore, QuantValue, future::block_on};
+    use burn_std::{
+        Bytes, FileReadCounter, QuantScheme, QuantStore, QuantValue, ScaleDtype, future::block_on,
+    };
 
     use super::*;
     use crate::{CustomOpPlan, CustomOpRule, OpKind};
@@ -818,11 +806,12 @@ mod tests {
     }
 
     #[test]
-    fn a_split_of_quantized_data_is_refused_before_any_upload() {
+    fn a_split_inside_a_quantization_block_is_refused_before_any_upload() {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
-            .with_store(QuantStore::Native);
-        let data = TensorData::quantized(vec![1i8; 24], [4, 6], scheme, &[0.1], None);
+            .with_store(QuantStore::Native)
+            .per_block([2], ScaleDtype::F32);
+        let data = TensorData::quantized(vec![1i8; 24], [4, 6], scheme, &[0.1; 12], None);
         let dtype = data.dtype();
         let mut interpreter =
             ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], ShardCustomOps::default())
@@ -834,10 +823,17 @@ mod tests {
                 dtype,
                 ..whole(id, TensorStatus::ReadOnly)
             },
-            Sharding::Split { dim: 0 },
+            Sharding::Split { dim: 1 },
         );
 
-        assert_eq!(refused, Err(ShardingError::Quantized));
+        assert_eq!(
+            refused,
+            Err(ShardingError::QuantizedSplit {
+                dim: 1,
+                shape: [4, 6].into(),
+                num_members: 2,
+            })
+        );
         for member in &interpreter.interpreters {
             assert!(member.read_failure(&id).is_some());
         }

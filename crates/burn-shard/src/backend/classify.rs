@@ -254,9 +254,14 @@ impl<'a> OpClass<'a> {
             FloatOperationIr::IntoInt(desc) => Self::cast(desc),
             FloatOperationIr::Matmul(desc) => Self::matmul(desc),
             FloatOperationIr::Random(desc) => Self::of_kind(OpKind::Random, [], &desc.out),
+            // A member's shard holds whole quantization blocks, so it dequantizes to its own chunk.
+            FloatOperationIr::Dequantize(desc) => Self::of_kind(
+                OpKind::Elementwise(Linearity::Nonlinear),
+                [&desc.input],
+                &desc.out,
+            ),
             FloatOperationIr::Cross(_)
             | FloatOperationIr::Quantize(_)
-            | FloatOperationIr::Dequantize(_)
             | FloatOperationIr::GridSample2d(_) => Self::Gathered,
         }
     }
