@@ -16,6 +16,10 @@ impl<const D: usize, K: Autodiff> Tensor<D, K> {
     /// one more index when the dim does not divide. Nothing moves between members, so a caller
     /// that makes each shard on its member never holds the whole tensor anywhere.
     ///
+    /// Quantized shards of a split must share a per-tensor or two-level global scale, which the
+    /// whole keeps once: shards quantized each on their own are checked only when gathered, and
+    /// a read or an op that gathers them fails.
+    ///
     /// A shard's autodiff tracking is dropped. On an autodiff sharded compute device the tensor is
     /// a new leaf: require its gradient afterwards.
     ///

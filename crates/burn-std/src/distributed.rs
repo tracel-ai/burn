@@ -84,6 +84,12 @@ pub enum ShardingError {
         /// The sharded compute device's number of members.
         num_members: usize,
     },
+    /// Quantized shards join into one tensor only when they share the scales it keeps once: a
+    /// per-tensor scale, or a two-level scheme's global one.
+    QuantizedScales {
+        /// The first shard whose scale differs from shard 0's.
+        shard: usize,
+    },
     /// A partial sum is an op's output, never a split of a whole value.
     PartialSumFromWhole {
         /// The tensor's sharding.
@@ -114,6 +120,11 @@ impl core::fmt::Display for ShardingError {
                 f,
                 "Dim {dim} of a tensor of shape {shape:?} is shorter than the sharded compute device's \
                  {num_members} members, so a split would leave a member empty"
+            ),
+            Self::QuantizedScales { shard } => write!(
+                f,
+                "Quantized shard {shard} has a different per-tensor or global scale from shard 0, \
+                 so the shards do not join into one tensor"
             ),
             Self::PartialSumFromWhole { from } => {
                 write!(

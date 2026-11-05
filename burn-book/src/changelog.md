@@ -295,8 +295,11 @@ whose tensors are split over `devices` (crate `burn-shard`).
   so a quantized model's weights split for tensor parallelism. A split must give every member whole
   quantization blocks, and whole packed words along the packed axis, which `from_shards` checks. **Breaking:**
   `ShardingError::Quantized` is replaced by `ShardingError::QuantizedSplit`, returned for a split
-  that would cut either.
-  ([#6396](https://github.com/tracel-ai/burn/pull/6396))
+  that would cut either. Split shards quantized each on their own must share a per-tensor or global
+  scale: a read or an op that gathers them otherwise fails with `ShardingError::QuantizedScales`,
+  and `DimSplit::whole_data` returns a `Result`.
+  ([#6396](https://github.com/tracel-ai/burn/pull/6396),
+  [#6408](https://github.com/tracel-ai/burn/pull/6408))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution

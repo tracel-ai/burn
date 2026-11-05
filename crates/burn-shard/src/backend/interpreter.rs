@@ -277,7 +277,13 @@ impl<B: BackendIr> ShardInterpreter<B> {
         if let Some(error) = self.failure(&op, &plan) {
             return self.fail(&op, &error);
         }
-        let temporaries = self.shard_inputs(&mut op, &plan);
+        let temporaries = match self.shard_inputs(&mut op, &plan) {
+            Ok(temporaries) => temporaries,
+            Err(error) => {
+                let reason = format!("An input of the op cannot be resharded: {error}");
+                return self.fail(&op, &TensorError::new(ExecutionError::with_context(reason)));
+            }
+        };
         for (id, sharding) in plan.output_shardings() {
             self.shardings.insert(*id, *sharding);
         }
@@ -299,7 +305,16 @@ impl<B: BackendIr> ShardInterpreter<B> {
 
     /// Reshards every input of `op` as the plan asks for. Returns the temporaries to drop after
     /// the op.
-    fn shard_inputs(&mut self, op: &mut OperationIr, plan: &OpPlan) -> Vec<TensorId> {
+    ///
+    /// # Errors
+    ///
+    /// When an input cannot take the sharding the plan asks for, or its shards do not join,
+    /// after dropping the temporaries made so far.
+    fn shard_inputs(
+        &mut self,
+        op: &mut OperationIr,
+        plan: &OpPlan,
+    ) -> Result<Vec<TensorId>, ShardingError> {
         let inputs: Vec<TensorIr> = op.inputs().cloned().collect();
         let mut resharded = ReshardedInputs::default();
         for input in &inputs {
@@ -321,15 +336,17 @@ impl<B: BackendIr> ShardInterpreter<B> {
                 },
                 ..input.clone()
             };
-            let temporary = self
-                .resharded(&read, current, target)
-                .unwrap_or_else(|error| {
-                    panic!("A rule asked for {target:?} from {current:?}: {error}")
-                });
-            resharded.temporaries.insert(input.id, temporary);
+            match self.resharded(&read, current, target) {
+                Ok(temporary) => resharded.temporaries.insert(input.id, temporary),
+                Err(error) => {
+                    let made: Vec<_> = resharded.temporaries.into_values().collect();
+                    made.into_iter().for_each(|id| self.drop_tensor(id));
+                    return Err(error);
+                }
+            };
         }
         op.visit_mut(&mut resharded);
-        resharded.temporaries.into_values().collect()
+        Ok(resharded.temporaries.into_values().collect())
     }
 
     fn run_on(&mut self, member: usize, op: &OperationIr) {
@@ -499,24 +516,13 @@ impl<B: BackendIr> ShardInterpreter<B> {
         target: Sharding,
     ) -> Result<TensorId, ShardingError> {
         let resharding = Resharding::of_tensor(current, target, tensor, self.interpreters.len())?;
-        let id = self.new_tensor_id();
-        self.reshard_on_members(tensor, current, resharding, id);
-        self.shardings.insert(id, target);
-        Ok(id)
-    }
-
-    /// Reshards the shards of `tensor` on the members under `id`.
-    fn reshard_on_members(
-        &mut self,
-        tensor: &TensorIr,
-        current: Sharding,
-        resharding: Resharding,
-        id: TensorId,
-    ) {
         let shards = self
             .sharded_tensor(tensor, current)
-            .reshard(resharding, &tensor.shape);
+            .reshard(resharding, &tensor.shape)?;
+        let id = self.new_tensor_id();
         self.register_sharded(id, shards);
+        self.shardings.insert(id, target);
+        Ok(id)
     }
 
     fn register_sharded(&mut self, id: TensorId, shards: ShardedTensor<B>) {
@@ -775,6 +781,70 @@ mod tests {
             .unwrap();
 
         assert_eq!(block_on(interpreter.read(tensor(gathered))).unwrap(), data);
+    }
+
+    /// Two shards quantized each on their own, split along the rows of a `[4, 2]` tensor.
+    fn unjoinable_quantized(interpreter: &mut ShardInterpreter<Flex>) -> TensorIr {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native);
+        let shard = |scale| {
+            let data = TensorData::quantized(vec![0i8, 1, 2, 3], [2, 2], scheme, &[scale], None);
+            HandleKind::<Flex>::Quantized(Flex::q_from_data(data, &FlexDevice))
+        };
+        let joined = interpreter
+            .register_shards(Box::new(Shards {
+                shards: vec![shard(0.5), shard(0.25)],
+                sharding: Sharding::Split { dim: 0 },
+            }))
+            .unwrap();
+        TensorIr {
+            id: joined.id,
+            shape: joined.shape,
+            status: TensorStatus::ReadOnly,
+            dtype: joined.dtype,
+        }
+    }
+
+    #[test]
+    fn quantized_shards_with_their_own_per_tensor_scales_are_never_joined() {
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], ShardCustomOps::default())
+                .unwrap();
+        let tensor = unjoinable_quantized(&mut interpreter);
+
+        let read = block_on(interpreter.read(tensor.clone()));
+        let gathered =
+            interpreter.resharded(&tensor, Sharding::Split { dim: 0 }, Sharding::Replicated);
+
+        assert!(read.is_err());
+        assert_eq!(gathered, Err(ShardingError::QuantizedScales { shard: 1 }));
+    }
+
+    /// A custom op with no rule gathers its inputs: the split float input is gathered into a
+    /// temporary before the quantized one fails to join.
+    #[test]
+    fn an_op_gathering_unjoinable_quantized_shards_fails_its_outputs() {
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], ShardCustomOps::default())
+                .unwrap();
+        let (split, _) = joined(
+            &mut interpreter,
+            &TensorData::new(vec![1f32; 24], [4, 6]),
+            Sharding::Split { dim: 0 },
+        );
+        let quantized = unjoinable_quantized(&mut interpreter);
+        let out = interpreter.new_tensor_id();
+        let OperationIr::Custom(mut op) =
+            custom_op("plain", whole(split, TensorStatus::ReadOnly), out)
+        else {
+            unreachable!("custom_op builds a custom op")
+        };
+        op.inputs.push(quantized);
+
+        interpreter.register_op(OperationIr::Custom(op));
+
+        assert_fails_on_every_member(&interpreter, &out, "per-tensor or global scale");
     }
 
     #[test]
