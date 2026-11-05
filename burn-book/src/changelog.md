@@ -49,6 +49,28 @@ to retain size-derived mapping. See the [interpolation guide](building-blocks/mo
 for configuration and backend limitations.
 ([#6154](https://github.com/tracel-ai/burn/pull/6154), [@Sadik00789](https://github.com/Sadik00789))
 
+### Dedicated allocations and per-stream memory reports
+
+`Device::memory_dedicated_allocations` runs a closure with every allocation it makes given a
+device allocation of its own, outside every pool and returned to the driver once freed: for a
+buffer too large or too long-lived for a pool's pages, such as a cache sized from the room a device
+has left, whose size would otherwise set the pages every later transient is carved from.
+
+`Device::measure_memory` now reports the calling stream's pools only, so a workload measured on its
+own stream no longer counts the marks other streams left. It also lists the pools that give each
+allocation its own page (`MemoryReport::exclusive_pools`) and the runtime's staging and uniform
+pools. A remote device reports the client's stream on its server.
+
+Under fusion, an allocation window and a memory report now act on the stream that recorded the
+operations, which is the stream they execute and allocate on, rather than the fusion server
+thread's own.
+
+**Breaking:** backend implementors replace `Backend::memory_persistent_allocations` with
+`memory_allocation_window`, which takes an `AllocationMode`, and fusion backends replace
+`FusionBackend::memory_persistent(device, bool)` with
+`memory_allocation_mode(device, Option<AllocationMode>)`. `Device::memory_persistent_allocations`
+is unchanged.
+
 ### Device-time instrumentation
 
 `burn-instrument` and `#[compute]` annotations measure device time by model component. Measurement

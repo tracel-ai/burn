@@ -13,7 +13,7 @@ use alloc::vec;
 #[cfg(feature = "autodiff")]
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
 use burn_backend::{
-    AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, DeviceDescription,
+    AllocationMode, AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, DeviceDescription,
     DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
     ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
     PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
@@ -325,17 +325,14 @@ impl Backend for Dispatch {
         }
     }
 
-    fn memory_persistent_allocations<
-        Output: Send,
-        Input: Send,
-        Func: Fn(Input) -> Output + Send,
-    >(
+    fn memory_allocation_window<Output: Send, Input: Send, Func: Fn(Input) -> Output + Send>(
         device: &Self::Device,
+        mode: AllocationMode,
         input: Input,
         func: Func,
     ) -> Output {
-        dispatch_device!(device, |device| B::memory_persistent_allocations(
-            device, input, func
+        dispatch_device!(device, |device| B::memory_allocation_window(
+            device, mode, input, func
         ))
     }
 

@@ -85,6 +85,47 @@ fn the_memory_report_holds_a_live_tensor() {
     core::mem::drop(kept);
 }
 
+/// A tensor made in a dedicated window takes a device allocation of its own: no dynamic pool
+/// grows to hold it, and it is given back once freed. A remote device brackets no window.
+#[cfg(feature = "cube")]
+#[test]
+fn a_dedicated_allocation_stays_out_of_the_pools() {
+    let device = Device::default();
+    device.sync().unwrap();
+    device.memory_cleanup();
+    let before = device.measure_memory().expect("the allocator reports");
+    let elements = 1024 * 1024;
+    let bytes = (elements * 4) as u64;
+
+    let kept =
+        device.memory_dedicated_allocations((), |()| TestTensor::<1>::ones([elements], &device));
+    device.sync().unwrap();
+    let held = device.measure_memory().expect("the allocator reports");
+
+    assert!(
+        held.usage.bytes_reserved >= before.usage.bytes_reserved + bytes,
+        "{before:?} then {held:?}"
+    );
+    let largest = |report: &burn_tensor::MemoryReport| {
+        let sliced = report.pools.iter().map(|pool| pool.largest_alloc);
+        let exclusive = report.exclusive_pools.iter().map(|pool| pool.largest_alloc);
+        sliced.chain(exclusive).max().unwrap_or(0)
+    };
+    assert!(
+        largest(&held) < bytes,
+        "a pool served the dedicated tensor: {held:?}"
+    );
+
+    core::mem::drop(kept);
+    device.sync().unwrap();
+    device.memory_cleanup();
+    let freed = device.measure_memory().expect("the allocator reports");
+    assert!(
+        freed.usage.bytes_reserved < held.usage.bytes_reserved,
+        "{held:?} then {freed:?}"
+    );
+}
+
 /// A cubecl device states what it can do: who it is, and what its kernels compile for. A
 /// remote device states its server's device, without the card.
 #[cfg(feature = "cube")]

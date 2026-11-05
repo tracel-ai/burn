@@ -9,7 +9,7 @@ use core::marker::PhantomData;
 
 use burn_backend::{
     backend::{
-        AutodiffBackend, Backend, BackendTypes, DeviceDescription, DeviceTelemetry,
+        AllocationMode, AutodiffBackend, Backend, BackendTypes, DeviceDescription, DeviceTelemetry,
         EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
         ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError,
         PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
@@ -145,16 +145,13 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::environment_merge(device, id, origin)
     }
 
-    fn memory_persistent_allocations<
-        Output: Send,
-        Input: Send,
-        Func: Fn(Input) -> Output + Send,
-    >(
+    fn memory_allocation_window<Output: Send, Input: Send, Func: Fn(Input) -> Output + Send>(
         device: &Self::Device,
+        mode: AllocationMode,
         input: Input,
         func: Func,
     ) -> Output {
-        B::memory_persistent_allocations(device, input, func)
+        B::memory_allocation_window(device, mode, input, func)
     }
 
     fn memory_cleanup(device: &Self::Device) {

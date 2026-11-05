@@ -1,6 +1,6 @@
 use crate::{CubeBackend, CubeDevice, kernel, tensor::CubeTensor};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
-use burn_backend::{DType, Shape};
+use burn_backend::{AllocationMode, DType, Shape};
 pub use burn_cubecl_fusion::{CubeFusionHandle, FallbackOperation, Tiles};
 use burn_fusion::{
     FusionBackend, FusionRuntime,
@@ -116,13 +116,14 @@ impl FusionBackend for CubeBackend {
         kernel::cast(tensor, dtype).into()
     }
 
-    fn memory_persistent(device: &Self::Device, enabled: bool) {
+    fn memory_allocation_mode(device: &Self::Device, mode: Option<AllocationMode>) {
         use cubecl::MemoryAllocationMode;
 
         let client = device.client();
-        let mode = match enabled {
-            true => MemoryAllocationMode::Persistent,
-            false => MemoryAllocationMode::Auto,
+        let mode = match mode {
+            Some(AllocationMode::Persistent) => MemoryAllocationMode::Persistent,
+            Some(AllocationMode::Dedicated) => MemoryAllocationMode::Dedicated,
+            None => MemoryAllocationMode::Auto,
         };
         // Safety: called from the fusion execution thread, whose stream is the
         // one every fused operation allocates on.

@@ -3,10 +3,11 @@ use crate::{CubeDevice, tensor::CubeTensor};
 use burn_backend::RandomKey;
 use burn_backend::cubecl::{ThroughputKey, dtype_to_storage_type, measure_peak_throughput};
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceDescription,
-    DeviceTelemetry, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-    MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
-    ProfileToken, SlicedPoolReport, TensorData, profile_with_tokens,
+    AllocationMode, Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet,
+    DeviceDescription, DeviceTelemetry, ExclusivePoolReport, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, MemoryPoolUsage, MemoryReport, Peak, PeakError,
+    PeakKey, ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport, TensorData,
+    profile_with_tokens,
 };
 #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
 use burn_backend::{EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin};
@@ -324,17 +325,17 @@ impl Backend for CubeBackend {
         unsafe { graph.graph.replay() }.map_err(graph_err)
     }
 
-    fn memory_persistent_allocations<
-        Output: Send,
-        Input: Send,
-        Func: Fn(Input) -> Output + Send,
-    >(
+    fn memory_allocation_window<Output: Send, Input: Send, Func: Fn(Input) -> Output + Send>(
         device: &Self::Device,
+        mode: AllocationMode,
         input: Input,
         func: Func,
     ) -> Output {
         let client = device.client();
-        client.memory_persistent_allocation(input, func)
+        match mode {
+            AllocationMode::Persistent => client.memory_persistent_allocation(input, func),
+            AllocationMode::Dedicated => client.memory_dedicated_allocation(input, func),
+        }
     }
 
     fn memory_cleanup(device: &Self::Device) {
@@ -366,17 +367,26 @@ impl Backend for CubeBackend {
         }
     }
 
+    /// The calling stream's pools alone: a runtime keeps each stream's apart,
+    /// so a workload measured on its stream counts no other's marks, those of a
+    /// workload long gone among them.
     fn measure_memory(device: &Self::Device) -> Option<MemoryReport> {
-        let report = device.client().memory_report(MemoryScope::Device);
+        let report = device.client().memory_report(MemoryScope::CurrentStream);
         let usage = report.usage();
-        // One entry per pool that carves pages — the pool sized to what it
-        // serves, the pools a growth left behind, and the metadata pool —
-        // in the order allocations are routed through them. Pools whose
-        // allocations own their page have no page size to report.
-        let pools = report
-            .streams
-            .iter()
-            .flat_map(|stream| &stream.pools.dynamic)
+        // Every dynamic pool, the stream's own and those of the memories the
+        // runtime keeps beside them, in the order allocations are routed
+        // through them. The persistent pool holds what is kept for good, and
+        // the dedicated one what lives outside every pool, so neither is here.
+        let dynamic = || {
+            report.streams.iter().flat_map(|stream| {
+                let auxiliary = stream
+                    .auxiliary
+                    .iter()
+                    .flat_map(|memory| &memory.pools.dynamic);
+                stream.pools.dynamic.iter().chain(auxiliary)
+            })
+        };
+        let pools = dynamic()
             .filter_map(|pool| {
                 let page_size = match pool.kind {
                     MemoryPoolKind::Sliced { page_size, .. } => page_size,
@@ -391,6 +401,19 @@ impl Backend for CubeBackend {
                 })
             })
             .collect();
+        let exclusive_pools = dynamic()
+            .filter(|pool| {
+                matches!(
+                    pool.kind,
+                    MemoryPoolKind::Exclusive { .. } | MemoryPoolKind::Direct
+                )
+            })
+            .map(|pool| ExclusivePoolReport {
+                pages: pool.pages,
+                pages_peak: pool.pages_peak,
+                largest_alloc: pool.largest_alloc,
+            })
+            .collect();
         Some(MemoryReport {
             usage: MemoryPoolUsage {
                 number_allocs: usage.number_allocs,
@@ -399,6 +422,7 @@ impl Backend for CubeBackend {
                 bytes_reserved: usage.bytes_reserved,
             },
             pools,
+            exclusive_pools,
         })
     }
 

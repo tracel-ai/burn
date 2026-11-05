@@ -15,9 +15,10 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
 use super::profile::profile_unsupported;
-use super::{DeviceDescription, DeviceTelemetry, MemoryReport, Peak, PeakError, PeakKey};
+use super::{AllocationMode, DeviceDescription, DeviceTelemetry, MemoryReport};
 use super::{EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin};
 use super::{ExecutionMode, ExecutionModeToken, ExecutionStatistics, UnknownExecutionMode};
+use super::{Peak, PeakError, PeakKey};
 use super::{ProfileDuration, ProfileOptions, ProfileToken, profile_system_time};
 
 /// The mapping of types used by Backend and traits.
@@ -140,14 +141,13 @@ pub trait Backend:
         false
     }
 
-    /// Sets the current allocation mode to persistent.
+    /// Runs `func` on `input` with every allocation it makes on `device`
+    /// placed as `mode` says, then restores the previous placement. A backend
+    /// without allocation modes runs `func` as it is.
     #[allow(unused_variables)]
-    fn memory_persistent_allocations<
-        Output: Send,
-        Input: Send,
-        Func: Fn(Input) -> Output + Send,
-    >(
+    fn memory_allocation_window<Output: Send, Input: Send, Func: Fn(Input) -> Output + Send>(
         device: &Self::Device,
+        mode: AllocationMode,
         input: Input,
         func: Func,
     ) -> Output {
@@ -173,9 +173,9 @@ pub trait Backend:
         DeviceTelemetry::default()
     }
 
-    /// What `device`'s allocator holds now, after the work registered so far
-    /// on the calling stream. `None` from a backend that does not report it,
-    /// or whose stream has failed.
+    /// What the calling stream's allocator on `device` holds now, after the
+    /// work registered so far on it. `None` from a backend that does not
+    /// report it, or whose stream has failed.
     #[allow(unused_variables)]
     fn measure_memory(device: &Self::Device) -> Option<MemoryReport> {
         None

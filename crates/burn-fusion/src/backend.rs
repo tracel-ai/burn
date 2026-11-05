@@ -5,10 +5,10 @@ use crate::{
 };
 use burn_backend::RandomKey;
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceOps, DeviceTelemetry,
-    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
-    ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
-    ProfileDuration, ProfileOptions, ProfileToken, profile_with_tokens,
+    AllocationMode, Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceOps,
+    DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
+    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
+    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -221,25 +221,23 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         false
     }
 
-    fn memory_persistent_allocations<
-        Output: Send,
-        Input: Send,
-        Func: Fn(Input) -> Output + Send,
-    >(
+    fn memory_allocation_window<Output: Send, Input: Send, Func: Fn(Input) -> Output + Send>(
         device: &Self::Device,
+        mode: AllocationMode,
         input: Input,
         func: Func,
     ) -> Output {
-        // The inner backend's closure-bracketed toggle would arm the *calling*
-        // thread's stream, but fused operations execute on the fusion server
-        // thread and allocate on its stream. Arm a standing mode from that
-        // thread instead — `sync` drains previously recorded operations
-        // first, keeping them out of the persistent window.
+        // The inner backend's closure-bracketed toggle would run its window on
+        // the calling thread, but fused operations execute later, on the fusion
+        // server thread, as the stream that recorded them. Arm a standing mode
+        // there instead, as that stream (`sync` runs its closure as the calling
+        // stream) — and `sync` drains previously recorded operations first,
+        // keeping them out of the window.
         //
         // Note that sync here doesn't call `B::sync`.
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let armed = device.clone();
-        client.sync(move || B::memory_persistent(&armed, true));
+        client.sync(move || B::memory_allocation_mode(&armed, Some(mode)));
 
         // Record on this thread; the server drains the fused operations onto
         // its (armed) stream as it goes.
@@ -248,7 +246,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         // Drain the remaining recording inside the window (`sync` drains
         // before running its closure), then disarm.
         let disarmed = device.clone();
-        client.sync(move || B::memory_persistent(&disarmed, false));
+        client.sync(move || B::memory_allocation_mode(&disarmed, None));
 
         output
     }
@@ -514,16 +512,16 @@ pub trait FusionBackend:
     /// Pointer to the full precision fusion backend.
     type FullPrecisionBackend: FusionBackend<FusionRuntime = Self::FusionRuntime>;
 
-    /// Set the standing persistent-allocation mode of the device stream that
-    /// executes fused operations.
+    /// Set the standing allocation mode of the device stream that executes
+    /// fused operations: `mode`'s placement, or the runtime's own for `None`.
     ///
-    /// `Fusion`'s `memory_persistent_allocations` cannot bracket the inner
+    /// `Fusion`'s `memory_allocation_window` cannot bracket the inner
     /// allocations with a closure: fused operations are recorded on the
     /// calling thread but execute later, on the fusion execution thread and
     /// its own device stream. The execution thread arms/disarms this standing
     /// mode instead (see the `Backend` impl). Defaults to a no-op for
     /// backends without allocation modes.
-    fn memory_persistent(_device: &Self::Device, _enabled: bool) {}
+    fn memory_allocation_mode(_device: &Self::Device, _mode: Option<AllocationMode>) {}
 }
 
 // Fusion implements `BackendIr` to enable router backend usage.

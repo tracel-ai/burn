@@ -6,12 +6,12 @@ pub use burn_std::{
 pub use burn_backend::cubecl::{
     AdapterLuid, CubeCapabilities, DeviceIdentity, PciAddress, PciVendor, PhysicalDevice,
 };
-use burn_backend::{Backend, DeviceOps};
 pub use burn_backend::{
-    DeviceDescription, DeviceTelemetry, HardwareKind, MatmulTile, MemoryAccess, MemoryPoolUsage,
-    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileTicks,
-    SlicedPoolReport, TimingMethod,
+    AllocationMode, DeviceDescription, DeviceTelemetry, ExclusivePoolReport, HardwareKind,
+    MatmulTile, MemoryAccess, MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey,
+    ProfileDuration, ProfileOptions, ProfileTicks, SlicedPoolReport, TimingMethod,
 };
+use burn_backend::{Backend, DeviceOps};
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
 #[cfg(feature = "autodiff")]
@@ -781,7 +781,8 @@ impl Device {
         Dispatch::supports_dtype(self.as_dispatch(), dtype.into())
     }
 
-    /// Sets the current allocation mode to persistent.
+    /// Runs `func` on `input` with every allocation it makes on this device
+    /// kept for good ([`AllocationMode::Persistent`]): weights and tables.
     pub fn memory_persistent_allocations<
         Output: Send,
         Input: Send,
@@ -791,7 +792,33 @@ impl Device {
         input: Input,
         func: Func,
     ) -> Output {
-        Dispatch::memory_persistent_allocations(self.as_dispatch(), input, func)
+        Dispatch::memory_allocation_window(
+            self.as_dispatch(),
+            AllocationMode::Persistent,
+            input,
+            func,
+        )
+    }
+
+    /// Runs `func` on `input` with every allocation it makes on this device
+    /// given a device allocation of its own, outside every pool and given back
+    /// to the driver once freed ([`AllocationMode::Dedicated`]): a buffer too
+    /// large or too long-lived for a pool's pages.
+    pub fn memory_dedicated_allocations<
+        Output: Send,
+        Input: Send,
+        Func: Fn(Input) -> Output + Send,
+    >(
+        &self,
+        input: Input,
+        func: Func,
+    ) -> Output {
+        Dispatch::memory_allocation_window(
+            self.as_dispatch(),
+            AllocationMode::Dedicated,
+            input,
+            func,
+        )
     }
 
     /// Triggers a memory cleanup on this device.
