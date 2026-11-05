@@ -69,8 +69,7 @@ impl OpPlan {
     }
 
     /// The plan a rule's `sharding` asks for, or `None` when one tensor, read as two inputs, is
-    /// asked for two shardings, or when a quantized tensor would not be replicated: its shards
-    /// cannot be sliced, concatenated or summed.
+    /// asked for two shardings.
     fn from_rule(
         inputs: &[&TensorIr],
         out: &TensorIr,
@@ -92,20 +91,10 @@ impl OpPlan {
     /// The plan of each tensor's target sharding, or `None` as for
     /// [`from_rule`](Self::from_rule).
     fn from_shardings<'a>(
-        inputs: impl IntoIterator<Item = (&'a TensorIr, Sharding)> + Clone,
-        outputs: impl IntoIterator<Item = (&'a TensorIr, Sharding)> + Clone,
+        inputs: impl IntoIterator<Item = (&'a TensorIr, Sharding)>,
+        outputs: impl IntoIterator<Item = (&'a TensorIr, Sharding)>,
         execution: Execution,
     ) -> Option<Self> {
-        if inputs
-            .clone()
-            .into_iter()
-            .chain(outputs.clone())
-            .any(|(tensor, target)| {
-                matches!(tensor.dtype, DType::QFloat(_)) && target != Sharding::Replicated
-            })
-        {
-            return None;
-        }
         let mut input_shardings = OpInputs::new();
         for (tensor, target) in inputs {
             match input_shardings.iter().find(|(id, _)| *id == tensor.id) {
@@ -160,8 +149,28 @@ impl TensorShardings<'_> {
     }
 
     /// The plan an op of `kind` runs by, or `None` when its inputs are not the ones the kind
-    /// reads.
+    /// reads, or when it would move a quantized tensor to anything but whole or the split it
+    /// already has: cutting one goes through the host, and a quantized output is never split.
     fn apply(&self, kind: OpKind, inputs: &[&TensorIr], out: &TensorIr) -> Option<OpPlan> {
+        self.rule_plan(kind, inputs, out)
+            .filter(|plan| self.keeps_quantized(plan, inputs, out))
+    }
+
+    fn keeps_quantized(&self, plan: &OpPlan, inputs: &[&TensorIr], out: &TensorIr) -> bool {
+        let quantized = |tensor: &TensorIr| matches!(tensor.dtype, DType::QFloat(_));
+        let inputs_kept = inputs.iter().filter(|input| quantized(input)).all(|input| {
+            let target = plan.input_sharding(&input.id);
+            target == Sharding::Replicated || target == self.sharding(input)
+        });
+        let output_whole = !quantized(out)
+            || plan
+                .output_shardings()
+                .iter()
+                .all(|(_, sharding)| *sharding == Sharding::Replicated);
+        inputs_kept && output_whole
+    }
+
+    fn rule_plan(&self, kind: OpKind, inputs: &[&TensorIr], out: &TensorIr) -> Option<OpPlan> {
         match (kind, inputs) {
             (OpKind::Elementwise(linearity), _) => self.elementwise(linearity, inputs, out),
             (OpKind::AlongDim { dim }, [input, broadcast @ ..]) => {
@@ -398,28 +407,20 @@ impl TensorShardings<'_> {
         inputs: &[Sharding],
         outputs: &[Sharding],
     ) -> Option<ShardingError> {
-        let quantized_split = |tensor: &TensorIr, target: Sharding| {
-            matches!(tensor.dtype, DType::QFloat(_)) && target != Sharding::Replicated
-        };
         let input_refusal = op.inputs.iter().zip(inputs).find_map(|(input, &target)| {
-            if quantized_split(input, target) {
-                return Some(ShardingError::Quantized);
-            }
-            Resharding::new(self.sharding(input), target, &input.shape, self.num_members).err()
+            Resharding::of_tensor(self.sharding(input), target, input, self.num_members).err()
         });
         let output_refusal = || {
-            op.outputs.iter().zip(outputs).find_map(|(out, &target)| {
-                if quantized_split(out, target) {
-                    return Some(ShardingError::Quantized);
-                }
-                match target {
+            op.outputs
+                .iter()
+                .zip(outputs)
+                .find_map(|(out, &target)| match target {
                     Sharding::Split { .. } => {
-                        Resharding::new(Sharding::Replicated, target, &out.shape, self.num_members)
+                        Resharding::of_tensor(Sharding::Replicated, target, out, self.num_members)
                             .err()
                     }
                     _ => None,
-                }
-            })
+                })
         };
         input_refusal.or_else(output_refusal)
     }

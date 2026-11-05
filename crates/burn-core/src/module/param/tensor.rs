@@ -23,7 +23,7 @@ impl<const D: usize> super::sealed::Sealed for Tensor<D, Float> {
         let value = Parameter::set_require_grad(self, false);
         let sharded = match value.try_with_sharding(sharding) {
             Ok(sharded) => sharded,
-            Err(ShardingError::Quantized) => value,
+            Err(ShardingError::QuantizedSplit { .. }) => value,
             // Panics with the tensor's own reason.
             Err(_) => value.with_sharding(sharding),
         };

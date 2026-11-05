@@ -254,7 +254,8 @@ pub(crate) mod sealed {
         }
 
         /// The value as a new leaf split as `sharding` says, tracked as `require_grad` says. A
-        /// quantized value cannot be split, so it stays replicated.
+        /// quantized value the split would cut through a quantization block or packed word stays
+        /// replicated.
         fn into_sharded_leaf(self, sharding: Sharding, require_grad: bool) -> Self {
             let _ = (sharding, require_grad);
             self
@@ -604,7 +605,8 @@ impl<T: Parameter> Param<T> {
     /// its chunk of every weight. Moved before then to a device the sharding does not fit, it is
     /// left replicated. Any other parameter, a lazy one shared with a clone included, is
     /// initialized and its value resharded at once, as a new leaf, and a later load splits the
-    /// loaded value after its load mapper. A quantized value stays replicated.
+    /// loaded value after its load mapper. A quantized value the split would cut through a
+    /// quantization block or packed word stays replicated.
     ///
     /// # Panics
     ///

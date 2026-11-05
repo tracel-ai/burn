@@ -2,7 +2,7 @@ use burn_tensor::{
     Bool, Device, Distribution, Int, Sharding,
     Sharding::{PartialSum, Replicated, Split},
     ShardingError, Tensor, TensorData, Tolerance, activation, module,
-    quantization::QuantScheme,
+    quantization::{QuantScheme, ScaleDtype},
     s,
     shard::ShardError,
 };
@@ -168,24 +168,102 @@ fn int_and_bool_tensors_split_and_move_back_whole() {
 }
 
 #[test]
-fn a_quantized_tensor_on_a_sharded_compute_device_reads_back_but_does_not_split() {
-    // CUDA packs four quantized values per u32, so the last dim is a multiple of four.
-    let data = values([4, 8], 1);
-    let scheme = QuantScheme::default();
-    let expected = Tensor::<2>::from_data(data.clone(), &Device::flex())
-        .quantize_dynamic(&scheme)
-        .dequantize()
+fn a_quantized_weight_split_by_columns_keeps_every_value() {
+    let device = sharded_compute(2);
+    let weight = block_quantized(values([4, 8], 2));
+    let x = values([3, 4], 1);
+    let expected = Tensor::<2>::from_data(x.clone(), &Device::flex())
+        .matmul(Tensor::from_data(weight.clone(), &Device::flex()))
         .into_data();
-    let quantized = Tensor::<2>::from_data(data, &sharded_compute(2)).quantize_dynamic(&scheme);
 
-    assert!(matches!(
-        quantized.try_with_sharding(Split { dim: 0 }),
-        Err(ShardingError::Quantized)
-    ));
-    Tensor::<2>::from_data(quantized.into_data(), &Device::flex())
-        .dequantize()
+    let split = Tensor::<2>::from_data(weight.clone(), &device).with_sharding(Split { dim: 1 });
+    let product = Tensor::<2>::from_data(x, &device).matmul(split.clone());
+
+    assert_eq!(split.into_data(), weight);
+    assert_eq!(product.sharding(), Some(Split { dim: 1 }));
+    product
         .into_data()
         .assert_approx_eq::<f32>(&expected, tolerance());
+}
+
+#[test]
+fn a_quantized_weight_split_by_rows_gives_a_partial_sum() {
+    let device = sharded_compute(2);
+    let weight = block_quantized(values([8, 8], 2));
+    let x = values([3, 8], 1);
+    let expected = Tensor::<2>::from_data(x.clone(), &Device::flex())
+        .matmul(Tensor::from_data(weight.clone(), &Device::flex()))
+        .into_data();
+
+    let split = Tensor::<2>::from_data(weight, &device).with_sharding(Split { dim: 0 });
+    let product = sharded::<2>(x, &device, Split { dim: 1 }).matmul(split);
+
+    assert_eq!(product.sharding(), Some(PartialSum));
+    product
+        .into_data()
+        .assert_approx_eq::<f32>(&expected, tolerance());
+}
+
+#[test]
+fn a_split_quantized_weight_dequantizes_on_each_member() {
+    let weight = block_quantized(values([4, 8], 2));
+    let expected = Tensor::<2>::from_data(weight.clone(), &Device::flex())
+        .dequantize()
+        .into_data();
+
+    let dequantized = Tensor::<2>::from_data(weight, &sharded_compute(2))
+        .with_sharding(Split { dim: 1 })
+        .dequantize();
+
+    assert_eq!(dequantized.sharding(), Some(Split { dim: 1 }));
+    dequantized
+        .into_data()
+        .assert_approx_eq::<f32>(&expected, tolerance());
+}
+
+#[test]
+fn a_split_inside_a_quantization_block_is_refused() {
+    let weight = Tensor::<2>::from_data(block_quantized(values([4, 8], 2)), &sharded_compute(4));
+
+    assert!(matches!(
+        weight.try_with_sharding(Split { dim: 1 }),
+        Err(ShardingError::QuantizedSplit { dim: 1, .. })
+    ));
+}
+
+#[test]
+fn a_split_inside_a_packed_word_is_refused() {
+    // One scale for the whole tensor, but four codes to a u32 along the last dim.
+    let data = Tensor::<2>::from_data(values([4, 8], 2), &Device::flex())
+        .quantize_dynamic(&QuantScheme::default())
+        .into_data();
+    let weight = Tensor::<2>::from_data(data, &sharded_compute(4));
+
+    assert!(matches!(
+        weight.try_with_sharding(Split { dim: 1 }),
+        Err(ShardingError::QuantizedSplit { dim: 1, .. })
+    ));
+}
+
+#[test]
+fn a_quantized_tensor_made_on_the_members_reshards_and_reads_back_unchanged() {
+    let scheme = QuantScheme::default().per_block([4], ScaleDtype::F32);
+    let quantized =
+        Tensor::<2>::from_data(values([4, 8], 1), &sharded_compute(2)).quantize_dynamic(&scheme);
+    let whole = quantized.clone().into_data();
+
+    let by_rows = quantized.with_sharding(Split { dim: 0 });
+    let by_columns = by_rows.clone().with_sharding(Split { dim: 1 });
+    let gathered = by_columns.clone().with_sharding(Replicated);
+
+    for (tensor, sharding) in [
+        (by_rows, Split { dim: 0 }),
+        (by_columns, Split { dim: 1 }),
+        (gathered, Replicated),
+    ] {
+        assert_eq!(tensor.sharding(), Some(sharding));
+        assert_eq!(tensor.into_data(), whole, "{sharding:?}");
+    }
 }
 
 #[test]
@@ -211,6 +289,8 @@ fn a_quantized_replicated_rhs_matmuls_with_a_split_lhs() {
 
     let product = sharded::<2>(x, &device, Split { dim: 1 }).matmul(weight);
 
+    // Splitting the weight here would cut it on the host on every call, so the lhs gathers.
+    assert_eq!(product.sharding(), Some(Replicated));
     product
         .into_data()
         .assert_approx_eq::<f32>(&expected, tolerance());
@@ -491,6 +571,14 @@ fn sharded<const D: usize>(data: TensorData, device: &Device, sharding: Sharding
         Some(_) => tensor.with_sharding(sharding),
         None => tensor,
     }
+}
+
+/// `data` quantized on the host with a scale per block of four along its last dim.
+fn block_quantized(data: TensorData) -> TensorData {
+    let scheme = QuantScheme::default().per_block([4], ScaleDtype::F32);
+    Tensor::<2>::from_data(data, &Device::flex())
+        .quantize_dynamic(&scheme)
+        .into_data()
 }
 
 fn values<const D: usize>(shape: [usize; D], seed: usize) -> TensorData {

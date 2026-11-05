@@ -1,14 +1,12 @@
 use burn_backend::{
     Backend, BoolDType, Scalar, Shape, Slice, TensorData,
-    ops::{ActivationOps, AttentionModuleOptions, FloatTensorOps, IntTensorOps, QTensorOps},
-    quantization::QuantScheme,
+    ops::{ActivationOps, AttentionModuleOptions, FloatTensorOps, IntTensorOps},
     tensor::{FloatTensor, IntTensor},
 };
 use burn_flex::{Flex, FlexDevice};
 use burn_shard::{
     ShardBackend, ShardedComputeDevice,
     Sharding::{self, PartialSum, Replicated, Split},
-    ShardingError,
 };
 use burn_std::future::block_on;
 
@@ -247,18 +245,6 @@ fn split_tensors_stay_split_where_megatron_keeps_them() {
     assert_eq!(sharding_of(&Shard::relu(x.clone())), Split { dim: 1 });
     assert_eq!(sharding_of(&Shard::float_exp(x.clone())), Split { dim: 1 });
     assert_eq!(sharding_of(&Shard::softmax(x, 0)), Split { dim: 1 });
-}
-
-#[test]
-fn a_quantized_tensor_is_not_split() {
-    // CUDA packs four quantized values per u32, so the last dim is a multiple of four.
-    let whole = Shard::float_from_data(data([4, 8], 1), &sharded_compute(2));
-    let quantized = Shard::quantize_dynamic(whole, &QuantScheme::default());
-    let client = quantized.client.clone();
-
-    let refused = client.reshard(quantized, Split { dim: 0 });
-
-    assert!(matches!(refused, Err(ShardingError::Quantized)));
 }
 
 #[test]
