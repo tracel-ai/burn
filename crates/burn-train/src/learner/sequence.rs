@@ -1,6 +1,7 @@
 use crate::metric::{AccuracyInput, PerplexityInput, TopKAccuracyInput};
 use crate::metric::{Adaptor, CerInput, LossInput, WerInput, processor::ItemLazy};
 use burn_core::tensor::{Int, Tensor};
+use burn_std::ExecutionError;
 
 /// Sequence prediction output adapted for multiple metrics.
 ///
@@ -49,7 +50,7 @@ impl SequenceOutput {
 }
 
 impl ItemLazy for SequenceOutput {
-    fn sync(self) -> Self {
+    fn sync(self) -> Result<Self, ExecutionError> {
         // No readback: the metrics compute on the device the tensors live on
         // and read back only their final scalars, which matters here because
         // the logits carry the full vocabulary dimension. Flushing dispatches
@@ -57,14 +58,14 @@ impl ItemLazy for SequenceOutput {
         // wait on an idle queue; all tensors in a training item come off the
         // autodiff backend entirely, so the metric thread neither retains the
         // tape nor carries its dispatch context.
-        self.loss.device().flush();
+        self.loss.device().flush()?;
 
-        SequenceOutput {
+        Ok(SequenceOutput {
             logits: self.logits.without_autodiff(),
             loss: self.loss.without_autodiff(),
             targets: self.targets.without_autodiff(),
             predictions: self.predictions.map(|tensor| tensor.without_autodiff()),
-        }
+        })
     }
 }
 

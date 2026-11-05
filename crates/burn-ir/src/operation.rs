@@ -1,4 +1,4 @@
-use burn_backend::ops::AttentionModuleOptions;
+use burn_backend::ops::{AttentionModuleOptions, CausalAlignment};
 use burn_backend::tensor::IndexingUpdateOp;
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
@@ -8,10 +8,11 @@ use alloc::boxed::Box;
 use alloc::{string::String, vec::Vec};
 
 use burn_backend::{
-    DType, Distribution, Slice,
+    DType, Distribution, RandomKey, Slice,
     ops::{
-        ConvOptions, ConvTransposeOptions, DeformConvOptions, GridSampleOptions,
-        GridSamplePaddingMode, InterpolateMode, InterpolateOptions, PadMode,
+        ConvOptions, ConvTransposeOptions, CoordinateTransformMode, DeformConvOptions,
+        GridSampleMode, GridSampleOptions, GridSamplePaddingMode, InterpolateMode,
+        InterpolateOptions, PadMode,
     },
     quantization::QuantScheme,
 };
@@ -135,8 +136,6 @@ pub enum OperationIr {
     Custom(CustomOpIr),
     /// A tensor is dropped.
     Drop(TensorIr),
-    /// Operation specific to a distributed tensor.
-    Distributed(DistributedOperationIr),
     /// Activation function operation (relu, gelu, sigmoid, softmax, …).
     Activation(ActivationOperationIr),
 }
@@ -214,6 +213,10 @@ pub enum FloatOperationIr {
     Powf(BinaryOpIr),
     /// Operation corresponding to [hypot](burn_backend::ops::FloatTensorOps::float_hypot).
     Hypot(BinaryOpIr),
+    /// Operation corresponding to [fmod](burn_backend::ops::FloatTensorOps::float_fmod).
+    Fmod(BinaryOpIr),
+    /// Operation corresponding to [fmod scalar](burn_backend::ops::FloatTensorOps::float_fmod_scalar).
+    FmodScalar(ScalarOpIr),
 }
 
 /// Operation intermediate representation specific to module.
@@ -272,12 +275,17 @@ pub enum ModuleOperationIr {
     AvgPool1d(AvgPool1dOpIr),
     /// Operation corresponding to [avg pool 2d](burn_backend::ops::ModuleOps::avg_pool2d).
     AvgPool2d(AvgPool2dOpIr),
+    /// Operation corresponding to [avg pool 3d](burn_backend::ops::ModuleOps::avg_pool3d).
+    AvgPool3d(AvgPool3dOpIr),
     /// Operation corresponding to
     /// [avg pool 1d backward](burn_backend::ops::ModuleOps::avg_pool1d_backward).
     AvgPool1dBackward(AvgPool1dBackwardOpIr),
     /// Operation corresponding to
     /// [avg pool 2d backward](burn_backend::ops::ModuleOps::avg_pool2d_backward).
     AvgPool2dBackward(AvgPool2dBackwardOpIr),
+    /// Operation corresponding to
+    /// [avg pool 3d backward](burn_backend::ops::ModuleOps::avg_pool3d_backward).
+    AvgPool3dBackward(AvgPool3dBackwardOpIr),
     /// Operation corresponding to
     /// [adaptive avg pool 1d](burn_backend::ops::ModuleOps::adaptive_avg_pool1d).
     AdaptiveAvgPool1d(AdaptiveAvgPool1dOpIr),
@@ -314,12 +322,27 @@ pub enum ModuleOperationIr {
     /// Operation corresponding to
     /// [max pool 2d with indices backward](burn_backend::ops::ModuleOps::max_pool2d_with_indices_backward).
     MaxPool2dWithIndicesBackward(MaxPool2dWithIndicesBackwardOpIr),
+    /// Operation corresponding to
+    /// [max pool 3d](burn_backend::ops::ModuleOps::max_pool3d).
+    MaxPool3d(MaxPool3dOpIr),
+    /// Operation corresponding to
+    /// [max pool 3d with indices](burn_backend::ops::ModuleOps::max_pool3d_with_indices).
+    MaxPool3dWithIndices(MaxPool3dWithIndicesOpIr),
+    /// Operation corresponding to
+    /// [max pool 3d with indices backward](burn_backend::ops::ModuleOps::max_pool3d_with_indices_backward).
+    MaxPool3dWithIndicesBackward(MaxPool3dWithIndicesBackwardOpIr),
     /// Operation corresponding to [interpolate](burn_backend::ops::ModuleOps::interpolate).
     Interpolate(InterpolateOpIr),
     /// Operation corresponding to [interpolate backward](burn_backend::ops::ModuleOps::interpolate_backward).
     InterpolateBackward(InterpolateBackwardOpIr),
     /// Operation corresponding to [attention](burn_backend::ops::ModuleOps::attention).
     Attention(AttentionOpIr),
+    /// Operation corresponding to
+    /// [attention_with_logsumexp](burn_backend::ops::ModuleOps::attention_with_logsumexp).
+    AttentionWithLogsumexp(AttentionWithLogsumexpOpIr),
+    /// Operation corresponding to
+    /// [attention_backward](burn_backend::ops::ModuleOps::attention_backward).
+    AttentionBackward(Box<AttentionBackwardOpIr>),
     /// Operation corresponding to [ctc_loss](burn_backend::ops::ModuleOps::ctc_loss).
     CtcLoss(CtcLossOpIr),
     /// Operation corresponding to
@@ -412,7 +435,7 @@ pub enum BaseOperationIr {
     ///
     /// Float => [select assign](burn_backend::ops::FloatTensorOps::float_select_assign).
     /// Int => [select assign](burn_backend::ops::IntTensorOps::int_select_assign).
-    /// Bool => [select assign](burn_backend::ops::BoolTensorOps::bool_select_or).
+    /// Bool => [select assign](burn_backend::ops::BoolTensorOps::bool_select_assign).
     SelectAssign(SelectAssignOpIr),
     /// Operation corresponding to:
     ///
@@ -436,7 +459,7 @@ pub enum BaseOperationIr {
     ///
     /// Float => [scatter](burn_backend::ops::FloatTensorOps::float_scatter).
     /// Int => [scatter](burn_backend::ops::IntTensorOps::int_scatter).
-    /// Bool => [scatter](burn_backend::ops::BoolTensorOps::bool_scatter_or).
+    /// Bool => [scatter](burn_backend::ops::BoolTensorOps::bool_scatter).
     Scatter(ScatterOpIr),
     /// Multi-dimensional scatter operation.
     ScatterNd(ScatterNdOpIr),
@@ -855,22 +878,6 @@ pub enum BoolOperationIr {
     Xor(BinaryOpIr),
 }
 
-/// Operations that can be done on distributed tensors.
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-#[allow(clippy::large_enum_variant)]
-pub enum DistributedOperationIr {
-    /// Operation corresponding to:
-    /// [all_reduce](burn_backend::distributed::DistributedOps::all_reduce).
-    AllReduce(AllReduceOpIr),
-    /// Resolve the pending collective operations on the executing device. Corresponds to
-    /// [sync_collective](burn_backend::distributed::DistributedOps::sync_collective).
-    ///
-    /// Fire-and-forget and payload-free: it syncs whichever device the interpreter is bound to.
-    /// Modeled as an operation (not a side-channel call) so it travels the normal op stream
-    /// alongside [`AllReduce`](DistributedOperationIr::AllReduce) and is ordered against it.
-    SyncCollective,
-}
-
 /// Swap dim operation intermediate representation.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct SwapDimsOpIr {
@@ -980,6 +987,22 @@ impl From<PadModeIr> for PadMode {
 pub struct RandomOpIr {
     pub out: TensorIr,
     pub distribution: Distribution,
+    /// Operation key encoded as an unsigned scalar for graph binding.
+    pub key: ScalarIr,
+}
+
+impl RandomOpIr {
+    /// Returns the operation key after resolving graph scalar bindings.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the key is not encoded as an unsigned integer.
+    pub fn key(&self) -> RandomKey {
+        let ScalarIr::UInt(seed) = self.key else {
+            panic!("Random keys must be encoded as unsigned integers");
+        };
+        RandomKey::new(seed)
+    }
 }
 
 /// Creation operation intermediate representation.
@@ -1229,44 +1252,6 @@ pub struct CatOpIr {
     pub tensors: Vec<TensorIr>,
     pub dim: usize,
     pub out: TensorIr,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-#[allow(missing_docs)]
-pub struct AllReduceOpIr {
-    pub tensor: TensorIr,
-    pub out: TensorIr,
-    /// How to reduce the values across the participating devices.
-    pub op: burn_backend::distributed::ReduceOperation,
-    /// The devices participating in the collective operation.
-    pub device_ids: Vec<DeviceIdIr>,
-}
-
-/// Serializable representation of a [device id](burn_backend::DeviceId).
-///
-/// The intermediate representation is part of the wire protocol (e.g. the remote backend), so it
-/// cannot store `burn_backend::DeviceId` directly since that type is not serializable.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DeviceIdIr {
-    /// Identifies the type of the device.
-    pub type_id: u16,
-    /// Identifies the device number.
-    pub index_id: u16,
-}
-
-impl From<burn_backend::DeviceId> for DeviceIdIr {
-    fn from(value: burn_backend::DeviceId) -> Self {
-        Self {
-            type_id: value.type_id,
-            index_id: value.index_id,
-        }
-    }
-}
-
-impl From<DeviceIdIr> for burn_backend::DeviceId {
-    fn from(value: DeviceIdIr) -> Self {
-        burn_backend::DeviceId::new(value.type_id, value.index_id)
-    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -1792,6 +1777,7 @@ pub struct AvgPool1dOpIr {
     pub kernel_size: usize,
     pub stride: usize,
     pub padding: usize,
+    pub dilation: usize,
     pub count_include_pad: bool,
     pub ceil_mode: bool,
     pub out: TensorIr,
@@ -1804,6 +1790,20 @@ pub struct AvgPool2dOpIr {
     pub kernel_size: [usize; 2],
     pub stride: [usize; 2],
     pub padding: [usize; 2],
+    pub dilation: [usize; 2],
+    pub count_include_pad: bool,
+    pub ceil_mode: bool,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct AvgPool3dOpIr {
+    pub x: TensorIr,
+    pub kernel_size: [usize; 3],
+    pub stride: [usize; 3],
+    pub padding: [usize; 3],
+    pub dilation: [usize; 3],
     pub count_include_pad: bool,
     pub ceil_mode: bool,
     pub out: TensorIr,
@@ -1817,6 +1817,7 @@ pub struct AvgPool1dBackwardOpIr {
     pub kernel_size: usize,
     pub stride: usize,
     pub padding: usize,
+    pub dilation: usize,
     pub count_include_pad: bool,
     pub ceil_mode: bool,
     pub out: TensorIr,
@@ -1830,6 +1831,21 @@ pub struct AvgPool2dBackwardOpIr {
     pub kernel_size: [usize; 2],
     pub stride: [usize; 2],
     pub padding: [usize; 2],
+    pub dilation: [usize; 2],
+    pub count_include_pad: bool,
+    pub ceil_mode: bool,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct AvgPool3dBackwardOpIr {
+    pub x: TensorIr,
+    pub grad: TensorIr,
+    pub kernel_size: [usize; 3],
+    pub stride: [usize; 3],
+    pub padding: [usize; 3],
+    pub dilation: [usize; 3],
     pub count_include_pad: bool,
     pub ceil_mode: bool,
     pub out: TensorIr,
@@ -1963,19 +1979,115 @@ pub struct MaxPool2dWithIndicesBackwardOpIr {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub enum InterpolateModeIr {
-    Nearest,
-    NearestExact,
-    Bilinear,
-    Bicubic,
-    Lanczos3,
+pub struct MaxPool3dOpIr {
+    pub x: TensorIr,
+    pub kernel_size: [usize; 3],
+    pub stride: [usize; 3],
+    pub padding: [usize; 3],
+    pub dilation: [usize; 3],
+    pub ceil_mode: bool,
+    pub out: TensorIr,
+}
+
+#[allow(missing_docs)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+pub struct MaxPool3dWithIndicesOpIr {
+    pub x: TensorIr,
+    pub kernel_size: [usize; 3],
+    pub stride: [usize; 3],
+    pub padding: [usize; 3],
+    pub dilation: [usize; 3],
+    pub ceil_mode: bool,
+    pub out: TensorIr,
+    pub out_indices: TensorIr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
+pub struct MaxPool3dWithIndicesBackwardOpIr {
+    pub x: TensorIr,
+    pub grad: TensorIr,
+    pub indices: TensorIr,
+    pub kernel_size: [usize; 3],
+    pub stride: [usize; 3],
+    pub padding: [usize; 3],
+    pub dilation: [usize; 3],
+    pub ceil_mode: bool,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub enum InterpolateModeIr {
+    Nearest,
+    NearestExact,
+    Bilinear {
+        coordinate_transform: CoordinateTransformModeIr,
+    },
+    Bicubic {
+        coordinate_transform: CoordinateTransformModeIr,
+        a: f32,
+    },
+    Lanczos3 {
+        coordinate_transform: CoordinateTransformModeIr,
+    },
+}
+
+impl Hash for InterpolateModeIr {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Self::Nearest | Self::NearestExact => {}
+            Self::Bilinear {
+                coordinate_transform,
+            }
+            | Self::Lanczos3 {
+                coordinate_transform,
+            } => coordinate_transform.hash(state),
+            Self::Bicubic {
+                coordinate_transform,
+                a,
+            } => {
+                coordinate_transform.hash(state);
+                canonicalize_f32_bits(*a).hash(state);
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub enum CoordinateTransformModeIr {
+    HalfPixel,
+    AlignCorners,
+}
+
+fn canonicalize_f32_bits(val: f32) -> u32 {
+    if val == 0.0 {
+        0.0f32.to_bits()
+    } else {
+        val.to_bits()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct InterpolateOptionsIr {
     pub mode: InterpolateModeIr,
-    pub align_corners: bool,
+    pub output_size: Option<[usize; 2]>,
+    pub scale_factor: Option<[f32; 2]>,
+}
+
+impl Hash for InterpolateOptionsIr {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.mode.hash(state);
+        self.output_size.hash(state);
+        if let Some(scale) = self.scale_factor {
+            for s in scale {
+                canonicalize_f32_bits(s).hash(state);
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -1993,6 +2105,11 @@ pub struct AttentionOptionsIr {
     pub scale: Option<ScalarIr>,
     pub softcap: Option<ScalarIr>,
     pub is_causal: bool,
+    /// Missing in IR recorded before the field existed; that IR was bottom-right aligned.
+    #[serde(default)]
+    pub causal_alignment: CausalAlignment,
+    #[serde(default)]
+    pub sliding_window: Option<u32>,
 }
 
 impl From<AttentionOptionsIr> for AttentionModuleOptions {
@@ -2001,6 +2118,8 @@ impl From<AttentionOptionsIr> for AttentionModuleOptions {
             scale: ir.scale.map(|s| s.elem()),
             softcap: ir.softcap.map(|s| s.elem()),
             is_causal: ir.is_causal,
+            causal_alignment: ir.causal_alignment,
+            sliding_window: ir.sliding_window,
         }
     }
 }
@@ -2011,6 +2130,8 @@ impl From<AttentionModuleOptions> for AttentionOptionsIr {
             scale: ir.scale.map(ScalarIr::Float),
             softcap: ir.softcap.map(ScalarIr::Float),
             is_causal: ir.is_causal,
+            causal_alignment: ir.causal_alignment,
+            sliding_window: ir.sliding_window,
         }
     }
 }
@@ -2025,6 +2146,32 @@ pub struct AttentionOpIr {
     pub attn_bias: Option<TensorIr>,
     pub options: AttentionOptionsIr,
     pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct AttentionWithLogsumexpOpIr {
+    pub query: TensorIr,
+    pub key: TensorIr,
+    pub value: TensorIr,
+    pub options: AttentionOptionsIr,
+    pub out: TensorIr,
+    pub logsumexp: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct AttentionBackwardOpIr {
+    pub query: TensorIr,
+    pub key: TensorIr,
+    pub value: TensorIr,
+    pub out: TensorIr,
+    pub logsumexp: TensorIr,
+    pub out_grad: TensorIr,
+    pub options: AttentionOptionsIr,
+    pub query_grad: TensorIr,
+    pub key_grad: TensorIr,
+    pub value_grad: TensorIr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -2055,16 +2202,52 @@ impl From<InterpolateModeIr> for InterpolateMode {
         match val {
             InterpolateModeIr::Nearest => Self::Nearest,
             InterpolateModeIr::NearestExact => Self::NearestExact,
-            InterpolateModeIr::Bilinear => Self::Bilinear,
-            InterpolateModeIr::Bicubic => Self::Bicubic,
-            InterpolateModeIr::Lanczos3 => Self::Lanczos3,
+            InterpolateModeIr::Bilinear {
+                coordinate_transform,
+            } => Self::Bilinear {
+                coordinate_transform: coordinate_transform.into(),
+            },
+            InterpolateModeIr::Bicubic {
+                coordinate_transform,
+                a,
+            } => Self::Bicubic {
+                coordinate_transform: coordinate_transform.into(),
+                a,
+            },
+            InterpolateModeIr::Lanczos3 {
+                coordinate_transform,
+            } => Self::Lanczos3 {
+                coordinate_transform: coordinate_transform.into(),
+            },
+        }
+    }
+}
+
+impl From<CoordinateTransformModeIr> for CoordinateTransformMode {
+    fn from(val: CoordinateTransformModeIr) -> Self {
+        match val {
+            CoordinateTransformModeIr::HalfPixel => Self::HalfPixel,
+            CoordinateTransformModeIr::AlignCorners => Self::AlignCorners,
+        }
+    }
+}
+
+impl From<CoordinateTransformMode> for CoordinateTransformModeIr {
+    fn from(val: CoordinateTransformMode) -> Self {
+        match val {
+            CoordinateTransformMode::HalfPixel => Self::HalfPixel,
+            CoordinateTransformMode::AlignCorners => Self::AlignCorners,
         }
     }
 }
 
 impl From<InterpolateOptionsIr> for InterpolateOptions {
     fn from(val: InterpolateOptionsIr) -> Self {
-        Self::new(val.mode.into()).with_align_corners(val.align_corners)
+        Self {
+            mode: val.mode.into(),
+            output_size: val.output_size,
+            scale_factor: val.scale_factor,
+        }
     }
 }
 
@@ -2073,9 +2256,23 @@ impl From<InterpolateMode> for InterpolateModeIr {
         match val {
             InterpolateMode::Nearest => Self::Nearest,
             InterpolateMode::NearestExact => Self::NearestExact,
-            InterpolateMode::Bilinear => Self::Bilinear,
-            InterpolateMode::Bicubic => Self::Bicubic,
-            InterpolateMode::Lanczos3 => Self::Lanczos3,
+            InterpolateMode::Bilinear {
+                coordinate_transform,
+            } => Self::Bilinear {
+                coordinate_transform: coordinate_transform.into(),
+            },
+            InterpolateMode::Bicubic {
+                coordinate_transform,
+                a,
+            } => Self::Bicubic {
+                coordinate_transform: coordinate_transform.into(),
+                a,
+            },
+            InterpolateMode::Lanczos3 {
+                coordinate_transform,
+            } => Self::Lanczos3 {
+                coordinate_transform: coordinate_transform.into(),
+            },
         }
     }
 }
@@ -2084,7 +2281,8 @@ impl From<InterpolateOptions> for InterpolateOptionsIr {
     fn from(val: InterpolateOptions) -> Self {
         Self {
             mode: val.mode.into(),
-            align_corners: val.align_corners,
+            output_size: val.output_size,
+            scale_factor: val.scale_factor,
         }
     }
 }
@@ -2109,8 +2307,33 @@ pub enum GridSamplePaddingModeIr {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
+pub enum GridSampleModeIr {
+    Nearest,
+    Bilinear,
+}
+
+impl From<GridSampleMode> for GridSampleModeIr {
+    fn from(value: GridSampleMode) -> Self {
+        match value {
+            GridSampleMode::Nearest => Self::Nearest,
+            GridSampleMode::Bilinear => Self::Bilinear,
+        }
+    }
+}
+
+impl From<GridSampleModeIr> for GridSampleMode {
+    fn from(value: GridSampleModeIr) -> Self {
+        match value {
+            GridSampleModeIr::Nearest => Self::Nearest,
+            GridSampleModeIr::Bilinear => Self::Bilinear,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct GridSampleOptionsIr {
-    pub mode: InterpolateModeIr,
+    pub mode: GridSampleModeIr,
     pub padding_mode: GridSamplePaddingModeIr,
     pub align_corners: bool,
 }
@@ -2180,7 +2403,6 @@ impl OperationIr {
             OperationIr::Init(repr) => repr.inputs(),
             OperationIr::Custom(repr) => repr.inputs(),
             OperationIr::Drop(repr) => Box::new([repr].into_iter()),
-            OperationIr::Distributed(repr) => repr.inputs(),
             OperationIr::Activation(repr) => repr.inputs(),
         }
     }
@@ -2200,7 +2422,6 @@ impl OperationIr {
             OperationIr::Init(repr) => repr.outputs(),
             OperationIr::Custom(repr) => repr.outputs(),
             OperationIr::Drop(_repr) => Box::new([].into_iter()),
-            OperationIr::Distributed(repr) => repr.outputs(),
             OperationIr::Activation(repr) => repr.outputs(),
         }
     }
@@ -2240,7 +2461,6 @@ impl OperationIr {
 
                 output
             }
-            OperationIr::Distributed(repr) => repr.mark_read_only(nodes),
             OperationIr::Activation(repr) => repr.mark_read_only(nodes),
         }
     }
@@ -2265,7 +2485,6 @@ impl OperationIr {
             OperationIr::Init(repr) => repr.visit_mut(v),
             OperationIr::Custom(repr) => repr.visit_mut(v),
             OperationIr::Drop(repr) => v.visit_tensor_mut(repr),
-            OperationIr::Distributed(repr) => repr.visit_mut(v),
             OperationIr::Activation(repr) => repr.visit_mut(v),
         }
     }
@@ -3111,6 +3330,7 @@ impl NumericOperationIr {
             }
             NumericOperationIr::IntRandom(repr) => {
                 v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.key);
             }
             NumericOperationIr::Powi(repr) => {
                 v.visit_tensor_mut(&mut repr.lhs);
@@ -3224,6 +3444,8 @@ impl FloatOperationIr {
             FloatOperationIr::ArcTan2(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
             FloatOperationIr::Powf(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
             FloatOperationIr::Hypot(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
+            FloatOperationIr::Fmod(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
+            FloatOperationIr::FmodScalar(repr) => Box::new([&repr.lhs].into_iter()),
         }
     }
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
@@ -3263,6 +3485,8 @@ impl FloatOperationIr {
             FloatOperationIr::ArcTan2(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::Powf(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::Hypot(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::Fmod(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::FmodScalar(repr) => Box::new([&repr.out].into_iter()),
         }
     }
 
@@ -3365,6 +3589,13 @@ impl FloatOperationIr {
                 repr.lhs.mark_read_only(nodes, &mut output);
                 repr.rhs.mark_read_only(nodes, &mut output);
             }
+            FloatOperationIr::Fmod(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
+                repr.rhs.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::FmodScalar(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
+            }
         };
 
         output
@@ -3384,6 +3615,7 @@ impl FloatOperationIr {
             }
             FloatOperationIr::Random(repr) => {
                 v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.key);
             }
             FloatOperationIr::Exp(repr) => {
                 v.visit_tensor_mut(&mut repr.input);
@@ -3521,6 +3753,16 @@ impl FloatOperationIr {
                 v.visit_tensor_mut(&mut repr.lhs);
                 v.visit_tensor_mut(&mut repr.rhs);
                 v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Fmod(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::FmodScalar(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
             }
         }
     }
@@ -3903,10 +4145,14 @@ impl ModuleOperationIr {
             }
             ModuleOperationIr::AvgPool1d(repr) => Box::new([&repr.x].into_iter()),
             ModuleOperationIr::AvgPool2d(repr) => Box::new([&repr.x].into_iter()),
+            ModuleOperationIr::AvgPool3d(repr) => Box::new([&repr.x].into_iter()),
             ModuleOperationIr::AvgPool1dBackward(repr) => {
                 Box::new([&repr.x, &repr.grad].into_iter())
             }
             ModuleOperationIr::AvgPool2dBackward(repr) => {
+                Box::new([&repr.x, &repr.grad].into_iter())
+            }
+            ModuleOperationIr::AvgPool3dBackward(repr) => {
                 Box::new([&repr.x, &repr.grad].into_iter())
             }
             ModuleOperationIr::AdaptiveAvgPool1d(repr) => Box::new([&repr.x].into_iter()),
@@ -3931,6 +4177,11 @@ impl ModuleOperationIr {
             ModuleOperationIr::MaxPool2dWithIndicesBackward(repr) => {
                 Box::new([&repr.x, &repr.indices, &repr.grad].into_iter())
             }
+            ModuleOperationIr::MaxPool3d(repr) => Box::new([&repr.x].into_iter()),
+            ModuleOperationIr::MaxPool3dWithIndices(repr) => Box::new([&repr.x].into_iter()),
+            ModuleOperationIr::MaxPool3dWithIndicesBackward(repr) => {
+                Box::new([&repr.x, &repr.indices, &repr.grad].into_iter())
+            }
             ModuleOperationIr::Interpolate(repr) => Box::new([&repr.x].into_iter()),
             ModuleOperationIr::InterpolateBackward(repr) => {
                 Box::new([&repr.x, &repr.grad].into_iter())
@@ -3948,6 +4199,20 @@ impl ModuleOperationIr {
                     Box::new([&repr.query, &repr.key, &repr.value].into_iter())
                 }
             }
+            ModuleOperationIr::AttentionWithLogsumexp(repr) => {
+                Box::new([&repr.query, &repr.key, &repr.value].into_iter())
+            }
+            ModuleOperationIr::AttentionBackward(repr) => Box::new(
+                [
+                    &repr.query,
+                    &repr.key,
+                    &repr.value,
+                    &repr.out,
+                    &repr.logsumexp,
+                    &repr.out_grad,
+                ]
+                .into_iter(),
+            ),
             ModuleOperationIr::CtcLoss(repr) => Box::new(
                 [
                     &repr.log_probs,
@@ -4054,8 +4319,10 @@ impl ModuleOperationIr {
             ModuleOperationIr::ConvTranspose3d(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::AvgPool1d(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::AvgPool2d(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::AvgPool3d(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::AvgPool1dBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::AvgPool2dBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::AvgPool3dBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::AdaptiveAvgPool1d(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::AdaptiveAvgPool2d(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::AdaptiveAvgPool1dBackward(repr) => Box::new([&repr.out].into_iter()),
@@ -4076,9 +4343,22 @@ impl ModuleOperationIr {
             ModuleOperationIr::MaxPool2dWithIndicesBackward(repr) => {
                 Box::new([&repr.out].into_iter())
             }
+            ModuleOperationIr::MaxPool3d(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::MaxPool3dWithIndices(repr) => {
+                Box::new([&repr.out, &repr.out_indices].into_iter())
+            }
+            ModuleOperationIr::MaxPool3dWithIndicesBackward(repr) => {
+                Box::new([&repr.out].into_iter())
+            }
             ModuleOperationIr::Interpolate(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::InterpolateBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Attention(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::AttentionWithLogsumexp(repr) => {
+                Box::new([&repr.out, &repr.logsumexp].into_iter())
+            }
+            ModuleOperationIr::AttentionBackward(repr) => {
+                Box::new([&repr.query_grad, &repr.key_grad, &repr.value_grad].into_iter())
+            }
             ModuleOperationIr::CtcLoss(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::CtcLossBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::LayerNorm(repr) => Box::new([&repr.out].into_iter()),
@@ -4323,6 +4603,23 @@ impl ModuleOperationIr {
                 repr.x.mark_read_only(nodes, &mut output);
                 repr.grad.mark_read_only(nodes, &mut output);
             }
+            ModuleOperationIr::AvgPool3d(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::AvgPool3dBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::MaxPool3d(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::MaxPool3dWithIndices(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::MaxPool3dWithIndicesBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.grad.mark_read_only(nodes, &mut output);
+            }
             ModuleOperationIr::Interpolate(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);
             }
@@ -4340,6 +4637,19 @@ impl ModuleOperationIr {
                 if let Some(attn_bias) = &mut repr.attn_bias {
                     attn_bias.mark_read_only(nodes, &mut output);
                 }
+            }
+            ModuleOperationIr::AttentionWithLogsumexp(repr) => {
+                repr.query.mark_read_only(nodes, &mut output);
+                repr.key.mark_read_only(nodes, &mut output);
+                repr.value.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::AttentionBackward(repr) => {
+                repr.query.mark_read_only(nodes, &mut output);
+                repr.key.mark_read_only(nodes, &mut output);
+                repr.value.mark_read_only(nodes, &mut output);
+                repr.out.mark_read_only(nodes, &mut output);
+                repr.logsumexp.mark_read_only(nodes, &mut output);
+                repr.out_grad.mark_read_only(nodes, &mut output);
             }
             ModuleOperationIr::CtcLoss(repr) => {
                 repr.log_probs.mark_read_only(nodes, &mut output);
@@ -4653,6 +4963,30 @@ impl ModuleOperationIr {
                 v.visit_tensor_mut(&mut repr.grad);
                 v.visit_tensor_mut(&mut repr.out);
             }
+            ModuleOperationIr::AvgPool3d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::AvgPool3dBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::MaxPool3d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::MaxPool3dWithIndices(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_tensor_mut(&mut repr.out_indices);
+            }
+            ModuleOperationIr::MaxPool3dWithIndicesBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.indices);
+                v.visit_tensor_mut(&mut repr.grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
             ModuleOperationIr::Interpolate(repr) => {
                 v.visit_tensor_mut(&mut repr.x);
                 v.visit_tensor_mut(&mut repr.out);
@@ -4673,6 +5007,36 @@ impl ModuleOperationIr {
                     v.visit_tensor_mut(attn_bias);
                 }
                 v.visit_tensor_mut(&mut repr.out);
+                if let Some(scale) = &mut repr.options.scale {
+                    v.visit_scalar_mut(scale);
+                }
+                if let Some(softcap) = &mut repr.options.softcap {
+                    v.visit_scalar_mut(softcap);
+                }
+            }
+            ModuleOperationIr::AttentionWithLogsumexp(repr) => {
+                v.visit_tensor_mut(&mut repr.query);
+                v.visit_tensor_mut(&mut repr.key);
+                v.visit_tensor_mut(&mut repr.value);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_tensor_mut(&mut repr.logsumexp);
+                if let Some(scale) = &mut repr.options.scale {
+                    v.visit_scalar_mut(scale);
+                }
+                if let Some(softcap) = &mut repr.options.softcap {
+                    v.visit_scalar_mut(softcap);
+                }
+            }
+            ModuleOperationIr::AttentionBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.query);
+                v.visit_tensor_mut(&mut repr.key);
+                v.visit_tensor_mut(&mut repr.value);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_tensor_mut(&mut repr.logsumexp);
+                v.visit_tensor_mut(&mut repr.out_grad);
+                v.visit_tensor_mut(&mut repr.query_grad);
+                v.visit_tensor_mut(&mut repr.key_grad);
+                v.visit_tensor_mut(&mut repr.value_grad);
                 if let Some(scale) = &mut repr.options.scale {
                     v.visit_scalar_mut(scale);
                 }
@@ -4744,45 +5108,6 @@ impl ModuleOperationIr {
                 v.visit_tensor_mut(&mut repr.output_grad);
                 v.visit_tensor_mut(&mut repr.out);
             }
-        }
-    }
-}
-
-impl DistributedOperationIr {
-    fn inputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
-        match self {
-            DistributedOperationIr::AllReduce(repr) => Box::new([&repr.tensor].into_iter()),
-            DistributedOperationIr::SyncCollective => Box::new([].into_iter()),
-        }
-    }
-
-    fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
-        match self {
-            DistributedOperationIr::AllReduce(repr) => Box::new([&repr.out].into_iter()),
-            DistributedOperationIr::SyncCollective => Box::new([].into_iter()),
-        }
-    }
-
-    fn mark_read_only(&mut self, nodes: &[TensorId]) -> Vec<TensorIr> {
-        let mut output = Vec::new();
-
-        match self {
-            DistributedOperationIr::AllReduce(repr) => {
-                repr.tensor.mark_read_only(nodes, &mut output);
-            }
-            DistributedOperationIr::SyncCollective => {}
-        }
-
-        output
-    }
-
-    fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
-        match self {
-            DistributedOperationIr::AllReduce(repr) => {
-                v.visit_tensor_mut(&mut repr.tensor);
-                v.visit_tensor_mut(&mut repr.out);
-            }
-            DistributedOperationIr::SyncCollective => {}
         }
     }
 }
@@ -5288,5 +5613,38 @@ mod tests {
             panic!("expected pad operation");
         };
         assert_eq!(desc.mode, PadModeIr::Constant(ScalarIr::Float(7.0)));
+    }
+
+    #[test]
+    fn interpolate_options_ir_hash_canonicalizes_signed_zero() {
+        use core::hash::{Hash, Hasher};
+        use std::collections::hash_map::DefaultHasher;
+
+        fn calculate_hash<T: Hash>(t: &T) -> u64 {
+            let mut s = DefaultHasher::new();
+            t.hash(&mut s);
+            s.finish()
+        }
+
+        let opt1 = InterpolateOptionsIr {
+            mode: InterpolateModeIr::Bicubic {
+                coordinate_transform: CoordinateTransformModeIr::HalfPixel,
+                a: 0.0,
+            },
+            output_size: Some([4, 4]),
+            scale_factor: None,
+        };
+
+        let opt2 = InterpolateOptionsIr {
+            mode: InterpolateModeIr::Bicubic {
+                coordinate_transform: CoordinateTransformModeIr::HalfPixel,
+                a: -0.0,
+            },
+            output_size: Some([4, 4]),
+            scale_factor: None,
+        };
+
+        assert_eq!(opt1, opt2);
+        assert_eq!(calculate_hash(&opt1), calculate_hash(&opt2));
     }
 }

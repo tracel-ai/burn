@@ -3,12 +3,11 @@
     feature = "wgpu",
     feature = "webgpu",
     feature = "vulkan",
+    feature = "wgpu-msl",
     feature = "metal",
     feature = "cuda",
     feature = "rocm",
     feature = "cpu",
-    feature = "ndarray",
-    feature = "tch",
     feature = "remote",
     feature = "capture"
 ))]

@@ -2,8 +2,11 @@ use crate::Initializer;
 use burn_core as burn;
 
 use crate::activation::{Activation, ActivationConfig};
+use crate::modules::bounds;
+use crate::modules::role::Role;
 use crate::{Dropout, DropoutConfig, Linear, LinearConfig};
 use burn::config::Config;
+use burn::instrument::{self, Bounds, compute};
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::{Device, Tensor, assert_shape};
 
@@ -40,14 +43,13 @@ pub struct PositionWiseFeedForwardConfig {
 ///
 /// # Notes
 ///
-/// The `activation` field is currently marked `#[module(skip)]` for backward
-/// compatibility with records saved before this field was introduced (when
-/// the activation was always `Gelu` and had no state). This means activation
-/// state is **not persisted** when saving or loading records.
+/// Tensor checkpoints saved when this module always used GELU remain compatible:
+/// GELU has no parameters, and the linear layer tensor paths are unchanged.
 ///
-/// For stateless activations (GELU, ReLU, etc.) this has no effect.
-/// **If you are using `SwiGLU`, its learnable parameters will not be saved or
-/// loaded correctly.**
+/// Older checkpoints using stateful activations omitted their parameters. To load
+/// such checkpoints, use a storage path filter that includes only `linear_inner`
+/// and `linear_outer`. The activation keeps its initialized parameters, while
+/// missing linear layer parameters are still reported by strict loading.
 #[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct PositionWiseFeedForward {
@@ -58,7 +60,6 @@ pub struct PositionWiseFeedForward {
     /// Dropout layer.
     pub dropout: Dropout,
     /// Activation function.
-    #[module(skip)] // for backward compatibility with previous `gelu` field name
     pub activation: Activation,
 }
 
@@ -97,6 +98,18 @@ impl PositionWiseFeedForwardConfig {
 }
 
 impl PositionWiseFeedForward {
+    /// The floor for the feed-forward alone: read the input and both projections' parameters
+    /// once, write the output once. The hidden activation between them is what a fuser keeps
+    /// out of memory, and the outer projection undoes the inner one's widening with the same
+    /// arithmetic.
+    pub(crate) fn bounds<const D: usize>(&self, input: &Tensor<D>) -> Bounds {
+        Bounds {
+            read: instrument::tensor_bytes(input) + bounds::parameters(self),
+            write: instrument::tensor_bytes(input),
+            flops: 2 * self.linear_inner.bounds(input).flops,
+        }
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
@@ -107,21 +120,51 @@ impl PositionWiseFeedForward {
     /// # Panics
     ///
     /// Panics if the last axis of `input` is not `d_model`.
+    #[compute(bounds = Self::bounds)]
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         let [d_model, _] = self.linear_inner.weight.shape().dims();
         assert_shape!(input, [.., d_model]);
 
-        let x = self.linear_inner.forward(input);
+        let x = Role::INNER.run(|| self.linear_inner.forward(input));
         let x = self.activation.forward(x);
         let x = self.dropout.forward(x);
 
-        self.linear_outer.forward(x)
+        Role::OUTER.run(|| self.linear_outer.forward(x))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::activation::{PReluConfig, SwiGluConfig};
+
+    #[rstest::rstest]
+    #[case::prelu(ActivationConfig::PRelu(PReluConfig::new()), 1)]
+    #[case::swiglu(ActivationConfig::SwiGlu(SwiGluConfig::new(1, 1)), 2)]
+    fn stateful_activation_participates_in_module_lifecycle(
+        #[case] activation: ActivationConfig,
+        #[case] activation_params: usize,
+    ) {
+        let device = crate::test_device();
+        let model = PositionWiseFeedForwardConfig::new(1, 1)
+            .with_activation(activation)
+            .init(&device);
+        assert_eq!(model.num_params(), 4 + activation_params);
+        assert_eq!(
+            alloc::format!("{model}"),
+            alloc::format!(
+                "PositionWiseFeedForward {{d_model: 1, d_ff: 1, prob: 0.1, params: {}}}",
+                4 + activation_params
+            )
+        );
+
+        let model = model.train();
+        assert!(model.activation.devices().iter().all(|d| d.is_autodiff()));
+        let model = model.valid();
+        assert!(model.activation.devices().iter().all(|d| !d.is_autodiff()));
+        let model = model.train();
+        assert!(model.activation.devices().iter().all(|d| d.is_autodiff()));
+    }
 
     #[test]
     #[should_panic(expected = "assert_shape!(input, [.., d_model]): axis 2 expected 2, got 3")]

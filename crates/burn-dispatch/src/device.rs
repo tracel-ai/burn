@@ -3,22 +3,20 @@ use burn_backend::{DeviceId, DeviceOps, DeviceSettings};
 #[allow(unused_imports)] // Empty in backend-free and capture-only builds.
 use crate::devices::*;
 
+#[cfg(feature = "shard")]
+use burn_backend::Shape;
 #[cfg(feature = "capture")]
 use burn_capture::CaptureDevice;
+#[cfg(feature = "shard")]
+use burn_shard::{ShardCustomOps, ShardError, ShardedComputeDevice, Sharding, ShardingError};
 
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
 
-// Throughput types come from `burn-backend` (which re-exports them from cubecl),
-// so `burn-dispatch` needs no direct `cubecl` dependency.
+// The capabilities come from `burn-backend` (which takes them from cubecl), so
+// `burn-dispatch` needs no direct `cubecl` dependency.
 #[cfg(feature = "cubecl")]
-use alloc::vec::Vec;
-#[cfg(feature = "cubecl")]
-use burn_backend::cubecl::{DeviceIdentity, ThroughputError, ThroughputKey, ThroughputValue};
-// `cubecl` without a runtime feature gives the throughput *types* but no `Cube` device to
-// measure, so the measurement itself follows `cube_backend` rather than the feature.
-#[cfg(cube_backend)]
-use burn_backend::cubecl::measure_peak_throughput;
+pub use burn_backend::cubecl::CubeCapabilities;
 
 /// Represents a device for the [`Dispatch`](crate::Dispatch).
 ///
@@ -33,8 +31,8 @@ use burn_backend::cubecl::measure_peak_throughput;
 /// #[cfg(feature = "cuda")]
 /// let cuda_device = DispatchDevice::Cube(cubecl::Device::Cuda(Default::default()));
 ///
-/// #[cfg(feature = "ndarray")]
-/// let ndarray_device = DispatchDevice::NdArray(Default::default());
+/// #[cfg(feature = "flex")]
+/// let flex_device = DispatchDevice::Flex(Default::default());
 /// ```
 #[derive(Clone, Eq)]
 pub enum DispatchDevice {
@@ -50,14 +48,6 @@ pub enum DispatchDevice {
     #[cfg(feature = "flex")]
     Flex(FlexDevice),
 
-    /// The [NdArray backend](crate::backends::NdArray) device (CPU-only).
-    #[cfg(feature = "ndarray")]
-    NdArray(NdArrayDevice),
-
-    /// The [LibTorch backend](crate::backends::LibTorch) device.
-    #[cfg(feature = "tch")]
-    LibTorch(LibTorchDevice),
-
     /// The [remote backend](crate::backends::Remote) device, identified by a network address.
     #[cfg(feature = "remote")]
     Remote(RemoteDevice),
@@ -66,68 +56,45 @@ pub enum DispatchDevice {
     #[cfg(feature = "capture")]
     Capture(CaptureDevice),
 
+    /// A [sharded compute device](crate::backends::ShardedCompute) that a tensor can be split over.
+    #[cfg(feature = "shard")]
+    ShardedCompute(ShardedComputeDevice),
+
     /// The [autodiff enabled backend](crate::backends::Autodiff) device.
     #[cfg(feature = "autodiff")]
     Autodiff(AutodiffDevice),
 }
 
+/// The device query a server answers a device's [`CubeCapabilities`] with: a remote device's
+/// capabilities are its server's device's.
+#[cfg(feature = "cubecl")]
+pub const CAPABILITIES_QUERY: &str = "burn.cubecl.capabilities";
+
 #[cfg(feature = "cubecl")]
 impl DispatchDevice {
-    /// Who this device is, `None` for a backend that does not report one. An autodiff device
-    /// answers for the device it wraps. Opens the device.
-    pub fn identity(&self) -> Option<DeviceIdentity> {
+    /// What the cubecl device behind this one can do, opening it: its features, limits, memory,
+    /// identity and compile target. An autodiff device answers for the device it wraps, a remote
+    /// device with what its server's device reports. `None` for a device on no cubecl runtime,
+    /// and for a server that does not answer.
+    pub fn capabilities(&self) -> Option<CubeCapabilities> {
         match self {
-            #[cfg(cube_backend)]
-            DispatchDevice::Cube(device) => Some(device.client().properties().identity.clone()),
-            #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(device) => device.inner.identity(),
-            #[allow(unreachable_patterns)]
-            _ => None,
-        }
-    }
-
-    /// Measure peak throughput for this device against the given `keys`.
-    ///
-    /// Only cubecl-backed devices can measure throughput; other backends
-    /// (ndarray, libtorch, remote, ...) return an empty vector. An autodiff
-    /// device reports the peaks of the device it wraps. Each returned result
-    /// corresponds positionally to the key at the same index, and carries a
-    /// [`ThroughputError`] where the device has no peak for that key.
-    // With `cubecl` on but no runtime compiled in, every arm below ignores `keys`.
-    #[cfg_attr(not(cube_backend), allow(unused_variables))]
-    pub fn performance_stats(
-        &self,
-        keys: &[ThroughputKey],
-    ) -> Vec<Result<ThroughputValue, ThroughputError>> {
-        // No catch-all arm: a new backend must fail to compile here rather
-        // than silently report no peaks.
-        match self {
-            #[cfg(not(backend_enabled))]
-            Self::Unavailable(never) => never.unreachable(),
             #[cfg(cube_backend)]
             DispatchDevice::Cube(device) => {
                 let client = device.client();
-                keys.iter()
-                    .map(|key| measure_peak_throughput(&client, *key))
-                    .collect()
+                Some(CubeCapabilities {
+                    properties: client.properties().clone(),
+                    target: client.target_properties().clone(),
+                })
             }
-            // Autodiff does not change the hardware, so measure the wrapped device.
             #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(device) => device.performance_stats(keys),
-
-            // Not cubecl-backed, so there are no kernels to measure.
-            #[cfg(feature = "flex")]
-            DispatchDevice::Flex(_) => Vec::new(),
-            #[cfg(feature = "ndarray")]
-            DispatchDevice::NdArray(_) => Vec::new(),
-            #[cfg(feature = "tch")]
-            DispatchDevice::LibTorch(_) => Vec::new(),
-
-            // The kernels run on the server, which this local API cannot reach.
-            #[cfg(feature = "remote")]
-            DispatchDevice::Remote(_) => Vec::new(),
-            #[cfg(feature = "capture")]
-            DispatchDevice::Capture(_) => Vec::new(),
+            DispatchDevice::Autodiff(device) => device.inner.capabilities(),
+            #[cfg(all(feature = "remote", not(target_family = "wasm")))]
+            DispatchDevice::Remote(device) => {
+                let answer = device.query(CAPABILITIES_QUERY).ok()?;
+                rmp_serde::from_slice(&answer).ok()
+            }
+            #[allow(unreachable_patterns)]
+            _ => None,
         }
     }
 }
@@ -215,12 +182,10 @@ impl core::fmt::Debug for DispatchDevice {
             Self::Cube(device) => f.debug_tuple("Cube").field(device).finish(),
             #[cfg(feature = "flex")]
             Self::Flex(device) => f.debug_tuple("Flex").field(device).finish(),
-            #[cfg(feature = "ndarray")]
-            Self::NdArray(device) => f.debug_tuple("NdArray").field(device).finish(),
-            #[cfg(feature = "tch")]
-            Self::LibTorch(device) => f.debug_tuple("LibTorch").field(device).finish(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => f.debug_tuple("Remote").field(device).finish(),
+            #[cfg(feature = "shard")]
+            Self::ShardedCompute(device) => f.debug_tuple("ShardedCompute").field(device).finish(),
             #[cfg(feature = "capture")]
             Self::Capture(device) => f.debug_tuple("Capture").field(device).finish(),
             #[cfg(feature = "autodiff")]
@@ -236,10 +201,15 @@ impl core::fmt::Debug for DispatchDevice {
 
 impl Default for DispatchDevice {
     /// Select an enabled backend in this order: CUDA, Metal, ROCm, Vulkan, WebGPU,
-    /// wgpu, CPU, LibTorch, Flex, Remote, NdArray. `BURN_DEVICE` overrides this in
+    /// wgpu, CPU, Flex, Remote. `BURN_DEVICE` overrides this in
     /// std builds. Capture devices must be constructed explicitly.
     ///
-    /// Panics when no execution backend is enabled.
+    /// The `metal`, `vulkan`, and `webgpu` overrides require their matching Cargo features
+    /// and pin the graphics API. Explicit Metal selection requires native MSL support.
+    /// The `wgpu` override keeps automatic API and compiler selection with WGSL fallback.
+    ///
+    /// Panics when no execution backend is enabled, or when `BURN_DEVICE` names an unknown
+    /// backend or one whose Cargo feature is not enabled.
     #[allow(unreachable_code)]
     fn default() -> Self {
         // BURN_DEVICE selects one compiled backend or reports a configuration error.
@@ -249,8 +219,7 @@ impl Default for DispatchDevice {
             if let Ok(device_str) = std::env::var("BURN_DEVICE") {
                 match device_str.to_lowercase().as_str() {
                     // Every cubecl runtime is the one `Cube` backend; the name here
-                    // picks the runtime the device names, and the wgpu spellings all
-                    // reach wgpu, whose compiler is chosen for it at runtime.
+                    // picks the runtime and, for named wgpu APIs, pins the graphics API.
                     "cuda" => {
                         #[cfg(feature = "cuda")]
                         return Self::Cube(CubeDevice::Cuda(Default::default()));
@@ -265,27 +234,51 @@ impl Default for DispatchDevice {
                             "BURN_DEVICE=rocm requested, but the 'rocm' feature is not enabled."
                         );
                     }
-                    "metal" | "vulkan" | "webgpu" | "wgpu" => {
-                        #[cfg(any(
-                            feature = "metal",
-                            feature = "vulkan",
-                            feature = "webgpu",
-                            feature = "wgpu"
-                        ))]
+                    "metal" => {
+                        #[cfg(feature = "metal")]
+                        return Self::Cube(CubeDevice::Metal(Default::default()));
+                        panic!(
+                            "BURN_DEVICE=metal requested, but the 'metal' feature is not enabled."
+                        );
+                    }
+                    "wgpu-msl" => {
+                        #[cfg(feature = "wgpu-msl")]
+                        return Self::Cube(CubeDevice::Wgpu(
+                            WgpuDevice::default().on(WgpuBackend::Metal),
+                        ));
+                        panic!(
+                            "BURN_DEVICE=wgpu-msl requested, but the 'wgpu-msl' feature is not enabled."
+                        );
+                    }
+                    "vulkan" => {
+                        #[cfg(feature = "vulkan")]
+                        return Self::Cube(CubeDevice::Wgpu(
+                            WgpuDevice::default().on(WgpuBackend::Vulkan),
+                        ));
+                        panic!(
+                            "BURN_DEVICE=vulkan requested, but the 'vulkan' feature is not enabled."
+                        );
+                    }
+                    "webgpu" => {
+                        #[cfg(feature = "webgpu")]
+                        return Self::Cube(CubeDevice::Wgpu(
+                            WgpuDevice::default().on(WgpuBackend::WebGpu),
+                        ));
+                        panic!(
+                            "BURN_DEVICE=webgpu requested, but the 'webgpu' feature is not enabled."
+                        );
+                    }
+                    "wgpu" => {
+                        #[cfg(feature = "wgpu")]
                         return Self::Cube(CubeDevice::Wgpu(Default::default()));
                         panic!(
-                            "BURN_DEVICE={device_str} requested, but no wgpu feature is enabled."
+                            "BURN_DEVICE=wgpu requested, but the 'wgpu' feature is not enabled."
                         );
                     }
                     "cpu" => {
                         #[cfg(feature = "cpu")]
                         return Self::Cube(CubeDevice::Cpu(Default::default()));
                         panic!("BURN_DEVICE=cpu requested, but the 'cpu' feature is not enabled.");
-                    }
-                    "tch" => {
-                        #[cfg(feature = "tch")]
-                        return Self::LibTorch(LibTorchDevice::default());
-                        panic!("BURN_DEVICE=tch requested, but the 'tch' feature is not enabled.");
                     }
                     "remote" => {
                         #[cfg(feature = "remote")]
@@ -299,13 +292,6 @@ impl Default for DispatchDevice {
                         return Self::Flex(FlexDevice);
                         panic!(
                             "BURN_DEVICE=flex requested, but the 'flex' feature is not enabled."
-                        );
-                    }
-                    "ndarray" => {
-                        #[cfg(feature = "ndarray")]
-                        return Self::NdArray(NdArrayDevice::default());
-                        panic!(
-                            "BURN_DEVICE=ndarray requested, but the 'ndarray' feature is not enabled."
                         );
                     }
                     _ => panic!("Unknown BURN_DEVICE override: '{}'.", device_str),
@@ -322,6 +308,9 @@ impl Default for DispatchDevice {
         return Self::Cube(CubeDevice::Cuda(Default::default()));
 
         #[cfg(feature = "metal")]
+        return Self::Cube(CubeDevice::Metal(Default::default()));
+
+        #[cfg(feature = "wgpu-msl")]
         return Self::Cube(CubeDevice::Wgpu(Default::default()));
 
         #[cfg(feature = "rocm")]
@@ -339,18 +328,11 @@ impl Default for DispatchDevice {
         #[cfg(feature = "cpu")]
         return Self::Cube(CubeDevice::Cpu(Default::default()));
 
-        #[cfg(feature = "tch")]
-        return Self::LibTorch(LibTorchDevice::default());
-
-        // Preserve the preference for Flex over the deprecated NdArray backend.
         #[cfg(feature = "flex")]
         return Self::Flex(FlexDevice);
 
         #[cfg(feature = "remote")]
         return Self::Remote(RemoteDevice::default());
-
-        #[cfg(feature = "ndarray")]
-        return Self::NdArray(NdArrayDevice::default());
 
         panic!(
             "No execution backend is enabled. Enable a Burn backend feature such as `flex`, \
@@ -381,12 +363,10 @@ impl PartialEq for DispatchDevice {
             (Self::Cube(a), Self::Cube(b)) => a == b,
             #[cfg(feature = "flex")]
             (Self::Flex(a), Self::Flex(b)) => a == b,
-            #[cfg(feature = "ndarray")]
-            (Self::NdArray(a), Self::NdArray(b)) => a == b,
-            #[cfg(feature = "tch")]
-            (Self::LibTorch(a), Self::LibTorch(b)) => a == b,
             #[cfg(feature = "remote")]
             (Self::Remote(a), Self::Remote(b)) => a == b,
+            #[cfg(feature = "shard")]
+            (Self::ShardedCompute(a), Self::ShardedCompute(b)) => a == b,
             #[cfg(feature = "capture")]
             (Self::Capture(a), Self::Capture(b)) => a == b,
             #[allow(unreachable_patterns)]
@@ -406,6 +386,90 @@ impl DispatchDevice {
         Self::Capture(CaptureDevice::default())
     }
 
+    /// A new sharded compute device of `devices`, its members, that a tensor can be split over, apart from every
+    /// other sharded compute device.
+    ///
+    /// Make a sharded compute device once and reuse it, as any device: each call registers a new sharded compute device for the
+    /// rest of the process.
+    ///
+    /// Each of its default dtypes is the first of the members' configured ones, in member order,
+    /// that every member supports. Every member runs the handlers of `custom_ops`.
+    ///
+    /// # Errors
+    ///
+    /// When `devices` is empty or mixes backends, when they are not Cube or Flex devices, when no
+    /// member's default for a dtype runs on every member, when the members quantize
+    /// differently, or when `custom_ops` are another backend's. An autodiff sharded compute device
+    /// is made of plain devices, then made autodiff.
+    ///
+    /// # Panics
+    ///
+    /// When the process already has 65,536 sharded compute devices.
+    #[cfg(feature = "shard")]
+    pub fn shard(
+        devices: alloc::vec::Vec<DispatchDevice>,
+        custom_ops: ShardCustomOps,
+    ) -> Result<Self, ShardError> {
+        if let Some(error) = devices.iter().find_map(Self::refused_as_member) {
+            return Err(error);
+        }
+        let device = match devices.first() {
+            #[cfg(cube_backend)]
+            Some(Self::Cube(_)) => {
+                let members = shard_members!(devices, Cube)?;
+                ShardedComputeDevice::with_member_settings::<crate::backends::Cube>(
+                    &members, custom_ops,
+                )
+            }
+            #[cfg(feature = "flex")]
+            Some(Self::Flex(_)) => {
+                let members = shard_members!(devices, Flex)?;
+                ShardedComputeDevice::with_member_settings::<crate::backends::Flex>(
+                    &members, custom_ops,
+                )
+            }
+            Some(other) => unreachable!("{other:?} was refused as a member"),
+            None => Err(ShardError::NoDevices),
+        }?;
+        Ok(Self::ShardedCompute(device))
+    }
+
+    /// Why a value of `shape` made on this device cannot take `sharding`, if it cannot.
+    ///
+    /// # Errors
+    ///
+    /// When this is not a sharded compute device, or as
+    /// [`ShardedComputeDevice::check_sharding`].
+    #[cfg(feature = "shard")]
+    pub fn check_sharding(&self, shape: &Shape, sharding: Sharding) -> Result<(), ShardingError> {
+        match self {
+            Self::ShardedCompute(device) => device.check_sharding(shape, sharding),
+            #[cfg(feature = "autodiff")]
+            Self::Autodiff(device) => device.inner.check_sharding(shape, sharding),
+            #[allow(unreachable_patterns)]
+            _ => Err(ShardingError::NotSharded),
+        }
+    }
+
+    /// Why this device cannot be a sharded compute device's member, or `None` when it can.
+    #[cfg(feature = "shard")]
+    fn refused_as_member(&self) -> Option<ShardError> {
+        match self {
+            #[cfg(cube_backend)]
+            Self::Cube(_) => None,
+            #[cfg(feature = "flex")]
+            Self::Flex(_) => None,
+            #[cfg(feature = "autodiff")]
+            Self::Autodiff(_) => Some(ShardError::AutodiffMember),
+            #[cfg(feature = "remote")]
+            Self::Remote(_) => Some(ShardError::RemoteMember),
+            #[allow(unreachable_patterns)]
+            other => Some(ShardError::UnsupportedBackend {
+                device: alloc::format!("{other:?}"),
+            }),
+        }
+    }
+
     #[cfg(feature = "autodiff")]
     /// Creates a new [`DispatchDevice`] with
     /// [automatic differentiation](crate::backends::Autodiff) enabled.
@@ -421,6 +485,26 @@ impl DispatchDevice {
     ) -> DispatchDevice {
         let device = device.into();
         DispatchDevice::Autodiff(AutodiffDevice::new(device, checkpointing))
+    }
+
+    /// The id of the worker this device's fusion server runs on, or `None` when its operations do
+    /// not go through one.
+    ///
+    /// This is the runtime device's own id, not the one this device reports through
+    /// [`Device::to_id`](burn_backend::Device::to_id), which encodes the dispatch variant into its
+    /// type. A [`DeviceHandle`](burn_backend::DeviceHandle) opened with it shares the fusion
+    /// server's queue, so a task submitted there runs between the operations registered before
+    /// and after it. An autodiff device answers for the device it wraps. A sharded compute device answers
+    /// `None`: each of its members has a fusion server of its own.
+    pub fn fusion_worker(&self) -> Option<DeviceId> {
+        match self {
+            #[cfg(cube_backend)]
+            DispatchDevice::Cube(device) => burn_cubecl::FUSED.then(|| device.to_id()),
+            #[cfg(feature = "autodiff")]
+            DispatchDevice::Autodiff(device) => device.inner.fusion_worker(),
+            #[allow(unreachable_patterns)]
+            _ => None,
+        }
     }
 
     /// Returns the inner device, without autodiff (when enabled).
@@ -442,12 +526,10 @@ impl DispatchDevice {
             Self::Cube(_) => DispatchDeviceId::Cube,
             #[cfg(feature = "flex")]
             Self::Flex(_) => DispatchDeviceId::Flex,
-            #[cfg(feature = "ndarray")]
-            Self::NdArray(_) => DispatchDeviceId::NdArray,
-            #[cfg(feature = "tch")]
-            Self::LibTorch(_) => DispatchDeviceId::LibTorch,
             #[cfg(feature = "remote")]
             Self::Remote(_) => DispatchDeviceId::Remote,
+            #[cfg(feature = "shard")]
+            Self::ShardedCompute(_) => DispatchDeviceId::ShardedCompute,
             #[cfg(feature = "capture")]
             Self::Capture(_) => DispatchDeviceId::Capture,
             #[cfg(feature = "autodiff")]
@@ -482,10 +564,11 @@ pub enum DispatchDeviceId {
     /// Every cubecl runtime: which one is in the device's own id.
     Cube = 0,
     Flex = 4,
-    LibTorch = 5,
-    NdArray = 6,
+    // 5 was LibTorch; keep the other backend IDs stable.
+    // 6 was NdArray; keep the other backend IDs stable.
     Remote = 10,
     Capture = 11,
+    ShardedCompute = 12,
 }
 
 impl From<DispatchDeviceId> for u16 {
@@ -503,12 +586,10 @@ impl TryFrom<u16> for DispatchDeviceId {
             0 => Ok(Self::Cube),
             #[cfg(feature = "flex")]
             4 => Ok(Self::Flex),
-            #[cfg(feature = "tch")]
-            5 => Ok(Self::LibTorch),
-            #[cfg(feature = "ndarray")]
-            6 => Ok(Self::NdArray),
             #[cfg(feature = "remote")]
             10 => Ok(Self::Remote),
+            #[cfg(feature = "shard")]
+            12 => Ok(Self::ShardedCompute),
             #[cfg(feature = "capture")]
             11 => Ok(Self::Capture),
             _ => Err(()),
@@ -525,12 +606,10 @@ impl DeviceOps for DispatchDevice {
             Self::Cube(device) => device.defaults(),
             #[cfg(feature = "flex")]
             Self::Flex(device) => device.defaults(),
-            #[cfg(feature = "ndarray")]
-            Self::NdArray(device) => device.defaults(),
-            #[cfg(feature = "tch")]
-            Self::LibTorch(device) => device.defaults(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => device.defaults(),
+            #[cfg(feature = "shard")]
+            Self::ShardedCompute(device) => device.defaults(),
             #[cfg(feature = "capture")]
             Self::Capture(device) => device.defaults(),
             #[cfg(feature = "autodiff")]
@@ -544,17 +623,18 @@ impl burn_backend::Device for DispatchDevice {
         let (dispatch_id, backend_type_id) = Self::decode_type_id(device_id.type_id);
         device_id.type_id = backend_type_id;
 
+        #[allow(unreachable_patterns)]
         match dispatch_id {
             #[cfg(cube_backend)]
             DispatchDeviceId::Cube => Self::Cube(burn_backend::Device::from_id(device_id)),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => Self::Flex(FlexDevice::from_id(device_id)),
-            #[cfg(feature = "ndarray")]
-            DispatchDeviceId::NdArray => Self::NdArray(NdArrayDevice::from_id(device_id)),
-            #[cfg(feature = "tch")]
-            DispatchDeviceId::LibTorch => Self::LibTorch(LibTorchDevice::from_id(device_id)),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Self::Remote(RemoteDevice::from_id(device_id)),
+            #[cfg(feature = "shard")]
+            DispatchDeviceId::ShardedCompute => {
+                Self::ShardedCompute(ShardedComputeDevice::from_id(device_id))
+            }
             #[cfg(feature = "capture")]
             DispatchDeviceId::Capture => Self::Capture(CaptureDevice::from_id(device_id)),
             _ => unreachable!("No backend feature enabled."),
@@ -569,12 +649,10 @@ impl burn_backend::Device for DispatchDevice {
             Self::Cube(device) => device.to_id(),
             #[cfg(feature = "flex")]
             Self::Flex(device) => device.to_id(),
-            #[cfg(feature = "ndarray")]
-            Self::NdArray(device) => device.to_id(),
-            #[cfg(feature = "tch")]
-            Self::LibTorch(device) => device.to_id(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => device.to_id(),
+            #[cfg(feature = "shard")]
+            Self::ShardedCompute(device) => device.to_id(),
             #[cfg(feature = "capture")]
             Self::Capture(device) => device.to_id(),
             #[cfg(feature = "autodiff")]
@@ -617,9 +695,16 @@ impl From<RocmDevice> for DispatchDevice {
     }
 }
 
+#[cfg(feature = "metal")]
+impl From<MetalDevice> for DispatchDevice {
+    fn from(device: MetalDevice) -> Self {
+        DispatchDevice::Cube(CubeDevice::Metal(device))
+    }
+}
+
 #[cfg(any(
     feature = "wgpu",
-    feature = "metal",
+    feature = "wgpu-msl",
     feature = "vulkan",
     feature = "webgpu"
 ))]
@@ -636,17 +721,10 @@ impl From<FlexDevice> for DispatchDevice {
     }
 }
 
-#[cfg(feature = "ndarray")]
-impl From<NdArrayDevice> for DispatchDevice {
-    fn from(device: NdArrayDevice) -> Self {
-        DispatchDevice::NdArray(device)
-    }
-}
-
-#[cfg(feature = "tch")]
-impl From<LibTorchDevice> for DispatchDevice {
-    fn from(device: LibTorchDevice) -> Self {
-        DispatchDevice::LibTorch(device)
+#[cfg(feature = "shard")]
+impl From<ShardedComputeDevice> for DispatchDevice {
+    fn from(device: ShardedComputeDevice) -> Self {
+        DispatchDevice::ShardedCompute(device)
     }
 }
 
@@ -674,7 +752,7 @@ mod tests {
     #[test]
     #[cfg(feature = "remote-websocket")]
     fn remote_device_id_round_trips_through_dispatch() {
-        let device = DispatchDevice::from(RemoteDevice::websocket("ws://127.0.0.1:1", 0));
+        let device = DispatchDevice::from(RemoteDevice::default());
         let restored = DispatchDevice::from_id(device.to_id());
 
         assert_eq!(restored, device);

@@ -1,6 +1,7 @@
 mod activation;
 mod binary;
 mod bool_tensor;
+mod collective;
 mod distributed;
 mod int_tensor;
 mod module;

@@ -4,10 +4,10 @@ categories = ["science", "no-std", "embedded", "wasm"]
 description = "Optimizer building blocks for the Burn deep learning framework"
 documentation = "https://docs.rs/burn-optim"
 edition.workspace = true
-keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch"]
 license.workspace = true
 name = "burn-optim"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-optim"
 version.workspace = true
 

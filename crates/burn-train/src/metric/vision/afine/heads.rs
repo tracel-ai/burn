@@ -368,7 +368,7 @@ mod tests {
             .collect();
 
         let out = head.forward(image.clone(), image, &features.clone(), &features);
-        let value = out.into_data().to_vec::<f32>().unwrap()[0];
+        let value = out.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             value.abs() < 0.1,
             "fidelity head on identical inputs should yield ~0, got {value}"

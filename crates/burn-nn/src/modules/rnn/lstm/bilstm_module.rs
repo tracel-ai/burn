@@ -2,10 +2,12 @@ use crate::Initializer;
 use burn_core as burn;
 
 use crate::activation::ActivationConfig;
+use crate::modules::role::Role;
 use crate::{Lstm, LstmConfig, LstmState};
 use alloc::vec;
 use burn::Tensor;
 use burn::config::Config;
+use burn::instrument::compute;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::prelude::Device;
 use burn::prelude::s;
@@ -28,7 +30,7 @@ pub struct BiLstmConfig {
     pub batch_first: bool,
     /// Optional cell state clip threshold.
     pub clip: Option<f64>,
-    /// If true, couples the input and forget gates.
+    /// If true, couples the input and forget gates and omits the separate forget gate in both directions.
     #[config(default = false)]
     pub input_forget: bool,
     /// Activation function for the input, forget, and output gates.
@@ -126,6 +128,7 @@ impl BiLstm {
     ///   - `[sequence_length, batch_size, hidden_size * 2]` if `batch_first` is false
     /// - state: A `LstmState` represents the final forward and reverse states. Both `state.cell` and
     ///   `state.hidden` have the shape `[2, batch_size, hidden_size]`.
+    #[compute]
     pub fn forward(
         &self,
         batched_input: Tensor<3>,
@@ -146,16 +149,18 @@ impl BiLstm {
 
         // forward direction
         let (hidden_forward, state_forward) =
-            self.forward.forward(batched_input.clone(), state_forward);
+            Role::FORWARD.run(|| self.forward.forward(batched_input.clone(), state_forward));
 
         // reverse direction
-        let (hidden_reverse, state_reverse) = self.reverse.forward_iter(
-            batched_input.iter_dim(1).enumerate().rev(),
-            state_reverse,
-            batch_size,
-            seq_length,
-            &device,
-        );
+        let (hidden_reverse, state_reverse) = Role::REVERSE.run(|| {
+            self.reverse.forward_iter(
+                batched_input.iter_dim(1).enumerate().rev(),
+                state_reverse,
+                batch_size,
+                seq_length,
+                &device,
+            )
+        });
 
         let output = Tensor::cat([hidden_forward, hidden_reverse].to_vec(), 2);
 
@@ -181,6 +186,25 @@ mod test {
     use burn_core::tensor::{TensorData, Tolerance};
 
     type FT = f32;
+
+    #[rstest::rstest]
+    #[case(false, false, 120)]
+    #[case(false, true, 168)]
+    #[case(true, false, 90)]
+    #[case(true, true, 126)]
+    fn test_parameter_count(
+        #[case] input_forget: bool,
+        #[case] bias: bool,
+        #[case] expected: usize,
+    ) {
+        let lstm = BiLstmConfig::new(2, 3, bias)
+            .with_input_forget(input_forget)
+            .init(&Device::default());
+
+        assert_eq!(lstm.forward.forget_gate.is_none(), input_forget);
+        assert_eq!(lstm.reverse.forget_gate.is_none(), input_forget);
+        assert_eq!(lstm.num_params(), expected);
+    }
 
     #[test]
     fn display_bilstm() {
@@ -250,7 +274,7 @@ mod test {
             &device,
         );
 
-        lstm.forward.forget_gate = create_gate_controller(
+        lstm.forward.forget_gate = Some(create_gate_controller(
             [[-0.342, -0.084, -0.420], [-0.432, 0.119, 0.191]],
             [0.315, -0.413, -0.041],
             [
@@ -260,7 +284,7 @@ mod test {
             ],
             [-0.431, -0.535, 0.125],
             &device,
-        );
+        ));
 
         lstm.forward.cell_gate = create_gate_controller(
             [[-0.046, -0.382, 0.321], [-0.533, 0.558, 0.004]],
@@ -298,7 +322,7 @@ mod test {
             &device,
         );
 
-        lstm.reverse.forget_gate = create_gate_controller(
+        lstm.reverse.forget_gate = Some(create_gate_controller(
             [[-0.154, -0.432, -0.547], [-0.369, -0.310, -0.175]],
             [0.141, 0.004, 0.055],
             [
@@ -308,7 +332,7 @@ mod test {
             ],
             [-0.382, 0.331, -0.176],
             &device,
-        );
+        ));
 
         lstm.reverse.cell_gate = create_gate_controller(
             [[-0.571, 0.228, -0.287], [-0.331, 0.110, 0.219]],

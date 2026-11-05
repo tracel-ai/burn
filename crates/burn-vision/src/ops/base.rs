@@ -100,9 +100,9 @@ pub struct ConnectedStats {
 #[extension_type(fusion: cfg(feature = "fusion"))]
 /// Primitive version of [`ConnectedStats`], to be returned by the backend.
 ///
-/// Accelerated Cube operations reserve `height * width` entries for each statistics
+/// Accelerated Cube operations reserve `height * width + 1` entries for each statistics
 /// array. CPU fallbacks return one entry per component, including background.
-/// Fusion retains image-sized metadata for these arrays even on CPU fallback,
+/// Fusion reserves the same capacity in its metadata for these arrays even on CPU fallback,
 /// preserving the existing discrepancy with their compact data. `max_label` has one entry.
 pub struct ConnectedStatsPrimitive<B: Backend> {
     /// Total area of each component
@@ -178,12 +178,12 @@ impl Default for NmsOptions {
         feature = "wgpu",
         feature = "webgpu",
         feature = "vulkan",
+        feature = "wgpu-msl",
         feature = "metal",
         feature = "cuda",
         feature = "rocm",
         feature = "cpu"
     )),
-    LibTorch: cfg(feature = "tch"),
 )]
 pub trait VisionBackend: Backend + BoolVisionOps + IntVisionOps + FloatVisionOps {}
 
@@ -196,12 +196,12 @@ pub trait VisionBackend: Backend + BoolVisionOps + IntVisionOps + FloatVisionOps
         feature = "wgpu",
         feature = "webgpu",
         feature = "vulkan",
+        feature = "wgpu-msl",
         feature = "metal",
         feature = "cuda",
         feature = "rocm",
         feature = "cpu"
     )),
-    LibTorch: cfg(feature = "tch"),
 )]
 /// Vision ops on bool tensors
 pub trait BoolVisionOps: Backend {
@@ -278,12 +278,12 @@ pub trait BoolVisionOps: Backend {
         feature = "wgpu",
         feature = "webgpu",
         feature = "vulkan",
+        feature = "wgpu-msl",
         feature = "metal",
         feature = "cuda",
         feature = "rocm",
         feature = "cpu"
     )),
-    LibTorch: cfg(feature = "tch"),
 )]
 /// Vision ops on int tensors
 pub trait IntVisionOps: Backend {
@@ -325,12 +325,12 @@ pub trait IntVisionOps: Backend {
         feature = "wgpu",
         feature = "webgpu",
         feature = "vulkan",
+        feature = "wgpu-msl",
         feature = "metal",
         feature = "cuda",
         feature = "rocm",
         feature = "cpu"
     )),
-    LibTorch: cfg(feature = "tch"),
 )]
 /// Vision ops on float tensors
 pub trait FloatVisionOps: Backend {
@@ -404,7 +404,7 @@ fn connected_components_metadata(
     ConnectedStatsPrimitiveMetadata,
 ) {
     use burn::backend::fusion::custom::TensorSpec;
-    let stat = || TensorSpec::new([img.shape.num_elements()].into(), (*dtype).into());
+    let stat = || TensorSpec::new([img.shape.num_elements() + 1].into(), (*dtype).into());
     (
         TensorSpec::new(img.shape.clone(), (*dtype).into()),
         ConnectedStatsPrimitiveMetadata {

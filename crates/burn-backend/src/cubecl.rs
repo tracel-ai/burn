@@ -1,5 +1,5 @@
 //! Conversion helpers between burn's [`DType`] and cubecl's
-//! `ElemType` / `StorageType`.
+//! `ElemType` / `StorageType`, and between their `ReduceOperation`s.
 //!
 //! These are exposed as plain named functions (rather than `From`/`Into`
 //! trait impls in `burn-std`) so that `burn-std` doesn't need to depend on
@@ -8,10 +8,14 @@
 //! `burn-backend` (with the `cubecl` feature) and call these functions
 //! explicitly.
 
-use burn_std::{BoolStore, DType, QuantScheme, QuantStore, QuantValue};
+use burn_std::{
+    BoolStore, DType, QuantScheme, QuantStore, QuantValue, distributed::ReduceOperation,
+};
 use cubecl::ir::{ElemType, FloatKind, IntKind, UIntKind};
 
 pub mod autotune;
+mod device;
+mod execution;
 
 pub use cubecl::throughput::{
     MemoryAccess, ThroughputError, ThroughputKey, ThroughputMode, ThroughputValue,
@@ -26,6 +30,19 @@ pub use cubecl::Device;
 pub use cubecl::RuntimeId;
 pub use cubecl::ir::{AdapterLuid, DeviceIdentity, PciAddress, PciVendor, PhysicalDevice};
 pub use cubecl::std::throughput::measure_peak_throughput;
+
+/// What a cubecl device can do, as its runtime states it once the device is
+/// open: the features, limits and memory it reports, its identity, and the
+/// target its kernels compile for. What a kernel written in cubecl selects its
+/// routines by, so a device whose work runs elsewhere — a remote device's
+/// server — answers it from there.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CubeCapabilities {
+    /// The features, limits, memory and identity the runtime reports.
+    pub properties: cubecl::ir::DeviceProperties,
+    /// The target the runtime compiles kernels for.
+    pub target: cubecl::ir::TargetProperties,
+}
 
 /// Convert a cubecl [`ElemType`] into the corresponding burn [`DType`].
 ///
@@ -124,5 +141,13 @@ pub fn dtype_to_storage_type(dtype: DType) -> ElemType {
             ..
         }) => ElemType::Float(FloatKind::E2M1x2),
         _ => dtype_to_elem_type(dtype),
+    }
+}
+
+/// Convert a burn [`ReduceOperation`] into the cubecl reduction it runs as.
+pub fn reduce_operation_to_cubecl(op: ReduceOperation) -> cubecl::server::ReduceOperation {
+    match op {
+        ReduceOperation::Sum => cubecl::server::ReduceOperation::Sum,
+        ReduceOperation::Mean => cubecl::server::ReduceOperation::Mean,
     }
 }

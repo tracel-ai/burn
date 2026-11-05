@@ -168,6 +168,10 @@ A `to_device` of a claimed tensor produces a claimed tensor: `change_client_*` c
   A thread that panics and then never touches fusion again keeps those entries, and any claim on
   them, for the life of the process — the queue is thread-local and nothing else drains it. It is a
   far narrower leak than abandoning the registration outright, not the absence of one.
+- An operation's read-only inputs are held by the thread building it until it is submitted
+  (`tensor::held`). A thread that panics in between and then ends never releases them, so a tensor
+  another thread still shares is never freed; a thread that carries on releases them at its next
+  submission.
 - Raising is still caught with `catch_unwind`, so a backend that panics rather than reporting relies
   on the unwinding panic runtime. Under `panic = "abort"` a panicking operation ends the process,
   which is a worse outcome than a claim but not one a claim could improve on — prefer reporting.

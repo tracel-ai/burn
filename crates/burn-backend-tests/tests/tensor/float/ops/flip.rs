@@ -28,7 +28,7 @@ fn flip_float() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "The axes must be unique")]
 fn flip_duplicated_axes() {
     let device = Default::default();
     let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);

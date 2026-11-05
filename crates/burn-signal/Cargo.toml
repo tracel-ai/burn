@@ -7,7 +7,7 @@ edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "tensor", "signal", "audio"]
 license.workspace = true
 name = "burn-signal"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-signal"
 version.workspace = true
 
@@ -29,10 +29,10 @@ rocm = ["cubecl-backend", "burn-core/rocm"]
 wgpu = ["cubecl-backend", "burn-core/wgpu"]
 vulkan = ["cubecl-backend", "burn-core/vulkan"]
 webgpu = ["cubecl-backend", "burn-core/webgpu"]
+wgpu-msl = ["cubecl-backend", "burn-core/wgpu-msl"]
 metal = ["cubecl-backend", "burn-core/metal"]
 cpu = ["cubecl-backend", "burn-core/cpu"]
 flex = ["burn-core/flex", "burn-flex"]
-tch = ["burn-core/tch", "burn-tch", "dep:tch"]
 remote-websocket = ["remote", "burn-core/remote-websocket"]
 # Enable the remote transport integration test and its server dependencies.
 remote-tests = ["autodiff", "remote-websocket", "burn-remote/server", "burn-remote/websocket", "dep:tokio"]
@@ -49,15 +49,16 @@ burn-router = { workspace = true, optional = true, default-features = false }
 burn-std = { workspace = true }
 burn-autodiff = { workspace = true, optional = true }
 burn-flex = { workspace = true, optional = true, features = ["fft"] }
-burn-tch = { workspace = true, optional = true }
-tch = { workspace = true, optional = true }
 
 burn-remote = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true, features = ["rt-multi-thread"] }
 
+# `sin`/`cos` for the Bluestein chirp sequence in no_std builds.
+libm = { workspace = true }
+
 [dev-dependencies]
 divan = "0.1"
-ctor = "0.10.1"
+ctor = "1.0.13"
 
 [package.metadata.docs.rs]
 features = ["default", "flex", "autodiff"]

@@ -106,6 +106,7 @@ mod permute;
 mod permuted_operands;
 mod powf;
 mod powf_scalar;
+mod powi_scalar;
 mod prod;
 mod random;
 mod recip;

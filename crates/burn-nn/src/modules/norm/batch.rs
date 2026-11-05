@@ -1,6 +1,7 @@
 use crate::Initializer;
 use burn_core as burn;
 
+use burn::instrument::{self, Bounds, compute};
 use burn::module::Flag;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::{Device, Tensor, assert_shape};
@@ -14,12 +15,15 @@ use burn::{
 /// Used to create a [`BatchNorm`] layer using the [`BatchNormConfig::init`].
 #[derive(Config, Debug)]
 pub struct BatchNormConfig {
-    /// The number of features.
+    /// The number of features. Must be greater than zero.
     pub num_features: usize,
-    /// A value required for numerical stability. Default: 1e-5
+    /// A finite, positive value required for numerical stability. Default: 1e-5
     #[config(default = 1e-5)]
     pub epsilon: f64,
-    /// Momentum used to update the metrics. Default: 0.1
+    /// A finite momentum in `[0, 1]` used to update the running statistics. Default: 0.1
+    ///
+    /// A value of 0 preserves the running statistics; 1 replaces them with the current
+    /// batch statistics.
     #[config(default = 0.1)]
     pub momentum: f64,
 }
@@ -61,7 +65,25 @@ pub struct BatchNorm {
 
 impl BatchNormConfig {
     /// Initializes a new [batch norm](BatchNorm) module.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `num_features` is zero, `epsilon` is not finite and positive,
+    /// or `momentum` is not finite and within `[0, 1]`.
     pub fn init(&self, device: &Device) -> BatchNorm {
+        assert!(
+            self.num_features > 0,
+            "num_features must be greater than zero."
+        );
+        assert!(
+            self.epsilon.is_finite() && self.epsilon > 0.0,
+            "epsilon must be finite and positive."
+        );
+        assert!(
+            self.momentum.is_finite() && (0.0..=1.0).contains(&self.momentum),
+            "momentum must be finite and within [0, 1]."
+        );
+
         let gamma = Initializer::Ones.init([self.num_features], device);
         let beta = Initializer::Zeros.init([self.num_features], device);
 
@@ -81,6 +103,35 @@ impl BatchNormConfig {
 }
 
 impl BatchNorm {
+    /// The floor for a normalization alone: read the input, the scale and shift and the running
+    /// statistics once, write the output once, and the running statistics back when training
+    /// updates them. The batch statistics are a pass over the same bytes, so no arithmetic is
+    /// declared.
+    fn bounds<const D: usize>(&self, input: &Tensor<D>) -> Bounds {
+        // The running mean and variance are per channel, as wide as the scale.
+        let per_channel = instrument::tensor_bytes(&self.gamma.val());
+        let statistics = 2 * per_channel;
+        let updated = match self.trains(input) {
+            true => statistics,
+            false => 0,
+        };
+        Bounds {
+            read: instrument::tensor_bytes(input)
+                + per_channel
+                + instrument::tensor_bytes(&self.beta.val())
+                + statistics,
+            write: instrument::tensor_bytes(input) + updated,
+            flops: 0,
+        }
+    }
+
+    /// Whether a pass over `input` trains this layer, which takes the batch statistics and
+    /// updates the running ones. Selected by the device *and* the layer state: the device alone
+    /// says a backward is possible, not that this layer takes part in one.
+    fn trains<const D: usize>(&self, input: &Tensor<D>) -> bool {
+        input.device().is_autodiff() && self.training.is_enabled()
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// See [`BatchNorm`] for more information.
@@ -93,6 +144,7 @@ impl BatchNorm {
     /// # Panics
     ///
     /// Panics if the input has rank < 2 or its second axis is not `num_features`.
+    #[compute(bounds = Self::bounds)]
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         let [num_features] = self.gamma.shape().dims();
         assert_shape!(input, [_, num_features, ..]);
@@ -109,7 +161,7 @@ impl BatchNorm {
         // `running_mean` and `running_var`, mutating state the caller has said it does not want
         // trained. The identified flag lets a structural group select this behavior without
         // inferring the state of the whole layer from one tensor parameter.
-        match input.device().is_autodiff() && self.training.is_enabled() {
+        match self.trains(&input) {
             true => self.forward_train(input),
             false => self.forward_inference(input),
         }
@@ -184,7 +236,73 @@ mod tests_1d {
     use burn::module::Module;
     use burn::tensor::TensorData;
     use burn::tensor::Tolerance;
+    use rstest::rstest;
     type FT = f32;
+
+    #[test]
+    #[should_panic(expected = "num_features must be greater than zero.")]
+    fn zero_features_is_rejected() {
+        BatchNormConfig::new(0).init(&Default::default());
+    }
+
+    #[rstest]
+    #[case::zero(0.0)]
+    #[case::negative(-1e-5)]
+    #[case::nan(f64::NAN)]
+    #[case::positive_infinity(f64::INFINITY)]
+    #[case::negative_infinity(f64::NEG_INFINITY)]
+    #[should_panic(expected = "epsilon must be finite and positive.")]
+    fn invalid_epsilon_is_rejected(#[case] epsilon: f64) {
+        BatchNormConfig::new(1)
+            .with_epsilon(epsilon)
+            .init(&Default::default());
+    }
+
+    #[rstest]
+    #[case::negative(-0.1)]
+    #[case::above_one(1.1)]
+    #[case::nan(f64::NAN)]
+    #[case::positive_infinity(f64::INFINITY)]
+    #[case::negative_infinity(f64::NEG_INFINITY)]
+    #[should_panic(expected = "momentum must be finite and within [0, 1].")]
+    fn invalid_momentum_is_rejected(#[case] momentum: f64) {
+        BatchNormConfig::new(1)
+            .with_momentum(momentum)
+            .init(&Default::default());
+    }
+
+    #[rstest]
+    #[case::zero(0.0, 0.0, 1.0)]
+    #[case::one(1.0, 4.0, 4.0)]
+    fn momentum_boundaries_update_running_statistics(
+        #[case] momentum: f64,
+        #[case] expected_mean: f32,
+        #[case] expected_var: f32,
+    ) {
+        let device = Device::default().autodiff();
+        let module = BatchNormConfig::new(1)
+            .with_momentum(momentum)
+            .init(&device);
+
+        // Two batches verify that momentum 1 replaces the previous statistics.
+        module.forward(Tensor::<2>::from_floats([[1.0], [3.0]], &device));
+        let output = module.forward(Tensor::<2>::from_floats([[2.0], [6.0]], &device));
+
+        // Both boundaries still use batch statistics to normalize during training.
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&TensorData::from([[-1.0], [1.0]]), Tolerance::default());
+        module
+            .running_mean
+            .value_sync()
+            .to_data()
+            .assert_approx_eq::<FT>(&TensorData::from([expected_mean]), Tolerance::default());
+        module
+            .running_var
+            .value_sync()
+            .to_data()
+            .assert_approx_eq::<FT>(&TensorData::from([expected_var]), Tolerance::default());
+    }
 
     #[test]
     #[should_panic(

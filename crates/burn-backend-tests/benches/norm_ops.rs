@@ -18,7 +18,7 @@ use burn_tensor::{Tensor, TensorData};
 use divan::Bencher;
 
 /// Route through the `B::layer_norm` backend hook. On Flex this hits the
-/// fused override; on NdArray this hits the `ModuleOps` default decomposition.
+/// fused override; backends without an override use the `ModuleOps` default decomposition.
 fn trait_layer_norm<const D: usize>(
     input: Tensor<D>,
     gamma: Tensor<1>,

@@ -1,6 +1,7 @@
 //! Non-executing router channel used to capture Burn operation graphs.
 
-use alloc::{boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec, vec::Vec};
+use burn_backend::RandomKey;
 use burn_backend::{
     BoolStore, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps, DeviceSettings,
     ExecutionError, RouterDeviceType, Shape, TensorData,
@@ -59,7 +60,10 @@ impl CaptureDevice {
             client,
             _registration: registration,
         };
-        guard.complete(capture(CaptureScope { session }))
+        guard.complete(capture(CaptureScope {
+            session,
+            inputs: Vec::new(),
+        }))
     }
 }
 
@@ -124,9 +128,104 @@ pub struct CaptureScope {
     // The scope owns the authority to close its session. Keeping this private prevents callers
     // from manufacturing completion tokens detached from the active router registration.
     session: Arc<CaptureSession>,
+    inputs: Vec<TensorId>,
+}
+
+/// Trait for tensor representations whose unique graph identifier can be extracted.
+pub trait CaptureTensor {
+    /// Returns the unique identifier of the tensor within the capture session.
+    fn capture_id(&self) -> TensorId;
+}
+
+impl<T: CaptureTensor> CaptureTensor for &T {
+    fn capture_id(&self) -> TensorId {
+        (*self).capture_id()
+    }
+}
+
+impl<C: RouterClient> CaptureTensor for RouterTensor<C> {
+    fn capture_id(&self) -> TensorId {
+        self.id()
+    }
+}
+
+/// Trait to convert output tensor references into an ordered list of `TensorId`s.
+pub trait IntoCaptureOutputs {
+    /// Consumes the container and returns the sequence of output `TensorId`s.
+    fn into_capture_ids(self) -> Vec<TensorId>;
+}
+
+// Unit / empty output
+impl IntoCaptureOutputs for () {
+    fn into_capture_ids(self) -> Vec<TensorId> {
+        Vec::new()
+    }
+}
+
+// Slice of references: &[&y1, &y2] or &[&dyn CaptureTensor]
+impl<T: ?Sized + CaptureTensor> IntoCaptureOutputs for &[&T] {
+    fn into_capture_ids(self) -> Vec<TensorId> {
+        self.iter().map(|t| t.capture_id()).collect()
+    }
+}
+
+// Fixed-size array of references: [&y] or [&y1, &y2]
+impl<T: CaptureTensor, const N: usize> IntoCaptureOutputs for [&T; N] {
+    fn into_capture_ids(self) -> Vec<TensorId> {
+        self.iter().map(|t| t.capture_id()).collect()
+    }
+}
+
+// 2-Tuple of references: (&y1, &y2)
+impl<A: CaptureTensor, B: CaptureTensor> IntoCaptureOutputs for (&A, &B) {
+    fn into_capture_ids(self) -> Vec<TensorId> {
+        vec![self.0.capture_id(), self.1.capture_id()]
+    }
+}
+
+// 3-Tuple of references: (&y1, &y2, &y3)
+impl<A: CaptureTensor, B: CaptureTensor, C: CaptureTensor> IntoCaptureOutputs for (&A, &B, &C) {
+    fn into_capture_ids(self) -> Vec<TensorId> {
+        vec![
+            self.0.capture_id(),
+            self.1.capture_id(),
+            self.2.capture_id(),
+        ]
+    }
+}
+
+// 4-Tuple of references: (&y1, &y2, &y3, &y4)
+impl<A: CaptureTensor, B: CaptureTensor, C: CaptureTensor, D: CaptureTensor> IntoCaptureOutputs
+    for (&A, &B, &C, &D)
+{
+    fn into_capture_ids(self) -> Vec<TensorId> {
+        vec![
+            self.0.capture_id(),
+            self.1.capture_id(),
+            self.2.capture_id(),
+            self.3.capture_id(),
+        ]
+    }
 }
 
 impl CaptureScope {
+    /// Registers a tensor as a runtime input to the captured graph and returns it.
+    pub fn input<T: CaptureTensor>(&mut self, tensor: T) -> T {
+        let id = tensor.capture_id();
+        if !self.inputs.contains(&id) {
+            self.inputs.push(id);
+        }
+        tensor
+    }
+
+    /// Completes the capture scope using the inputs registered via [`CaptureScope::input`]
+    /// and the provided outputs.
+    pub fn complete_with<O: IntoCaptureOutputs>(mut self, outputs: O) -> CompletedCaptureScope {
+        let output_ids = outputs.into_capture_ids();
+        let inputs = core::mem::take(&mut self.inputs);
+        self.complete(inputs, output_ids)
+    }
+
     /// Complete the scope with ordered runtime input and graph output tensor IDs.
     ///
     /// Module parameters and other initialized constants should not be listed as runtime inputs;
@@ -499,7 +598,9 @@ impl RouterClient for CaptureClient {
     fn sync(&self) -> Result<(), ExecutionError> {
         Ok(())
     }
-    fn flush(&self) {}
+    fn flush(&self) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 
     fn create_empty_handle(&self) -> TensorId {
         self.state().lock().assert_open();
@@ -521,15 +622,20 @@ impl RouterClient for CaptureClient {
         self.device
     }
 
+    fn next_random_key(&self) -> RandomKey {
+        panic!(
+            "implicit random operations are not supported during graph capture; supply an explicit RandomKey to the backend operation"
+        )
+    }
+
     fn seed(&self, _seed: u64) {
         panic!("seeding is not supported during graph capture")
     }
 
     fn dtype_usage(&self, dtype: DType) -> DTypeUsageSet {
         match dtype {
-            // Capture records these operations without executing dtype-specific kernels. The
-            // router's quantized operations are not implemented yet, so quantized tensors remain
-            // the only dtype family that capture cannot represent through the backend API.
+            // Capture records these operations without executing dtype-specific kernels.
+            // Quantized tensors stay unsupported until capturing their operations is tested.
             DType::QFloat(_) => DTypeUsageSet::empty(),
             _ => DTypeUsage::general(),
         }
@@ -581,12 +687,65 @@ mod tests {
     use alloc::vec;
     #[cfg(feature = "std")]
     use burn_backend::Backend;
-    use burn_backend::ops::FloatTensorOps;
-    use burn_ir::{CustomOpIr, ScalarIr};
+    use burn_backend::ops::{FloatTensorOps, IntTensorOps, ModuleOps};
+    use burn_ir::{CustomOpIr, ModuleOperationIr, ScalarIr};
     use burn_router::get_client;
 
     fn tensor(id: u64, shape: impl Into<Shape>) -> TensorIr {
         TensorIr::uninit(TensorId::new(id), shape.into(), DType::F32)
+    }
+
+    #[test]
+    #[should_panic(expected = "implicit random operations are not supported during graph capture")]
+    fn implicit_randomness_is_unsupported() {
+        let device = CaptureDevice::default();
+        let _ = device.capture_scope(|scope| {
+            get_client::<CaptureChannel>(&device).next_random_key();
+            scope.complete([], [])
+        });
+    }
+
+    #[test]
+    fn explicit_random_keys_are_preserved() {
+        use burn_backend::{Distribution, FloatDType, IntDType};
+        use burn_ir::{FloatOperationIr, NumericOperationIr};
+
+        let device = CaptureDevice::default();
+        let key = RandomKey::new(7);
+        let captured = device
+            .capture_scope(|scope| {
+                let float = CaptureBackend::float_random(
+                    [4].into(),
+                    Distribution::Default,
+                    &device,
+                    FloatDType::F32,
+                    key,
+                );
+                let int = CaptureBackend::int_random(
+                    [4].into(),
+                    Distribution::Default,
+                    &device,
+                    IntDType::I32,
+                    key,
+                );
+                scope.complete([], [float.id(), int.id()])
+            })
+            .unwrap();
+
+        let keys: Vec<_> = captured
+            .graph
+            .operations
+            .iter()
+            .filter_map(|op| match op {
+                OperationIr::Float(_, FloatOperationIr::Random(desc))
+                | OperationIr::NumericInt(_, NumericOperationIr::IntRandom(desc)) => {
+                    Some(desc.key())
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(keys, [key, key]);
+        assert!(captured.values.is_empty());
     }
 
     #[test]
@@ -621,6 +780,107 @@ mod tests {
                 .all(|operation| !matches!(operation, OperationIr::Drop(_))),
             "tensor lifetime operations must not be part of a computation graph"
         );
+    }
+
+    #[test]
+    fn a_router_tells_autodiff_it_computes_the_ctc_gradient() {
+        // Autodiff asks this before it records `ctc_loss` as one node. Told `false`, it
+        // differentiates the decomposed loss instead and never reaches `ctc_loss_backward`.
+        assert!(CaptureBackend::has_ctc_loss_backward());
+    }
+
+    #[test]
+    fn ctc_loss_and_its_gradient_are_each_one_operation() {
+        // A router that leaves these to the `ModuleOps` defaults decomposes the loss into a
+        // stream of tensor operations per time step and cannot compute the gradient at all,
+        // even though the interpreter on the other side handles both as single operations.
+        let device = CaptureDevice::default();
+        let captured = device
+            .capture_scope(|scope| {
+                let frame = [[0.5f32.ln(), 0.5f32.ln()]];
+                let log_probs = CaptureBackend::float_from_data(
+                    TensorData::from([frame, frame, frame]),
+                    &device,
+                );
+                let targets = CaptureBackend::int_from_data(TensorData::from([[1i64]]), &device);
+                let input_lengths =
+                    CaptureBackend::int_from_data(TensorData::from([3i64]), &device);
+                let target_lengths =
+                    CaptureBackend::int_from_data(TensorData::from([1i64]), &device);
+                let grad_loss =
+                    CaptureBackend::float_from_data(TensorData::from([1.0f32]), &device);
+                let inputs = [
+                    log_probs.id(),
+                    targets.id(),
+                    input_lengths.id(),
+                    target_lengths.id(),
+                    grad_loss.id(),
+                ];
+
+                let loss = CaptureBackend::ctc_loss(
+                    log_probs.clone(),
+                    targets.clone(),
+                    input_lengths.clone(),
+                    target_lengths.clone(),
+                    0,
+                );
+                let gradient = CaptureBackend::ctc_loss_backward(
+                    log_probs,
+                    targets,
+                    input_lengths,
+                    target_lengths,
+                    grad_loss,
+                    0,
+                );
+
+                scope.complete(inputs, [loss.id(), gradient.id()])
+            })
+            .unwrap();
+
+        let computed: Vec<_> = captured
+            .graph
+            .operations
+            .iter()
+            .filter(|operation| !matches!(operation, OperationIr::Init(_)))
+            .collect();
+        assert!(
+            matches!(
+                computed.as_slice(),
+                [
+                    OperationIr::Module(ModuleOperationIr::CtcLoss(_)),
+                    OperationIr::Module(ModuleOperationIr::CtcLossBackward(_)),
+                ]
+            ),
+            "captured operations: {computed:?}"
+        );
+    }
+
+    #[test]
+    fn boundary_helpers_record_inputs_and_outputs() {
+        let device = CaptureDevice::default();
+        let captured = device
+            .capture_scope(|mut scope| {
+                let client = get_client::<CaptureChannel>(&device);
+                let x = client.register_tensor_data(TensorData::from([1.0f32, 2.0]));
+                let x = scope.input(x);
+                let x_id = x.id();
+
+                let output_id = client.create_empty_handle();
+                client.register_op(OperationIr::Custom(CustomOpIr::new(
+                    "custom_op",
+                    &[x.into_ir()],
+                    &[tensor(output_id.value(), [2])],
+                )));
+                let out = RouterTensor::new(output_id, Shape::new([2]), DType::F32, client);
+                let completed = scope.complete_with([&out]);
+                assert_eq!(completed.inputs, vec![x_id]);
+                assert_eq!(completed.outputs, vec![output_id]);
+                completed
+            })
+            .unwrap();
+
+        assert_eq!(captured.graph.inputs.len(), 1);
+        assert_eq!(captured.graph.outputs.len(), 1);
     }
 
     #[test]
@@ -725,6 +985,34 @@ mod tests {
                 burn_ir::NumericOperationIr::Neg(_)
             ))
         ));
+    }
+
+    #[test]
+    fn unsigned_int_tensor_can_move_from_completed_scope_to_new_device() {
+        let first_device = CaptureDevice::default();
+        let second_device = CaptureDevice::default();
+        let mut escaped = None;
+
+        first_device
+            .capture_scope(|scope| {
+                let tensor =
+                    CaptureBackend::int_from_data(TensorData::from([1u8, 200]), &first_device);
+                let tensor_id = tensor.id();
+                escaped = Some(tensor);
+                scope.complete([tensor_id], [])
+            })
+            .unwrap();
+
+        let captured = second_device
+            .capture_scope(|scope| {
+                let tensor = CaptureBackend::int_to_device(escaped.take().unwrap(), &second_device);
+                let tensor_id = tensor.id();
+                scope.complete([tensor_id], [])
+            })
+            .unwrap();
+
+        let moved = captured.values.into_values().next().unwrap();
+        moved.assert_eq(&TensorData::from([1u8, 200]), true);
     }
 
     #[cfg(feature = "std")]

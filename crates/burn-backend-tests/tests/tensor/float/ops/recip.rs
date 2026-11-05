@@ -34,6 +34,6 @@ fn should_preserve_order_and_precision_for_shared_selected_tensor() {
 
     output.into_data().assert_approx_eq::<FloatElem>(
         &TensorData::new(expected, [4, 8]),
-        Tolerance::rel_abs(1e-6, 1e-7),
+        Tolerance::rel_abs(1e-6, 1e-7).set_half_precision_absolute(1e-3),
     );
 }

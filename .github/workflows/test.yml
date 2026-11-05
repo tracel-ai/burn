@@ -15,7 +15,9 @@ on:
       - "!LICENSE-APACHE"
       - "!LICENSE-MIT"
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - main
     paths:
       - "Cargo.lock"
       - "**.rs"
@@ -44,11 +46,15 @@ env:
   TEST_RELEASE_FLAG: "--release"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A merged PR's ref becomes main; retain its PR group so closing it cancels
+  # the remaining PR jobs without interrupting main's cache-producing run.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   prepare-checks:
+    # Closing a PR only cancels its previous run. All other jobs depend on this one.
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     outputs:
       rust-prev-version: ${{ env.RUST_PREVIOUS_VERSION }}
@@ -71,10 +77,11 @@ jobs:
         uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v11
+        uses: tracel-ai/github-actions/install-rust@v12
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Audit
         run: cargo xtask check audit
@@ -92,7 +99,7 @@ jobs:
         run: cargo xtask check --features burn/tracing lint
       # --------------------------------------------------------------------------------
       - name: Typos
-        uses: tracel-ai/github-actions/check-typos@v11
+        uses: tracel-ai/github-actions/check-typos@v12
 
   documentation:
     runs-on: ubuntu-22.04
@@ -108,10 +115,11 @@ jobs:
         uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v11
+        uses: tracel-ai/github-actions/install-rust@v12
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Documentation Build
         run: cargo xtask doc build
@@ -129,24 +137,23 @@ jobs:
       CARGO_TERM_COLOR: always
     strategy:
       matrix:
-        rust: [stable, prev]
+        rust: [stable]
         # Tests are split across 3 shards: backend tests, workspace crates, examples/*
         ci_type: [backends, crates, examples]
         include:
           - rust: stable
             toolchain: stable
-          - rust: prev
-            toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: checkout
         uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v11
+        uses: tracel-ai/github-actions/install-rust@v12
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           # Keep caches isolated per shard to prevent race conditions or bloated sizes
           cache-key: ${{ matrix.rust }}-${{ matrix.ci_type }}-linux
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           # Coverage builds can exhaust disk space; examples only run cargo check.
           enable-cache: ${{ matrix.rust != 'stable' || matrix.ci_type == 'examples' }}
       # # --------------------------------------------------------------------------------
@@ -173,6 +180,32 @@ jobs:
           # Names must be unique so they don't overwrite each other in the storage backend
           name: coverage-linux-${{ matrix.ci_type }}
           path: lcov.info
+
+  linux-prev-checks:
+    runs-on: ubuntu-22.04
+    needs: [prepare-checks, code-quality]
+    env:
+      DISABLE_WGPU_SPIRV: "1"
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+      - name: Setup Rust
+        uses: tracel-ai/github-actions/install-rust@v12
+        with:
+          rust-toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
+          cache-key: prev-compile-linux
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Check workspace crates and examples
+        # Match the portable workspace build's exclusions for CUDA and ROCm SDKs.
+        run: cargo xtask compile --exclude burn-cuda,burn-rocm
+      - name: Check backend-free Burn
+        # Resolve independently so workspace features cannot supply a backend.
+        run: cargo check -p burn
+      - name: Check opt-in features
+        run: cargo check -p burn --features flex,capture,train,linalg,signal,vision,rl
+      - name: Check dataset all features
+        run: cargo check -p burn-dataset --all-features
 
 # --- Dedicated coverage upload job ---
   upload-coverage:
@@ -212,15 +245,17 @@ jobs:
         uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v11
+        uses: tracel-ai/github-actions/install-rust@v12
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux-no-std
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Crates Build
         run: cargo xtask --context no-std build --ci
       # --------------------------------------------------------------------------------
       - name: Crates Tests
+        if: matrix.rust == 'stable'
         run: cargo xtask --context no-std test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
 
   windows-std-tests:
@@ -242,10 +277,11 @@ jobs:
         uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v11
+        uses: tracel-ai/github-actions/install-rust@v12
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-${{ matrix.ci_type }}-windows
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Tests
         run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci ${{ matrix.ci_type }}
@@ -266,10 +302,11 @@ jobs:
         uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v11
+        uses: tracel-ai/github-actions/install-rust@v12
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-macos
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Device check
         run: system_profiler SPHardwareDataType

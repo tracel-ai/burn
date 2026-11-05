@@ -178,7 +178,7 @@ fn read_only_input_is_not_written_inplace() {
     });
 }
 
-/// A consumed elemwise input feeding a fused reduce must alias the elemwise output.
+/// A consumed, contiguous elemwise input feeding a fused reduce must alias the elemwise output.
 ///
 /// The aliased output becomes the read block's reference layout, so the reduce runner
 /// resolves the reference against an aliased output argument: this covers the
@@ -191,8 +191,16 @@ fn reduce_fusion_elemwise_output_writes_inplace() {
         let device = Default::default();
 
         let make_input = || {
-            let tensor =
-                TestTensor::<2>::from_data([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]], &device);
+            // Eight elements keep each row aligned to CUDA's 16-byte minimum even
+            // for f16. Four f16 elements would produce padded rows, which are not
+            // dense and therefore cannot be aliased by the fused reduce.
+            let tensor = TestTensor::<2>::from_data(
+                [
+                    [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+                    [9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0],
+                ],
+                &device,
+            );
             // Materialize the init op before the fused chain, so the chain starts from
             // an existing buffer and the init doesn't show up in the inspected reports.
             let _ = tensor.clone().into_data();
@@ -225,11 +233,14 @@ fn reduce_fusion_elemwise_output_writes_inplace() {
         let after = inplace_alias_count();
 
         out.assert_approx_eq::<FloatElem>(
-            &TensorData::from([[4.0, 6.0, 8.0, 10.0], [12.0, 14.0, 16.0, 18.0]]),
+            &TensorData::from([
+                [4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0],
+                [20.0, 22.0, 24.0, 26.0, 28.0, 30.0, 32.0, 34.0],
+            ]),
             Tolerance::default(),
         );
         res.assert_approx_eq::<FloatElem>(
-            &TensorData::from([[85.0], [181.0]]),
+            &TensorData::from([[265.0], [649.0]]),
             Tolerance::default(),
         );
         assert_all_fused(&inspector.drain(), "reduce with consumed elemwise input");
@@ -270,6 +281,108 @@ fn repeated_consuming_updates_alias_with_cached_plan() {
             after - before >= 3,
             "each accumulation step should alias (got {} aliases over 3 steps)",
             after - before,
+        );
+    });
+}
+
+/// An in-place output keeps its input's vector size, which can be narrower than the fused
+/// block's width: the kernel must still stop at the output's last element.
+///
+/// A single-channel NHWC tensor permuted to NCHW has a stride-one extent-one axis, so it is
+/// launched with vector size one, while the contiguous `rhs` vectorizes the block. The
+/// element count leaves the last cube partially idle; an idle unit that passes the bound
+/// writes into the slice allocated after the output, so `canary` must keep its values.
+#[test]
+fn inplace_output_narrower_than_width_stays_in_bounds() {
+    let stream = test_stream();
+    stream.executes(|| {
+        let device: burn_tensor::Device = Default::default();
+        let nhwc = [4, 52, 52, 1];
+
+        let materialize = |tensor: TestTensor<4>| {
+            let _ = tensor.clone().into_data();
+            device.sync().unwrap();
+            tensor
+        };
+        let nchw = |nhwc: TestTensor<4>| nhwc.permute([0, 3, 1, 2]);
+        let run = |lhs: TestTensor<4>, rhs: TestTensor<4>| (lhs.mul_scalar(2.0) + rhs).into_data();
+
+        // Warmup with the same graph: autotune trials run on forked contexts that never alias.
+        let _ = run(
+            materialize(nchw(TestTensor::full(nhwc, 1.0, &device))),
+            materialize(TestTensor::full([4, 1, 52, 52], 2.0, &device)),
+        );
+        device.sync().unwrap();
+
+        let lhs = materialize(nchw(TestTensor::full(nhwc, 1.0, &device)));
+        let canary = materialize(TestTensor::full(nhwc, 7.0, &device));
+        let rhs = materialize(TestTensor::full([4, 1, 52, 52], 2.0, &device));
+
+        let inspector = FusionInspector::install(stream);
+        let before = inplace_alias_count();
+        let out = run(lhs, rhs);
+        device.sync().unwrap();
+        let after = inplace_alias_count();
+
+        out.assert_approx_eq::<FloatElem>(
+            &TensorData::full([4, 1, 52, 52], 4.0),
+            Tolerance::default(),
+        );
+        assert_all_fused(&inspector.drain(), "permuted in-place elemwise");
+        assert!(
+            after > before,
+            "the output should alias the consumed `lhs` buffer"
+        );
+        canary
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&TensorData::full(nhwc, 7.0), Tolerance::default());
+    });
+}
+
+/// An in-place output narrower than the fused block's width becomes the block's reference: every
+/// unit must still be placed at the block's width, not at the output's own vector size.
+///
+/// A column narrowed out of `source` and transposed is launched with vector size one, while the
+/// contiguous `row` vectorizes the block. Once `source` is dropped the column is the only owner
+/// of its buffer, so the output aliases it and becomes the reference.
+#[test]
+fn inplace_reference_narrower_than_width_indexes_every_unit() {
+    let stream = test_stream();
+    stream.executes(|| {
+        let device: burn_tensor::Device = Default::default();
+        let source = || {
+            TestTensorInt::<1>::arange(0..128, &device)
+                .float()
+                .reshape([1, 16, 8])
+        };
+        let row = || TestTensor::<3>::ones([1, 1, 16], &device);
+        let column_plus_row = |source: &TestTensor<3>, row: TestTensor<3>| {
+            source.clone().narrow(2, 4, 1).swap_dims(1, 2) + row
+        };
+        let expected = TensorData::new(
+            (0..16).map(|c| (c * 8 + 4 + 1) as f32).collect(),
+            [1, 1, 16],
+        );
+
+        // Warmup with `source` kept alive: autotune trials run on forked contexts that never alias.
+        let (kept, row_kept) = (source(), row());
+        device.sync().unwrap();
+        column_plus_row(&kept, row_kept)
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+
+        let (dropped, row) = (source(), row());
+        device.sync().unwrap();
+        let out = column_plus_row(&dropped, row);
+        drop(dropped);
+        let before = inplace_alias_count();
+        let out = out.into_data();
+        let after = inplace_alias_count();
+
+        out.assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+        assert!(
+            after > before,
+            "the output should alias the transposed column"
         );
     });
 }

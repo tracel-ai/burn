@@ -2,10 +2,12 @@ use crate::Initializer;
 use burn_core as burn;
 
 use crate::activation::{Activation, ActivationConfig};
+use crate::modules::role::Role;
 use crate::{GateController, LstmState, OptionalInitialLstmState};
 use alloc::boxed::Box;
 use burn::Tensor;
 use burn::config::Config;
+use burn::instrument::compute;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::prelude::Device;
 use burn::prelude::s;
@@ -35,7 +37,7 @@ pub struct LstmConfig {
     /// exploding values during inference.
     pub clip: Option<f64>,
     /// If true, couples the input and forget gates: `f_t = 1 - i_t`.
-    /// This reduces the number of parameters and is based on GRU-style simplification.
+    /// The separate forget gate is omitted, reducing the gate parameters by one quarter.
     #[config(default = false)]
     pub input_forget: bool,
     /// Activation function for the input, forget, and output gates.
@@ -57,14 +59,22 @@ pub struct LstmConfig {
 /// Introduced in the paper: [Long Short-Term Memory](https://www.researchgate.net/publication/13853244).
 ///
 /// Should be created with [LstmConfig].
+///
+/// # Checkpoint compatibility
+///
+/// Initialize with the same `input_forget` setting used during training before loading weights.
+/// Older coupled LSTM checkpoints contain unused forget-gate tensors. Load these with
+/// [`ModuleRecord::allow_unused(true)`](burn::store::ModuleRecord::allow_unused), then save the
+/// module again to omit those tensors. Uncoupled checkpoints retain the same parameter paths.
 #[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct Lstm {
     /// The input gate regulates which information to update and store in the cell state at each time step.
     pub input_gate: GateController,
     /// The forget gate is used to control which information to discard or keep in the memory cell at each time step.
-    /// Note: When `input_forget` is true, this gate is not used (forget = 1 - input).
-    pub forget_gate: GateController,
+    /// Absent when `input_forget` is true (forget = 1 - input).
+    /// Access an uncoupled gate with `as_ref()` or `as_mut()`, and replace it with `Some(gate)`.
+    pub forget_gate: Option<GateController>,
     /// The output gate determines which information from the cell state to output at each time step.
     pub output_gate: GateController,
     /// The cell gate is used to compute the cell state that stores and carries information through time.
@@ -79,6 +89,7 @@ pub struct Lstm {
     /// Optional cell state clip threshold.
     pub clip: Option<f64>,
     /// If true, couples input and forget gates: f_t = 1 - i_t.
+    /// Set through [LstmConfig::input_forget] at initialization so the forget gate is omitted.
     pub input_forget: bool,
     /// Activation function for gates (input, forget, output).
     pub gate_activation: Activation,
@@ -124,7 +135,7 @@ impl LstmConfig {
 
         Lstm {
             input_gate: new_gate(),
-            forget_gate: new_gate(),
+            forget_gate: (!self.input_forget).then(new_gate),
             output_gate: new_gate(),
             cell_gate: new_gate(),
             d_hidden: self.d_hidden,
@@ -210,6 +221,7 @@ impl Lstm {
     ///     containing the output features for all timesteps.
     ///   - The second element is the final [`LstmState`], which includes the final cell and hidden states,
     ///     both with the shape `[batch_size, d_hidden]`.
+    #[compute]
     pub fn forward_iter<I: Iterator<Item = (usize, Tensor<3>)>>(
         &self,
         input_timestep_iter: I,
@@ -229,9 +241,10 @@ impl Lstm {
             let input_t = input_t.squeeze_dim(1);
 
             // i(nput)g(ate) tensors
-            let biased_ig_input_sum = self
-                .input_gate
-                .gate_product(input_t.clone(), hidden_state.clone());
+            let biased_ig_input_sum = Role::INPUT_GATE.run(|| {
+                self.input_gate
+                    .gate_product(input_t.clone(), hidden_state.clone())
+            });
             let input_values = self.gate_activation.forward(biased_ig_input_sum);
 
             // f(orget)g(ate) tensors - either computed or coupled to input gate
@@ -239,20 +252,25 @@ impl Lstm {
                 // Coupled mode: f_t = 1 - i_t
                 input_values.clone().neg().add_scalar(1.0)
             } else {
-                let biased_fg_input_sum = self
+                let forget_gate = self
                     .forget_gate
-                    .gate_product(input_t.clone(), hidden_state.clone());
+                    .as_ref()
+                    .expect("Forget gate must be present when input_forget is false");
+                let biased_fg_input_sum = Role::FORGET_GATE
+                    .run(|| forget_gate.gate_product(input_t.clone(), hidden_state.clone()));
                 self.gate_activation.forward(biased_fg_input_sum)
             };
 
             // o(output)g(ate) tensors
-            let biased_og_input_sum = self
-                .output_gate
-                .gate_product(input_t.clone(), hidden_state.clone());
+            let biased_og_input_sum = Role::OUTPUT_GATE.run(|| {
+                self.output_gate
+                    .gate_product(input_t.clone(), hidden_state.clone())
+            });
             let output_values = self.gate_activation.forward(biased_og_input_sum);
 
             // c(ell)g(ate) tensors
-            let biased_cg_input_sum = self.cell_gate.gate_product(input_t, hidden_state.clone());
+            let biased_cg_input_sum =
+                Role::CELL_GATE.run(|| self.cell_gate.gate_product(input_t, hidden_state.clone()));
             let candidate_cell_values = self.cell_activation.forward(biased_cg_input_sum);
 
             cell_state = forget_values * cell_state + input_values * candidate_cell_values;
@@ -278,12 +296,134 @@ impl Lstm {
 
 #[cfg(test)]
 mod test {
-    use crate::{GateController, Initializer, Linear, LstmConfig};
+    use crate::{GateController, Initializer, Linear, LstmConfig, LstmState};
     use burn_core::Tensor;
-    use burn_core::module::Param;
+    use burn_core::module::{Module, Param};
     use burn_core::prelude::Device;
     use burn_core::tensor::{Distribution, ElementConversion, Shape, TensorData, Tolerance};
     pub type FT = f32;
+
+    /// Each gate runs under its role, so the four gates' projections stay apart.
+    #[cfg(feature = "std")]
+    #[test]
+    fn an_lstm_names_its_gates() {
+        let device = Device::default();
+        let lstm = LstmConfig::new(3, 4, true).init(&device);
+        let input = Tensor::<3>::zeros([1, 1, 3], &device);
+
+        let recorded = crate::recording::recorded(|| {
+            lstm.forward(input, None);
+        });
+
+        let gates: alloc::vec::Vec<_> = recorded
+            .lines()
+            .into_iter()
+            .filter(|line| !line.starts_with("    "))
+            .collect();
+        assert_eq!(
+            gates,
+            [
+                "lstm (unpriced)",
+                "  input gate (unpriced)",
+                "  forget gate (unpriced)",
+                "  output gate (unpriced)",
+                "  cell gate (unpriced)",
+            ]
+        );
+    }
+
+    #[rstest::rstest]
+    #[case(false, false, 60)]
+    #[case(false, true, 84)]
+    #[case(true, false, 45)]
+    #[case(true, true, 63)]
+    fn test_parameter_count(
+        #[case] input_forget: bool,
+        #[case] bias: bool,
+        #[case] expected: usize,
+    ) {
+        let lstm = LstmConfig::new(2, 3, bias)
+            .with_input_forget(input_forget)
+            .init(&Device::default());
+
+        assert_eq!(lstm.forget_gate.is_none(), input_forget);
+        assert_eq!(lstm.num_params(), expected);
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn test_coupled_forward_with_initial_state() {
+        let device = Device::default();
+        let lstm = LstmConfig::new(1, 1, false)
+            .with_input_forget(true)
+            .with_initializer(Initializer::Constant { value: 0.25 })
+            .init(&device);
+        let input = Tensor::from_data([[[0.6], [-0.3]]], &device);
+        let initial = LstmState::new(
+            Tensor::from_data([[0.8]], &device),
+            Tensor::from_data([[0.2]], &device),
+        );
+
+        let (output, state) = lstm.forward(input, Some(initial));
+
+        // Scalar reference recurrence, including a nonzero cell state so the forget term matters.
+        let mut cell = 0.8_f32;
+        let mut hidden = 0.2_f32;
+        let mut expected_output = [[[0.0]; 2]];
+        for (t, input) in [0.6, -0.3].into_iter().enumerate() {
+            let activation = 0.25 * (input + hidden);
+            let gate = 1.0 / (1.0 + (-activation).exp());
+            cell = (1.0 - gate) * cell + gate * activation.tanh();
+            hidden = gate * cell.tanh();
+            expected_output[0][t][0] = hidden;
+        }
+
+        let tolerance = Tolerance::default();
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&TensorData::from(expected_output), tolerance);
+        state
+            .cell
+            .to_data()
+            .assert_approx_eq::<FT>(&TensorData::from([[cell]]), tolerance);
+        state
+            .hidden
+            .to_data()
+            .assert_approx_eq::<FT>(&TensorData::from([[hidden]]), tolerance);
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn test_coupled_input_gate_gradient_includes_forgetting() {
+        let device = Device::default().autodiff();
+        let lstm = LstmConfig::new(1, 1, false)
+            .with_input_forget(true)
+            .with_initializer(Initializer::Zeros)
+            .init(&device);
+        let initial = LstmState::new(
+            Tensor::from_data([[0.8]], &device),
+            Tensor::from_data([[0.2]], &device),
+        );
+        let (output, _) = lstm.forward(Tensor::from_data([[[0.6]]], &device), Some(initial));
+        let grads = output.sum().backward();
+
+        // i = o = f = 0.5, candidate = 0, cell = 0.4.
+        // dh/di = -o * (1 - tanh(cell)^2) * initial_cell.
+        let d_input_gate = -0.5 * (1.0 - 0.4_f32.tanh().powi(2)) * 0.8 * 0.25;
+        for (weight, input) in [
+            (&lstm.input_gate.input_transform.weight, 0.6),
+            (&lstm.input_gate.hidden_transform.weight, 0.2),
+        ] {
+            weight
+                .grad(&grads)
+                .unwrap()
+                .to_data()
+                .assert_approx_eq::<FT>(
+                    &TensorData::from([[d_input_gate * input]]),
+                    Tolerance::default(),
+                );
+        }
+    }
 
     #[test]
     fn display_lstm() {
@@ -309,7 +449,7 @@ mod test {
         let gate_to_data = |gate: GateController| gate.input_transform.weight.val().to_data();
 
         gate_to_data(lstm.input_gate).assert_within_range::<FT>(0.elem()..1.elem());
-        gate_to_data(lstm.forget_gate).assert_within_range::<FT>(0.elem()..1.elem());
+        gate_to_data(lstm.forget_gate.unwrap()).assert_within_range::<FT>(0.elem()..1.elem());
         gate_to_data(lstm.output_gate).assert_within_range::<FT>(0.elem()..1.elem());
         gate_to_data(lstm.cell_gate).assert_within_range::<FT>(0.elem()..1.elem());
     }
@@ -343,7 +483,7 @@ mod test {
         }
 
         lstm.input_gate = create_gate_controller(0.5, 0.0, &device);
-        lstm.forget_gate = create_gate_controller(0.7, 0.0, &device);
+        lstm.forget_gate = Some(create_gate_controller(0.7, 0.0, &device));
         lstm.cell_gate = create_gate_controller(0.9, 0.0, &device);
         lstm.output_gate = create_gate_controller(1.1, 0.0, &device);
 

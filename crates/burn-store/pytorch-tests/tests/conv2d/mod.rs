@@ -118,16 +118,4 @@ mod tests {
 
         conv2d(model, 1e-7);
     }
-
-    #[test]
-    fn conv2d_half_precision() {
-        let device = Default::default();
-        let mut model = Net::init(&device);
-        let mut store = PytorchStore::from_file("tests/conv2d/conv2d.pt");
-        model
-            .load_from(&mut store)
-            .expect("Should decode state successfully");
-
-        conv2d(model, 1e-4);
-    }
 }

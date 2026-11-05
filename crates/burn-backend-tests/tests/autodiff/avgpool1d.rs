@@ -1,5 +1,6 @@
 use super::*;
 use burn_tensor::module::avg_pool1d;
+use burn_tensor::ops::AvgPoolOptions;
 use burn_tensor::{Shape, Tolerance};
 
 #[test]
@@ -85,11 +86,10 @@ impl AvgPool1dTestCase {
         .require_grad();
         let output = avg_pool1d(
             x.clone(),
-            self.kernel_size,
-            self.stride,
-            self.padding,
-            self.count_include_pad,
-            false,
+            AvgPoolOptions::new([self.kernel_size])
+                .with_stride([self.stride])
+                .with_padding([self.padding])
+                .with_count_include_pad(self.count_include_pad),
         );
         let grads = output.backward();
         let x_grad_actual = x.grad(&grads).unwrap();

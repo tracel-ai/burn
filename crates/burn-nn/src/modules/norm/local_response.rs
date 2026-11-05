@@ -1,9 +1,10 @@
 use burn_core as burn;
 
 use burn::config::Config;
+use burn::instrument::{self, Bounds, compute};
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::module::avg_pool1d;
-use burn::tensor::ops::PadMode;
+use burn::tensor::ops::AvgPoolOptions;
 use burn::tensor::{Tensor, assert_shape};
 
 /// Configuration to create a [LocalResponseNorm](LocalResponseNorm) layer
@@ -67,6 +68,17 @@ pub struct LocalResponseNorm {
 }
 
 impl LocalResponseNorm {
+    /// The floor for a normalization alone: read the input once, write the output once. The
+    /// window over neighbouring channels is a pass over the same bytes, so no arithmetic is
+    /// declared.
+    fn bounds<const D: usize>(&self, input: &Tensor<D>) -> Bounds {
+        Bounds {
+            read: instrument::tensor_bytes(input),
+            write: instrument::tensor_bytes(input),
+            flops: 0,
+        }
+    }
+
     /// Applies Local Response Normalization on the input tensor.
     ///
     /// # Shapes
@@ -77,6 +89,7 @@ impl LocalResponseNorm {
     /// # Panics
     ///
     /// Panics if the input tensor rank is less than 3.
+    #[compute(bounds = Self::bounds)]
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         assert_shape!(input, [_, _, _, ..]);
 
@@ -99,12 +112,12 @@ impl LocalResponseNorm {
 
         let pad_left = (self.size - 1) / 2;
         let pad_right = self.size / 2;
-        let square_avg = if pad_left != pad_right {
-            let padded = batched.pad((pad_left, pad_right, 0, 0), PadMode::Constant(0.0));
-            avg_pool1d(padded, self.size, 1, 0, true, false)
-        } else {
-            avg_pool1d(batched, self.size, 1, pad_left, true, false)
-        };
+        let square_avg = avg_pool1d(
+            batched,
+            AvgPoolOptions::new([self.size])
+                .with_stride([1])
+                .with_padding_pairs([(pad_left, pad_right)]),
+        );
 
         // Restore shape: [N*D_flat, 1, C] -> [N, D_flat, C] -> [N, C, D_flat] -> original
         let unbatched: Tensor<3> = square_avg.reshape([n, d_flat, c]);

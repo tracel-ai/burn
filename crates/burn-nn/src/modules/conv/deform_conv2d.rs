@@ -2,6 +2,7 @@ use crate::Initializer;
 use alloc::format;
 use burn::tensor::ops::DeformConvOptions;
 
+use burn::instrument::compute;
 use burn_core as burn;
 
 use crate::PaddingConfig2d;
@@ -36,7 +37,7 @@ pub struct DeformConv2dConfig {
     ///
     /// ### Warning
     /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
-    /// size is not supported as it will not produce the same output size.
+    /// size or explicit padding with different values on opposite sides is not supported.
     #[config(default = "PaddingConfig2d::Valid")]
     pub padding: PaddingConfig2d,
     /// If bias should be added to the output.
@@ -78,8 +79,17 @@ impl DeformConv2dConfig {
     /// Initialize a new [DeformConv2d](DeformConv2d) module.
     pub fn init(&self, device: &Device) -> DeformConv2d {
         checks::checks_channels_div_groups(self.channels[0], self.channels[1], self.weight_groups);
-        if self.padding == PaddingConfig2d::Same {
-            checks::check_same_padding_support(&self.kernel_size);
+        match &self.padding {
+            PaddingConfig2d::Same => checks::check_same_padding_support(&self.kernel_size),
+            PaddingConfig2d::Explicit(top, left, bottom, right)
+                if top != bottom || left != right =>
+            {
+                panic!(
+                    "Asymmetric explicit padding is not supported by DeformConv2d. \
+                     Got top={top}, left={left}, bottom={bottom}, right={right}."
+                );
+            }
+            _ => {}
         }
         if !self.channels[0].is_multiple_of(self.offset_groups) {
             panic!(
@@ -162,6 +172,9 @@ impl DeformConv2d {
     /// - offset: `[batch_size, 2 * offset_groups * kernel_height * kernel_width, height_out, width_out]`
     /// - mask: `[batch_size, offset_groups * kernel_height * kernel_width, height_out, width_out]`
     /// - output: `[batch_size, channels_out, height_out, width_out]`
+    ///
+    /// Timed without bounds: the input positions it samples depend on the offsets' values.
+    #[compute]
     pub fn forward(
         &self,
         input: Tensor<4>,
@@ -169,9 +182,13 @@ impl DeformConv2d {
         mask: Option<Tensor<4>>,
     ) -> Tensor<4> {
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
-        let padding =
-            self.padding
-                .calculate_padding_2d(height_in, width_in, &self.kernel_size, &self.stride);
+        let padding = self.padding.calculate_padding_2d(
+            height_in,
+            width_in,
+            &self.kernel_size,
+            &self.stride,
+            "DeformConv2d",
+        );
         deform_conv2d(
             input,
             offset,
@@ -196,6 +213,22 @@ mod tests {
 
     use super::*;
     use burn::tensor::TensorData;
+
+    /// A deformable convolution is timed but declares no bounds.
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_deformable_convolution_declares_no_bounds() {
+        let device = Default::default();
+        let conv = DeformConv2dConfig::new([2, 4], [3, 3]).init(&device);
+        let input = Tensor::<4>::zeros([1, 2, 5, 5], &device);
+        let offset = Tensor::<4>::zeros([1, 2 * 3 * 3, 3, 3], &device);
+
+        let recorded = crate::recording::recorded(|| {
+            conv.forward(input, offset, None);
+        });
+
+        assert_eq!(recorded.lines(), ["deform conv2d (unpriced)"]);
+    }
 
     #[test]
     fn initializer_default() {
@@ -274,6 +307,42 @@ mod tests {
         let device = Default::default();
         let config = DeformConv2dConfig::new([4, 4], [2, 2]).with_padding(PaddingConfig2d::Same);
         let _ = config.init(&device);
+    }
+
+    #[test]
+    #[should_panic(expected = "Asymmetric calculated padding is not supported for DeformConv2d")]
+    fn same_with_asymmetric_calculated_padding_is_invalid() {
+        let config = DeformConv2dConfig::new([1, 1], [3, 3])
+            .with_stride([2, 2])
+            .with_padding(PaddingConfig2d::Same);
+        let conv = config.init(&Default::default());
+
+        let input = Tensor::<4>::zeros([1, 1, 4, 5], &Default::default());
+        let offset = Tensor::<4>::zeros([1, 18, 2, 3], &Default::default());
+        let _ = conv.forward(input, offset, None);
+    }
+
+    #[test]
+    #[should_panic(expected = "Asymmetric explicit padding is not supported by DeformConv2d")]
+    fn explicit_padding_with_asymmetric_height_is_invalid() {
+        let config = DeformConv2dConfig::new([1, 1], [3, 3])
+            .with_padding(PaddingConfig2d::Explicit(1, 1, 2, 1));
+        let _ = config.init(&Default::default());
+    }
+
+    #[test]
+    #[should_panic(expected = "Asymmetric explicit padding is not supported by DeformConv2d")]
+    fn explicit_padding_with_asymmetric_width_is_invalid() {
+        let config = DeformConv2dConfig::new([1, 1], [3, 3])
+            .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 2));
+        let _ = config.init(&Default::default());
+    }
+
+    #[test]
+    fn explicit_padding_with_symmetric_sides_is_valid() {
+        let config = DeformConv2dConfig::new([1, 1], [3, 3])
+            .with_padding(PaddingConfig2d::Explicit(1, 2, 1, 2));
+        let _ = config.init(&Default::default());
     }
 
     #[test]

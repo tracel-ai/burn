@@ -1524,11 +1524,12 @@ fn test_tensor_read_errors_are_not_zeros() {
             let mut entry = source.by_index(i).unwrap();
             let mut bytes = Vec::new();
             std::io::Read::read_to_end(&mut entry, &mut bytes).unwrap();
-            if entry.name().ends_with("/data/0") {
+            let name = entry.name().unwrap();
+            if name.ends_with("/data/0") {
                 bytes.truncate(8);
             }
             target
-                .start_file(entry.name(), zip::write::SimpleFileOptions::default())
+                .start_file(name, zip::write::SimpleFileOptions::default())
                 .unwrap();
             std::io::Write::write_all(&mut target, &bytes).unwrap();
         }
@@ -1606,10 +1607,8 @@ fn rezip(
         let mut entry = source.by_index(i).unwrap();
         let mut bytes = Vec::new();
         std::io::Read::read_to_end(&mut entry, &mut bytes).unwrap();
-        let name = entry
-            .name()
-            .split_once('/')
-            .map_or(entry.name(), |(_, rest)| rest);
+        let name = entry.name().unwrap();
+        let name = name.split_once('/').map_or(name.as_ref(), |(_, rest)| rest);
         edit(name, &mut bytes);
         writer
             .start_file(
@@ -2141,4 +2140,60 @@ fn rejects_safetensors_whose_header_length_looks_like_a_pickle_opcode() {
             .contains("not a pytorch checkpoint"),
         "unexpected error: {err}"
     );
+}
+
+#[test]
+fn from_bytes_reads_plain_pickle() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = write_pickle(&dir, "plain.pkl", TORCH_DEVICE_BESIDE_INT);
+    let reader = PytorchReader::from_bytes(TORCH_DEVICE_BESIDE_INT.to_vec(), None).unwrap();
+    let file_reader = PytorchReader::new(&path).unwrap();
+
+    // A plain pickle holds no tensor storages, so there is nothing to read back.
+    // The check is that format detection and the memory reader agree with the file path.
+    assert_eq!(reader.metadata().format_type, FileFormat::Pickle);
+    assert_eq!(
+        reader.metadata().format_type,
+        file_reader.metadata().format_type
+    );
+    assert!(reader.keys().is_empty());
+    assert!(file_reader.keys().is_empty());
+}
+
+/// Load `name` through `from_bytes` and through the file path, and check both readers
+/// hold the same tensor names and the same data under each.
+fn assert_from_bytes_matches_file(name: &str) {
+    let bytes = std::fs::read(test_data_path(name)).unwrap();
+    let reader = PytorchReader::from_bytes(bytes, None).unwrap();
+    let file_reader = PytorchReader::new(test_data_path(name)).unwrap();
+
+    let mut keys = reader.keys();
+    let mut file_keys = file_reader.keys();
+    keys.sort();
+    file_keys.sort();
+    assert!(!file_keys.is_empty(), "expected at least one tensor");
+    assert_eq!(keys, file_keys, "tensor names differ");
+
+    for key in &file_keys {
+        assert_eq!(
+            reader.get(key).unwrap().read().unwrap(),
+            file_reader.get(key).unwrap().read().unwrap(),
+            "mismatch for tensor '{key}'",
+        );
+    }
+}
+
+#[test]
+fn from_bytes_reads_legacy() {
+    assert_from_bytes_matches_file("simple_legacy.pt");
+}
+
+#[test]
+fn from_bytes_reads_tar() {
+    assert_from_bytes_matches_file("tar_weight_bias.tar");
+}
+
+#[test]
+fn from_bytes_reads_zip() {
+    assert_from_bytes_matches_file("checkpoint.pt");
 }

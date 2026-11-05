@@ -9,8 +9,6 @@ workspace = true
 [features]
 cuda = ["burn/cuda"]
 flex = ["burn/flex"]
-tch-cpu = ["burn/tch"]
-tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 
 [dependencies]

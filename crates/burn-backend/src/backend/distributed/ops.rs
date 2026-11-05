@@ -1,12 +1,10 @@
 use alloc::vec::Vec;
 
 use crate::{
-    Backend, DeviceId, TensorMetadata,
-    distributed::CollectiveTensor,
+    Backend, TensorMetadata,
+    distributed::{DistributedConfig, DistributedParams},
     tensor::{Device, FloatTensor},
 };
-
-use crate::distributed::{DistributedConfig, DistributedParams, ReduceOperation};
 
 #[cfg(feature = "std")]
 use crate::distributed::{
@@ -29,7 +27,7 @@ unsafe impl<B> Send for TensorRef<B> where B: Backend {}
 // * `submit_sync_collective`
 // * `submit_gradient_sync`
 
-/// Operations on communication tensors.
+/// Gradient synchronization across the devices of distributed data parallel training.
 pub trait DistributedOps<B: Backend> {
     /// Start the communication server used to orchestrate tensor syncing between devices.
     ///
@@ -62,16 +60,17 @@ pub trait DistributedOps<B: Backend> {
     ///
     /// * `device` - The device calling the initialization.
     /// * `distributed_params` - A list of [`DistributedParams`] of the tensors to sync.
-    fn register_sync_parameters(_device: &B::Device, distributed_params: Vec<DistributedParams>) {
+    fn register_sync_parameters(device: &B::Device, distributed_params: Vec<DistributedParams>) {
         #[cfg(feature = "std")]
         if let Some(sync_client) = get_distributed_sync_client::<B>() {
-            sync_client.register_sync_parameters(distributed_params);
+            sync_client.register_sync_parameters(device.clone(), distributed_params);
         };
         #[cfg(not(feature = "std"))]
-        let _ = distributed_params;
+        let _ = (device, distributed_params);
     }
 
-    /// Tell the gradient sync server that this device has submitted all its sync operations and is ready to be synchronized.
+    /// Tell the gradient sync server that this device has submitted all its gradients, and wait
+    /// until every gradient is reduced.
     ///
     /// # Arguments
     ///
@@ -101,33 +100,6 @@ pub trait DistributedOps<B: Backend> {
         };
         #[cfg(not(feature = "std"))]
         let _ = (tensor, distributed_params);
-    }
-
-    /// all_reduce operation.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensors` - The tensors on which to perform all_reduce.
-    /// * `op` - The [`ReduceOperation`].
-    ///
-    /// # Returns
-    ///
-    /// The corresponding [CollectiveTensor].
-    fn all_reduce(
-        _tensor: FloatTensor<B>,
-        _op: ReduceOperation,
-        _device_ids: Vec<DeviceId>,
-    ) -> CollectiveTensor<B> {
-        unimplemented!()
-    }
-
-    /// Sync the collective operations.
-    ///
-    /// # Arguments
-    ///
-    /// * `device` - The device to sync.
-    fn sync_collective(_device: &B::Device) {
-        unimplemented!()
     }
 
     /// Get the device of the tensor reference.

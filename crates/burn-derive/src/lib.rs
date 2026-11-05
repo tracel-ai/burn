@@ -1,12 +1,28 @@
 #![warn(missing_docs)]
 
-//! The derive crate of Burn.
+//! Derive and procedural macros for Burn.
+//!
+//! Use these through `burn`, which re-exports them; this crate is not meant to be a direct
+//! dependency.
+//!
+//! - `#[derive(Module)]` implements `Module` for a struct or enum of modules, parameters and
+//!   constants. `#[module(skip)]` excludes a field.
+//! - `#[derive(Config)]` makes a struct a serializable configuration with a generated `new`
+//!   constructor and `with_*` setters for optional fields and fields marked `#[config(default = ...)]`.
+//! - `#[derive(RecordState)]` decomposes an optimizer or scheduler state into named tensors and
+//!   scalars for the burnpack format.
+//! - `#[derive(AutodiffSignal)]` lets a struct passed between the layers of a split model be
+//!   trained as a pipeline. `#[autodiff_signal(skip)]` clones a field through.
+//!
+//! The function-like macros below implement `burn::tensor::assert_shape!`,
+//! `debug_assert_shape!` and `einsum!`, and are not part of the public API.
 
 #[macro_use]
 extern crate derive_new;
 
 use proc_macro::TokenStream;
 
+pub(crate) mod autodiff_signal;
 pub(crate) mod config;
 pub(crate) mod einsum;
 pub(crate) mod module;
@@ -18,16 +34,25 @@ pub(crate) mod shared;
 ///
 /// # Sub-modules
 ///
-/// By default, the macro automatically detects sub-modules and parameters as module types.
+/// Fields are treated as sub-modules unless their type is recognized as a constant or they
+/// are marked `#[module(skip)]`. Participating fields must implement `Module` and `ModuleDisplay`.
 ///
-/// Any field not recognized as a module type is assumed to be a non-module
-/// and is skipped by the module system (not persistent, not visited).
+/// Constants are detected syntactically, including `usize`, `f32`, `bool`, `String` and
+/// combinations such as `Option<usize>` and `Vec<f32>`. Unlike 0.21, unknown concrete types
+/// are not automatically skipped. Use `#[module(skip)]` for custom config/state fields that
+/// report missing `Module` / `ModuleDisplay` implementations. Do not skip trainable children.
 ///
 /// ## Generics
 ///
-/// Generic type parameters (e.g., `field: M`) are assumed to be sub-modules by default.
-/// If a generic field represents some other runtime state or configuration, you can use
-/// the `#[module(skip)]` attribute to provide a hint.
+/// Bounds are inferred on each field's type: `Wrapper<T>` must implement `Module` and
+/// `ModuleDisplay`, but `T` need not implement them. Existing bounds, including custom
+/// forward traits, are preserved. Use `#[module(skip)]` for generic config/state fields;
+/// the same type parameter can also appear in a participating field.
+///
+/// Named and tuple structs support recursive children such as `Vec<Self>` and
+/// `Option<Box<Self>>`. Enum variants can hold a single unnamed field, or named fields such as
+/// `Wide { first: Linear, second: Linear }`; their tensors are saved under `Wide.first` and
+/// `Wide.second`.
 ///
 /// # Field Attributes
 ///
@@ -35,12 +60,14 @@ pub(crate) mod shared;
 ///
 /// Explicitly marks a field to be ignored by the module derive.
 ///
-/// Skipped fields are not parameters, not modules, and are not persistent.
+/// Skipped fields are excluded from parameter traversal, checkpointing, device movement and
+/// training/validation transitions. They are still cloned and included in debug display.
 /// This is equivalent to the deprecated `Ignored<T>` wrapper.
 ///
 /// ### Requirements
 ///
 /// The field must implement: `Debug + Clone + Send`.
+/// A `Param` field cannot be skipped.
 ///
 /// # Example
 ///
@@ -52,6 +79,7 @@ pub(crate) mod shared;
 ///     /// A field configured at runtime.
 ///     dropout_prob: f64,
 ///     /// A field that is recomputed at runtime.
+///     #[module(skip)]
 ///     cached_mask: Option<Tensor<2>>,
 ///     /// A field that contains some debug state.
 ///     debug_state: String,
@@ -87,6 +115,18 @@ pub fn config_derive(input: TokenStream) -> TokenStream {
 pub fn record_state_derive(input: TokenStream) -> TokenStream {
     let input = syn::parse(input).unwrap();
     record_state::derive_impl(&input)
+}
+
+/// Derive macro for the `AutodiffSignal` trait, for a struct passed between the layers of a split
+/// model that is trained as a pipeline.
+///
+/// Each field must implement `AutodiffSignal`, as float, int and bool tensors, `Option` and `Vec`
+/// of them, and other derived signals do. A field marked `#[autodiff_signal(skip)]` is cloned
+/// through instead, and must implement `Clone`.
+#[proc_macro_derive(AutodiffSignal, attributes(autodiff_signal))]
+pub fn autodiff_signal_derive(input: TokenStream) -> TokenStream {
+    let input = syn::parse(input).unwrap();
+    autodiff_signal::derive_impl(&input).into()
 }
 
 /// Implementation of `burn_tensor::assert_shape!`. Not part of the public API.

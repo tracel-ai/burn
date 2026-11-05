@@ -5,6 +5,7 @@ use super::super::{
     state::{FormatOptions, NumericMetricState},
 };
 use crate::metric::{Metric, MetricName, Numeric, SerializedEntry};
+use burn_core::tensor::TensorReadError;
 
 /// Metric for the length of the last completed episode.
 #[derive(Clone)]
@@ -42,15 +43,17 @@ impl Metric for ExplorationRateMetric {
         &mut self,
         item: &ExplorationRateInput,
         _metadata: &MetricMetadata,
-    ) -> SerializedEntry {
+    ) -> Result<SerializedEntry, TensorReadError> {
         self.state.update(item.exploration_rate, 1);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).precision(3))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).precision(3)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).precision(3))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).precision(3)))
     }
 
     fn clear(&mut self) {

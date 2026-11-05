@@ -121,6 +121,17 @@ pub enum ExecutionError {
         #[serde(skip)]
         backtrace: BackTrace,
     },
+    /// The device is poisoned: a kernel faulted in a way the
+    /// driver cannot recover from (an illegal memory access, a trap, a
+    /// hardware fault).
+    ///
+    /// Unlike the other variants, every later operation on the device fails:
+    /// the process has to be restarted to use the device again.
+    #[error("The device is poisoned\nCaused by:\n  {reason}")]
+    DevicePoisoned {
+        /// The reason of the error.
+        reason: String,
+    },
 }
 
 impl ExecutionError {
@@ -142,11 +153,28 @@ impl ExecutionError {
         }
     }
 
+    /// The device is poisoned, see [`ExecutionError::DevicePoisoned`].
+    pub fn device_poisoned(reason: impl Into<String>) -> Self {
+        Self::DevicePoisoned {
+            reason: reason.into(),
+        }
+    }
+
     /// What went wrong, without the backtrace around it.
     pub fn reason(&self) -> &str {
         match self {
-            Self::WithContext { reason } | Self::Generic { reason, .. } => reason,
+            Self::WithContext { reason }
+            | Self::Generic { reason, .. }
+            | Self::DevicePoisoned { reason } => reason,
         }
+    }
+
+    /// Whether the device from which the error originates is poisoned.
+    ///
+    /// `false` means the operation that failed can be dropped or redone;
+    /// `true` means further operations on this device will fail.
+    pub fn is_device_poisoned(&self) -> bool {
+        matches!(self, Self::DevicePoisoned { .. })
     }
 }
 

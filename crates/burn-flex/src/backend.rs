@@ -1,7 +1,10 @@
 use alloc::string::String;
-use burn_std::{BoolStore, DeviceSettings, QuantConfig, QuantScheme, QuantStore};
+use burn_backend::RandomKey;
+use burn_std::{BoolStore, DeviceSettings, QuantConfig, QuantMode, QuantScheme, QuantStore};
 
-use burn_backend::{Backend, BackendTypes, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps};
+use burn_backend::{
+    Backend, BackendTypes, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps, ExecutionError,
+};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_std::device::Device;
 use burn_std::rand::{SeedableRng, StdRng};
@@ -17,13 +20,7 @@ pub type FlexRng = StdRng;
 /// Uses Mutex for thread-safe RNG state management.
 pub(crate) static SEED: Mutex<Option<FlexRng>> = Mutex::new(None);
 
-/// Fallback RNG when `SEED` is empty (never set).
-///
-/// The seeding flow is: `Backend::seed()` stores a `FlexRng` in `SEED`. Random
-/// ops (`float_random`, `int_random`) `take()` it, draw from it, and store the
-/// advanced state back, so every draw after a `seed()` call is deterministic.
-/// This function seeds from burn_std's entropy source and is only reached when
-/// `seed()` has never been called.
+/// Initializes the generator used to reserve per-operation keys before explicit seeding.
 pub(crate) fn get_seeded_rng() -> FlexRng {
     burn_std::rand::get_seeded_rng()
 }
@@ -72,10 +69,8 @@ impl core::fmt::Debug for FlexDevice {
 
 /// The Flex backend, a fast, portable CPU backend for Burn.
 ///
-/// The `E` and `I` type parameters exist purely to match the shape of other Burn
-/// backends (e.g. `NdArray<E, I, Q>`) so `Flex` slots into `burn-dispatch`'s
-/// generic dispatch macros. The body of `Flex` uses runtime `DType` dispatch, so
-/// both parameters are phantom and unused at runtime.
+/// The `E` and `I` type parameters are phantom. The body of `Flex` uses runtime
+/// `DType` dispatch, so both are unused at runtime.
 ///
 /// # Limitations of the phantom generics
 ///
@@ -132,6 +127,11 @@ impl Backend for Flex {
         *seed_lock = Some(rng);
     }
 
+    fn next_random_key(_device: &Self::Device) -> RandomKey {
+        use burn_std::rand::RngExt;
+        RandomKey::new(SEED.lock().get_or_insert_with(get_seeded_rng).random())
+    }
+
     fn device_count(_type_id: u16) -> usize {
         1
     }
@@ -156,16 +156,21 @@ impl Backend for Flex {
                 DTypeUsage::Storage | DTypeUsage::Arithmetic
             }
             DType::Bool(burn_std::BoolStore::U32) => DTypeUsageSet::empty(),
-            // Quantized types: storage only for now
-            DType::QFloat(scheme) if burn_std::quantization::quantizable(&scheme) => {
-                DTypeUsage::Storage.into()
+            // Ops without a quantized kernel dequantize, so a symmetric scheme serves every op.
+            DType::QFloat(scheme)
+                if scheme.mode == QuantMode::Symmetric
+                    && burn_std::quantization::quantizable(&scheme) =>
+            {
+                DTypeUsage::general()
             }
             DType::QFloat(_) => DTypeUsageSet::empty(),
             _ => DTypeUsageSet::empty(),
         }
     }
 
-    fn flush(_device: &Self::Device) {}
+    fn flush(_device: &Self::Device) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }
 
 impl BackendIr for Flex {
@@ -221,9 +226,77 @@ impl BackendIr for Flex {
 #[cfg(test)]
 mod tests {
     use burn_backend::{Backend, DType};
-    use burn_std::BoolStore;
+    use burn_std::{BoolStore, QuantValue};
 
     use super::*;
+
+    #[test]
+    fn keyed_draws_replay_without_advancing_the_default_generator() {
+        use burn_backend::{
+            Distribution, FloatDType, IntDType,
+            ops::{FloatTensorOps, IntTensorOps},
+        };
+
+        let device = FlexDevice;
+        let draw = |key| {
+            (
+                Flex::float_random(
+                    [32].into(),
+                    Distribution::Default,
+                    &device,
+                    FloatDType::F32,
+                    key,
+                )
+                .into_data(),
+                Flex::int_random(
+                    [32].into(),
+                    Distribution::Uniform(0.0, 1000.0),
+                    &device,
+                    IntDType::I32,
+                    key,
+                )
+                .into_data(),
+            )
+        };
+
+        Flex::seed(&device, 19);
+        let expected_next = Flex::next_random_key(&device);
+        Flex::seed(&device, 19);
+        let key = RandomKey::new(7);
+        let expected = draw(key);
+        assert_eq!(Flex::next_random_key(&device), expected_next);
+
+        Flex::seed(&device, 23);
+        assert_eq!(draw(key), expected);
+        let different = draw(RandomKey::new(11));
+        assert_ne!(different.0, expected.0);
+        assert_ne!(different.1, expected.1);
+    }
+
+    #[test]
+    fn supports_every_symmetric_quantized_scheme() {
+        let device = FlexDevice;
+        let q8 = QuantScheme::default();
+        let e2m1 = q8.with_value(QuantValue::E2M1);
+
+        for scheme in [
+            q8,
+            q8.with_value(QuantValue::Q4S)
+                .with_store(QuantStore::Native),
+            q8.with_value(QuantValue::E4M3),
+            e2m1,
+            e2m1.with_store(QuantStore::PackedNative(0)),
+        ] {
+            assert!(
+                Flex::supports_dtype(&device, DType::QFloat(scheme)),
+                "{scheme:?}"
+            );
+        }
+        assert!(!Flex::supports_dtype(
+            &device,
+            DType::QFloat(q8.with_mode(QuantMode::Lookup))
+        ));
+    }
 
     #[test]
     fn supports_bool_native() {

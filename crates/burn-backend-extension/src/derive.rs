@@ -15,18 +15,28 @@ enum CaseStyle {
 }
 
 /// One derive case: a struct is one case and an enum contributes one case per variant.
-pub(crate) struct DeriveCase {
+pub struct DeriveCase {
     path: TokenStream,
     style: CaseStyle,
-    pub(crate) fields: Vec<CaseField>,
+    pub fields: Vec<CaseField>,
 }
 
-pub(crate) struct CaseField {
-    pub(crate) bind: Ident,
-    member: Option<Ident>,
-    pub(crate) ty: Type,
-    pub(crate) is_ext: bool,
-    pub(crate) tensor_kind: Option<TensorKind>,
+pub struct CaseField {
+    pub bind: Ident,
+    pub member: Option<Ident>,
+    pub attrs: Vec<syn::Attribute>,
+    pub ty: Type,
+    pub is_ext: bool,
+    pub tensor_kind: Option<TensorKind>,
+}
+
+impl CaseField {
+    /// The field's scalar encoding for the remote backend, `#[extension_type(scalar ..)]`.
+    pub fn scalar_annotation(&self) -> Option<&syn::Attribute> {
+        self.attrs.iter().find(|attr| {
+            attr.path().is_ident("extension_type") && matches!(attr.meta, syn::Meta::List(_))
+        })
+    }
 }
 
 fn build_case(path: TokenStream, fields: &Fields) -> DeriveCase {
@@ -41,11 +51,9 @@ fn build_case(path: TokenStream, fields: &Fields) -> DeriveCase {
         .map(|(index, field)| CaseField {
             bind: format_ident!("__ext_f{index}"),
             member: field.ident.clone(),
+            attrs: field.attrs.clone(),
             ty: field.ty.clone(),
-            is_ext: field
-                .attrs
-                .iter()
-                .any(|attr| attr.path().is_ident("extension_type")),
+            is_ext: is_nested_extension(&field.attrs),
             tensor_kind: TensorKind::from_type(&field.ty),
         })
         .collect();
@@ -56,7 +64,15 @@ fn build_case(path: TokenStream, fields: &Fields) -> DeriveCase {
     }
 }
 
-pub(crate) fn collect_cases(input: &DeriveInput) -> syn::Result<Vec<DeriveCase>> {
+/// Whether a field is a nested extension value: a bare `#[extension_type]`. The list form,
+/// `#[extension_type(scalar = ..)]`, encodes an ordinary field instead.
+pub fn is_nested_extension(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(|attr| {
+        attr.path().is_ident("extension_type") && matches!(attr.meta, syn::Meta::Path(_))
+    })
+}
+
+pub fn collect_cases(input: &DeriveInput) -> syn::Result<Vec<DeriveCase>> {
     let name = &input.ident;
     match &input.data {
         Data::Struct(data) => Ok(vec![build_case(quote!(#name), &data.fields)]),
@@ -76,7 +92,7 @@ pub(crate) fn collect_cases(input: &DeriveInput) -> syn::Result<Vec<DeriveCase>>
 }
 
 /// Destructure a case, binding only the fields selected by `needed`.
-pub(crate) fn gen_case_pattern(case: &DeriveCase, needed: impl Fn(usize) -> bool) -> TokenStream {
+pub fn gen_case_pattern(case: &DeriveCase, needed: impl Fn(usize) -> bool) -> TokenStream {
     let path = &case.path;
     match case.style {
         CaseStyle::Unit => quote!(#path),
@@ -106,7 +122,7 @@ pub(crate) fn gen_case_pattern(case: &DeriveCase, needed: impl Fn(usize) -> bool
     }
 }
 
-pub(crate) fn gen_case_ctor(case: &DeriveCase, expressions: &[TokenStream]) -> TokenStream {
+pub fn gen_case_ctor(case: &DeriveCase, expressions: &[TokenStream]) -> TokenStream {
     let path = &case.path;
     match case.style {
         CaseStyle::Unit => quote!(#path),
@@ -181,8 +197,8 @@ fn gen_routing_tensor_arm(case: &DeriveCase, float_only: bool) -> TokenStream {
     quote!(#pattern => #expression,)
 }
 
-/// Generate one arm that merges the contexts of every tensor in the active variant.
-fn gen_autodiff_context_arm(case: &DeriveCase) -> TokenStream {
+/// Generate one arm that merges contexts and detects autodiff floats in one traversal.
+fn gen_autodiff_routing_arm(case: &DeriveCase) -> TokenStream {
     let needed: Vec<_> = case
         .fields
         .iter()
@@ -190,32 +206,44 @@ fn gen_autodiff_context_arm(case: &DeriveCase) -> TokenStream {
         .filter(|(_, field)| field.is_ext || field.tensor_kind.is_some())
         .map(|(index, _)| index)
         .collect();
-    let merges = needed.iter().map(|&index| {
+    let updates = needed.iter().map(|&index| {
         let field = &case.fields[index];
         let bind = &field.bind;
         if field.is_ext {
             let dispatch_ty = ir::with_backend(&field.ty, quote!(burn::backend::Dispatch));
             quote! {
-                let __context = __context.merge(
-                    <#dispatch_ty as burn::backend::ExtensionType<burn::backend::Dispatch>>::autodiff_context(#bind)
-                );
+                let (__field_context, __field_has_autodiff_float) =
+                    <#dispatch_ty as burn::backend::ExtensionType<burn::backend::Dispatch>>::autodiff_routing(#bind);
+                __has_autodiff_float |= __field_has_autodiff_float;
+                __context = __context.merge(__field_context);
             }
         } else {
-            quote!(let __context = __context.merge(#bind.autodiff);)
+            let float = (field.tensor_kind == Some(TensorKind::Float)).then(|| quote! {
+                __has_autodiff_float |= matches!(
+                    __field_context,
+                    burn::backend::DispatchAutodiffContext::Enabled(_)
+                );
+            });
+            quote! {
+                let __field_context = #bind.autodiff;
+                #float
+                __context = __context.merge(__field_context);
+            }
         }
     });
     let pattern = gen_case_pattern(case, |index| needed.contains(&index));
 
     quote! {
         #pattern => {
-            let __context = burn::backend::DispatchAutodiffContext::Disabled;
-            #(#merges)*
-            __context
+            let mut __context = burn::backend::DispatchAutodiffContext::Disabled;
+            let mut __has_autodiff_float = false;
+            #(#updates)*
+            (__context, __has_autodiff_float)
         },
     }
 }
 
-pub(crate) fn expand(input: TokenStream) -> syn::Result<TokenStream> {
+pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let input: DeriveInput = syn::parse2(input)?;
     let fusion = crate::fusion::derive(&input)?;
     let name = &input.ident;
@@ -271,7 +299,7 @@ pub(crate) fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
     let routing_tensor_arms = cases.iter().map(|case| gen_routing_tensor_arm(case, false));
     let float_routing_tensor_arms = cases.iter().map(|case| gen_routing_tensor_arm(case, true));
-    let autodiff_context_arms = cases.iter().map(gen_autodiff_context_arm);
+    let autodiff_routing_arms = cases.iter().map(gen_autodiff_routing_arm);
 
     Ok(quote! {
         #fusion
@@ -306,10 +334,16 @@ pub(crate) fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 match target { #(#float_routing_tensor_arms)* }
             }
 
+            fn autodiff_routing(
+                target: &Self::Target,
+            ) -> (burn::backend::DispatchAutodiffContext, bool) {
+                match target { #(#autodiff_routing_arms)* }
+            }
+
             fn autodiff_context(
                 target: &Self::Target,
             ) -> burn::backend::DispatchAutodiffContext {
-                match target { #(#autodiff_context_arms)* }
+                Self::autodiff_routing(target).0
             }
         }
     })

@@ -1,3 +1,7 @@
+/// Metrics for applied optimizer updates.
+pub mod optimizer;
+pub use optimizer::{LearningRateMetric, OptimizerStepOutput};
+
 /// State module.
 pub mod state;
 /// Module responsible to save and exposes data collected during training.
@@ -41,11 +45,15 @@ mod confusion_stats;
 mod fbetascore;
 mod hamming;
 mod iteration;
-mod learning_rate;
 mod loss;
+mod mae;
+mod mcc;
+mod mse;
 mod perplexity;
 mod precision;
+mod r2_score;
 mod recall;
+mod regression;
 mod rouge;
 mod top_k_acc;
 mod wer;
@@ -60,11 +68,15 @@ pub use confusion_stats::ConfusionStatsInput;
 pub use fbetascore::*;
 pub use hamming::*;
 pub use iteration::*;
-pub use learning_rate::*;
 pub use loss::*;
+pub use mae::*;
+pub use mcc::*;
+pub use mse::*;
 pub use perplexity::*;
 pub use precision::*;
+pub use r2_score::*;
 pub use recall::*;
+pub use regression::*;
 pub use rouge::*;
 pub use top_k_acc::*;
 pub use wer::*;

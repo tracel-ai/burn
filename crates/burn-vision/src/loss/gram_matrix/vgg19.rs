@@ -5,6 +5,7 @@ use burn::tensor::{
     Device, Tensor,
     activation::relu,
     module::{avg_pool2d, max_pool2d},
+    ops::{AvgPoolOptions, MaxPoolOptions},
 };
 use burn_nn::PaddingConfig2d;
 use burn_nn::conv::{Conv2d, Conv2dConfig};
@@ -102,9 +103,9 @@ impl Vgg19 {
     pub fn forward(&self, x: Tensor<4>) -> Vec<Tensor<3>> {
         let pool_2d = |x| {
             if self.use_avg_pool {
-                avg_pool2d(x, [2, 2], [2, 2], [0, 0], false, false)
+                avg_pool2d(x, AvgPoolOptions::new([2, 2]).with_count_include_pad(false))
             } else {
-                max_pool2d(x, [2, 2], [2, 2], [0, 0], [1, 1], false)
+                max_pool2d(x, MaxPoolOptions::new([2, 2]))
             }
         };
 

@@ -1,20 +1,20 @@
-use super::{RemoteChannel, RemoteClient, service};
-use crate::shared::{LocalTransferId, TaskResponseContent, TensorRemote, TransferCapability};
+use super::{DeviceQueryError, RemoteChannel, RemoteClient, service};
+use crate::shared::{DeviceQueryId, LocalTransferId, TensorRemote, TransferCapability};
 use crate::{PeerAddr, PeerId};
+use burn_backend::RandomKey;
 use burn_backend::{
-    DeviceId, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
-    RouterDeviceType, StreamId, TensorData,
+    DeviceDescription, DeviceId, DeviceOps, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
+    EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken,
+    ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
+    ProfileToken, RouterDeviceType, StreamId, TensorData,
 };
-use burn_ir::TensorIr;
+use burn_ir::{CapturedGraphId, TensorIr};
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
-use burn_std::DeviceSettings;
-use burn_std::{backtrace::BackTrace, future::DynFut};
-#[cfg(feature = "websocket")]
-use std::sync::Arc;
-use std::sync::Mutex;
+use burn_std::{DeviceSettings, device_handle::CallError, future::DynFut};
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use super::runtime::Executor;
-use service::RemoteEndpoint;
+use service::{RemoteEndpoint, RemoteService};
 
 // It is very important to block on any request made via the service, since ordering is
 // crucial when registering operations or creating tensors. The `DeviceHandle` queue
@@ -25,35 +25,27 @@ impl RouterClient for RemoteClient {
 
     fn register_op(&self, op: burn_ir::OperationIr) {
         let stream_id = StreamId::current();
-        // Device ids in the op's payload are *client* remote device ids; rewrite them to
-        // server-local device indices the server can resolve to its own backend devices. Applies
-        // to every op — only ops that actually carry device ids are rewritten.
-        let op = self.resolve_devices(op);
         self.handle.submit(move |s| s.register_op(stream_id, op));
     }
 
-    fn read_tensor_async(
-        &self,
-        tensor: burn_ir::TensorIr,
-    ) -> DynFut<Result<TensorData, ExecutionError>> {
-        // Issue the request synchronously so ordering is preserved relative to subsequent
-        // submissions; the returned future just awaits the server's response.
-        let stream_id = StreamId::current();
-        let rx = self
-            .handle
-            .submit_blocking(move |s| s.read_tensor(stream_id, tensor))
-            .expect("Service call failed");
-
+    fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
+        let read = self.read_tensors(vec![tensor]);
         Box::pin(async move {
-            match rx.await {
-                Ok(TaskResponseContent::ReadTensor(res)) => res,
-                Ok(_) => panic!("Invalid response type for ReadTensor"),
-                Err(e) => Err(ExecutionError::Generic {
-                    reason: format!("Failed to read tensor: {e:?}"),
-                    backtrace: BackTrace::capture(),
-                }),
-            }
+            let [data] = <[TensorData; 1]>::try_from(read.await?).unwrap_or_else(|data| {
+                panic!(
+                    "The server answered a read of one tensor with {} values",
+                    data.len()
+                )
+            });
+            Ok(data)
         })
+    }
+
+    fn read_tensors_async(
+        &self,
+        tensors: Vec<TensorIr>,
+    ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
+        self.read_tensors(tensors)
     }
 
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self> {
@@ -76,16 +68,12 @@ impl RouterClient for RemoteClient {
 
     fn sync(&self) -> Result<(), ExecutionError> {
         let stream_id = StreamId::current();
-        self.handle
-            .submit_blocking(|s| s.sync(stream_id))
-            .expect("Service call failed")
+        self.call(|s| s.sync(stream_id))
     }
 
     fn profile_start(&self) -> Result<Option<ProfileToken>, ExecutionError> {
         let stream_id = StreamId::current();
-        self.handle
-            .submit_blocking(move |s| s.profile_start(stream_id))
-            .expect("Service call failed")
+        self.call(move |s| s.profile_start(stream_id))
     }
 
     fn profile_end(
@@ -98,10 +86,9 @@ impl RouterClient for RemoteClient {
         //
         // Blocking only on the issue, so the close keeps its place among the
         // tasks around it; the measurement is awaited through the duration.
-        Ok(self
-            .handle
+        self.handle
             .submit_blocking(move |s| s.profile_end(token, options))
-            .expect("Service call failed"))
+            .map_err(RemoteClient::service_stopped)
     }
 
     /// Told to the server rather than closed: the close is a blocking round
@@ -111,7 +98,144 @@ impl RouterClient for RemoteClient {
         self.handle.submit(move |s| s.profile_abandon(token));
     }
 
+    fn execution_mode_open(
+        &self,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.execution_mode_open(stream_id, mode))
+            .map_err(service_failed)?
+    }
+
+    fn execution_mode_statistics(
+        &self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        self.handle
+            .submit_blocking(move |s| s.execution_mode_statistics(token))
+            .map_err(service_failed)?
+    }
+
+    /// An error rather than a panic when the service is gone: a guard closes its mode from
+    /// `Drop`, possibly while a panic is already unwinding.
+    fn execution_mode_close(
+        &self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        self.handle
+            .submit_blocking(move |s| s.execution_mode_close(token))
+            .map_err(service_failed)?
+    }
+
+    fn environment_create(
+        &self,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        self.handle
+            .submit_blocking(move |s| s.environment_create(name, origin))
+            .map_err(service_failed)?
+    }
+
+    fn environment_activate(&self, id: EnvironmentId) -> Result<EnvironmentId, EnvironmentError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.environment_activate(stream_id, id))
+            .map_err(service_failed)?
+    }
+
+    fn environment_active(&self) -> Result<EnvironmentId, EnvironmentError> {
+        self.handle
+            .submit_blocking(|s| s.environment_active())
+            .map_err(service_failed)?
+    }
+
+    fn environment_save(&self, id: EnvironmentId) -> Result<EnvironmentBundle, EnvironmentError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.environment_save(stream_id, id))
+            .map_err(service_failed)?
+    }
+
+    fn environment_merge(
+        &self,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.environment_merge(stream_id, id, origin))
+            .map_err(service_failed)?
+    }
+
+    fn device_description(&self) -> Option<DeviceDescription> {
+        self.handle
+            .submit_blocking(|s| s.device_description())
+            .ok()
+            .flatten()
+    }
+
+    fn measure_telemetry(&self) -> DeviceTelemetry {
+        self.handle
+            .submit_blocking(|s| s.measure_telemetry())
+            .unwrap_or_default()
+    }
+
+    fn measure_memory(&self) -> Option<MemoryReport> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.measure_memory(stream_id))
+            .ok()
+            .flatten()
+    }
+
+    fn measure_peaks(&self, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        let requested = keys.to_vec();
+        self.handle
+            .submit_blocking(move |s| s.measure_peaks(requested))
+            .unwrap_or_else(|_| vec![Err(PeakError::Unsupported); keys.len()])
+    }
+
+    fn graph_prepare(&self) -> Result<(), ExecutionError> {
+        let stream_id = StreamId::current();
+        self.call(move |s| s.graph_prepare(stream_id))
+    }
+
+    fn graph_start_capture(&self) -> Result<(), ExecutionError> {
+        let stream_id = StreamId::current();
+        self.call(move |s| s.graph_start_capture(stream_id))
+    }
+
+    fn graph_stop_capture(&self) -> Result<CapturedGraphId, ExecutionError> {
+        let stream_id = StreamId::current();
+        self.call(move |s| s.graph_stop_capture(stream_id))
+    }
+
+    /// `Ok` once the replay is sent: the server answers no replay, and a failed one is the error
+    /// of the next read or sync on this stream instead (see
+    /// [`CaptureReplay`](crate::shared::Task::CaptureReplay)).
+    unsafe fn graph_replay(&self, graph: CapturedGraphId) -> Result<(), ExecutionError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit(move |s| s.graph_replay(stream_id, graph));
+        Ok(())
+    }
+
+    fn graph_release(&self, graph: CapturedGraphId) {
+        self.handle.submit(move |s| s.graph_release(graph));
+    }
+
+    fn next_random_key(&self) -> RandomKey {
+        use burn_std::rand::RngExt;
+        RandomKey::new(self.rng.lock().unwrap().random())
+    }
+
     fn seed(&self, seed: u64) {
+        use burn_std::rand::SeedableRng;
+        let mut rng = self.rng.lock().unwrap();
+        *rng = burn_std::rand::StdRng::seed_from_u64(seed);
+        // Keep concurrent reseeds in the same order locally and on the server.
         self.handle.submit(move |s| s.seed(seed));
     }
 
@@ -128,11 +252,11 @@ impl RouterClient for RemoteClient {
     fn dtype_usage(&self, dtype: burn_std::DType) -> burn_backend::DTypeUsageSet {
         self.handle
             .submit_blocking(move |s| s.dtype_usage(dtype))
-            .expect("Service call failed")
+            .unwrap_or_else(|err| panic!("{}", Self::service_stopped(err)))
     }
 
-    fn flush(&self) {
-        self.handle.submit_blocking(|s| s.flush()).unwrap();
+    fn flush(&self) -> Result<(), ExecutionError> {
+        self.call(|s| s.flush())
     }
 
     fn register_and_execute_graph(
@@ -155,41 +279,38 @@ impl RouterClient for RemoteClient {
 }
 
 impl RemoteClient {
-    /// Rewrite the device ids carried by an op so the server can resolve them.
-    ///
-    /// This runs for every op, but only ops that carry device ids (currently the collective ops)
-    /// are affected. On the client, the participating devices are identified by their *remote*
-    /// device ids, whose `index_id` is this process's registry index for `address` + device index.
-    /// The server cannot resolve that index, so we translate each id to the plain server-local
-    /// device index (in `index_id`, with `type_id` 0), which the server hands to its backend
-    /// unchanged.
-    ///
-    /// Only same-server collectives are supported for now: every participating device must live
-    /// on the same address as the tensor's device. A cross-server group panics with a clear
-    /// message rather than silently reducing the wrong devices.
-    fn resolve_devices(&self, mut op: burn_ir::OperationIr) -> burn_ir::OperationIr {
-        use burn_ir::{DistributedOperationIr, OperationIr};
+    /// Read several tensors in one request, issued at the call.
+    fn read_tensors(
+        &self,
+        tensors: Vec<TensorIr>,
+    ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
+        // Issue the request synchronously so ordering is preserved relative to subsequent
+        // submissions; the returned future just awaits the server's response.
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.read_tensors(stream_id, tensors))
+            .unwrap_or_else(|err| {
+                let error = Self::service_stopped(err);
+                Box::pin(async move { Err(error) })
+            })
+    }
+}
 
-        if let OperationIr::Distributed(DistributedOperationIr::AllReduce(desc)) = &mut op {
-            let local_peer = self.device.peer_id();
-            for id in desc.device_ids.iter_mut() {
-                let (endpoint, device_index) = service::endpoint_for(id.index_id as u32).expect(
-                    "an all_reduce device must be a registered remote device on this process",
-                );
-                assert_eq!(
-                    endpoint.peer_id(),
-                    local_peer,
-                    "cross-peer all_reduce is not supported yet: the tensor is on `{local_peer}` \
-                     but the collective includes a device on `{}`",
-                    endpoint.peer_id(),
-                );
-                id.type_id = 0;
-                id.index_id = device_index as u16;
-            }
-            log::trace!("All-reduce on {:?} ({local_peer}): {desc:?}", self.device);
-        }
+impl RemoteClient {
+    /// Run `call` on the service, which reports an error of its own or the service having
+    /// stopped.
+    fn call<T: Send>(
+        &self,
+        call: impl FnOnce(&mut RemoteService) -> Result<T, ExecutionError> + Send,
+    ) -> Result<T, ExecutionError> {
+        self.handle
+            .submit_blocking(call)
+            .unwrap_or_else(|err| Err(Self::service_stopped(err)))
+    }
 
-        op
+    /// The service's thread is gone, with the session it held.
+    fn service_stopped(err: CallError) -> ExecutionError {
+        ExecutionError::device_poisoned(format!("The remote device's service stopped: {err:?}"))
     }
 }
 
@@ -208,15 +329,11 @@ pub struct RemoteDevice {
 }
 
 impl RemoteDevice {
-    /// Create a legacy WebSocket device from a URL.
-    #[cfg(feature = "websocket")]
-    pub fn websocket(address: &str, device_index: usize) -> Self {
-        let endpoint = RemoteEndpoint::WebSocket {
-            address: burn_communication::Address::from(address),
-            authorization: Arc::from([]),
-        };
+    /// The device registered for `endpoint` and `device_index`, which may have its session open
+    /// already, or a new one once its session ended.
+    pub(crate) fn register(endpoint: RemoteEndpoint, device_index: usize) -> Self {
         let device_index = device_index as u32;
-        let id = service::register_endpoint(endpoint.clone(), Executor::capture(), device_index);
+        let id = service::register_endpoint(endpoint.clone(), device_index);
         Self {
             endpoint,
             device_index,
@@ -224,76 +341,45 @@ impl RemoteDevice {
         }
     }
 
-    /// Create an Iroh remote device dialing `peer` from `endpoint`.
-    ///
-    /// The application owns the Iroh endpoint; Burn dials the compute peer from it.
-    #[cfg(feature = "iroh")]
-    pub fn iroh(endpoint: &iroh::Endpoint, peer: iroh::EndpointAddr, device_index: usize) -> Self {
-        Self::iroh_authorized(endpoint, peer, device_index, Vec::new())
+    /// A WebSocket device with no session opened yet, which connects on first use.
+    #[cfg(feature = "websocket")]
+    pub(crate) fn websocket(address: &str, device_index: usize) -> Self {
+        Self::register(
+            RemoteEndpoint::WebSocket {
+                address: burn_communication::Address::from(address),
+                credential: crate::Credential::default(),
+            },
+            device_index,
+        )
     }
 
-    /// Like [`iroh`](Self::iroh), but carries an authorization credential the server's PeerAuthorizer will check.
-    #[cfg(feature = "iroh")]
-    pub fn iroh_authorized(
+    /// An Iroh device dialed from the application's `endpoint`, which connects on first use.
+    #[cfg(all(test, feature = "iroh", not(feature = "fusion")))]
+    pub(crate) fn iroh(
         endpoint: &iroh::Endpoint,
         peer: iroh::EndpointAddr,
         device_index: usize,
-        authorization: Vec<u8>,
     ) -> Self {
-        let node = crate::transport::iroh::node::RemoteNode::from_endpoint(endpoint.clone());
-        let endpoint = RemoteEndpoint::Iroh {
-            node,
-            peer,
-            authorization: authorization.into(),
-        };
-        let device_index = device_index as u32;
-        let id = service::register_endpoint(endpoint.clone(), Executor::capture(), device_index);
-        Self {
-            endpoint,
+        Self::register(
+            RemoteEndpoint::Iroh {
+                node: crate::transport::iroh::node::RemoteNode::for_endpoint(endpoint)
+                    .expect("one live endpoint per id"),
+                peer,
+                credential: crate::Credential::default(),
+                app_endpoint: Some(endpoint.id()),
+            },
             device_index,
-            id,
-        }
-    }
-
-    /// Forces the client connection to be established immediately using the default protocol.
-    /// This is a no-op if the connection is already up for this device.
-    pub fn connect(&self) {
-        // `get_client` initializes the (lazy) service if needed; `ensure_connected` then opens
-        // the sockets and runs the handshake on the runner thread, so the settings/device-count
-        // cells are populated by the time we return.
-        get_client::<RemoteChannel>(self).ensure_connected();
-    }
-
-    /// Establish the session asynchronously. Browser entry point: wasm cannot block to connect,
-    /// so call and await this once before using the device. No-op if already connected.
-    #[cfg(target_family = "wasm")]
-    pub async fn connect_async(&self) {
-        get_client::<RemoteChannel>(self).connect_async().await;
-    }
-
-    /// Initialize the client for this device using a custom protocol channel.
-    ///
-    /// Only creates the lazy service; the socket and handshake open on first use. Call
-    /// [`connect`](Self::connect) when the connection and device settings are needed immediately.
-    pub fn connect_with_channel<R: burn_router::RouterChannel<Device = Self>>(&self) {
-        // `get_client` forces service initialization if the client doesn't exist yet;
-        // `RemoteService::init` records the endpoint but defers the connect to first use.
-        get_client::<R>(self);
+        )
     }
 
     /// The stable identity of the compute peer.
-    pub fn peer_id(&self) -> PeerId {
+    pub(crate) fn peer_id(&self) -> PeerId {
         self.endpoint.peer_id()
     }
 
     /// The peer identity plus its current dialing hints.
-    pub fn peer_addr(&self) -> PeerAddr {
+    pub(crate) fn peer_addr(&self) -> PeerAddr {
         self.endpoint.peer_addr()
-    }
-
-    /// The peer address as a string. Prefer `peer_addr` for typed access.
-    pub fn address(&self) -> String {
-        self.peer_addr().to_string()
     }
 
     /// The index of this device on its server.
@@ -301,36 +387,32 @@ impl RemoteDevice {
         self.device_index as usize
     }
 
-    /// List every device hosted by the WebSocket server at `address`.
+    /// Ask the server the device query `id` about this device, opening its session first if it
+    /// is not open yet; the server answers with the handler registered under `id` (see
+    /// `BackendServer::with_device_query`), in bytes the two sides agree on.
     ///
-    /// Connects to index 0 to read the device count from the init handshake, then returns one
-    /// RemoteDevice per index. Remaining indices connect lazily on first use, matching the
-    /// behavior of [`Device::enumerate`](burn_backend::tensor::Device) for local backends.
-    #[cfg(feature = "websocket")]
-    pub fn enumerate_websocket(address: &str) -> Vec<Self> {
-        // Device 0 always exists (a server must host at least one device); connecting to it
-        // populates the device-count cell for its registry id.
-        let device = Self::websocket(address, 0);
-        device.connect();
-
-        let count = service::device_count_for(device.id)
-            .expect("Device count populated by the init handshake during connect");
-
-        (0..count as usize)
-            .map(|index| Self::websocket(address, index))
-            .collect()
+    /// The server runs the handler on this device's session, after the work sent before it and
+    /// ahead of the work sent after.
+    #[cfg(not(target_family = "wasm"))]
+    pub fn query(&self, id: impl Into<DeviceQueryId>) -> Result<Vec<u8>, DeviceQueryError> {
+        let client = get_client::<RemoteChannel>(self);
+        client.connect().map_err(DeviceQueryError::Connect)?;
+        let id = id.into();
+        // The service's thread is gone only when the session went with it.
+        client
+            .handle
+            .submit_blocking(move |s| s.device_query(id))
+            .unwrap_or(Err(DeviceQueryError::SessionEnded))
     }
 
-    /// List every device hosted by an Iroh peer.
-    #[cfg(feature = "iroh")]
-    pub fn enumerate_iroh(endpoint: &iroh::Endpoint, peer: iroh::EndpointAddr) -> Vec<Self> {
-        let device = Self::iroh(endpoint, peer.clone(), 0);
-        device.connect();
-        let count = service::device_count_for(device.id)
-            .expect("Device count populated by the init handshake during connect");
-        (0..count as usize)
-            .map(|index| Self::iroh(endpoint, peer.clone(), index))
-            .collect()
+    /// Whether this device's session has ended, as when its server restarted.
+    pub(crate) fn session_ended(&self) -> bool {
+        service::session_end(self.id).has_ended()
+    }
+
+    /// The error every use of this device reports once its session has ended.
+    pub(crate) fn session_error(&self) -> Option<ExecutionError> {
+        service::session_end(self.id).error()
     }
 }
 
@@ -355,7 +437,8 @@ impl Default for RemoteDevice {
         }
         #[cfg(not(feature = "websocket"))]
         panic!(
-            "RemoteDevice::default requires the `websocket` compatibility feature; construct an Iroh device through RemoteNode::device"
+            "RemoteDevice::default needs the `websocket` feature; connect with \
+             `Device::remote_options` instead"
         )
     }
 }
@@ -367,11 +450,11 @@ impl burn_std::device::Device for RemoteDevice {
             u16::from(RouterDeviceType::Remote),
             "invalid remote device type"
         );
-        let (endpoint, device_index) = service::endpoint_for(device_id.index_id as u32)
+        let registered = service::registered_device(device_id.index_id as u32)
             .unwrap_or_else(|| panic!("Invalid device id: {device_id}"));
         Self {
-            endpoint,
-            device_index,
+            endpoint: registered.endpoint,
+            device_index: registered.device_index,
             id: device_id.index_id as u32,
         }
     }
@@ -390,8 +473,13 @@ impl DeviceOps for RemoteDevice {
         // `Device::default()`-driven dispatch can hit `defaults` before the user has
         // triggered any op, so we need to establish the session here. `connect` is
         // idempotent — a no-op once the client has been initialized for this device.
-        if !service::has_settings(self.id) {
-            self.connect();
+        if !service::has_settings(self.id)
+            && let Err(err) = get_client::<RemoteChannel>(self).connect()
+        {
+            panic!(
+                "Failed to open a remote session at {}: {err}",
+                self.peer_addr()
+            );
         }
         service::settings_for(self.id)
     }
@@ -404,30 +492,30 @@ pub struct RemoteTensorHandle {
     pub(crate) tensor: TensorIr,
 }
 
-static TRANSFER_COUNTER: Mutex<Option<LocalTransferId>> = Mutex::new(None);
-
-/// Allocate the next process-unique [`LocalTransferId`] for a same-peer transfer.
-///
-/// The id keys the server's transfer rendezvous (`local_comm` / `external_comm`), so two
-/// transfers that are ever in flight at the same time MUST get distinct ids; otherwise a `take`
-/// can pick up the wrong (or an overwritten) exposed primitive and its peer hangs forever. The
-/// counter is incremented **in place** in the static; `LocalTransferId` is `Copy`, so the
-/// earlier `transfer_counter.unwrap()` copied the value out and incremented a throwaway local,
-/// leaving every transfer after the first sharing id 1 (harmless sequentially, a deadlock under
-/// concurrency).
-fn get_next_transfer_id() -> LocalTransferId {
-    let mut transfer_counter = TRANSFER_COUNTER.lock().unwrap();
-    match transfer_counter.as_mut() {
-        Some(id) => {
-            id.next();
-            *id
-        }
-        None => {
-            let id = LocalTransferId::from(0);
-            *transfer_counter = Some(id);
-            id
-        }
-    }
+/// Held while one call sends tasks to the sessions of `devices`, so that every session receives
+/// the tasks of concurrent calls sharing it in one order: a session waiting in a transfer or a
+/// collective for another session's task would otherwise wait on one queued behind its own.
+pub fn session_order<'a>(
+    devices: impl IntoIterator<Item = &'a RemoteDevice>,
+) -> Vec<MutexGuard<'static, ()>> {
+    // One per registered device, which the device registry also keeps for the process's lifetime.
+    static ORDERS: Mutex<BTreeMap<u32, &'static Mutex<()>>> = Mutex::new(BTreeMap::new());
+    let ids: BTreeSet<u32> = devices.into_iter().map(|device| device.id).collect();
+    let orders: Vec<&'static Mutex<()>> = {
+        let mut orders = ORDERS.lock().unwrap_or_else(PoisonError::into_inner);
+        ids.into_iter()
+            .map(|id| {
+                *orders
+                    .entry(id)
+                    .or_insert_with(|| Box::leak(Box::default()))
+            })
+            .collect()
+    };
+    // In ascending id order, so two calls sharing sessions never each hold one the other waits on.
+    orders
+        .into_iter()
+        .map(|order| order.lock().unwrap_or_else(PoisonError::into_inner))
+        .collect()
 }
 
 impl RemoteTensorHandle {
@@ -437,17 +525,46 @@ impl RemoteTensorHandle {
     /// index), the data never leaves the process — see [`change_backend_local`]. Otherwise we
     /// fall back to the cross-server path that streams the data server-to-server without the
     /// client ever seeing it.
+    ///
+    /// A move to or from a device whose session has ended sends no transfer: its tensors are gone
+    /// with it. The tensor on the target is failed by that end instead, and a read of it reports
+    /// why. Only an end this client has already seen is caught.
     pub(crate) fn change_backend(self, target_device: &RemoteDevice) -> Self {
+        let ended = [&self.client.device, target_device].map(RemoteDevice::session_error);
+        if let Some(error) = ended.into_iter().flatten().next() {
+            return self.fail_on(target_device, error);
+        }
         if self.client.device.peer_id() == target_device.peer_id() {
             self.change_backend_local(target_device)
         } else {
             assert_eq!(
                 self.client.device.peer_addr().is_iroh(),
                 target_device.peer_addr().is_iroh(),
-                "Moving a tensor between Iroh and legacy WebSocket compute peers is not supported"
+                "Moving a tensor between an Iroh server and a WebSocket server is not supported"
             );
             self.change_backend_remote(target_device)
         }
+    }
+
+    /// The tensor on `target_device`, failed by `error` instead of transferred. A target whose
+    /// session ended takes nothing, and every use of the tensor reports that end.
+    fn fail_on(mut self, target_device: &RemoteDevice, error: ExecutionError) -> Self {
+        let target_client = get_client::<RemoteChannel>(target_device);
+        let stream_id = StreamId::current();
+        let new_id = service::new_tensor_id();
+        let reason = format!("the transfer from {:?} failed: {error}", self.client.device);
+        target_client
+            .handle
+            .submit(move |s| s.register_failure(stream_id, new_id, reason));
+
+        // `into_ir()` suppressed the handle's drop, expecting the transfer to consume the source.
+        if matches!(self.tensor.status, burn_ir::TensorStatus::ReadWrite) {
+            self.client
+                .register_op(burn_ir::OperationIr::Drop(self.tensor.clone()));
+        }
+        self.tensor.id = new_id;
+        self.client = target_client;
+        self
     }
 
     /// Same-host transfer: hand the device-resident primitive from the source session to the
@@ -458,8 +575,10 @@ impl RemoteTensorHandle {
         // stream that produced it, and the target registers the result on the stream that
         // will consume it — same contract as the regular op/tensor registration paths.
         let stream_id = StreamId::current();
-        let transfer_id = get_next_transfer_id();
+        let transfer_id = LocalTransferId::random();
         let tensor = self.tensor.clone();
+        let target_client = get_client::<RemoteChannel>(target_device);
+        let order = session_order([&self.client.device, target_device]);
         self.client.handle.submit(move |s| {
             s.expose_tensor_local(stream_id, tensor, transfer_id);
         });
@@ -467,12 +586,12 @@ impl RemoteTensorHandle {
         // as the cross-server path below.
         self.client.handle.flush_queue();
 
-        let target_client = get_client::<RemoteChannel>(target_device);
         let new_id = service::new_tensor_id();
         target_client.handle.submit(move |s| {
             s.register_tensor_local(stream_id, transfer_id, new_id);
         });
         target_client.handle.flush_queue();
+        drop(order);
 
         self.tensor.id = new_id;
         self.client = target_client;
@@ -492,6 +611,8 @@ impl RemoteTensorHandle {
         let capability = TransferCapability::random();
         let tensor = self.tensor.clone();
         let target = target_device.peer_id();
+        let target_client = get_client::<RemoteChannel>(target_device);
+        let order = session_order([&self.client.device, target_device]);
         self.client.handle.submit(move |s| {
             s.expose_tensor_remote(stream_id, tensor, 1, capability, target);
         });
@@ -502,8 +623,6 @@ impl RemoteTensorHandle {
         // the target server starts trying to download.
         self.client.handle.flush_queue();
 
-        let target_client = get_client::<RemoteChannel>(target_device);
-
         let peer = self.client.device.peer_addr();
         let new_id = service::new_tensor_id();
         target_client.handle.submit(move |s| {
@@ -512,6 +631,7 @@ impl RemoteTensorHandle {
         // Same as the source side: drain the closure queue so it runs now and
         // `register_tensor_remote` flushes the registration onto the target's wire.
         target_client.handle.flush_queue();
+        drop(order);
 
         self.tensor.id = new_id;
         self.client = target_client;
@@ -547,4 +667,9 @@ impl MultiBackendBridge for RemoteBridge {
     ) -> Self::TensorHandle {
         tensor.change_backend(target_device)
     }
+}
+
+/// The remote service could not run a call: its thread panicked, or is gone.
+fn service_failed(err: burn_std::device_handle::CallError) -> ExecutionError {
+    ExecutionError::with_context(format!("the remote service failed to run a call: {err:?}"))
 }

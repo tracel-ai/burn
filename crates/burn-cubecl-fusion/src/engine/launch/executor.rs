@@ -122,16 +122,13 @@ impl<'a> LaunchPlanExecutor<'a> {
             let reference = match block_plan.reference {
                 ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
                 ReferenceSelection::VirtualShape { original, .. } => {
-                    RefLayout::Virtual(VirtualLayout::Shape(original, block_plan.width))
+                    RefLayout::Virtual(VirtualLayout::Shape(original))
                 }
                 ReferenceSelection::SwapDims { original, dims } => {
                     RefLayout::Virtual(VirtualLayout::SwapDims(original, dims))
                 }
                 ReferenceSelection::Reshaped { reshape_pos } => {
-                    RefLayout::Virtual(VirtualLayout::Reshaped {
-                        reshape_pos,
-                        vector_size: block_plan.width,
-                    })
+                    RefLayout::Virtual(VirtualLayout::Reshaped { reshape_pos })
                 }
                 ReferenceSelection::Runtime { pos } => {
                     RefLayout::Virtual(VirtualLayout::Runtime { pos })

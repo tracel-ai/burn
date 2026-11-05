@@ -21,7 +21,7 @@ fn flip_float() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "The axes must be unique")]
 fn flip_duplicated_axes() {
     let tensor = QTensor::<3>::int8([[[0.0, 1.0, 2.0]], [[3.0, 4.0, 5.0]]]);
 
@@ -30,7 +30,7 @@ fn flip_duplicated_axes() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 fn flip_out_of_bound_axis() {
     let tensor = QTensor::<3>::int8([[[0.0, 1.0, 2.0]], [[3.0, 4.0, 5.0]]]);
 

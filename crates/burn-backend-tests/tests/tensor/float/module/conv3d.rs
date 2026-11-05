@@ -228,6 +228,59 @@ fn test_conv3d_complex() {
     ]));
 }
 
+#[test]
+fn test_conv3d_depth_padding_only_slice() {
+    // With depth padding 1 and depth stride 3, the single output slice sits entirely in the
+    // depth padding, so the output is the bias alone
+    let test = Conv3dTestCase {
+        batch_size: 1,
+        channels_in: 5,
+        channels_out: 2,
+        kernel_size_1: 1,
+        kernel_size_2: 3,
+        kernel_size_3: 3,
+        padding_1: 1,
+        padding_2: 1,
+        padding_3: 1,
+        stride_1: 3,
+        stride_2: 1,
+        stride_3: 1,
+        dilation_1: 1,
+        dilation_2: 1,
+        dilation_3: 1,
+        groups: 1,
+        depth: 1,
+        height: 3,
+        width: 3,
+    };
+
+    test.assert_output(TestTensor::from([[
+        [[[0., 0., 0.], [0., 0., 0.], [0., 0., 0.]]],
+        [[[1., 1., 1.], [1., 1., 1.], [1., 1., 1.]]],
+    ]]));
+}
+
+#[test]
+fn test_conv3d_asymmetric_padding() {
+    let device = Default::default();
+    let x = TestTensorInt::arange(0..64, &device)
+        .reshape::<5, _>([1, 1, 4, 4, 4])
+        .float();
+    let weight = TestTensor::<5>::ones([1, 1, 3, 3, 3], &device);
+
+    let output = conv3d(
+        x,
+        weight,
+        None,
+        ConvOptions::new_with_padding([2, 2, 2], [(0, 1), (1, 0), (0, 0)], [1, 1, 1], 1),
+    );
+
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &TestTensor::<5>::from_data([[[[[342.], [675.]], [[516.], [882.]]]]], &device).into_data(),
+        Tolerance::rel_abs(0.01, 0.01),
+    );
+}
+
 struct Conv3dTestCase {
     batch_size: usize,
     channels_in: usize,

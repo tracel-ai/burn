@@ -112,6 +112,16 @@ impl<F: Float> Tolerance<F> {
         }
     }
 
+    /// Returns the relative tolerance.
+    pub fn get_relative(&self) -> F {
+        self.relative
+    }
+
+    /// Returns the absolute tolerance.
+    pub fn get_absolute(&self) -> F {
+        self.absolute
+    }
+
     /// Change the relative tolerance to the given one.
     pub fn set_relative<FF: ToPrimitive>(mut self, tolerance: FF) -> Self {
         self.relative = Self::check_relative(tolerance);

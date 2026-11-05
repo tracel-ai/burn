@@ -4,11 +4,14 @@ use burn_core as burn;
 use alloc::vec::Vec;
 
 use burn::config::Config;
+use burn::instrument::{self, Bounds, compute};
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::{Bool, Device, Tensor};
 
 use crate::activation::ActivationConfig;
 use crate::cache::TensorCache;
+use crate::modules::bounds;
+use crate::modules::role::Role;
 use crate::{
     Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
     attention::{MhaCache, MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
@@ -141,6 +144,14 @@ pub struct TransformerDecoderInput {
 }
 
 impl TransformerDecoderInput {
+    /// The bytes of the target, the memory and every mask: what a decoder reads of its input.
+    fn bytes(&self) -> u64 {
+        instrument::tensor_bytes(&self.target)
+            + instrument::tensor_bytes(&self.memory)
+            + bounds::masks(&self.target_mask_pad, &self.target_mask_attn)
+            + bounds::masks(&self.memory_mask_pad, &self.memory_mask_attn)
+    }
+
     /// Create a [transformer decoder](TransformerDecoder) input argument.
     pub fn new(target: Tensor<3>, memory: Tensor<3>) -> Self {
         Self {
@@ -288,7 +299,27 @@ impl TransformerDecoderLayer {
         }
     }
 
+    /// The floor for the layer alone: read its target, memory, masks and parameters once, write
+    /// the target once, with its two attentions' and its feed-forward's arithmetic. Every
+    /// activation between them is what a fuser keeps out of memory.
+    fn bounds(&self, input: &TransformerDecoderInput) -> Bounds {
+        Bounds {
+            read: input.bytes() + bounds::parameters(self),
+            write: instrument::tensor_bytes(&input.target),
+            flops: self.flops(input),
+        }
+    }
+
+    /// The layer's arithmetic over `input`: its self-attention over the target, its cross
+    /// attention from the target over the memory, and its feed-forward.
+    fn flops(&self, input: &TransformerDecoderInput) -> u64 {
+        self.self_attn.flops(&input.target, &input.target)
+            + self.cross_attn.flops(&input.target, &input.memory)
+            + self.pwff.bounds(&input.target).flops
+    }
+
     /// Applies the TransformerDecoder forward pass to the input tensor.
+    #[compute(bounds = self.bounds(&input))]
     pub fn forward(&self, mut input: TransformerDecoderInput) -> TransformerDecoderInput {
         // Self attention residual path.
         let x = input.target;
@@ -296,7 +327,7 @@ impl TransformerDecoderLayer {
 
         // Normalize.
         if self.norm_first {
-            residual_path = self.norm_3.forward(residual_path);
+            residual_path = Role::SELF_ATTENTION_NORM.run(|| self.norm_3.forward(residual_path));
         }
 
         // Self attention.
@@ -307,7 +338,8 @@ impl TransformerDecoderLayer {
         if let Some(mask_attn) = &input.target_mask_attn {
             self_attn_input = self_attn_input.mask_attn(mask_attn.clone());
         }
-        let residual_path = self.self_attn.forward(self_attn_input).context;
+        let residual_path =
+            Role::SELF_ATTENTION.run(|| self.self_attn.forward(self_attn_input).context);
 
         let residual_path = self.dropout.forward(residual_path);
         let mut x = x + residual_path;
@@ -315,9 +347,9 @@ impl TransformerDecoderLayer {
         // Cross attention residual path.
         // Normalize.
         let residual_path = if self.norm_first {
-            self.norm_1.forward(x.clone())
+            Role::CROSS_ATTENTION_NORM.run(|| self.norm_1.forward(x.clone()))
         } else {
-            x = self.norm_1.forward(x);
+            x = Role::SELF_ATTENTION_NORM.run(|| self.norm_1.forward(x));
             x.clone()
         };
 
@@ -330,7 +362,8 @@ impl TransformerDecoderLayer {
         if let Some(mask_attn) = &input.memory_mask_attn {
             cross_attn_input = cross_attn_input.mask_attn(mask_attn.clone());
         }
-        let residual_path = self.cross_attn.forward(cross_attn_input).context;
+        let residual_path =
+            Role::CROSS_ATTENTION.run(|| self.cross_attn.forward(cross_attn_input).context);
 
         let residual_path = self.dropout.forward(residual_path);
         let mut x = x + residual_path;
@@ -338,9 +371,9 @@ impl TransformerDecoderLayer {
         // Feed forward residual path.
         // Normalize.
         let residual_path = if self.norm_first {
-            self.norm_2.forward(x.clone())
+            Role::FEED_FORWARD_NORM.run(|| self.norm_2.forward(x.clone()))
         } else {
-            x = self.norm_2.forward(x);
+            x = Role::CROSS_ATTENTION_NORM.run(|| self.norm_2.forward(x));
             x.clone()
         };
 
@@ -351,7 +384,7 @@ impl TransformerDecoderLayer {
         // Main path.
         // Normalize.
         if !self.norm_first {
-            x = self.norm_3.forward(x)
+            x = Role::FEED_FORWARD_NORM.run(|| self.norm_3.forward(x))
         }
 
         input.target = x;
@@ -359,6 +392,7 @@ impl TransformerDecoderLayer {
     }
 
     /// Applies the forward pass using an autoregressive cache.
+    #[compute]
     pub fn forward_autoregressive_inference(
         &self,
         mut input: TransformerDecoderInput,
@@ -370,9 +404,9 @@ impl TransformerDecoderLayer {
 
         // Normalize.
         if self.norm_first {
-            residual_path = cache
-                .norm_3
-                .forward_autoregressive(residual_path, 1, |x| self.norm_3.forward(x));
+            residual_path = cache.norm_3.forward_autoregressive(residual_path, 1, |x| {
+                Role::SELF_ATTENTION_NORM.run(|| self.norm_3.forward(x))
+            });
         }
 
         // Self attention.
@@ -383,10 +417,10 @@ impl TransformerDecoderLayer {
         if let Some(mask_attn) = &input.target_mask_attn {
             self_attn_input = self_attn_input.mask_attn(mask_attn.clone());
         }
-        let residual_path = self
-            .self_attn
-            .forward_cache(self_attn_input, &mut cache.self_attn)
-            .context;
+        let residual_path = Role::SELF_ATTENTION.run(|| {
+            self.self_attn
+                .forward_cache_context(self_attn_input, &mut cache.self_attn)
+        });
 
         let residual_path = self.dropout.forward(residual_path);
         let mut x = x + residual_path;
@@ -394,13 +428,13 @@ impl TransformerDecoderLayer {
         // Cross attention residual path.
         // Normalize.
         let residual_path = if self.norm_first {
-            cache
-                .norm_1
-                .forward_autoregressive(x.clone(), 1, |x| self.norm_1.forward(x))
+            cache.norm_1.forward_autoregressive(x.clone(), 1, |x| {
+                Role::CROSS_ATTENTION_NORM.run(|| self.norm_1.forward(x))
+            })
         } else {
-            x = cache
-                .norm_1
-                .forward_autoregressive(x, 1, |x| self.norm_1.forward(x));
+            x = cache.norm_1.forward_autoregressive(x, 1, |x| {
+                Role::SELF_ATTENTION_NORM.run(|| self.norm_1.forward(x))
+            });
             x.clone()
         };
 
@@ -413,10 +447,10 @@ impl TransformerDecoderLayer {
         if let Some(mask_attn) = &input.memory_mask_attn {
             cross_attn_input = cross_attn_input.mask_attn(mask_attn.clone());
         }
-        let residual_path = self
-            .cross_attn
-            .forward_cache(cross_attn_input, &mut cache.cross_attn)
-            .context;
+        let residual_path = Role::CROSS_ATTENTION.run(|| {
+            self.cross_attn
+                .forward_cache_context(cross_attn_input, &mut cache.cross_attn)
+        });
 
         let residual_path = self.dropout.forward(residual_path);
         let mut x = x + residual_path;
@@ -424,13 +458,13 @@ impl TransformerDecoderLayer {
         // Feed forward residual path.
         // Normalize.
         let residual_path = if self.norm_first {
-            cache
-                .norm_2
-                .forward_autoregressive(x.clone(), 1, |x| self.norm_2.forward(x))
+            cache.norm_2.forward_autoregressive(x.clone(), 1, |x| {
+                Role::FEED_FORWARD_NORM.run(|| self.norm_2.forward(x))
+            })
         } else {
-            x = cache
-                .norm_2
-                .forward_autoregressive(x, 1, |x| self.norm_2.forward(x));
+            x = cache.norm_2.forward_autoregressive(x, 1, |x| {
+                Role::CROSS_ATTENTION_NORM.run(|| self.norm_2.forward(x))
+            });
             x.clone()
         };
 
@@ -443,9 +477,9 @@ impl TransformerDecoderLayer {
         // Main path.
         // Normalize.
         if !self.norm_first {
-            x = cache
-                .norm_3
-                .forward_autoregressive(x, 1, |x| self.norm_3.forward(x))
+            x = cache.norm_3.forward_autoregressive(x, 1, |x| {
+                Role::FEED_FORWARD_NORM.run(|| self.norm_3.forward(x))
+            })
         }
 
         input.target = x;
@@ -454,7 +488,18 @@ impl TransformerDecoderLayer {
 }
 
 impl TransformerDecoder {
+    /// The floor for the decoder alone: read its target, memory, masks and every layer's
+    /// parameters once, write the target once, with every layer's arithmetic.
+    fn bounds(&self, input: &TransformerDecoderInput) -> Bounds {
+        Bounds {
+            read: input.bytes() + bounds::parameters(self),
+            write: instrument::tensor_bytes(&input.target),
+            flops: self.layers.iter().map(|layer| layer.flops(input)).sum(),
+        }
+    }
+
     /// Applies the forward pass.
+    #[compute(bounds = self.bounds(&input))]
     pub fn forward(&self, mut input: TransformerDecoderInput) -> Tensor<3> {
         for layer in self.layers.iter() {
             input = layer.forward(input);
@@ -464,6 +509,7 @@ impl TransformerDecoder {
     }
 
     /// Applies the forward pass on the input using autoregressive cache.
+    #[compute]
     pub fn forward_autoregressive_inference(
         &self,
         mut input: TransformerDecoderInput,
@@ -491,6 +537,94 @@ mod tests {
 
     use burn::tensor::Tolerance;
     type FT = f32;
+
+    /// A decoder moves no more than its parts do, in either direction, and does their arithmetic:
+    /// what it keeps out of memory is the traffic between them a fuser could remove.
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_decoder_moves_within_its_parts() {
+        let device = Device::default();
+        let decoder = TransformerDecoderConfig::new(8, 16, 2, 2).init(&device);
+        let input = || {
+            TransformerDecoderInput::new(
+                Tensor::<3>::zeros([1, 3, 8], &device),
+                Tensor::<3>::zeros([1, 5, 8], &device),
+            )
+        };
+        let layer = &decoder.layers[0];
+
+        for recorded in [
+            crate::recording::recorded(|| {
+                decoder.forward(input());
+            }),
+            crate::recording::recorded(|| {
+                layer.forward(input());
+            }),
+        ] {
+            let declared = recorded.lines()[0].clone();
+            let whole = recorded
+                .declared(&declared)
+                .expect("the composite is priced");
+            let parts = recorded.parts();
+            assert!(
+                whole.moves_within(parts),
+                "{declared}: {whole:?} past {parts:?}"
+            );
+            assert!(
+                whole.bytes() < parts.bytes(),
+                "{declared} keeps traffic out of memory"
+            );
+            assert_eq!(whole.flops, parts.flops, "{declared}");
+        }
+    }
+
+    /// A decoder layer's self and cross attention are one type and stay two components, as do
+    /// its three norms, each named for the sublayer it normalizes around: before it with
+    /// `norm_first`, after it otherwise.
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_decoder_layer_keeps_its_attentions_apart() {
+        let device = Device::default();
+        let post_norm = [
+            "self attention (unpriced)",
+            "self attention norm (unpriced)",
+            "cross attention (unpriced)",
+            "cross attention norm (unpriced)",
+            "position wise feed forward",
+            "feed forward norm (unpriced)",
+        ];
+        let pre_norm = [
+            "self attention norm (unpriced)",
+            "self attention (unpriced)",
+            "cross attention norm (unpriced)",
+            "cross attention (unpriced)",
+            "feed forward norm (unpriced)",
+            "position wise feed forward",
+        ];
+
+        for (norm_first, expected) in [(false, post_norm), (true, pre_norm)] {
+            let decoder = TransformerDecoderConfig::new(8, 16, 2, 1)
+                .with_norm_first(norm_first)
+                .init(&device);
+            let input = TransformerDecoderInput::new(
+                Tensor::<3>::zeros([1, 3, 8], &device),
+                Tensor::<3>::zeros([1, 5, 8], &device),
+            );
+
+            let recorded = crate::recording::recorded(|| {
+                decoder.forward(input);
+            });
+
+            // The layer's sublayers, two levels below the decoder.
+            let sublayers: Vec<String> = recorded
+                .lines()
+                .into_iter()
+                .filter_map(|line| line.strip_prefix("    ").map(str::to_string))
+                .filter(|line| !line.starts_with(' '))
+                .collect();
+            assert_eq!(sublayers, expected, "norm_first: {norm_first}");
+        }
+    }
 
     #[test]
     fn test_autoregressive_norm_last() {

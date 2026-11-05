@@ -35,6 +35,9 @@ pub struct TraceOperationFuser {
     scoring: Scoring,
     pub(crate) settings: FuseSettings,
     pub(crate) current_output_shape: Shape,
+    /// Whether an operation that indexes its inputs through the reference layout was fused
+    /// into the current block, which fixes the reference to that operation's output shape.
+    reference_fixed: bool,
     status: FuserStatus,
     pub(crate) num_ops: usize,
     pub(crate) num_views: usize,
@@ -169,6 +172,7 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
         self.status = FuserStatus::Open;
         self.fuser = TryTraceFuser::new(self.max_bindings, self.settings);
         self.current_output_shape = Shape::new([]);
+        self.reference_fixed = false;
     }
 
     fn status(&self) -> FuserStatus {
@@ -200,6 +204,7 @@ impl TraceOperationFuser {
             num_views: 0,
             max_bindings,
             current_output_shape: Shape::new([]),
+            reference_fixed: false,
             status: FuserStatus::Open,
         }
     }
@@ -271,6 +276,7 @@ impl TraceOperationFuser {
         let block_pos = self.fuser.fuser.num_previous_blocks();
         let current_output_shape =
             core::mem::replace(&mut self.current_output_shape, Shape::new([]));
+        self.reference_fixed = false;
 
         self.fuser.fuser.next_block(current_output_shape, settings);
 
@@ -399,7 +405,7 @@ impl TraceOperationFuser {
                 })
             }
             BaseOperationIr::Select(desc) => {
-                if !self.output_is_compatible(&desc.out) {
+                if !self.output_is_reference(&desc.out) {
                     return false;
                 }
 
@@ -419,7 +425,7 @@ impl TraceOperationFuser {
                 })
             }
             BaseOperationIr::Cat(desc) => {
-                if !self.output_is_compatible(&desc.out) {
+                if !self.output_is_reference(&desc.out) {
                     return false;
                 }
 
@@ -509,6 +515,12 @@ impl TraceOperationFuser {
             }
             FloatOperationIr::PowfScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
                 FuseOp::Powf(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            FloatOperationIr::Fmod(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
+                FuseOp::Fmod(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            FloatOperationIr::FmodScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
+                FuseOp::Fmod(BinaryFuseArgs { lhs, rhs, out })
             }),
             FloatOperationIr::Tanh(desc) => self.fuse_unary_ops(desc, |input, out| {
                 FuseOp::Tanh(UnaryFuseArgs { input, out })
@@ -610,6 +622,20 @@ impl TraceOperationFuser {
 
     fn fuse_numeric(&mut self, op: &NumericOperationIr) -> bool {
         match op {
+            NumericOperationIr::PowiScalar(desc) if desc.lhs.dtype.is_float() => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                self.fuser.fuse(|build| {
+                    let lhs = build.input(&desc.lhs)?;
+                    // The exponent must not be rounded to the base's float dtype.
+                    let rhs = build.scalar(&desc.rhs, DType::I32);
+                    let out = build.output(&desc.out)?;
+                    build.fuse_operation(FuseOp::Powi(BinaryFuseArgs { lhs, rhs, out }));
+                    Some(())
+                })
+            }
             NumericOperationIr::Add(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Add(BinaryFuseArgs { lhs, rhs, out })
             }),
@@ -771,6 +797,21 @@ impl TraceOperationFuser {
         })
     }
 
+    /// Whether `out` can be the reference of the current block, and fix it if so.
+    ///
+    /// An operation that computes the coordinates it reads from the reference layout, such as
+    /// `cat` and `select`, is only correct when its output is the reference: a smaller output
+    /// would be indexed as if it had the reference's shape. The reference then stays fixed, so
+    /// no later operation can make the output a broadcast of a wider one.
+    fn output_is_reference(&mut self, out: &TensorIr) -> bool {
+        if !self.output_is_compatible(out) || self.current_output_shape != out.shape {
+            return false;
+        }
+        self.reference_fixed = true;
+
+        true
+    }
+
     fn output_is_compatible(&mut self, out: &TensorIr) -> bool {
         if self.current_output_shape.is_empty() {
             self.current_output_shape.clone_from(&out.shape);
@@ -817,6 +858,12 @@ impl TraceOperationFuser {
         }
 
         if should_update {
+            // An indexed operation computes its coordinates from the reference layout, so the
+            // reference can't grow past its output.
+            if self.reference_fixed {
+                return false;
+            }
+
             // For now forced to have exact shape.
             if updated != out.shape {
                 return false;
@@ -864,14 +911,14 @@ impl TryTraceFuser {
             return false;
         }
 
-        // Always allow the first operation to be added.
+        // Optimization to avoid cloning the fuser when adding the first operation
         if !self.added_ops {
             self.added_ops = true;
 
             if add_ops(&mut self.fuser).is_none() {
                 return false;
             }
-            return true;
+            return self.fuser.estimate_bindings() <= self.max_bindings;
         }
 
         let mut cloned = self.fuser.clone();
@@ -889,5 +936,87 @@ impl TryTraceFuser {
 
     fn finish(&mut self, shape: Shape) -> FuseTrace {
         self.fuser.finish(shape)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_ir::{TensorId, TensorStatus};
+
+    const MAX_BINDINGS: u32 = 8;
+    /// `estimate_bindings` counts one binding per input, one for output
+    /// and one for metadata. So a `cat` for `n` inputs is estimated as needing
+    /// `n + 2` bindings.
+    const CAT_OVERHEAD: usize = 2;
+    const MAX_CAT_INPUTS: usize = MAX_BINDINGS as usize - CAT_OVERHEAD;
+
+    /// A single op can exceed `max_bindings` on its own (here a `cat` with many inputs), so the
+    /// binding check must also apply to the first op of a kernel.
+    /// Regression test for https://github.com/tracel-ai/burn/issues/6049.
+    #[test]
+    fn cat_exceeding_max_bindings_is_not_fused() {
+        let num_inputs = MAX_CAT_INPUTS + 1;
+        let mut fuser = TraceOperationFuser::new(MAX_BINDINGS, FuseSettings::default());
+        fuse_n_inputs_with_cat(num_inputs, &mut fuser);
+        assert_eq!(
+            fuser.len(),
+            0,
+            "a cat of {num_inputs} inputs (estimated {} bindings) should be rejected with max_bindings = {MAX_BINDINGS}",
+            num_inputs + CAT_OVERHEAD
+        );
+    }
+
+    /// Control for `cat_exceeding_max_bindings_is_not_fused`: The same `cat` fuses
+    /// when it fits. A rejection comes from the binding check, not from the op itself
+    #[test]
+    fn cat_within_max_bindings_is_fused() {
+        let num_inputs = MAX_CAT_INPUTS - 1;
+        let mut fuser = TraceOperationFuser::new(MAX_BINDINGS, FuseSettings::default());
+        fuse_n_inputs_with_cat(num_inputs, &mut fuser);
+        assert_eq!(
+            fuser.len(),
+            1,
+            "a cat of {num_inputs} inputs (estimated {} bindings) should be accepted with max_bindings = {MAX_BINDINGS}",
+            num_inputs + CAT_OVERHEAD
+        );
+    }
+
+    /// Control for `cat_exceeding_max_bindings_is_not_fused`: The same `cat` fuses
+    /// when it fits. A rejection comes from the binding check, not from the op itself
+    #[test]
+    fn cat_at_max_bindings_is_fused() {
+        let num_inputs = MAX_CAT_INPUTS;
+        let mut fuser = TraceOperationFuser::new(MAX_BINDINGS, FuseSettings::default());
+        fuse_n_inputs_with_cat(num_inputs, &mut fuser);
+        assert_eq!(
+            fuser.len(),
+            1,
+            "a cat of {num_inputs} inputs (estimated {} bindings) should be accepted with max_bindings = {MAX_BINDINGS}",
+            num_inputs + CAT_OVERHEAD
+        );
+    }
+
+    fn fuse_n_inputs_with_cat(n: usize, fuser: &mut TraceOperationFuser) {
+        let inputs: Vec<TensorIr> = (0..n as u64)
+            .map(|i| tensor(i, &[1], TensorStatus::ReadOnly))
+            .collect();
+        let output = tensor(n as u64, &[n], TensorStatus::NotInit);
+
+        let op = OperationIr::BaseFloat(BaseOperationIr::Cat(burn_ir::CatOpIr {
+            tensors: inputs,
+            dim: 0,
+            out: output,
+        }));
+        fuser.fuse(&op);
+    }
+
+    fn tensor(id: u64, shape: &[usize], status: TensorStatus) -> TensorIr {
+        TensorIr {
+            id: TensorId::new(id),
+            shape: Shape::from(shape),
+            status,
+            dtype: DType::F32,
+        }
     }
 }

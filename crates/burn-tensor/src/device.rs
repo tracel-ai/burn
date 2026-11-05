@@ -4,33 +4,45 @@ pub use burn_std::{
 
 #[cfg(feature = "cubecl")]
 pub use burn_backend::cubecl::{
-    AdapterLuid, DeviceIdentity, MemoryAccess, PciAddress, PciVendor, PhysicalDevice,
-    ThroughputError, ThroughputKey, ThroughputMode, ThroughputValue,
+    AdapterLuid, CubeCapabilities, DeviceIdentity, PciAddress, PciVendor, PhysicalDevice,
 };
 use burn_backend::{Backend, DeviceOps};
 pub use burn_backend::{
-    MemoryPoolUsage, ProfileDuration, ProfileOptions, ProfileTicks, SlicedPoolReport, TimingMethod,
+    DeviceDescription, DeviceTelemetry, HardwareKind, MatmulTile, MemoryAccess, MemoryPoolUsage,
+    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileTicks,
+    SlicedPoolReport, TimingMethod,
 };
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
 #[cfg(feature = "autodiff")]
 use burn_dispatch::GradientCheckpointingStrategy;
-#[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
-use burn_dispatch::devices::RuntimeId;
-use burn_dispatch::{Dispatch, DispatchDevice};
-use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
-
-#[cfg(feature = "capture")]
-pub use burn_dispatch::backends::capture::{
-    CaptureError, CaptureScope, CapturedGraph, CompletedCaptureScope, TensorId,
-};
-
 #[cfg(any(
-    feature = "remote-websocket",
     feature = "cpu",
     feature = "cuda",
     feature = "rocm",
-    feature = "wgpu"
+    feature = "wgpu",
+    feature = "metal"
+))]
+use burn_dispatch::devices::RuntimeId;
+#[cfg(any(feature = "wgpu-msl", feature = "vulkan", feature = "webgpu"))]
+use burn_dispatch::devices::WgpuBackend;
+use burn_dispatch::{Dispatch, DispatchDevice};
+use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
+
+use crate::{ExecutionMode, ExecutionModeGuard};
+
+#[cfg(feature = "capture")]
+pub use burn_dispatch::backends::capture::{
+    CaptureError, CaptureScope, CaptureTensor, CapturedGraph, CompletedCaptureScope,
+    IntoCaptureOutputs, TensorId,
+};
+
+#[cfg(any(
+    feature = "cpu",
+    feature = "cuda",
+    feature = "rocm",
+    feature = "wgpu",
+    feature = "metal"
 ))]
 use alloc::string::String;
 use alloc::vec;
@@ -58,7 +70,7 @@ use alloc::vec::Vec;
 /// Backend-free builds can expose tensor/model APIs, but cannot create an execution device.
 ///
 /// [`Device::default()`] selects the first enabled backend in this order:
-/// CUDA, Metal, ROCm, Vulkan, WebGPU, wgpu, CPU, LibTorch, Flex, Remote, NdArray.
+/// CUDA, Metal, ROCm, Vulkan, WebGPU, wgpu, CPU, Flex, Remote.
 /// Use an explicit factory method when the choice must be independent of Cargo feature unification.
 /// Without an execution backend, `Device::default()` panics with configuration guidance.
 ///
@@ -80,11 +92,10 @@ use alloc::vec::Vec;
 /// ```
 ///
 /// Available factory methods (each gated by its matching Cargo feature):
-/// `Device::cpu`, `Device::cuda` / `Device::rocm` / `Device::libtorch_cuda`
-/// (take an integer index or a [`DeviceIndex`]), `Device::wgpu` /
-/// `Device::vulkan` / `Device::metal` / `Device::webgpu` (take a
-/// [`DeviceKind`]), `Device::flex`, `Device::ndarray`, `Device::libtorch`,
-/// `Device::libtorch_mps`, `Device::libtorch_vulkan`, `Device::capture`.
+/// `Device::cpu`, `Device::cuda` / `Device::rocm`
+/// (take an integer index or a [`DeviceIndex`]), `Device::metal`, `Device::wgpu` /
+/// `Device::vulkan` / `Device::wgpu_msl` / `Device::webgpu` (take a
+/// [`DeviceKind`]), `Device::flex`, `Device::capture`.
 ///
 /// # Autodiff
 ///
@@ -184,6 +195,13 @@ impl Device {
     pub(crate) fn into_dispatch(self) -> DispatchDevice {
         self.blob.into_inner()
     }
+
+    pub(crate) fn as_dispatch_vec(devices: &[Self]) -> Vec<DispatchDevice> {
+        devices
+            .iter()
+            .map(|device| device.as_dispatch().clone())
+            .collect()
+    }
 }
 
 impl<D: Into<DispatchDevice>> From<D> for Device {
@@ -195,9 +213,8 @@ impl<D: Into<DispatchDevice>> From<D> for Device {
 /// Selector for the hardware index of a backend whose devices are simply
 /// indexed (e.g. CUDA, ROCm).
 ///
-/// Backend factory methods that take an index (`Device::cuda`, `Device::rocm`,
-/// `Device::libtorch_cuda`) accept `impl Into<DeviceIndex>`, so the common
-/// shorthand is to pass a plain integer literal:
+/// Backend factory methods that take an index (`Device::cuda`, `Device::rocm`)
+/// accept `impl Into<DeviceIndex>`, so the common shorthand is to pass a plain integer literal:
 ///
 /// ```rust,ignore
 /// Device::cuda(0);                    // hardware index 0
@@ -223,7 +240,7 @@ impl DeviceIndex {
     /// [`DeviceIndex::Default`]. Backend factory methods are each gated by a
     /// Cargo feature, so this looks dead when none of them are enabled.
     #[allow(dead_code)]
-    fn resolve(self) -> usize {
+    pub(crate) fn resolve(self) -> usize {
         match self {
             DeviceIndex::Specified(i) => i,
             DeviceIndex::Default => 0,
@@ -297,7 +314,9 @@ pub enum DeviceKind {
     ///
     /// # Notes
     ///
-    /// This can be initialized with `init_device` from the wgpu runtime.
+    /// This identifies an already registered runtime. To register an application's
+    /// setup, use `Device::wgpu_options().setup(setup).init()` and retain the
+    /// returned device. Clone that device to share it; do not invent an existing ID.
     Existing(u32),
 }
 
@@ -336,7 +355,7 @@ impl Device {
     /// Default CPU device backed by CubeCL's CPU backend.
     #[cfg(feature = "cpu")]
     pub fn cpu() -> Self {
-        Self::new(burn_dispatch::devices::CpuDevice::default())
+        Self::new(burn_dispatch::devices::CpuDevice)
     }
 
     /// CUDA device at the given hardware index.
@@ -367,150 +386,6 @@ impl Device {
         Self::new(burn_dispatch::devices::FlexDevice)
     }
 
-    /// Default NdArray (CPU) device.
-    #[cfg(feature = "ndarray")]
-    #[deprecated(
-        since = "0.22.0",
-        note = "burn-ndarray is deprecated and will be removed in a future release. Use `Device::flex()` for pure-Rust CPU execution instead."
-    )]
-    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
-    pub fn ndarray() -> Self {
-        Self::new(burn_dispatch::devices::NdArrayDevice::default())
-    }
-
-    /// LibTorch CPU device.
-    #[cfg(feature = "tch")]
-    #[deprecated(
-        since = "0.22.0",
-        note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (`Device::cuda`, `Device::rocm`, `Device::metal`, `Device::vulkan`, `Device::cpu`) or `Device::flex()` instead."
-    )]
-    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
-    pub fn libtorch() -> Self {
-        Self::new(burn_dispatch::devices::LibTorchDevice::Cpu)
-    }
-
-    /// LibTorch CUDA device at the given hardware index.
-    #[cfg(feature = "tch")]
-    #[deprecated(
-        since = "0.22.0",
-        note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (`Device::cuda`, `Device::rocm`, `Device::metal`, `Device::vulkan`, `Device::cpu`) or `Device::flex()` instead."
-    )]
-    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
-    pub fn libtorch_cuda(index: impl Into<DeviceIndex>) -> Self {
-        Self::new(burn_dispatch::devices::LibTorchDevice::Cuda(
-            index.into().resolve(),
-        ))
-    }
-
-    /// LibTorch Metal Performance Shaders (MPS) device.
-    #[cfg(feature = "tch")]
-    #[deprecated(
-        since = "0.22.0",
-        note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (`Device::cuda`, `Device::rocm`, `Device::metal`, `Device::vulkan`, `Device::cpu`) or `Device::flex()` instead."
-    )]
-    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
-    pub fn libtorch_mps() -> Self {
-        Self::new(burn_dispatch::devices::LibTorchDevice::Mps)
-    }
-
-    /// LibTorch Vulkan device.
-    #[cfg(feature = "tch")]
-    #[deprecated(
-        since = "0.22.0",
-        note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (`Device::cuda`, `Device::rocm`, `Device::metal`, `Device::vulkan`, `Device::cpu`) or `Device::flex()` instead."
-    )]
-    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
-    pub fn libtorch_vulkan() -> Self {
-        Self::new(burn_dispatch::devices::LibTorchDevice::Vulkan)
-    }
-
-    /// Legacy WebSocket remote device. New integrations should prefer [`Device::remote_iroh`].
-    ///
-    /// Connects to a burn-remote WebSocket server at the given address. `index` selects which of
-    /// the server's devices to use; two devices with the same address but different indices target
-    /// distinct devices on the same host.
-    #[cfg(feature = "remote-websocket")]
-    pub fn remote_websocket(address: &str, index: impl Into<DeviceIndex>) -> Self {
-        let index = index.into().resolve();
-        let device = burn_dispatch::devices::RemoteDevice::websocket(address, index);
-        device.connect(); // initializes the connection (required to get the device default settings)
-        Self::new(device)
-    }
-
-    /// Iroh peer-to-peer remote device.
-    ///
-    /// `endpoint` is the application-owned Iroh endpoint to dial from; `peer` is the compute
-    /// server's identity (from [`RemoteSecret::id`](burn_dispatch::backends::remote::RemoteSecret::id)),
-    /// optionally carrying direct/relay dialing hints.
-    /// On wasm, use [`remote_iroh_async`](Self::remote_iroh_async) instead since sessions cannot
-    /// be opened synchronously.
-    #[cfg(all(feature = "remote", not(target_family = "wasm")))]
-    pub fn remote_iroh(
-        endpoint: &burn_dispatch::backends::remote::Endpoint,
-        peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
-        index: impl Into<DeviceIndex>,
-    ) -> Self {
-        let index = index.into().resolve();
-        let device =
-            burn_dispatch::backends::remote::RemoteDevice::iroh(endpoint, peer.into(), index);
-        device.connect();
-        Self::new(device)
-    }
-
-    /// Browser counterpart of [`remote_iroh`](Self::remote_iroh). Wasm cannot block to connect,
-    /// so the session is established asynchronously before the device is returned.
-    #[cfg(all(feature = "remote", any(target_family = "wasm", doc)))]
-    pub async fn remote_iroh_async(
-        endpoint: &burn_dispatch::backends::remote::Endpoint,
-        peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
-        index: impl Into<DeviceIndex>,
-    ) -> Self {
-        let index = index.into().resolve();
-        let device =
-            burn_dispatch::backends::remote::RemoteDevice::iroh(endpoint, peer.into(), index);
-        device.connect_async().await;
-        Self::new(device)
-    }
-
-    /// Like `remote_iroh`, but carries an authorization credential the server's PeerAuthorizer
-    /// will check. Use against servers that require a credential; open servers take `remote_iroh`.
-    #[cfg(all(feature = "remote", not(target_family = "wasm")))]
-    pub fn remote_iroh_authorized(
-        endpoint: &burn_dispatch::backends::remote::Endpoint,
-        peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
-        index: impl Into<DeviceIndex>,
-        credential: Vec<u8>,
-    ) -> Self {
-        let index = index.into().resolve();
-        let device = burn_dispatch::backends::remote::RemoteDevice::iroh_authorized(
-            endpoint,
-            peer.into(),
-            index,
-            credential,
-        );
-        device.connect();
-        Self::new(device)
-    }
-
-    /// Browser counterpart of `remote_iroh_authorized`. Establishes the session asynchronously.
-    #[cfg(all(feature = "remote", any(target_family = "wasm", doc)))]
-    pub async fn remote_iroh_authorized_async(
-        endpoint: &burn_dispatch::backends::remote::Endpoint,
-        peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
-        index: impl Into<DeviceIndex>,
-        credential: Vec<u8>,
-    ) -> Self {
-        let index = index.into().resolve();
-        let device = burn_dispatch::backends::remote::RemoteDevice::iroh_authorized(
-            endpoint,
-            peer.into(),
-            index,
-            credential,
-        );
-        device.connect_async().await;
-        Self::new(device)
-    }
-
     /// WGPU device, selected via [`DeviceKind`].
     ///
     /// [`AutoCompiler`](burn_dispatch::devices::AutoCompiler) dispatches to the most
@@ -521,20 +396,18 @@ impl Device {
     /// `CUBECL_WGPU_DEFAULT_DEVICE`).
     ///
     /// The graphics API — and so the shader compiler — is the runtime's to settle, from the
-    /// enabled features and what the machine offers. `Device::vulkan`, `Device::metal` and
+    /// enabled features and what the machine offers. `Device::vulkan`, `Device::wgpu_msl` and
     /// `Device::webgpu` pin one instead: the same adapter on two APIs is two devices.
+    ///
+    /// This constructor is lazy. Use [`Device::wgpu_options`] to initialize with runtime
+    /// options or share an existing wgpu setup. In a browser, initialize asynchronously
+    /// with [`init_async`](crate::wgpu::WgpuOptions::init_async) before creating tensors.
     #[cfg(feature = "wgpu")]
     pub fn wgpu(device_kind: DeviceKind) -> Self {
         Self::new(wgpu_device(
             device_kind,
             burn_dispatch::devices::WgpuBackend::Auto,
         ))
-    }
-
-    #[cfg(all(feature = "wgpu", target_family = "wasm"))]
-    /// Asynchronously creates a WGPU device, initializing the client.
-    pub async fn wgpu_async(device_kind: DeviceKind) -> Self {
-        Self::new(wgpu_init_async(device_kind).await)
     }
 
     /// Vulkan-backed WGPU device, selected via [`DeviceKind`] — and so `SPIR-V`, where the
@@ -550,10 +423,21 @@ impl Device {
         ))
     }
 
-    /// Metal-backed WGPU device, selected via [`DeviceKind`] — and so MSL, where the build
-    /// allows it. Pinned to Metal, as [`Device::vulkan`] is to Vulkan.
+    /// Metal device on cubecl's own Metal runtime, with no wgpu in between: the system's
+    /// default GPU.
     #[cfg(feature = "metal")]
-    pub fn metal(device_kind: DeviceKind) -> Self {
+    pub fn metal() -> Self {
+        Self::new(burn_dispatch::devices::MetalDevice::default())
+    }
+
+    /// Metal-backed WGPU device, selected via [`DeviceKind`], requiring native MSL support:
+    /// wgpu compiling the same MSL [`Device::metal`] runs on cubecl's own runtime.
+    ///
+    /// Pinned to Metal, as `Device::vulkan` is to Vulkan. Runtime initialization panics if
+    /// native MSL is unavailable on the selected device. Use [`Device::wgpu`] for automatic
+    /// compiler selection with WGSL fallback.
+    #[cfg(feature = "wgpu-msl")]
+    pub fn wgpu_msl(device_kind: DeviceKind) -> Self {
         Self::new(wgpu_device(
             device_kind,
             burn_dispatch::devices::WgpuBackend::Metal,
@@ -561,7 +445,7 @@ impl Device {
     }
 
     /// WebGPU-backed device, selected via [`DeviceKind`] — the browser's own. Pinned to
-    /// WebGPU, as [`Device::vulkan`] is to Vulkan.
+    /// WebGPU, as `Device::vulkan` is to Vulkan.
     #[cfg(feature = "webgpu")]
     pub fn webgpu(device_kind: DeviceKind) -> Self {
         Self::new(wgpu_device(
@@ -703,7 +587,12 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an [`ExecutionError`] if an operation failed to execute.
+    /// Returns an [`ExecutionError`] when the device can no longer execute work: it is poisoned,
+    /// or a remote device's session ended. A failure of an operation itself is deferred to the
+    /// tensors it was going to write, and operations reading them are skipped: the read of one of
+    /// those tensors reports it, while work sharing no tensor with the failure is unaffected.
+    /// The exception is the replay of a captured graph on a remote device, which the server cannot
+    /// attribute to tensors: its failure is reported by the next sync or read on its stream.
     pub fn sync(&self) -> Result<(), ExecutionError> {
         Dispatch::sync(self.as_dispatch())
     }
@@ -720,7 +609,13 @@ impl Device {
     /// Unlike [`sync`](Self::sync), this does not block on results — it only ensures buffered
     /// operations are dispatched instead of sitting idle. Eager backends, which execute each
     /// operation as it is registered, have nothing buffered and treat this as a no-op.
-    pub fn flush(&self) {
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`ExecutionError`] when the buffered operations cannot be dispatched, e.g. on a
+    /// device that is poisoned or a remote device whose session ended. As with
+    /// [`sync`](Self::sync), a failure of an operation itself is reported by a read.
+    pub fn flush(&self) -> Result<(), ExecutionError> {
         Dispatch::flush(self.as_dispatch())
     }
 
@@ -742,7 +637,7 @@ impl Device {
     /// [`ProfileOptions::flush`], closes the window over all of it. A window
     /// that nothing ran in reads as no time.
     ///
-    /// A backend with no device clock (ndarray, LibTorch, a remote device
+    /// A backend with no device clock (such as a remote device
     /// whose server has none) measures wall-clock time between two syncs
     /// instead: that one waits, and an inner window's syncs are charged to
     /// the outer.
@@ -773,6 +668,57 @@ impl Device {
         func: impl FnOnce() -> O + Send,
     ) -> Result<(O, ProfileDuration), ExecutionError> {
         Dispatch::profile(self.as_dispatch(), options, func)
+    }
+
+    /// Open `mode` on this device until the returned guard closes.
+    ///
+    /// - A [`ProcessMode`](crate::ProcessMode) applies to all the device's work: `CompileOnly`
+    ///   compiles what the work launches, `CompileAndAutotune` also tunes it by
+    ///   measuring, and both discard the launches themselves. A pass that wants
+    ///   a workload's kernels compiled and its autotune keys tuned, and not its
+    ///   results, runs the workload once inside the guard and reads what it
+    ///   triggered from the guard's [reader](ExecutionModeGuard::reader).
+    /// - A [`StreamMode`](crate::StreamMode) applies to the calling stream's work alone
+    ///   ([`StreamId::current`](crate::StreamId::current); another stream
+    ///   opens its own from inside [`StreamId::executes`](crate::StreamId::executes)),
+    ///   whatever the process mode says: `Execute` is how a step that has to
+    ///   run for real does so inside a pass that discards launches.
+    ///
+    /// ```rust,ignore
+    /// let compile = device.mode(ProcessMode::CompileOnly)?;
+    /// model.forward(input.clone());
+    /// let compiled = compile.close()?;
+    ///
+    /// let tune = device.mode(ProcessMode::CompileAndAutotune)?;
+    /// let execute = device.mode(StreamMode::Execute)?;
+    /// step_that_must_run();
+    /// execute.close()?;
+    /// model.forward(input);
+    /// let tuned = tune.close()?;
+    /// ```
+    ///
+    /// The mode applies where the device's work runs: on a remote device, on
+    /// its server. It opens after every operation registered so far on the
+    /// calling stream. A backend that compiles nothing runs every launch
+    /// whatever the mode ([`ExecutionModeGuard::applies`] says so).
+    ///
+    /// The cubecl runtimes apply a process mode to the whole process: every
+    /// device of the process runs under it, one is open at a time, and opening
+    /// the one already open joins it, its statistics then counting both
+    /// openers' work. On a remote device, that process is the server's — the
+    /// work of every client of the server is discarded while it is open.
+    ///
+    /// # Errors
+    ///
+    /// Another process mode is open where this one would apply, the device is
+    /// a group (open the mode on its devices), or the device could not be
+    /// reached — a remote device from a browser thread, which cannot wait on
+    /// the server.
+    pub fn mode(
+        &self,
+        mode: impl Into<ExecutionMode>,
+    ) -> Result<ExecutionModeGuard, ExecutionError> {
+        ExecutionModeGuard::new(self.clone(), mode.into())
     }
 
     /// Seeds the random number generator for this device.
@@ -856,16 +802,32 @@ impl Device {
         Dispatch::memory_cleanup(self.as_dispatch());
     }
 
-    /// This device's dynamic pools, in the order they were installed. `None` on
-    /// a backend that does not report them.
-    pub fn memory_pool_report(&self) -> Option<Vec<SlicedPoolReport>> {
-        Dispatch::memory_pool_report(self.as_dispatch())
+    /// What this device is, as its driver states it, without opening it: its name, the sort of
+    /// hardware, the memory it can use, the architecture its kernels compile for and the
+    /// driver's version. Cheap enough to describe every device a machine has. A remote device is
+    /// described by its server. `None` from a backend whose driver states nothing.
+    pub fn description(&self) -> Option<DeviceDescription> {
+        Dispatch::device_description(self.as_dispatch())
     }
 
-    /// What this device's allocator currently holds. `None` on a backend that
-    /// does not report it.
-    pub fn memory_pool_usage(&self) -> Option<MemoryPoolUsage> {
-        Dispatch::memory_pool_usage(self.as_dispatch())
+    /// One reading of the counters of the card behind this device: how busy it and its memory
+    /// are, how hot it runs and what it draws. Every figure is `None` where no counter gives it.
+    pub fn measure_telemetry(&self) -> DeviceTelemetry {
+        Dispatch::measure_telemetry(self.as_dispatch())
+    }
+
+    /// What this device's allocator holds now, after the work registered so far on the calling
+    /// stream: its usage, and each pool that carves pages. `None` from a backend that does not
+    /// report it.
+    pub fn measure_memory(&self) -> Option<MemoryReport> {
+        Dispatch::measure_memory(self.as_dispatch())
+    }
+
+    /// The peak throughput of this device for each of `keys`, in order, by launching a probe for
+    /// each: the peak, per second in the unit its key names, or why the device has none. A probe
+    /// runs for a while, so measure once and keep the answer.
+    pub fn measure_peaks(&self, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        Dispatch::measure_peaks(self.as_dispatch(), keys)
     }
 
     /// Prepares the given data for transfer between the CPU and accelerator devices such as GPUs.
@@ -947,21 +909,21 @@ impl Device {
 
     /// Retrieves all available [`Device`]s that match the given [`DeviceType`] filter.
     ///
-    /// Local backends (CPU, CUDA, WGPU, …) enumerate the hardware found on the host. The
-    /// `Remote` (with `remote-websocket` enabled) variant instead lists every device hosted by the
-    /// `burn-remote` server at the given address — it connects to the server to learn how
-    /// many devices it exposes:
+    /// Backends enumerate the hardware found on this machine, and `DeviceType::Remote` every
+    /// device a remote server hosts:
     ///
     /// ```rust,ignore
     /// // Every CUDA device on this machine.
     /// let local = Device::enumerate(DeviceType::Cuda);
     ///
-    /// // Every device hosted by a remote server.
-    /// let remote = Device::enumerate(DeviceType::remote_websocket("ws://host:3000"));
-    ///
     /// // Filters combine with `|`.
-    /// let both = Device::enumerate(DeviceType::Cuda | DeviceType::remote_websocket("ws://host:3000"));
+    /// let both = Device::enumerate(DeviceType::Cuda | DeviceType::Remote(host));
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Where `RemoteHost::devices` returns an error for a `DeviceType::Remote`, and on wasm for any
+    /// `DeviceType::Remote`, which a browser can only list with `RemoteHost::devices_async`.
     pub fn enumerate(filter: impl Into<DeviceFilter>) -> Devices {
         #[allow(unused)]
         let mut devices = Vec::new();
@@ -972,9 +934,8 @@ impl Device {
             let type_id = match device_type {
                 // The cubecl runtimes are one dispatch backend, so `DispatchDeviceId::Cube`
                 // would list every runtime's devices at once. These name the runtime the
-                // caller asked for instead. `Metal`, `Vulkan` and `WebGpu` are wgpu with a
-                // particular shader compiler, which is a runtime choice rather than a
-                // separate runtime, so all three enumerate the wgpu devices.
+                // caller asked for instead. `WgpuMsl`, `Vulkan` and `WebGpu` pin wgpu to the
+                // requested graphics API; `Wgpu` leaves the API to auto-selection.
                 #[cfg(feature = "cpu")]
                 DeviceType::Cpu => {
                     push_cube(&mut devices, RuntimeId::Cpu);
@@ -995,34 +956,31 @@ impl Device {
                     push_cube(&mut devices, RuntimeId::Wgpu);
                     continue;
                 }
+                #[cfg(feature = "wgpu-msl")]
+                DeviceType::WgpuMsl => {
+                    push_wgpu(&mut devices, WgpuBackend::Metal);
+                    continue;
+                }
                 #[cfg(feature = "metal")]
                 DeviceType::Metal => {
-                    push_cube(&mut devices, RuntimeId::Wgpu);
+                    push_cube(&mut devices, RuntimeId::Metal);
                     continue;
                 }
                 #[cfg(feature = "vulkan")]
                 DeviceType::Vulkan => {
-                    push_cube(&mut devices, RuntimeId::Wgpu);
+                    push_wgpu(&mut devices, WgpuBackend::Vulkan);
                     continue;
                 }
                 #[cfg(feature = "webgpu")]
                 DeviceType::WebGpu => {
-                    push_cube(&mut devices, RuntimeId::Wgpu);
+                    push_wgpu(&mut devices, WgpuBackend::WebGpu);
                     continue;
                 }
                 #[cfg(feature = "flex")]
                 DeviceType::Flex => DispatchDeviceId::Flex,
-                #[cfg(feature = "ndarray")]
-                DeviceType::NdArray => DispatchDeviceId::NdArray,
-                #[cfg(feature = "tch")]
-                DeviceType::LibTorch => DispatchDeviceId::LibTorch,
-                // Remote devices are keyed by address, not a backend type id, so they take a
-                // dedicated enumeration path (connecting to the server for its device count).
-                #[cfg(feature = "remote-websocket")]
-                DeviceType::Remote(address) => {
-                    for device in Dispatch::enumerate_remote_websocket(&address) {
-                        devices.push(Device::new(device));
-                    }
+                #[cfg(feature = "remote")]
+                DeviceType::Remote(host) => {
+                    devices.extend(host.enumerate());
                     continue;
                 }
             };
@@ -1036,12 +994,15 @@ impl Device {
         Devices(devices)
     }
 
-    /// Who this device is: the part's name, what its kernels are compiled for and, for a card
-    /// on a bus, the card itself. `None` for a backend that does not report one. Opens the
-    /// device.
+    /// What the cubecl device behind this one can do, opening it: the features, limits and
+    /// memory its runtime reports, who it is — its name, what its kernels compile for and, for a
+    /// card on this host, the card — and its compile target. What a kernel written in cubecl
+    /// selects its routines by. An autodiff device answers for the device it wraps, a remote
+    /// device with what its server's device reports, without the card: a card's ids only mean
+    /// something on the host that read them. `None` for a device on no cubecl runtime.
     #[cfg(feature = "cubecl")]
-    pub fn identity(&self) -> Option<DeviceIdentity> {
-        self.as_dispatch().identity()
+    pub fn capabilities(&self) -> Option<CubeCapabilities> {
+        self.as_dispatch().capabilities()
     }
 
     /// Every card this build can reach, once each, with the devices that reach it.
@@ -1050,7 +1011,13 @@ impl Device {
     /// holding both devices, so a caller placing work on cards never puts two stages on one
     /// card by another name. Opens every device of every runtime, so call it once and keep
     /// the answer.
-    #[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+    #[cfg(any(
+        feature = "cpu",
+        feature = "cuda",
+        feature = "rocm",
+        feature = "wgpu",
+        feature = "metal"
+    ))]
     pub fn enumerate_physical() -> Vec<PhysicalGpu> {
         let mut gpus: Vec<PhysicalGpu> = Vec::new();
         for device in Dispatch::enumerate(DispatchDeviceId::Cube) {
@@ -1059,7 +1026,9 @@ impl Device {
                 name,
                 physical: Some(physical),
                 ..
-            }) = device.identity()
+            }) = device
+                .capabilities()
+                .map(|capabilities| capabilities.properties.identity)
             else {
                 continue;
             };
@@ -1080,27 +1049,16 @@ impl Device {
         }
         gpus
     }
-
-    /// Measure peak compute and memory throughput for this device.
-    ///
-    /// Runs cubecl-std's throughput benchmarks for each [`ThroughputKey`],
-    /// returning one [`ThroughputStat`] per key (in the same order). A key the
-    /// device has no peak for keeps its place, carrying the [`ThroughputError`]
-    /// saying why. Only cubecl-backed devices (cuda, wgpu, ...) report
-    /// measurements; other backends return an empty vector.
-    #[cfg(feature = "cubecl")]
-    pub fn performance_stats(&self, keys: &[ThroughputKey]) -> Vec<ThroughputStat> {
-        self.as_dispatch()
-            .performance_stats(keys)
-            .into_iter()
-            .zip(keys.iter().copied())
-            .map(|(value, key)| ThroughputStat { key, value })
-            .collect()
-    }
 }
 
 /// One card and every device that reaches it, from [`Device::enumerate_physical`].
-#[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+#[cfg(any(
+    feature = "cpu",
+    feature = "cuda",
+    feature = "rocm",
+    feature = "wgpu",
+    feature = "metal"
+))]
 #[derive(Debug, Clone)]
 pub struct PhysicalGpu {
     /// The card's PCI address, Windows LUID and vendor, from whichever of its runtimes reported
@@ -1112,64 +1070,17 @@ pub struct PhysicalGpu {
     pub devices: Devices,
 }
 
-/// A single peak-throughput measurement produced by [`Device::performance_stats`].
-#[cfg(feature = "cubecl")]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ThroughputStat {
-    /// The measurement key (mode + dtype) that was benchmarked.
-    pub key: ThroughputKey,
-    /// The measured throughput for that key, or why the device has none.
-    pub value: Result<ThroughputValue, ThroughputError>,
-}
-
-/// Short, column-friendly name for a throughput mode.
-#[cfg(feature = "cubecl")]
-fn mode_label(mode: &ThroughputMode) -> &'static str {
-    match mode {
-        ThroughputMode::ComputeDirect { .. } => "compute-direct",
-        ThroughputMode::ComputeCmma { .. } => "compute-cmma",
-        ThroughputMode::Memory(spec) => match spec.access {
-            MemoryAccess::Copy => "memory",
-            MemoryAccess::Read => "memory-read",
-            MemoryAccess::Write => "memory-write",
-        },
-        ThroughputMode::Launch => "launch",
-    }
-}
-
-#[cfg(feature = "cubecl")]
-impl core::fmt::Display for ThroughputStat {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        // Width/alignment flags are ignored on `ThroughputMode`/`ElemType` directly
-        // (their fmt impls don't call `f.pad`), so render them to `String`s first —
-        // `str`'s `Display` honors padding. The mode is labelled by hand rather than
-        // derived through `Debug`: its variants carry payloads that would blow out the column.
-        let mode = mode_label(&self.key.mode);
-
-        // `ThroughputKey::dtype()` reports f32 for the modes that don't compute with an
-        // element type, so blank the column there rather than print a misleading type.
-        let dtype = match self.key.mode {
-            ThroughputMode::ComputeDirect { dtype } | ThroughputMode::ComputeCmma { dtype, .. } => {
-                alloc::format!("{dtype}")
-            }
-            ThroughputMode::Memory(_) | ThroughputMode::Launch => alloc::string::String::new(),
-        };
-
-        let value = match &self.value {
-            Ok(value) => value.format(&self.key),
-            Err(error) => alloc::format!("{error}"),
-        };
-
-        write!(f, "{mode:<14} {dtype:<5} {value}")
-    }
-}
-
 /// Append every device of the cubecl `runtime` to `devices`, skipping any already listed.
 ///
-/// A filter can name the same runtime twice — `DeviceType::Vulkan | DeviceType::Wgpu` both mean
-/// wgpu now that the compiler is not part of the device — and a caller enumerating hardware
-/// should see each device once.
-#[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+/// A filter can name the same runtime twice (e.g. two `DeviceType::Cuda` entries),
+/// and a caller enumerating hardware should see each device once.
+#[cfg(any(
+    feature = "cpu",
+    feature = "cuda",
+    feature = "rocm",
+    feature = "wgpu",
+    feature = "metal"
+))]
 fn push_cube(devices: &mut Vec<Device>, runtime: RuntimeId) {
     for device in Dispatch::enumerate_cube(runtime) {
         let device = Device::new(device);
@@ -1179,12 +1090,50 @@ fn push_cube(devices: &mut Vec<Device>, runtime: RuntimeId) {
     }
 }
 
+/// Append every wgpu device on `backend`, skipping any already listed.
+#[cfg(any(feature = "wgpu-msl", feature = "vulkan", feature = "webgpu"))]
+fn push_wgpu(devices: &mut Vec<Device>, backend: WgpuBackend) {
+    push_wgpu_with(
+        devices,
+        backend,
+        burn_dispatch::devices::CubeDevice::enumerate,
+    );
+}
+
+#[cfg(any(feature = "wgpu-msl", feature = "vulkan", feature = "webgpu"))]
+fn push_wgpu_with(
+    devices: &mut Vec<Device>,
+    backend: WgpuBackend,
+    mut enumerate: impl FnMut(DeviceId) -> Vec<DeviceId>,
+) {
+    use burn_dispatch::devices::{CubeDevice, WgpuDevice, WgpuDeviceKind};
+
+    // Enumeration preserves the seed's kind and graphics API. Ask for each concrete
+    // kind on the requested API: Auto may expose different kinds or fewer adapters.
+    // DefaultDevice is an alias, and Existing devices cannot be discovered.
+    for kind in [
+        WgpuDeviceKind::DiscreteGpu(0),
+        WgpuDeviceKind::IntegratedGpu(0),
+        WgpuDeviceKind::VirtualGpu(0),
+        WgpuDeviceKind::Cpu,
+        WgpuDeviceKind::Other(0),
+    ] {
+        let seed = CubeDevice::Wgpu(WgpuDevice::new(kind).on(backend));
+        for id in enumerate(seed.to_id()) {
+            let device = Device::new(CubeDevice::from_id(id));
+            if !devices.contains(&device) {
+                devices.push(device);
+            }
+        }
+    }
+}
+
 /// Map our backend-agnostic [`DeviceKind`] onto cubecl's `WgpuDevice`, on `backend`.
 ///
 /// Shared by [`Device::wgpu`], which leaves the graphics API to the runtime, and
-/// [`Device::vulkan`], [`Device::metal`] and [`Device::webgpu`], which each pin theirs.
+/// [`Device::vulkan`], [`Device::wgpu_msl`] and [`Device::webgpu`], which each pin theirs.
 #[cfg(feature = "wgpu")]
-fn wgpu_device(
+pub(crate) fn wgpu_device(
     device_kind: DeviceKind,
     backend: burn_dispatch::devices::WgpuBackend,
 ) -> burn_dispatch::devices::WgpuDevice {
@@ -1202,25 +1151,14 @@ fn wgpu_device(
     WgpuDevice::new(kind).on(backend)
 }
 
-#[cfg(all(feature = "wgpu", target_family = "wasm"))]
-// TODO: this is only helpful for the default graphics api and runtime options.. we'd have to expose other methods but that leaks the types
-// so we might have to introduce some wrapper types.
-async fn wgpu_init_async(device_kind: DeviceKind) -> burn_dispatch::devices::WgpuDevice {
-    use burn_dispatch::devices::{AutoGraphicsApi, init_setup_async};
-
-    let device = wgpu_device(device_kind, burn_dispatch::devices::WgpuBackend::Auto);
-    init_setup_async::<AutoGraphicsApi>(&device, Default::default()).await;
-    device
-}
-
 /// Represents the devices that can be used.
 ///
-/// `DeviceType` is used to filter the available device types for [`Device::enumerate`]. Most
-/// variants are fieldless and select a backend's local hardware; `Remote` (with `remote-websocket` enabled)
-/// carries the network address of a `burn-remote` server whose devices should be listed.
+/// `DeviceType` is used to filter the available device types for [`Device::enumerate`]. Each
+/// variant selects a backend's hardware on this machine, except `Remote`, which selects a remote
+/// server's devices.
 ///
 /// Variants combine into a [`DeviceFilter`] with the `|` operator, so a single
-/// [`Device::enumerate`] call can span several backends and remote hosts.
+/// [`Device::enumerate`] call can span several backends and remote servers.
 #[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeviceType {
@@ -1232,41 +1170,29 @@ pub enum DeviceType {
     Rocm,
     #[cfg(feature = "wgpu")]
     Wgpu,
+    /// cubecl's own Metal runtime.
     #[cfg(feature = "metal")]
     Metal,
+    /// wgpu pinned to Metal, compiling MSL.
+    #[cfg(feature = "wgpu-msl")]
+    WgpuMsl,
     #[cfg(feature = "vulkan")]
     Vulkan,
     #[cfg(feature = "webgpu")]
     WebGpu,
     #[cfg(feature = "flex")]
     Flex,
-    #[cfg(feature = "ndarray")]
-    NdArray,
-    #[cfg(feature = "tch")]
-    LibTorch,
-    /// Devices hosted by the `burn-remote` server at the given address
-    /// (e.g. `"ws://host:3000"`). Unlike the other variants this is resolved at runtime by
-    /// connecting to the server, which reports how many devices it exposes.
-    #[cfg(feature = "remote-websocket")]
-    Remote(String),
-}
-
-#[cfg(feature = "remote-websocket")]
-impl DeviceType {
-    /// Filter selecting every device hosted by the `burn-remote` server at `address`
-    /// (e.g. `"ws://host:3000"`).
-    ///
-    /// Convenience for [`DeviceType::Remote`] that accepts anything string-like.
-    pub fn remote_websocket(address: impl Into<String>) -> Self {
-        DeviceType::Remote(address.into())
-    }
+    /// Every device the remote server `host` hosts, connected on first use like any listed device.
+    /// [`RemoteHost::devices`](crate::remote::RemoteHost::devices) does the same and returns an
+    /// error where `enumerate` panics.
+    #[cfg(feature = "remote")]
+    Remote(crate::remote::RemoteHost),
 }
 
 /// A set of [`DeviceType`]s passed to [`Device::enumerate`].
 ///
 /// Built from a single [`DeviceType`], a `Vec<DeviceType>`, or by combining variants with the
-/// `|` operator (`DeviceType::Cuda | DeviceType::Cpu`). Because `DeviceType::Remote` carries
-/// an address, this is a plain list rather than a bitset.
+/// `|` operator (`DeviceType::Cuda | DeviceType::Cpu`).
 #[derive(Debug, Clone, Default)]
 pub struct DeviceFilter(Vec<DeviceType>);
 
@@ -1461,6 +1387,12 @@ impl Devices {
 }
 
 // Loop over `&Devices` or `Devices` seamlessly
+impl FromIterator<Device> for Devices {
+    fn from_iter<I: IntoIterator<Item = Device>>(devices: I) -> Self {
+        Self(devices.into_iter().collect())
+    }
+}
+
 impl IntoIterator for Devices {
     type Item = Device;
     type IntoIter = alloc::vec::IntoIter<Device>;
@@ -1653,6 +1585,93 @@ mod tests {
                     !gpu.physical.is_same_card(&other.physical),
                     "one card listed twice: {gpu:?} and {other:?}"
                 );
+            }
+        }
+    }
+}
+
+#[cfg(all(
+    test,
+    any(feature = "wgpu-msl", feature = "vulkan", feature = "webgpu")
+))]
+mod enumerate_wgpu_tests {
+    use super::*;
+    use burn_dispatch::devices::{CubeDevice, WgpuDevice, WgpuDeviceKind};
+
+    fn cube_device(kind: WgpuDeviceKind, backend: WgpuBackend) -> CubeDevice {
+        CubeDevice::Wgpu(WgpuDevice::new(kind).on(backend))
+    }
+
+    #[test]
+    fn enumerate_requested_api_independently_of_auto() {
+        for backend in [WgpuBackend::Metal, WgpuBackend::Vulkan, WgpuBackend::WebGpu] {
+            // An existing Auto device must not limit discovery on the requested API
+            // or be deduplicated with a device pinned to that API.
+            let auto = cube_device(WgpuDeviceKind::DiscreteGpu(0), WgpuBackend::Auto);
+            let expected = [
+                WgpuDeviceKind::DiscreteGpu(0),
+                WgpuDeviceKind::DiscreteGpu(1),
+                WgpuDeviceKind::IntegratedGpu(0),
+                WgpuDeviceKind::VirtualGpu(0),
+                WgpuDeviceKind::Cpu,
+                WgpuDeviceKind::Other(0),
+            ]
+            .map(|kind| cube_device(kind, backend));
+            let enumerate = |seed: DeviceId| {
+                let CubeDevice::Wgpu(seed_device) = CubeDevice::from_id(seed) else {
+                    panic!("expected a wgpu seed");
+                };
+                assert_eq!(seed_device.backend, backend);
+                expected
+                    .iter()
+                    .filter(|device| device.to_id().type_id == seed.type_id)
+                    .map(CubeDevice::to_id)
+                    .collect()
+            };
+
+            let mut devices = vec![Device::new(auto.clone())];
+            push_wgpu_with(&mut devices, backend, enumerate);
+            let expected_devices: Vec<_> = core::iter::once(&auto)
+                .chain(expected.iter())
+                .cloned()
+                .map(Device::new)
+                .collect();
+            assert_eq!(devices, expected_devices);
+
+            push_wgpu_with(&mut devices, backend, enumerate);
+            assert_eq!(
+                devices, expected_devices,
+                "repeated filters must not duplicate devices"
+            );
+        }
+    }
+
+    #[test]
+    fn enumerate_unavailable_api_is_empty() {
+        let mut devices = Vec::new();
+        push_wgpu_with(&mut devices, WgpuBackend::Vulkan, |_| Vec::new());
+        assert!(devices.is_empty());
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    #[test]
+    fn enumerate_pins_the_graphics_api() {
+        let cases = [
+            #[cfg(feature = "wgpu-msl")]
+            (DeviceType::WgpuMsl, WgpuBackend::Metal),
+            #[cfg(feature = "vulkan")]
+            (DeviceType::Vulkan, WgpuBackend::Vulkan),
+            #[cfg(feature = "webgpu")]
+            (DeviceType::WebGpu, WgpuBackend::WebGpu),
+        ];
+        for (device_type, backend) in cases {
+            for device in Device::enumerate(device_type).iter() {
+                match device.as_dispatch() {
+                    DispatchDevice::Cube(CubeDevice::Wgpu(wgpu)) => {
+                        assert_eq!(wgpu.backend, backend);
+                    }
+                    other => panic!("expected a wgpu device, got {other:?}"),
+                }
             }
         }
     }

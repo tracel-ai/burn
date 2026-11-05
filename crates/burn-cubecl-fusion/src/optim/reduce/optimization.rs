@@ -3,6 +3,8 @@ use super::args::{
 };
 #[cfg(feature = "autotune")]
 use super::tune::fused_reduce_autotune;
+#[cfg(feature = "autotune")]
+use crate::tune::TunedTrace;
 use crate::{
     CubeFusionHandle, FallbackOperation,
     engine::{
@@ -107,6 +109,13 @@ impl Clone for ReduceOptimizationTuneArg {
             info: self.info.clone(),
             fallback: self.fallback.clone(),
         }
+    }
+}
+
+#[cfg(feature = "autotune")]
+impl TunedTrace for ReduceOptimizationTuneArg {
+    fn trace(&self) -> &FuseTrace {
+        &self.info.trace
     }
 }
 
@@ -264,6 +273,14 @@ impl ReduceOptimization {
             info: self.info.clone(),
             fallback: Arc::new(fallback),
         };
+
+        // Same as `ReduceBroadcastedOptimization::execute`: an empty input leaves the fused
+        // kernels either an axis they reject or nothing to launch over.
+        let input = context.tensors.get(&self.info.reduce.op.input.id).unwrap();
+        if input.shape.num_elements() == 0 {
+            arg.execute_fallback(context);
+            return;
+        }
 
         #[cfg(feature = "autotune")]
         fused_reduce_autotune(arg, context);

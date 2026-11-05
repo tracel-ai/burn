@@ -53,6 +53,7 @@ jobs:
     runs-on:
       [
         "@id:burn-cuda-job-${{github.run_id}}-${{github.run_attempt}}",
+        "@max-lifetime-secs:5400",
         "@pr_number:${{ inputs.pr_number }}",
         "@organization:tracel-ai",
         "@repository:burn",
@@ -77,7 +78,7 @@ jobs:
         uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Install Rust
-        uses: tracel-ai/github-actions/install-rust@v11
+        uses: tracel-ai/github-actions/install-rust@v12
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false
@@ -87,11 +88,12 @@ jobs:
 
   linux-std-vulkan-tests:
     needs: [prepare-checks]
-    timeout-minutes: 60
+    timeout-minutes: 80
     # '@id:' label must be unique within this worklow
     runs-on:
       [
         "@id:burn-vulkan-job-${{github.run_id}}-${{github.run_attempt}}",
+        "@max-lifetime-secs:5400",
         "@pr_number:${{ inputs.pr_number }}",
         "@organization:tracel-ai",
         "@repository:burn",
@@ -115,7 +117,7 @@ jobs:
         uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v11
+        uses: tracel-ai/github-actions/install-rust@v12
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false
@@ -125,11 +127,12 @@ jobs:
 
   linux-std-wgpu-tests:
     needs: [prepare-checks]
-    timeout-minutes: 60
+    timeout-minutes: 80
     # '@id:' label must be unique within this worklow
     runs-on:
       [
         "@id:burn-wgpu-job-${{github.run_id}}-${{github.run_attempt}}",
+        "@max-lifetime-secs:5400",
         "@pr_number:${{ inputs.pr_number }}",
         "@organization:tracel-ai",
         "@repository:burn",
@@ -153,7 +156,7 @@ jobs:
         uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v11
+        uses: tracel-ai/github-actions/install-rust@v12
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false

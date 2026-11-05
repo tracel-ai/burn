@@ -1,0 +1,171 @@
+#[cfg(not(target_family = "wasm"))]
+use core::future::Future;
+
+use burn_backend::tensor::Device;
+use burn_ir::{BackendIr, CustomOpIr, HandleContainer};
+use burn_router::CustomOpRegistry;
+use tokio_util::sync::CancellationToken;
+
+use super::{PeerAuthorizer, ServeError, ServerSettings};
+#[cfg(not(target_family = "wasm"))]
+use super::{ServerLogging, Transport, spawn::os_shutdown_signal};
+#[cfg(not(target_family = "wasm"))]
+use crate::runtime;
+use crate::shared::DeviceQueryId;
+use crate::telemetry::TelemetryProbe;
+#[cfg(feature = "iroh")]
+use crate::{
+    Endpoint,
+    server::RemoteProtocol,
+    transport::iroh::{node::RemoteNode, protocol::IrohRemoteProtocol},
+};
+
+/// A server hosting devices of backend `B`.
+///
+/// `burn::server::RemoteServer` serves Burn's own backends, picking the backend from its devices;
+/// this serves any [`BackendIr`] backend, one outside Burn included. Custom operations are typed by
+/// `B`, since their handlers call into `B`'s primitives.
+///
+/// ```rust,ignore
+/// BackendServer::<MyBackend>::new([MyDevice::default()])
+///     .with_custom_op("fused_matmul_add_relu", |handles, ir, _device| {
+///         let ([lhs, rhs, bias], [out]) = ir.as_fixed::<3, 1>();
+///         let lhs = handles.get_float_tensor::<MyBackend>(lhs);
+///         let rhs = handles.get_float_tensor::<MyBackend>(rhs);
+///         let bias = handles.get_float_tensor::<MyBackend>(bias);
+///         let result = <MyBackend as MyExt>::fused_matmul_add_relu(lhs, rhs, bias);
+///         handles.register_float_tensor::<MyBackend>(&out.id, result);
+///     })
+///     .serve(WebSocketTransport::new(3000))?;
+/// ```
+///
+/// # Graph capture
+///
+/// A client's capture records and replays on `B`. The server holds no reference to the tensors a
+/// graph touched, since that would keep the client's in-place input refreshes from reaching the
+/// graph, so `B`'s graphs must keep the memory their launches touched in place for as long as
+/// they live: never freed, reused or moved, whatever happens to the tensors. CubeCL's graphs do.
+/// A backend whose graphs do not must not record one, and answer the capture with an error.
+pub struct BackendServer<B: BackendIr> {
+    devices: Vec<Device<B>>,
+    settings: ServerSettings,
+}
+
+impl<B: BackendIr> BackendServer<B> {
+    /// Host `devices`. A client picks one by its position in this list.
+    pub fn new(devices: impl IntoIterator<Item = Device<B>>) -> Self {
+        Self {
+            devices: devices.into_iter().collect(),
+            settings: ServerSettings::default(),
+        }
+    }
+
+    #[doc(hidden)]
+    pub fn with_settings(mut self, settings: ServerSettings) -> Self {
+        self.settings = settings;
+        self
+    }
+
+    /// Open only the sessions `authorizer` accepts. Every session is opened unless set.
+    pub fn with_authorizer(mut self, authorizer: impl PeerAuthorizer) -> Self {
+        self.settings = self.settings.with_authorizer(authorizer);
+        self
+    }
+
+    /// Report every session's activity to `probe`. Unless set, sessions are logged at the remote
+    /// logger level of Burn's config.
+    pub fn with_telemetry(mut self, probe: TelemetryProbe) -> Self {
+        self.settings = self.settings.with_telemetry(probe);
+        self
+    }
+
+    /// Run `handler` for the [custom operation](burn_ir::OperationIr::Custom) `id`, the one the
+    /// client puts in its [`CustomOpIr`]. Registering an id again replaces its handler.
+    pub fn with_custom_op<F>(mut self, id: &str, handler: F) -> Self
+    where
+        F: Fn(&mut HandleContainer<B::Handle>, &CustomOpIr, &B::Device) + Send + Sync + 'static,
+    {
+        self.settings = self.settings.with_custom_op::<B, F>(id, handler);
+        self
+    }
+
+    /// Replace the custom operations with `registry`.
+    pub fn with_custom_ops(mut self, registry: CustomOpRegistry<B>) -> Self {
+        self.settings = self.settings.with_custom_ops(registry);
+        self
+    }
+
+    /// Answer the device query `id` with `handler`, run on the device of the session that asks
+    /// (see `RemoteDevice::query`). Registering an id again replaces its handler.
+    ///
+    /// The handler runs on the worker of the session that asks, in order with that session's
+    /// tasks, so the session's work waits until it returns. A panic is answered to the client as
+    /// a failure and the session goes on serving, but one handler serves every session: a panic
+    /// while it holds a lock of its own, such as a `Mutex`, poisons that lock for every session
+    /// after it.
+    pub fn with_device_query<F>(mut self, id: impl Into<DeviceQueryId>, handler: F) -> Self
+    where
+        F: Fn(&Device<B>) -> Vec<u8> + Send + Sync + 'static,
+    {
+        self.settings = self.settings.with_device_query::<B, F>(id.into(), handler);
+        self
+    }
+
+    /// Serve on `transport` until Ctrl+C or `SIGTERM`, blocking the calling thread from any
+    /// context. Installs [`ServerLogging`] first, and the signal handlers only once the transport
+    /// has bound.
+    #[cfg(not(target_family = "wasm"))]
+    pub fn serve(&self, transport: impl Into<Transport>) -> Result<(), ServeError> {
+        let shutdown = CancellationToken::new();
+        let setup = self
+            .settings
+            .sessions_of::<B>(self.devices.clone(), shutdown.clone())?;
+        let transport = transport.into();
+        ServerLogging::install();
+        runtime::wait(move || {
+            runtime::blocking_runtime().handle().block_on(async move {
+                let _ends_sessions = shutdown.clone().drop_guard();
+                // Tokio keeps a signal handler for the life of the process, so one is only
+                // installed for a server that is about to serve.
+                let listener = transport.bind().await?;
+                let mut serving = core::pin::pin!(listener.serve(setup));
+                tokio::select! {
+                    served = &mut serving => served,
+                    stopped = os_shutdown_signal() => {
+                        shutdown.cancel();
+                        serving.await.and(stopped)
+                    }
+                }
+            })
+        })?
+    }
+
+    /// Serve on `transport` on the caller's Tokio runtime until the returned future is dropped,
+    /// which ends the live sessions.
+    #[cfg(not(target_family = "wasm"))]
+    pub fn serve_async<T: Into<Transport>>(
+        &self,
+        transport: T,
+    ) -> impl Future<Output = Result<(), ServeError>> + Send + 'static + use<B, T> {
+        let devices = self.devices.clone();
+        let settings = self.settings.clone();
+        let transport = transport.into();
+        async move {
+            let shutdown = CancellationToken::new();
+            let _ends_sessions = shutdown.clone().drop_guard();
+            let setup = settings.sessions_of::<B>(devices, shutdown)?;
+            transport.bind().await?.serve(setup).await
+        }
+    }
+
+    /// The handler to register under [`BURN_REMOTE_ALPN`](crate::BURN_REMOTE_ALPN) on the
+    /// application's own Iroh router on `endpoint`.
+    #[cfg(feature = "iroh")]
+    pub fn into_protocol(self, endpoint: &Endpoint) -> Result<RemoteProtocol, ServeError> {
+        let setup = self
+            .settings
+            .sessions_of::<B>(self.devices, CancellationToken::new())?;
+        let node = RemoteNode::from_endpoint(endpoint.clone());
+        Ok(RemoteProtocol::new(IrohRemoteProtocol::new(node, setup)))
+    }
+}

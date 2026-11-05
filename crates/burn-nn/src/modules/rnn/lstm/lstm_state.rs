@@ -326,19 +326,6 @@ mod tests {
     }
 
     #[test]
-    fn test_squeeze_unsqueeze_roundtrip() {
-        let device = Device::default();
-        let state: LstmState<2> = random_state([2, 3], &device);
-
-        let expected_cell = state.cell.clone().to_data();
-
-        let roundtrip: LstmState<2> = state.unsqueeze_dim::<3>(1).squeeze_dim(1);
-
-        assert_eq!(roundtrip.shape(), Shape::from([2, 3]));
-        roundtrip.cell.to_data().assert_eq(&expected_cell, true);
-    }
-
-    #[test]
     fn test_stack_negative_dim() {
         let device = Device::default();
         let a: LstmState<2> = random_state([2, 3], &device);

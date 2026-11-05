@@ -1,5 +1,6 @@
 use super::*;
 use burn_tensor::module::avg_pool2d;
+use burn_tensor::ops::AvgPoolOptions;
 use burn_tensor::{Shape, TensorData, Tolerance};
 
 #[test]
@@ -47,11 +48,10 @@ fn test_avg_pool2d_ceil_mode_nonuniform_gradient() {
             let x = TestTensor::<4>::ones([1, 1, 1, width], &device).require_grad();
             let output = avg_pool2d(
                 x.clone(),
-                [1, kernel],
-                [1, kernel],
-                [0, padding],
-                count_include_pad,
-                true,
+                AvgPoolOptions::new([1, kernel])
+                    .with_padding([0, padding])
+                    .with_count_include_pad(count_include_pad)
+                    .with_ceil_mode(true),
             );
             let upstream =
                 TestTensor::from_data(TensorData::new(upstream, output.shape()), &device);
@@ -177,11 +177,10 @@ impl AvgPool2dTestCase {
         .require_grad();
         let output = avg_pool2d(
             x.clone(),
-            [self.kernel_size_1, self.kernel_size_2],
-            [self.stride_1, self.stride_2],
-            [self.padding_1, self.padding_2],
-            self.count_include_pad,
-            false,
+            AvgPoolOptions::new([self.kernel_size_1, self.kernel_size_2])
+                .with_stride([self.stride_1, self.stride_2])
+                .with_padding([self.padding_1, self.padding_2])
+                .with_count_include_pad(self.count_include_pad),
         );
         let grads = output.backward();
         let x_grad_actual = x.grad(&grads).unwrap();
@@ -190,5 +189,52 @@ impl AvgPool2dTestCase {
             &x_grad_actual.into_data(),
             Tolerance::default().set_half_precision_relative(1e-3),
         );
+    }
+}
+
+#[test]
+fn test_avg_pool2d_dilation_gradient() {
+    // Kernel 2, dilation 2, stride [1, 2], padding 1 over a 4x5 input. With stride 2 and
+    // dilation 2 along the width, the windows only read the odd columns.
+    let device = AutodiffDevice::new();
+    for (count_include_pad, expected) in [
+        (
+            true,
+            [
+                [0.0, 2.25, 0.0, 2.75, 0.0],
+                [0.0, 4.5, 0.0, 5.5, 0.0],
+                [0.0, 7.5, 0.0, 8.5, 0.0],
+                [0.0, 3.75, 0.0, 4.25, 0.0],
+            ],
+        ),
+        (
+            false,
+            [
+                [0.0, 3.25, 0.0, 4.25, 0.0],
+                [0.0, 7.5, 0.0, 10.5, 0.0],
+                [0.0, 18.75, 0.0, 21.75, 0.0],
+                [0.0, 5.5, 0.0, 6.5, 0.0],
+            ],
+        ),
+    ] {
+        let x = TestTensor::<4>::ones([1, 1, 4, 5], &device).require_grad();
+        let output = avg_pool2d(
+            x.clone(),
+            AvgPoolOptions::new([2, 2])
+                .with_stride([1, 2])
+                .with_padding([1, 1])
+                .with_dilation([2, 2])
+                .with_count_include_pad(count_include_pad),
+        );
+        assert_eq!(output.dims(), [1, 1, 4, 3]);
+        let upstream = TestTensor::from_data(
+            TensorData::new((1..=12).map(|v| v as f32).collect(), output.shape()),
+            &device,
+        );
+        let grads = (output * upstream).backward();
+        x.grad(&grads)
+            .unwrap()
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&TensorData::from([[expected]]), Tolerance::default());
     }
 }

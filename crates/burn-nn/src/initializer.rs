@@ -6,6 +6,7 @@ use burn_core::{
     module::{Param, ParamId},
     tensor::{Device, Distribution, Shape, Tensor},
 };
+#[cfg(feature = "linalg")]
 use burn_linalg as linalg;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -72,6 +73,9 @@ pub enum Initializer {
     /// Fills tensor with values according to the (semi) orthogonal initialization
     /// described in [Exact solutions to the nonlinear dynamics of learning in deep linear neural networks`
     ///  - [Saxe, A. et al. (2013)](https://arxiv.org/abs/1312.6120)
+    ///
+    /// Requires the `linalg` feature.
+    #[cfg(feature = "linalg")]
     Orthogonal {
         /// The gain to use in initialization formula
         gain: f64,
@@ -114,15 +118,24 @@ impl Initializer {
             move |device, require_grad| {
                 let config = config.clone();
                 let shape = shape.clone();
-                device.memory_persistent_allocations((), move |_| {
-                    let mut tensor = config.init_tensor(shape.clone(), fan_in, fan_out, device);
+                let mut tensor = if config.is_orthogonal() {
+                    // Only the final weight needs persistent storage. QR uses temporary tensors
+                    // with many different sizes, which cannot share exact-fit persistent buffers.
+                    let tensor = config.init_tensor(shape, fan_in, fan_out, device);
+                    device.memory_persistent_allocations(tensor, |tensor| {
+                        tensor.empty_like().slice_assign([..; D], tensor)
+                    })
+                } else {
+                    device.memory_persistent_allocations((), move |_| {
+                        config.init_tensor(shape.clone(), fan_in, fan_out, device)
+                    })
+                };
 
-                    if require_grad {
-                        tensor = tensor.require_grad();
-                    }
+                if require_grad {
+                    tensor = tensor.require_grad();
+                }
 
-                    tensor
-                })
+                tensor
             },
             device,
             true,
@@ -160,6 +173,7 @@ impl Initializer {
                 let std = *gain * self.xavier_std(fan_in, fan_out);
                 normal_draw(shape, 0.0, std, device)
             }
+            #[cfg(feature = "linalg")]
             Initializer::Orthogonal { gain } => {
                 // following the implementation in pytorch:
                 // https://github.com/pytorch/pytorch/blob/v2.7.0/torch/nn/init.py#L574
@@ -195,6 +209,14 @@ impl Initializer {
                 q.reshape(shape).mul_scalar(*gain)
             }
         }
+    }
+
+    fn is_orthogonal(&self) -> bool {
+        #[cfg(feature = "linalg")]
+        if matches!(self, Initializer::Orthogonal { .. }) {
+            return true;
+        }
+        false
     }
 
     fn kaiming_std(
@@ -287,6 +309,31 @@ mod tests {
         let _ = param.val();
 
         assert!(param.is_initialized());
+    }
+
+    #[cfg(feature = "linalg")]
+    #[test]
+    fn orthogonal_parameter_preserves_orthogonality_and_gradients() {
+        let device = test_device().autodiff();
+        let shape = [4, 8];
+        let gain = 2.0;
+        let initializer = Initializer::Orthogonal { gain };
+
+        let actual: Tensor<2> = initializer.init(shape, &device).val();
+        assert_eq!(actual.dims(), shape);
+        assert!(actual.is_require_grad());
+
+        // Wide matrices have orthogonal rows: Q Q^T = gain^2 I.
+        let gram = actual.clone().matmul(actual.clone().transpose());
+        let expected = Tensor::<2>::eye(shape[0], &device).mul_scalar(gain * gain);
+        gram.into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::rel_abs(1e-4, 1e-5));
+
+        let gradients = actual.clone().sum().backward();
+        let gradient = actual.grad(&gradients).unwrap();
+        gradient
+            .into_data()
+            .assert_eq(&Tensor::<2>::ones(shape, &device).into_data(), true);
     }
 
     #[test]
@@ -515,6 +562,7 @@ mod tests {
             .into_value();
     }
 
+    #[cfg(feature = "linalg")]
     #[test]
     fn initializer_orthogonal_correct() {
         let device = test_device();
@@ -537,6 +585,7 @@ mod tests {
             .assert_approx_eq::<FT>(&eye.into_data(), Tolerance::rel_abs(0.1, 0.1));
     }
 
+    #[cfg(feature = "linalg")]
     #[test]
     fn initializer_orthogonal_init() {
         let device = test_device();
@@ -567,6 +616,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "linalg")]
     #[test]
     #[should_panic]
     fn initializer_orthogonal_init_1d() {

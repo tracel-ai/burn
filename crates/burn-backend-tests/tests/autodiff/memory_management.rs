@@ -282,8 +282,6 @@ fn test_mm_node_explored_once_can_still_be_tagged_as_useful_when_found_again_dee
 }
 
 #[test]
-#[cfg(not(feature = "ndarray"))]
-// NdArray conservatively reports false for can_mut(), even for unique buffers.
 fn test_mm_reclaims_abandoned_graph_buffers_after_unrelated_backward() {
     let device = AutodiffDevice::new();
     let lhs = TestTensor::<2>::from_data([[1.0, 2.0]], &device).require_grad();

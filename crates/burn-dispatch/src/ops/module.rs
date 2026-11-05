@@ -1,8 +1,9 @@
 use burn_backend::{
     IntDType,
     ops::{
-        BatchNormTrain, BatchNormTrainBackward, DeformConv2dBackward, MaxPool1dBackward,
-        MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+        AttentionBackward, BatchNormTrain, BatchNormTrainBackward, DeformConv2dBackward,
+        MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices,
+        MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -129,6 +130,7 @@ impl ModuleOps<Self> for Dispatch {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -137,6 +139,7 @@ impl ModuleOps<Self> for Dispatch {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
@@ -148,6 +151,7 @@ impl ModuleOps<Self> for Dispatch {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -157,6 +161,49 @@ impl ModuleOps<Self> for Dispatch {
             kernel_size,
             stride,
             padding,
+            dilation,
+            count_include_pad,
+            ceil_mode,
+        )
+    }
+
+    fn avg_pool3d(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        B::avg_pool3d(
+            x,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            count_include_pad,
+            ceil_mode,
+        )
+    }
+
+    fn avg_pool3d_backward(
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        B::avg_pool3d_backward(
+            x,
+            grad,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
@@ -239,6 +286,63 @@ impl ModuleOps<Self> for Dispatch {
             indices,
         );
         MaxPool2dBackward::new(x_grad)
+    }
+
+    fn max_pool3d(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        B::max_pool3d(x, kernel_size, stride, padding, dilation, ceil_mode)
+    }
+
+    #[backend_dispatch(skip)]
+    fn max_pool3d_with_indices(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        indices_dtype: IntDType,
+    ) -> MaxPool3dWithIndices<Self> {
+        let (output, indices) = Self::max_pool3d_with_indices_dispatch(
+            x,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            indices_dtype,
+        );
+        MaxPool3dWithIndices::new(output, indices)
+    }
+
+    #[backend_dispatch(skip)]
+    fn max_pool3d_with_indices_backward(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        output_grad: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> MaxPool3dBackward<Self> {
+        let x_grad = Self::max_pool3d_with_indices_backward_dispatch(
+            x,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            output_grad,
+            indices,
+        );
+        MaxPool3dBackward::new(x_grad)
     }
 
     fn interpolate(
@@ -454,6 +558,7 @@ impl ModuleOps<Self> for Dispatch {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -462,6 +567,7 @@ impl ModuleOps<Self> for Dispatch {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
@@ -473,6 +579,7 @@ impl ModuleOps<Self> for Dispatch {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -482,6 +589,7 @@ impl ModuleOps<Self> for Dispatch {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
@@ -576,6 +684,39 @@ impl ModuleOps<Self> for Dispatch {
     }
 
     #[backend_dispatch(skip)]
+    fn has_attention_backward() -> bool {
+        // Dispatch routes per-tensor at runtime, but autodiff queries this flag statically.
+        // Returning `false` makes autodiff differentiate the decomposed attention, which is safe
+        // for every inner backend regardless of whether it has its own attention_backward.
+        false
+    }
+
+    #[backend_dispatch(skip)]
+    fn attention_with_logsumexp(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        options: burn_backend::ops::AttentionModuleOptions,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        Self::attention_with_logsumexp_dispatch(query, key, value, options)
+    }
+
+    #[backend_dispatch(skip)]
+    fn attention_backward(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        out: FloatTensor<Self>,
+        logsumexp: FloatTensor<Self>,
+        out_grad: FloatTensor<Self>,
+        options: burn_backend::ops::AttentionModuleOptions,
+    ) -> AttentionBackward<Self> {
+        let (query_grad, key_grad, value_grad) =
+            Self::attention_backward_dispatch(query, key, value, out, logsumexp, out_grad, options);
+        AttentionBackward::new(query_grad, key_grad, value_grad)
+    }
+
+    #[backend_dispatch(skip)]
     fn has_ctc_loss_backward() -> bool {
         // Dispatch routes per-tensor at runtime, but autodiff queries this flag
         // statically. Returning `false` makes autodiff differentiate through
@@ -624,6 +765,29 @@ impl ModuleOps<Self> for Dispatch {
 
 #[backend_dispatch]
 impl Dispatch {
+    fn attention_with_logsumexp_dispatch(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        options: burn_backend::ops::AttentionModuleOptions,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        B::attention_with_logsumexp(query, key, value, options)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn attention_backward_dispatch(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        out: FloatTensor<Self>,
+        logsumexp: FloatTensor<Self>,
+        out_grad: FloatTensor<Self>,
+        options: burn_backend::ops::AttentionModuleOptions,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>, FloatTensor<Self>) {
+        let output = B::attention_backward(query, key, value, out, logsumexp, out_grad, options);
+        (output.query_grad, output.key_grad, output.value_grad)
+    }
+
     fn deform_conv2d_backward_dispatch(
         x: FloatTensor<Self>,
         offset: FloatTensor<Self>,
@@ -703,6 +867,50 @@ impl Dispatch {
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
         B::max_pool2d_with_indices_backward(
+            x,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            output_grad,
+            indices,
+        )
+        .x_grad
+    }
+
+    fn max_pool3d_with_indices_dispatch(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        indices_dtype: IntDType,
+    ) -> (FloatTensor<Self>, IntTensor<Self>) {
+        let output = B::max_pool3d_with_indices(
+            x,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            indices_dtype,
+        );
+        (output.output, output.indices)
+    }
+
+    fn max_pool3d_with_indices_backward_dispatch(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        output_grad: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> FloatTensor<Self> {
+        B::max_pool3d_with_indices_backward(
             x,
             kernel_size,
             stride,

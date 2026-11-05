@@ -379,7 +379,7 @@ fn test_max_abs_dim_nan_propagation() {
     assert_eq!(values[1], 4.0f32.elem::<FloatElem>());
 }
 
-#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[cfg(feature = "flex")]
 #[test]
 fn test_whole_max_min_nan_f64_cpu_backends() {
     let tensor = TestTensor::<1>::from([1.0, f32::NAN, 2.0]).cast(burn_tensor::DType::F64);
@@ -477,4 +477,17 @@ fn test_argmin_empty_axis_should_panic() {
     let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
 
     let _ = tensor.argmin(1).into_data();
+}
+
+// Shape [0, 3]: the reduced axis is non-empty, so there is nothing to reject, only nothing to compute.
+#[test]
+fn test_max_dim_with_indices_empty_output() {
+    let tensor = TestTensor::<2>::empty([0, 3], &Default::default());
+
+    let (values, indices) = tensor.max_dim_with_indices(1);
+
+    assert_eq!(values.dims(), [0, 1]);
+    assert_eq!(indices.dims(), [0, 1]);
+    assert_eq!(values.into_data().num_elements(), 0);
+    assert_eq!(indices.into_data().num_elements(), 0);
 }

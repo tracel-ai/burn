@@ -221,7 +221,7 @@ fn missing_dimensions() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Too many slices provided for shape")]
 fn should_panic_when_slice_with_too_many_dimensions() {
     let tensor = QTensor::<1>::int8([0.0, 1.0, 2.0]);
 

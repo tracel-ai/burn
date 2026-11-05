@@ -1,129 +1,128 @@
-use std::collections::{HashMap, HashSet};
+use super::codegen_struct::ModuleFieldType;
+use syn::{DeriveInput, Field, Generics, Type, parse_quote, visit::Visit};
 
-use proc_macro2::Ident;
-use syn::{GenericParam, Generics, Type, TypeParamBound, WherePredicate, visit::Visit};
-
-#[derive(Debug)]
-pub enum GenericKind {
-    /// A generic with `Module` bound.
-    Module,
-    /// A generic used in a field marked by `#[module(skip)]`.
-    Skip,
-    /// A plain generic that does not fit any of the above conditions.
-    Plain,
-}
-
-#[derive(Debug)]
-pub struct ModuleGenerics {
-    kinds: HashMap<Ident, GenericKind>,
-}
-
-impl ModuleGenerics {
-    pub fn is_empty(&self) -> bool {
-        self.kinds.is_empty()
-    }
-
-    pub fn get_generic_kind(&self, ident: &Ident) -> Option<&GenericKind> {
-        self.kinds.get(ident)
-    }
-
-    pub fn is_bounded_module(&self, ident: &Ident) -> bool {
-        self.kinds
-            .get(ident)
-            .map(|kind| matches!(kind, GenericKind::Module))
-            .unwrap_or(false)
-    }
-
-    pub fn update(&mut self, ident: &Ident, kind: GenericKind) {
-        self.kinds.insert(ident.clone(), kind);
-    }
-
-    pub fn contains(&self, ident: &Ident) -> bool {
-        self.kinds.contains_key(ident)
-    }
-}
-
-pub fn parse_module_generics(generics: &Generics) -> ModuleGenerics {
-    let mut kinds = HashMap::new();
-
-    // Check inline bounds e.g. `M: Module`
-    for param in &generics.params {
-        if let GenericParam::Type(type_param) = param {
-            let ident = &type_param.ident;
-            if has_module_bound(&type_param.bounds) {
-                kinds.insert(ident.clone(), GenericKind::Module);
+/// Infer requirements from field types, not from every generic appearing inside them.
+/// A `Wrapper<T>` can implement Module without requiring `T: Module`.
+pub(crate) fn module_generics(
+    ast: &DeriveInput,
+    fields: Vec<(&Field, &ModuleFieldType)>,
+) -> Generics {
+    let mut generics = ast.generics.clone();
+    let predicates = &mut generics.make_where_clause().predicates;
+    // Debug may be derived separately and impose its own generic bounds. Send is a
+    // property of the whole type, including skipped fields.
+    predicates.push(parse_quote!(Self: core::fmt::Debug + Send));
+    for (field, kind) in fields {
+        for ty in field_bound_types(&field.ty, &ast.ident) {
+            if kind.is_module {
+                predicates
+                    .push(parse_quote!(#ty: burn::module::Module + burn::module::ModuleDisplay));
             } else {
-                kinds.insert(ident.clone(), GenericKind::Plain);
+                predicates.push(parse_quote!(#ty: Clone + core::fmt::Debug + Send));
             }
         }
     }
+    generics
+}
 
-    // Check `where` clauses
-    if let Some(where_clause) = &generics.where_clause {
-        for predicate in &where_clause.predicates {
-            if let WherePredicate::Type(pt) = predicate {
-                // We only care if the bounded type is a simple identifier (like 'M')
-                if let Type::Path(p) = &pt.bounded_ty
-                    && let Some(ident) = p.path.get_ident()
-                {
-                    if has_module_bound(&pt.bounds) {
-                        kinds.insert(ident.clone(), GenericKind::Module);
-                    } else {
-                        kinds.insert(ident.clone(), GenericKind::Plain);
-                    }
-                }
-            }
-        }
+fn field_bound_types<'a>(ty: &'a Type, name: &syn::Ident) -> Vec<&'a Type> {
+    if !contains_self(ty, name) {
+        return vec![ty];
     }
 
-    ModuleGenerics { kinds }
-}
-
-/// Helper to check if a list of bounds contains "Module".
-fn has_module_bound(
-    bounds: &syn::punctuated::Punctuated<TypeParamBound, syn::token::Plus>,
-) -> bool {
-    has_bound(bounds, "Module")
-}
-
-/// Helper to check if a list of bounds contains the specified bound.
-fn has_bound(
-    bounds: &syn::punctuated::Punctuated<TypeParamBound, syn::token::Plus>,
-    ident: &str,
-) -> bool {
-    bounds.iter().any(|bound| {
-        if let TypeParamBound::Trait(trait_bound) = bound
-            && let Some(segment) = trait_bound.path.segments.last()
-        {
-            return segment.ident == ident;
-        }
-        false
-    })
-}
-
-pub fn parse_ty_generics(ty: &Type, declared: &ModuleGenerics) -> HashSet<Ident> {
-    struct Collector<'a> {
-        generics: HashSet<Ident>,
-        declared: &'a ModuleGenerics,
-    }
-
-    impl<'ast, 'a> Visit<'ast> for Collector<'a> {
-        fn visit_type_path(&mut self, type_path: &'ast syn::TypePath) {
-            if type_path.qself.is_none()
-                && let Some(ident) = type_path.path.get_ident()
-                && (self.declared.contains(ident))
+    // Vec<Self>: Module would make proving Self: Module depend on itself.
+    // For recursive containers, only bound the non-recursive components (e.g.
+    // M in Vec<(M, Self)>). Check the recursive field in the generated bodies,
+    // where the current impl is available. Custom recursive wrappers may need
+    // explicit bounds because their requirements cannot be inferred syntactically.
+    match ty {
+        Type::Path(path) if path.qself.is_none() => {
+            let segment = path.path.segments.last().unwrap();
+            if matches!(segment.ident.to_string().as_str(), "Box" | "Option" | "Vec")
+                && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
             {
-                self.generics.insert(ident.clone());
+                args.args
+                    .iter()
+                    .filter_map(|arg| match arg {
+                        syn::GenericArgument::Type(ty) => Some(ty),
+                        _ => None,
+                    })
+                    .flat_map(|ty| field_bound_types(ty, name))
+                    .collect()
+            } else {
+                Vec::new()
             }
+        }
+        Type::Tuple(tuple) => tuple
+            .elems
+            .iter()
+            .flat_map(|ty| field_bound_types(ty, name))
+            .collect(),
+        Type::Array(array) => field_bound_types(&array.elem, name),
+        Type::Paren(paren) => field_bound_types(&paren.elem, name),
+        Type::Group(group) => field_bound_types(&group.elem, name),
+        _ => Vec::new(),
+    }
+}
 
-            syn::visit::visit_type_path(self, type_path);
+fn contains_self(ty: &Type, name: &syn::Ident) -> bool {
+    struct Finder<'a> {
+        name: &'a syn::Ident,
+        found: bool,
+    }
+    impl<'ast> Visit<'ast> for Finder<'_> {
+        fn visit_type_path(&mut self, ty: &'ast syn::TypePath) {
+            // A projection is not the enclosing type, even when its name or
+            // qualified self type matches (e.g. <Node<T> as Trait>::Child).
+            if ty.qself.is_some() {
+                return;
+            }
+            // Only bare Self or Node<T> identify recursion syntactically.
+            // T::Node and other::Node<T> must retain their field bounds.
+            if ty.path.leading_colon.is_none()
+                && ty.path.segments.len() == 1
+                && ty
+                    .path
+                    .segments
+                    .first()
+                    .is_some_and(|s| s.ident == "Self" || s.ident == *self.name)
+            {
+                self.found = true;
+            }
+            syn::visit::visit_type_path(self, ty);
         }
     }
+    let mut finder = Finder { name, found: false };
+    finder.visit_type(ty);
+    finder.found
+}
 
-    let mut collector = Collector {
-        generics: HashSet::new(),
-        declared,
-    };
-    collector.visit_type(ty);
-    collector.generics
+#[cfg(test)]
+mod tests {
+    use super::contains_self;
+    use syn::parse_quote;
+
+    #[test]
+    fn projection_from_enclosing_type_is_not_recursive() {
+        assert!(!contains_self(
+            &parse_quote!(<Node<T> as HasNode>::Child),
+            &parse_quote!(Node)
+        ));
+    }
+
+    #[test]
+    fn qualified_type_with_enclosing_name_is_not_recursive() {
+        assert!(!contains_self(
+            &parse_quote!(other::Node<T>),
+            &parse_quote!(Node)
+        ));
+    }
+
+    #[test]
+    fn absolute_type_with_enclosing_name_is_not_recursive() {
+        assert!(!contains_self(
+            &parse_quote!(::Node<T>),
+            &parse_quote!(Node)
+        ));
+    }
 }

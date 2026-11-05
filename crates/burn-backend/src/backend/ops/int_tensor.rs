@@ -1,6 +1,7 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
+use crate::RandomKey;
 use crate::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{Backend, Distribution, TensorData, TensorMetadata};
 use crate::{ExecutionError, Scalar, get_or_init_device_settings};
@@ -698,26 +699,44 @@ pub trait IntTensorOps<B: Backend> {
     /// The result of the division.
     fn int_div_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B>;
 
-    /// Element-wise modulus.
+    /// Element-wise floor modulo.
+    ///
+    /// A nonzero result has the same sign as the divisor and a magnitude less than
+    /// the divisor's magnitude.
+    ///
+    /// # Portability
+    ///
+    /// Portable behavior requires a nonzero divisor and excludes signed `MIN % -1`,
+    /// where `MIN` is the minimum value of the operand dtype. For these excluded
+    /// inputs, no particular result or error behavior is guaranteed across backends.
     ///
     /// # Arguments
-    /// * `lhs` - The left-hand side tensor.
-    /// * `rhs` - The right-hand side scalar.
+    /// * `lhs` - The dividend tensor.
+    /// * `rhs` - The divisor tensor.
     ///
     /// # Returns
     ///
-    /// The result of applying the modulus of the scalar to the tensor.
+    /// The element-wise floor modulo of `lhs` by `rhs`.
     fn int_remainder(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
 
-    /// Element-wise modulus with a scalar.
+    /// Element-wise floor modulo with a scalar.
+    ///
+    /// A nonzero result has the same sign as the divisor and a magnitude less than
+    /// the divisor's magnitude.
+    ///
+    /// # Portability
+    ///
+    /// Portable behavior requires a nonzero divisor and excludes signed `MIN % -1`,
+    /// where `MIN` is the minimum value of the operand dtype. For these excluded
+    /// inputs, no particular result or error behavior is guaranteed across backends.
     ///
     /// # Arguments
-    /// * `lhs` - The left-hand side tensor.
-    /// * `rhs` - The right-hand side scalar.
+    /// * `lhs` - The dividend tensor.
+    /// * `rhs` - The scalar divisor.
     ///
     /// # Returns
     ///
-    /// The result of applying the modulus of the scalar to the tensor.
+    /// The element-wise floor modulo of `lhs` by `rhs`.
     fn int_remainder_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B>;
 
     /// Multiplies two tensors together using matrix multiplication.
@@ -1203,20 +1222,26 @@ pub trait IntTensorOps<B: Backend> {
 
     /// Creates a new int tensor with random values.
     ///
-    ///  # Arguments
-    ///  * `shape` - The shape of the tensor.
-    ///  * `distribution` - The distribution to sample from.
-    ///  * `device` - The device to create the tensor on.
+    /// # Arguments
+    /// * `shape` - The shape of the tensor.
+    /// * `distribution` - The distribution to sample from.
+    /// * `device` - The device to create the tensor on.
     /// * `dtype` - The target data type.
+    /// * `key` - Explicit randomness for this operation.
     ///
-    ///  # Returns
+    /// # Returns
     ///
-    ///  The tensor with the given shape and random values.
+    /// The tensor with the given shape and random values.
+    ///
+    /// This must use only the supplied key without reading or changing the backend's implicit
+    /// RNG state. Deferred backends retain the key so scheduling and later reseeding cannot
+    /// affect the draw.
     fn int_random(
         shape: Shape,
         distribution: Distribution,
         device: &Device<B>,
         dtype: IntDType,
+        key: RandomKey,
     ) -> IntTensor<B>;
 
     /// Creates a new tensor with values from the given range with the given step size.

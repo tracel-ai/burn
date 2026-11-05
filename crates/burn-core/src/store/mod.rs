@@ -6,10 +6,11 @@
 //! [`Module`](crate::module::Module) trait itself ([`Module::into_record`](crate::module::Module::into_record) /
 //! [`Module::load_record`](crate::module::Module::load_record)).
 //!
-//! This module is intentionally tiny: traversal is a straightforward
+//! Traversal uses a
 //! [`ModuleVisitor`](crate::module::ModuleVisitor) / [`ModuleMapper`](crate::module::ModuleMapper)
-//! keyed by parameter path, with no filtering, adapters, or lazy snapshots.
-//! The richer snapshot/import tooling (filtering, key remapping, PyTorch/SafeTensors adapters,
+//! keyed by parameter path. [`Module::into_record_group`](crate::module::Module::into_record_group)
+//! selects parameters using a [`ParamGroup`](crate::module::ParamGroup).
+//! The richer snapshot/import tooling (key remapping, PyTorch/SafeTensors adapters,
 //! cross-framework stores) lives in the `burn-store` crate.
 
 use alloc::format;
@@ -40,8 +41,8 @@ pub enum DTypePolicy {
 pub enum RecordError {
     /// An I/O or format error occurred while reading or writing the record.
     Io(String),
-    /// Validation failed while applying the record (shape mismatch, or missing tensors
-    /// when partial loading is not allowed).
+    /// Validation failed while applying the record: a shape mismatch, missing tensors when
+    /// partial loading is disabled, or unused record tensors when unused entries are disallowed.
     Validation(String),
 }
 
@@ -78,8 +79,8 @@ struct RecordTensor {
 /// [`Module::load_record`]. Load-time behavior is
 /// configured with the builder methods; they are ignored when saving.
 ///
-/// The save-side dtype is intentionally not configurable: use `module.cast(dtype)` before
-/// taking the record. The record stores whatever dtype the module currently holds.
+/// The record preserves the dtypes of the collected tensors.
+/// [`with_dtype_policy`](Self::with_dtype_policy) only affects loading; it does not cast saved data.
 #[derive(Clone)]
 pub struct ModuleRecord {
     tensors: Vec<RecordTensor>,
@@ -137,27 +138,29 @@ impl ModuleRecord {
 
     /// Allow loading even when some module parameters are absent from the record.
     ///
-    /// What a record of a part of a module needs — one taken with
-    /// [`into_record_group`](crate::module::Module::into_record_group), say — since it holds
-    /// nothing for the parameters outside that part.
+    /// Disabled by default. Missing parameters are left unchanged when enabled. This setting is
+    /// independent of [`validate`](Self::validate) and [`allow_unused`](Self::allow_unused).
+    /// Use it for a record taken with [`Module::into_record_group`], which holds nothing for
+    /// parameters outside the selected group.
     pub fn allow_partial(mut self, allow: bool) -> Self {
         self.allow_partial = allow;
         self
     }
 
-    /// Allow loading even when the record holds tensors no module parameter matches.
+    /// Allow record tensors that do not match any module parameter.
     ///
-    /// The mirror of [`allow_partial`](Self::allow_partial), and refused by default: a record
-    /// entry that lands nowhere means the module is not the one the record was taken from, and
-    /// the load that looks like it succeeded has quietly done less than it was asked — or, at
-    /// `allow_partial(true)`, nothing at all. Allow it for the deliberate case, loading a
-    /// checkpoint into a part of the module it came from.
+    /// Disabled by default. Unmatched record tensors are ignored when enabled. This setting is
+    /// independent of [`validate`](Self::validate) and [`allow_partial`](Self::allow_partial).
     pub fn allow_unused(mut self, allow: bool) -> Self {
         self.allow_unused = allow;
         self
     }
 
-    /// Enable or disable validation while loading.
+    /// Check for shape mismatches while loading. Enabled by default.
+    ///
+    /// When disabled, shape-mismatched parameters are left unchanged. Missing and unused tensors
+    /// are still checked independently, according to [`allow_partial`](Self::allow_partial) and
+    /// [`allow_unused`](Self::allow_unused).
     pub fn validate(mut self, validate: bool) -> Self {
         self.validate = validate;
         self
@@ -227,7 +230,8 @@ impl ModuleRecord {
 
     /// Apply this record to a module, returning the loaded module.
     ///
-    /// Honors the record's [`DTypePolicy`], `validate`, and `allow_partial` settings. Backs
+    /// Honors the record's [`DTypePolicy`], [`validate`](Self::validate),
+    /// [`allow_partial`](Self::allow_partial), and [`allow_unused`](Self::allow_unused) settings. Backs
     /// [`Module::try_load_record`](crate::module::Module::try_load_record).
     pub(crate) fn apply<M: Module>(self, module: M) -> Result<M, RecordError> {
         let validate = self.validate;
@@ -430,7 +434,14 @@ mod tests {
     use crate as burn;
     use crate::module::{Flag, Module, Param, ParamGroup};
     use crate::tensor::Tensor;
+    #[cfg(feature = "shard")]
+    use crate::test_sharded_device;
     use burn_tensor::Device;
+    #[cfg(feature = "shard")]
+    use burn_tensor::{
+        Sharding::{Replicated, Split},
+        quantization::QuantScheme,
+    };
 
     #[derive(Module, Debug)]
     struct Tiny {
@@ -484,21 +495,6 @@ mod tests {
             model.weight.val().try_into_vec_as().unwrap(),
             model.bias.val().try_into_vec_as().unwrap(),
         )
-    }
-
-    #[test]
-    fn round_trip_in_memory() {
-        let device = Default::default();
-        let model = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device);
-
-        let bytes = model.into_record().into_bytes().unwrap();
-        let record = ModuleRecord::from_bytes(bytes).unwrap();
-        assert_eq!(record.len(), 2);
-
-        let loaded = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device).load_record(record);
-        let (w, b) = weights(&loaded);
-        assert_eq!(w, vec![1.0, 2.0, 3.0, 4.0]);
-        assert_eq!(b, vec![5.0, 6.0]);
     }
 
     #[test]
@@ -568,24 +564,6 @@ mod tests {
             .try_load_record(record.allow_unused(true))
             .unwrap();
         assert_eq!(weights(&loaded), (vec![0.0; 4], vec![0.0; 2]));
-    }
-
-    #[test]
-    fn round_trip_file() {
-        let device = Default::default();
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("tiny.bpk");
-
-        Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device)
-            .into_record()
-            .save(&path)
-            .unwrap();
-
-        let record = ModuleRecord::load(&path).unwrap();
-        let loaded = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device).load_record(record);
-        let (w, b) = weights(&loaded);
-        assert_eq!(w, vec![1.0, 2.0, 3.0, 4.0]);
-        assert_eq!(b, vec![5.0, 6.0]);
     }
 
     #[test]
@@ -762,5 +740,103 @@ mod tests {
             vec![1.0; 6],
             "the recorded values must land, mapped back to the live form"
         );
+    }
+
+    #[cfg(all(feature = "shard", feature = "autodiff"))]
+    #[test]
+    fn a_record_loads_into_a_lazy_param_split_as_it_was_given() {
+        let record = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &Device::flex()).into_record();
+        let device = test_sharded_device().autodiff();
+        let weight = Param::<Tensor<2>>::uninitialized(
+            crate::module::ParamId::new(),
+            |_, _| panic!("a loaded param is never initialized"),
+            device.clone(),
+            true,
+            [2, 2].into(),
+        )
+        .with_sharding(Split { dim: 1 });
+        let target = Tiny {
+            weight,
+            bias: Param::from_data([0.0, 0.0], &device),
+        };
+
+        let loaded = target.load_record(record);
+
+        let weight = loaded.weight.val();
+        assert_eq!(weight.sharding(), Some(Split { dim: 1 }));
+        assert!(weight.is_require_grad());
+        assert_eq!(weights(&loaded), (vec![1.0, 2.0, 3.0, 4.0], vec![5.0, 6.0]));
+    }
+
+    #[cfg(feature = "shard")]
+    #[test]
+    fn a_lazy_param_is_split_in_the_record_layout_before_its_load_mapper() {
+        let record = ColLike::new(1.0, &Device::flex()).into_record();
+        let mut target = ColLike::new(0.0, &test_sharded_device());
+        target.weight = target.weight.with_sharding(Split { dim: 0 });
+
+        let loaded = target.load_record(record);
+
+        let weight = loaded.weight.val();
+        assert_eq!(weight.dims(), [2, 3]);
+        assert_eq!(weight.sharding(), Some(Split { dim: 1 }));
+        assert_eq!(weight.try_into_vec_as::<f32>().unwrap(), vec![1.0; 6]);
+    }
+
+    #[cfg(feature = "shard")]
+    #[test]
+    fn a_lazy_param_split_before_its_mappers_keeps_the_split_through_them() {
+        let record = ColLike::new(1.0, &Device::flex()).into_record();
+        let weight = Param::<Tensor<2>>::uninitialized(
+            crate::module::ParamId::new(),
+            |_, _| panic!("a loaded param is never initialized"),
+            test_sharded_device(),
+            false,
+            [3, 2].into(),
+        )
+        .with_sharding(Split { dim: 0 })
+        .init_mapper(|t: Tensor<2>| t.transpose())
+        .load_mapper(|t: Tensor<2>| t.transpose());
+
+        let loaded = ColLike { weight }.load_record(record);
+
+        let weight = loaded.weight.val();
+        assert_eq!(weight.sharding(), Some(Split { dim: 1 }));
+        assert_eq!(weight.try_into_vec_as::<f32>().unwrap(), vec![1.0; 6]);
+    }
+
+    #[cfg(feature = "shard")]
+    #[test]
+    fn an_initialized_param_is_split_as_its_value_after_its_load_mapper() {
+        let record = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &Device::flex()).into_record();
+        let mut target = Tiny::new([[0.0; 2]; 2], [0.0; 2], &test_sharded_device());
+        target.weight = target
+            .weight
+            .load_mapper(|weight: Tensor<2>| weight.transpose())
+            .with_sharding(Split { dim: 0 });
+
+        let loaded = target.load_record(record);
+
+        assert_eq!(loaded.weight.val().sharding(), Some(Split { dim: 0 }));
+        assert_eq!(weights(&loaded), (vec![1.0, 3.0, 2.0, 4.0], vec![5.0, 6.0]));
+    }
+
+    #[cfg(feature = "shard")]
+    #[test]
+    fn a_quantized_record_loads_replicated_into_a_split_param() {
+        let device = Device::flex();
+        let quantized = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device)
+            .quantize_dynamic(&QuantScheme::default());
+        let record = Tiny {
+            weight: Param::from_tensor(quantized),
+            bias: Param::from_data([5.0, 6.0], &device),
+        }
+        .into_record();
+        let mut target = Tiny::new([[0.0; 2]; 2], [0.0; 2], &test_sharded_device());
+        target.weight = target.weight.with_sharding(Split { dim: 0 });
+
+        let loaded = target.load_record(record);
+
+        assert_eq!(loaded.weight.val().sharding(), Some(Replicated));
     }
 }

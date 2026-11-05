@@ -4,10 +4,10 @@ categories = ["science", "no-std", "embedded", "wasm"]
 description = "Core backend interfaces and data structures for executing tensor operations in Burn."
 documentation = "https://docs.rs/burn-backend"
 edition.workspace = true
-keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch"]
 license.workspace = true
 name = "burn-backend"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-backend"
 version.workspace = true
 
@@ -17,7 +17,7 @@ workspace = true
 [features]
 default = ["std"]
 doc = ["default"]
-std = ["rand/std", "num-traits/std", "burn-std/std", "cubecl?/std", "dep:oneshot"]
+std = ["rand/std", "num-traits/std", "burn-std/std", "cubecl?/std", "dep:oneshot", "dep:log"]
 
 tracing = ["burn-std/tracing", "cubecl?/tracing"]
 
@@ -36,6 +36,7 @@ cubecl-device = ["cubecl"]
 cubecl-cuda = ["cubecl-device", "cubecl/cuda"]
 cubecl-hip = ["cubecl-device", "cubecl/hip"]
 cubecl-wgpu = ["cubecl-device", "cubecl/wgpu"]
+cubecl-wgpu-msl = ["cubecl-device", "cubecl/wgpu-msl"]
 cubecl-metal = ["cubecl-device", "cubecl/metal"]
 cubecl-vulkan = ["cubecl-device", "cubecl/vulkan"]
 cubecl-webgpu = ["cubecl-device", "cubecl/webgpu"]
@@ -48,6 +49,7 @@ cubecl = { workspace = true, optional = true, default-features = false }
 derive-new = { workspace = true }
 enumset = { workspace = true }
 hashbrown = { workspace = true }
+log = { workspace = true, optional = true }
 num-traits = { workspace = true }
 rand = { workspace = true, default-features = false }
 rand_distr = { workspace = true }

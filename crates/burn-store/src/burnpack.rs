@@ -7,12 +7,14 @@ use crate::{IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFil
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::format;
-use alloc::string::String;
+use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use burn_core::tensor::Bytes;
 #[cfg(feature = "std")]
 use burn_pack::EXTENSION;
-use burn_pack::{Error as PackError, Reader, Tensor as PackTensor, Writer};
+use burn_pack::{Error as PackError, Reader, Writer};
+
+use crate::StoreTensor;
 
 /// Store mode for BurnpackStore
 enum StoreMode {
@@ -48,7 +50,7 @@ pub struct BurnpackStore {
     /// Reader for loading
     reader: Option<Reader>,
     /// Cached tensors (parsed once, reused)
-    tensors_cache: Option<BTreeMap<String, PackTensor>>,
+    tensors_cache: Option<BTreeMap<String, StoreTensor>>,
 }
 
 impl BurnpackStore {
@@ -429,7 +431,7 @@ impl ModuleStore for BurnpackStore {
         module: &mut M,
     ) -> Result<crate::ApplyResult, Self::Error> {
         // Get all tensors using the cached method
-        let tensors: Vec<PackTensor> = self.get_all_tensors()?.values().cloned().collect();
+        let tensors: Vec<StoreTensor> = self.get_all_tensors()?.values().cloned().collect();
 
         // Apply all tensors at once to the module
         // Burnpack is Burn's native format, so no enum variant skipping needed
@@ -460,13 +462,13 @@ impl ModuleStore for BurnpackStore {
         Ok(result)
     }
 
-    fn get_tensor(&mut self, name: &str) -> Result<Option<&PackTensor>, Self::Error> {
+    fn get_tensor(&mut self, name: &str) -> Result<Option<&StoreTensor>, Self::Error> {
         // Ensure cache is populated
         self.ensure_tensors_cache()?;
         Ok(self.tensors_cache.as_ref().unwrap().get(name))
     }
 
-    fn get_all_tensors(&mut self) -> Result<&BTreeMap<String, PackTensor>, Self::Error> {
+    fn get_all_tensors(&mut self) -> Result<&BTreeMap<String, StoreTensor>, Self::Error> {
         // Ensure cache is populated
         self.ensure_tensors_cache()?;
         Ok(self.tensors_cache.as_ref().unwrap())
@@ -496,7 +498,11 @@ impl BurnpackStore {
             .reader
             .take()
             .expect("reader initialized by ensure_reader");
-        let tensors = reader.into_tensors()?;
+        let tensors: Vec<StoreTensor> = reader
+            .into_tensors()?
+            .into_iter()
+            .map(StoreTensor::from)
+            .collect();
 
         // Apply remapping if configured (but NOT filtering - that's done at apply time)
         #[cfg(feature = "std")]
@@ -508,8 +514,10 @@ impl BurnpackStore {
         };
 
         // Build the cache as BTreeMap
-        let cache: BTreeMap<String, PackTensor> =
-            tensors.into_iter().map(|t| (t.name.clone(), t)).collect();
+        let cache: BTreeMap<String, StoreTensor> = tensors
+            .into_iter()
+            .map(|t| (t.name().to_string(), t))
+            .collect();
 
         self.tensors_cache = Some(cache);
         Ok(())

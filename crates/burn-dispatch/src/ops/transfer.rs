@@ -36,16 +36,20 @@ impl<Src: Backend, Dst: Backend> burn_autodiff::ops::DifferentiableTransfer<Src,
     }
 }
 
-#[cfg(all(test, feature = "autodiff", feature = "flex", feature = "ndarray"))]
+#[cfg(all(test, feature = "autodiff", feature = "flex", feature = "cpu"))]
 mod tests {
     use super::*;
     use burn_autodiff::{
         Autodiff, checkpoint::strategy::BalancedCheckpointing, ops::DifferentiableTransfer,
     };
-    use burn_backend::{AutodiffBackend, TensorData, TensorMetadata, ops::FloatTensorOps};
+    use burn_backend::{
+        AutodiffBackend, TensorData, TensorMetadata, get_or_init_device_settings,
+        ops::{BoolTensorOps, FloatTensorOps},
+    };
     use core::sync::atomic::{AtomicUsize, Ordering};
 
-    use crate::backends::{Flex, NdArray};
+    use crate::backends::{Cube, Flex};
+    use crate::{Dispatch, DispatchDevice};
 
     /// Used when backward must not execute, either for an invalid graph or an untracked constant.
     #[derive(Debug)]
@@ -67,7 +71,7 @@ mod tests {
     )]
     fn distributed_parameter_on_a_different_backend_is_rejected_before_backward() {
         type Src = Autodiff<Flex, BalancedCheckpointing>;
-        type Dst = Autodiff<NdArray, BalancedCheckpointing>;
+        type Dst = Autodiff<Cube, BalancedCheckpointing>;
         let x = Src::float_from_data(TensorData::from([2.0f32, 3.0]), &Default::default())
             .grad_distributed(burn_backend::distributed::DistributedParamId::new());
         // Rebuilding the root when enabling gradients must preserve its backend identity.
@@ -75,7 +79,10 @@ mod tests {
         // The transferred node itself has no distributed metadata. The check must reach its
         // distributed ancestor, before the adapter's backward (which deliberately panics) runs.
         let derived = Src::float_mul(x.clone(), x);
-        let moved = Src::to_backend::<NdArray, ForwardOnlyTransfer>(derived, &Default::default());
+        let moved = Src::to_backend::<Cube, ForwardOnlyTransfer>(
+            derived,
+            &burn_cubecl::CubeDevice::cpu().unwrap(),
+        );
         let _ = Dst::backward(Dst::float_sum(moved));
     }
 
@@ -92,8 +99,11 @@ mod tests {
             true,
         )
         .grad_distributed(burn_backend::distributed::DistributedParamId::new());
-        let moved = Src::to_backend::<NdArray, HostTransfer>(x.clone(), &Default::default());
-        let returned = Autodiff::<NdArray>::to_backend::<Flex, HostTransfer>(moved, &device);
+        let moved = Src::to_backend::<Cube, HostTransfer>(
+            x.clone(),
+            &burn_cubecl::CubeDevice::cpu().unwrap(),
+        );
+        let returned = Autodiff::<Cube>::to_backend::<Flex, HostTransfer>(moved, &device);
         let grads = Src::backward(Src::float_sum(Src::float_add(
             returned,
             distributed.clone(),
@@ -114,12 +124,11 @@ mod tests {
             true,
         )
         .grad_distributed(burn_backend::distributed::DistributedParamId::new());
-        let constant = Autodiff::<NdArray>::float_from_data(
+        let constant = Autodiff::<Cube>::float_from_data(
             TensorData::from([4.0f32, 5.0]),
-            &Default::default(),
+            &burn_cubecl::CubeDevice::cpu().unwrap(),
         );
-        let constant =
-            Autodiff::<NdArray>::to_backend::<Flex, ForwardOnlyTransfer>(constant, &device);
+        let constant = Autodiff::<Cube>::to_backend::<Flex, ForwardOnlyTransfer>(constant, &device);
         let moved = Ad::to_backend::<Flex, HostTransfer>(x.clone(), &device);
         let grads = Ad::backward(Ad::float_sum(Ad::float_mul(moved, constant)));
         burn_backend::read_sync(Flex::float_into_data(Ad::grad(&x, &grads).unwrap()))
@@ -133,36 +142,36 @@ mod tests {
     #[derive(Debug)]
     struct ObservedTransfer;
 
-    impl DifferentiableTransfer<Flex, NdArray> for ObservedTransfer {
+    impl DifferentiableTransfer<Flex, Cube> for ObservedTransfer {
         fn forward(
             tensor: FloatTensor<Flex>,
-            device: &<NdArray as burn_backend::BackendTypes>::Device,
-        ) -> FloatTensor<NdArray> {
+            device: &<Cube as burn_backend::BackendTypes>::Device,
+        ) -> FloatTensor<Cube> {
             FORWARD.fetch_add(1, Ordering::Relaxed);
-            float_transfer::<Flex, NdArray>(tensor, device)
+            float_transfer::<Flex, Cube>(tensor, device)
         }
 
         fn backward(
-            tensor: FloatTensor<NdArray>,
+            tensor: FloatTensor<Cube>,
             device: &<Flex as burn_backend::BackendTypes>::Device,
         ) -> FloatTensor<Flex> {
             BACKWARD.fetch_add(1, Ordering::Relaxed);
             assert_eq!(*device, Default::default());
-            float_transfer::<NdArray, Flex>(tensor, device)
+            float_transfer::<Cube, Flex>(tensor, device)
         }
     }
 
     #[test]
     fn recorded_transfer_uses_adapter_in_both_directions_without_replay() {
         type Src = Autodiff<Flex, BalancedCheckpointing>;
-        type Dst = Autodiff<NdArray, BalancedCheckpointing>;
+        type Dst = Autodiff<Cube, BalancedCheckpointing>;
         let source = Default::default();
-        let destination = Default::default();
+        let destination = burn_cubecl::CubeDevice::cpu().unwrap();
         let x = Src::float_set_require_grad(
             Src::float_from_data(TensorData::from([2.0f32, 3.0]), &source),
             true,
         );
-        let moved = Src::to_backend::<NdArray, ObservedTransfer>(x.clone(), &destination);
+        let moved = Src::to_backend::<Cube, ObservedTransfer>(x.clone(), &destination);
         let output = Dst::float_sum(Dst::float_mul(moved.clone(), moved));
         let grads = Dst::backward(output);
         let grad = Src::grad(&x, &grads).unwrap();
@@ -172,5 +181,20 @@ mod tests {
             .assert_eq(&TensorData::from([4.0f32, 6.0]), true);
         assert_eq!(FORWARD.load(Ordering::Relaxed), 1);
         assert_eq!(BACKWARD.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn bool_transfer_uses_target_bool_storage() {
+        let flex = DispatchDevice::Flex(Default::default());
+        let cube = DispatchDevice::Cube(burn_cubecl::CubeDevice::cpu().unwrap());
+        let data = TensorData::from([true, false, true]);
+        let tensor = Dispatch::bool_from_data(data.clone(), &flex);
+
+        let moved = Dispatch::bool_to_device(tensor, &cube);
+
+        let moved = burn_backend::read_sync(Dispatch::bool_into_data(moved)).unwrap();
+        let target_dtype = get_or_init_device_settings::<Dispatch>(&cube).bool_dtype;
+        assert_eq!(moved.dtype(), target_dtype.into());
+        moved.convert_dtype(data.dtype()).assert_eq(&data, true);
     }
 }

@@ -4,7 +4,7 @@ use crate::metric::{
     ClassReduction, ConfusionStatsInput, Metric, MetricAttributes, MetricName, Numeric,
     NumericAttributes, SerializedEntry,
 };
-use burn_core::tensor::{Int, Tensor};
+use burn_core::tensor::{Int, Tensor, TensorReadError};
 use std::sync::Arc;
 
 /// The Area Under the Precision-Recall Curve (AUC-PR).
@@ -120,21 +120,22 @@ impl Metric for AucPrMetric {
         &mut self,
         input: &ConfusionStatsInput,
         _metadata: &MetricMetadata,
-    ) -> SerializedEntry {
+    ) -> Result<SerializedEntry, TensorReadError> {
         // Update the state
         self.state
             .accumulate(input.predictions.clone(), input.targets.clone());
 
         // Serialize placeholder to indicate no valid scalar exists yet mid-epoch
-        self.state
-            .serialize_placeholder(FormatOptions::new(self.name()).unit("%").precision(2))
+        Ok(self
+            .state
+            .serialize_placeholder(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
-    fn compute(&mut self) -> SerializedEntry {
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
         // Guard against an empty epoch calculation
         if self.state.is_empty() {
-            return self
+            return Ok(self
                 .state
-                .serialize_placeholder(FormatOptions::new(self.name()).unit("%").precision(2));
+                .serialize_placeholder(FormatOptions::new(self.name()).unit("%").precision(2)));
         }
 
         // Recompute over the whole epoch: AP is rank-based.
@@ -165,14 +166,14 @@ impl Metric for AucPrMetric {
             );
             0.5
         } else {
-            ap.select(0, keep).mean().into_scalar()
+            ap.select(0, keep).mean().try_into_scalar::<f64>()?
         };
 
         // Complete the state with the calculated scalar
-        self.state.compute(
+        Ok(self.state.compute(
             100.0 * metric,
             FormatOptions::new(self.name()).unit("%").precision(2),
-        )
+        ))
     }
 
     fn clear(&mut self) {
@@ -299,8 +300,10 @@ mod tests {
     ) {
         let mut metric = AucPrMetric::new(class_reduction);
 
-        let _entry = metric.update(&input(data), &MetricMetadata::fake());
-        let _entry = metric.compute();
+        let _entry = metric
+            .update(&input(data), &MetricMetadata::fake())
+            .unwrap();
+        let _entry = metric.compute().unwrap();
 
         TensorData::from([metric.final_value().current()])
             .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default());
@@ -312,32 +315,38 @@ mod tests {
 
         // Whole dataset as a single batch.
         let mut single = AucPrMetric::binary();
-        single.update(
-            &ConfusionStatsInput::new(
-                Tensor::from_data([[0.9], [0.4], [0.8], [0.2], [0.6], [0.1]], &dev),
-                Tensor::from_data([[1], [0], [1], [0], [1], [0]], &dev),
-            ),
-            &MetricMetadata::fake(),
-        );
-        single.compute();
+        single
+            .update(
+                &ConfusionStatsInput::new(
+                    Tensor::from_data([[0.9], [0.4], [0.8], [0.2], [0.6], [0.1]], &dev),
+                    Tensor::from_data([[1], [0], [1], [0], [1], [0]], &dev),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+        single.compute().unwrap();
 
         // Same dataset split across two batches.
         let mut split = AucPrMetric::binary();
-        split.update(
-            &ConfusionStatsInput::new(
-                Tensor::from_data([[0.9], [0.4], [0.8]], &dev),
-                Tensor::from_data([[1], [0], [1]], &dev),
-            ),
-            &MetricMetadata::fake(),
-        );
-        split.update(
-            &ConfusionStatsInput::new(
-                Tensor::from_data([[0.2], [0.6], [0.1]], &dev),
-                Tensor::from_data([[0], [1], [0]], &dev),
-            ),
-            &MetricMetadata::fake(),
-        );
-        split.compute();
+        split
+            .update(
+                &ConfusionStatsInput::new(
+                    Tensor::from_data([[0.9], [0.4], [0.8]], &dev),
+                    Tensor::from_data([[1], [0], [1]], &dev),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+        split
+            .update(
+                &ConfusionStatsInput::new(
+                    Tensor::from_data([[0.2], [0.6], [0.1]], &dev),
+                    Tensor::from_data([[0], [1], [0]], &dev),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+        split.compute().unwrap();
 
         TensorData::from([split.final_value().current()]).assert_approx_eq::<f64>(
             &TensorData::from([single.final_value().current()]),
@@ -358,15 +367,17 @@ mod tests {
         for batch_size in [1, 2] {
             let mut metric = AucPrMetric::binary();
             for start in (0..2).step_by(batch_size) {
-                metric.update(
-                    &ConfusionStatsInput::new(
-                        input.predictions.clone().narrow(0, start, batch_size),
-                        input.targets.clone().narrow(0, start, batch_size),
-                    ),
-                    &MetricMetadata::fake(),
-                );
+                metric
+                    .update(
+                        &ConfusionStatsInput::new(
+                            input.predictions.clone().narrow(0, start, batch_size),
+                            input.targets.clone().narrow(0, start, batch_size),
+                        ),
+                        &MetricMetadata::fake(),
+                    )
+                    .unwrap();
             }
-            metric.compute();
+            metric.compute().unwrap();
 
             // Both samples enter at the same threshold: precision = 1/2, recall = 1.
             assert_eq!(metric.final_value().current(), 50.0);
@@ -391,8 +402,8 @@ mod tests {
             Tensor::from_data([[1, 0], [0, 1], [1, 1], [0, 0], [1, 1]], &dev),
         );
         let mut metric = AucPrMetric::multilabel(reduction);
-        metric.update(&input, &MetricMetadata::fake());
-        metric.compute();
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
+        metric.compute().unwrap();
         TensorData::from([metric.final_value().current()]).assert_approx_eq::<f64>(
             &TensorData::from([expected * 100.0]),
             Tolerance::absolute(1e-5),
@@ -473,13 +484,15 @@ mod tests {
         let dev = Default::default();
 
         let mut split = AucPrMetric::binary();
-        split.update(
-            &ConfusionStatsInput::new(
-                Tensor::from_data([[0.9], [0.4], [0.8]], &dev),
-                Tensor::from_data([[1], [0], [1]], &dev),
-            ),
-            &MetricMetadata::fake(),
-        );
+        split
+            .update(
+                &ConfusionStatsInput::new(
+                    Tensor::from_data([[0.9], [0.4], [0.8]], &dev),
+                    Tensor::from_data([[1], [0], [1]], &dev),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
 
         // AUC-PR is not valid for a batch, and is not meaningful until all statistics have been accumulated
         assert!(split.value().is_none());

@@ -21,15 +21,17 @@ use burn::{
     prelude::*,
     train::{
         EvaluatorBuilder, Learner, MetricEarlyStoppingStrategy, StoppingCondition,
+        metric::LearningRateMetric,
         metric::{
-            AccuracyMetric, LearningRateMetric, LossMetric,
+            AccuracyMetric, LossMetric,
             store::{Aggregate, Direction, Split},
         },
     },
 };
 use burn::{optim::AdamWConfig, train::SupervisedTraining};
 
-static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
+/// Where [`run`] writes its checkpoints and the trained model.
+pub static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 #[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
@@ -93,8 +95,11 @@ pub fn run(device: Device) {
         .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
 
     let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_valid)
-        .metrics((AccuracyMetric::new(), LossMetric::new()))
-        .metric_train_numeric(LearningRateMetric::new())
+        .metrics((
+            AccuracyMetric::new(),
+            LossMetric::new(),
+            LearningRateMetric::new(),
+        ))
         .with_default_checkpointers()
         .early_stopping(MetricEarlyStoppingStrategy::new(
             &LossMetric::new(),
@@ -132,7 +137,8 @@ pub fn run(device: Device) {
         .metrics((AccuracyMetric::new(), LossMetric::new()))
         .summary()
         .build(result.model.clone())
-        .eval_all(splits);
+        .eval_all(splits)
+        .renderer;
 
     result
         .model

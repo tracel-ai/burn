@@ -26,7 +26,7 @@ fn test_narrow() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 fn test_narrow_invalid_dim() {
     let tensor = QTensor::<2>::int8([[1., 2., 3.], [7., 8., 9.], [13., 14., 15.]]);
 
@@ -34,7 +34,7 @@ fn test_narrow_invalid_dim() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "start exceeds the size")]
 fn test_narrow_invalid_start() {
     let tensor = QTensor::<2>::int8([[1., 2., 3.], [7., 8., 9.], [13., 14., 15.]]);
 
@@ -42,7 +42,7 @@ fn test_narrow_invalid_start() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "length must be greater than 0")]
 fn test_narrow_invalid_zero_length() {
     let tensor = QTensor::<2>::int8([[1., 2., 3.], [7., 8., 9.], [13., 14., 15.]]);
 
@@ -50,7 +50,7 @@ fn test_narrow_invalid_zero_length() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "start + length exceeds")]
 fn test_narrow_invalid_length() {
     let tensor = QTensor::<2>::int8([[1., 2., 3.], [7., 8., 9.], [13., 14., 15.]]);
 

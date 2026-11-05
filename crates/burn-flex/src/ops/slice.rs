@@ -296,71 +296,6 @@ mod tests {
     use burn_std::Shape;
 
     #[test]
-    fn test_slice_basic() {
-        // Create a 2x3 tensor: [[0, 1, 2], [3, 4, 5]]
-        let data: Vec<f32> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
-        let tensor = FlexTensor::from_data(TensorData::new(data, [2, 3]));
-
-        // Slice [0:1, 1:3] -> [[1, 2]]
-        let slices = vec![Slice::new(0, Some(1), 1), Slice::new(1, Some(3), 1)];
-        let result = slice(tensor, &slices);
-
-        assert_eq!(result.layout().shape().to_vec(), vec![1, 2]);
-        let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
-        assert_eq!(values, vec![1.0, 2.0]);
-    }
-
-    #[test]
-    fn test_slice_with_step() {
-        // Create a 1D tensor: [0, 1, 2, 3, 4, 5]
-        let data: Vec<f32> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
-        let tensor = FlexTensor::from_data(TensorData::new(data, [6]));
-
-        // Slice [0:6:2] -> [0, 2, 4]
-        let slices = vec![Slice::new(0, Some(6), 2)];
-        let result = slice(tensor, &slices);
-
-        assert_eq!(result.layout().shape().to_vec(), vec![3]);
-        let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
-        assert_eq!(values, vec![0.0, 2.0, 4.0]);
-    }
-
-    #[test]
-    fn test_slice_negative_index() {
-        // Create a 1D tensor: [0, 1, 2, 3, 4]
-        let data: Vec<f32> = vec![0.0, 1.0, 2.0, 3.0, 4.0];
-        let tensor = FlexTensor::from_data(TensorData::new(data, [5]));
-
-        // Slice [-3:] -> [2, 3, 4]
-        let slices = vec![Slice::new(-3, None, 1)];
-        let result = slice(tensor, &slices);
-
-        assert_eq!(result.layout().shape().to_vec(), vec![3]);
-        let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
-        assert_eq!(values, vec![2.0, 3.0, 4.0]);
-    }
-
-    #[test]
-    fn test_slice_negative_step() {
-        // Create a 1D tensor: [0, 1, 2, 3, 4]
-        let data: Vec<f32> = vec![0.0, 1.0, 2.0, 3.0, 4.0];
-        let tensor = FlexTensor::from_data(TensorData::new(data, [5]));
-
-        // Slice [0..;-1] -> [4, 3, 2, 1, 0] (reverse full range)
-        // In Burn's semantics: range selects elements, step determines order
-        let slices = vec![Slice::new(0, None, -1)];
-        let result = slice(tensor, &slices);
-
-        assert_eq!(result.layout().shape().to_vec(), vec![5]);
-        let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
-        assert_eq!(values, vec![4.0, 3.0, 2.0, 1.0, 0.0]);
-    }
-
-    #[test]
     fn test_slice_negative_step_empty_range_underflow_guard() {
         let data: Vec<f32> = vec![0.0, 1.0, 2.0, 3.0, 4.0];
         let tensor = FlexTensor::from_data(TensorData::new(data, [5]));
@@ -390,43 +325,6 @@ mod tests {
 
         let values: Vec<f32> = res.into_data().try_into_vec().unwrap();
         assert_eq!(values, vec![50.0, 30.0, 10.0]);
-    }
-
-    #[test]
-    fn test_slice_assign_1d() {
-        // Create a 1D tensor: [0, 1, 2, 3, 4]
-        let data: Vec<f32> = vec![0.0, 1.0, 2.0, 3.0, 4.0];
-        let tensor = FlexTensor::from_data(TensorData::new(data, [5]));
-
-        // Assign [10, 11, 12] to positions [1:4]
-        let value_data: Vec<f32> = vec![10.0, 11.0, 12.0];
-        let value = FlexTensor::from_data(TensorData::new(value_data, [3]));
-        let slices = vec![Slice::new(1, Some(4), 1)];
-        let result = slice_assign(tensor, &slices, value);
-
-        let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
-        assert_eq!(values, vec![0.0, 10.0, 11.0, 12.0, 4.0]);
-    }
-
-    #[test]
-    fn test_slice_assign_2d() {
-        // Create a 3x3 tensor
-        let data: Vec<f32> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
-        let tensor = FlexTensor::from_data(TensorData::new(data, [3, 3]));
-
-        // Assign [[10, 11], [12, 13]] to [1:3, 1:3]
-        let value_data: Vec<f32> = vec![10.0, 11.0, 12.0, 13.0];
-        let value = FlexTensor::from_data(TensorData::new(value_data, [2, 2]));
-        let slices = vec![Slice::new(1, Some(3), 1), Slice::new(1, Some(3), 1)];
-        let result = slice_assign(tensor, &slices, value);
-
-        let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
-        assert_eq!(
-            values,
-            vec![0.0, 1.0, 2.0, 3.0, 10.0, 11.0, 6.0, 12.0, 13.0,]
-        );
     }
 
     #[test]

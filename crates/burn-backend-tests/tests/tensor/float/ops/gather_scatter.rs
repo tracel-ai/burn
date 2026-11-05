@@ -252,9 +252,7 @@ fn should_scatter_add_2d_dim0() {
 fn should_scatter_add_many_values_into_few_slots() {
     let device = Default::default();
     let tensor = TestTensor::<2>::zeros([2, 4], &device);
-    let indices: Vec<i32> = (0..2 * 1000)
-        .map(|position| (position % 4) as i32)
-        .collect();
+    let indices: Vec<i32> = (0..2 * 1000).map(|position| position % 4).collect();
     let indices = TestTensorInt::<2>::from_data(TensorData::new(indices, [2, 1000]), &device);
     let values = TestTensor::<2>::ones([2, 1000], &device);
 
@@ -324,7 +322,7 @@ fn should_scatter_add_2d_dim1_diff_shape() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Indices tensor shape should be the same as the value tensor shape")]
 fn scatter_should_panic_on_mismatch_of_shapes() {
     let device = Default::default();
     let tensor = TestTensor::<1>::from_data([0.0, 0.0, 0.0], &device);
@@ -354,4 +352,105 @@ fn should_scatter_add_3d_dim0_with_index_view() {
         &TensorData::from([[[21.0]], [[2.0]], [[13.0]], [[4.0]]]),
         false,
     );
+}
+
+// Indices smaller than the tensor on a non-axis dim: [2, 2] indices into a [3, 4] tensor. Each
+// index coordinate maps onto the same coordinate of the tensor, so reading the tensor with the
+// index tensor's strides, or looping over the tensor's shape, gives different values.
+// Expected values from PyTorch.
+fn smaller_indices_tensor() -> TestTensor<2> {
+    TestTensor::from_data(
+        [
+            [0.0, 1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0, 7.0],
+            [8.0, 9.0, 10.0, 11.0],
+        ],
+        &Default::default(),
+    )
+}
+
+#[test]
+fn should_gather_with_smaller_indices() {
+    let device = Default::default();
+    let tensor = smaller_indices_tensor();
+
+    let output = tensor
+        .clone()
+        .gather(0, TestTensorInt::from_ints([[2, 0], [1, 2]], &device));
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[8.0, 1.0], [4.0, 9.0]]), false);
+
+    let output = tensor.gather(1, TestTensorInt::from_ints([[3, 0], [1, 2]], &device));
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[3.0, 0.0], [5.0, 6.0]]), false);
+}
+
+#[test]
+fn should_scatter_assign_with_smaller_indices() {
+    let device = Default::default();
+    let indices = TestTensorInt::from_ints([[2, 0], [1, 2]], &device);
+    let values = TestTensor::from_data([[100.0, 101.0], [102.0, 103.0]], &device);
+
+    let output = smaller_indices_tensor().scatter(0, indices, values, IndexingUpdateOp::Assign);
+
+    output.into_data().assert_eq(
+        &TensorData::from([
+            [0.0, 101.0, 2.0, 3.0],
+            [102.0, 5.0, 6.0, 7.0],
+            [100.0, 103.0, 10.0, 11.0],
+        ]),
+        false,
+    );
+}
+
+#[test]
+fn should_scatter_add_with_smaller_indices() {
+    let device = Default::default();
+    let values = TestTensor::<2>::from_data([[100.0, 101.0], [102.0, 103.0]], &device);
+
+    let indices = TestTensorInt::from_ints([[2, 0], [1, 2]], &device);
+    let output =
+        smaller_indices_tensor().scatter(0, indices, values.clone(), IndexingUpdateOp::Add);
+    output.into_data().assert_eq(
+        &TensorData::from([
+            [0.0, 102.0, 2.0, 3.0],
+            [106.0, 5.0, 6.0, 7.0],
+            [108.0, 112.0, 10.0, 11.0],
+        ]),
+        false,
+    );
+
+    let indices = TestTensorInt::from_ints([[3, 0], [1, 2]], &device);
+    let output = smaller_indices_tensor().scatter(1, indices, values, IndexingUpdateOp::Add);
+    output.into_data().assert_eq(
+        &TensorData::from([
+            [101.0, 1.0, 2.0, 103.0],
+            [4.0, 107.0, 109.0, 7.0],
+            [8.0, 9.0, 10.0, 11.0],
+        ]),
+        false,
+    );
+}
+
+#[test]
+#[should_panic(expected = "The index tensor must not be larger than the tensor")]
+fn gather_should_panic_on_larger_indices() {
+    let device = Default::default();
+    // Dim 1 is not the gather axis and has 5 indices for 4 tensor columns
+    let indices = TestTensorInt::from_ints([[0, 0, 0, 0, 0]], &device);
+
+    smaller_indices_tensor().gather(0, indices);
+}
+
+#[test]
+#[should_panic(expected = "The index tensor must not be larger than the tensor")]
+fn scatter_should_panic_on_larger_indices() {
+    let device = Default::default();
+    // Dim 0 is not the scatter axis and has 4 indices for 3 tensor rows
+    let indices = TestTensorInt::from_ints([[0], [0], [0], [0]], &device);
+    let values = TestTensor::from_data([[1.0], [1.0], [1.0], [1.0]], &device);
+
+    smaller_indices_tensor().scatter(1, indices, values, IndexingUpdateOp::Add);
 }

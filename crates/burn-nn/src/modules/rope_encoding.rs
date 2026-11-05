@@ -1,3 +1,4 @@
+use burn::instrument::{self, Bounds, compute};
 use burn_core as burn;
 
 use alloc::vec;
@@ -132,6 +133,20 @@ impl ModuleDisplay for RotaryEncoding {
 
 #[allow(clippy::single_range_in_vec_init)]
 impl RotaryEncoding {
+    /// The floor for a rotation alone: read the input and the frequencies of its positions once,
+    /// write the output once. The rotation is a pass over the same bytes, so no arithmetic is
+    /// declared. None below rank 2, which the rotation rejects.
+    fn bounds<const D: usize>(&self, x: &Tensor<D>) -> Option<Bounds> {
+        let [_, d_model, components] = self.freq_complex.dims();
+        let positions = x.dims()[D.checked_sub(2)?];
+        let frequencies = positions * d_model * components * self.freq_complex.dtype().size();
+        Some(Bounds {
+            read: instrument::tensor_bytes(x) + frequencies as u64,
+            write: instrument::tensor_bytes(x),
+            flops: 0,
+        })
+    }
+
     /// Applies rotary positional encoding to a tensor of dimensions (..., seq_len, d_model)
     ///
     /// # Arguments:
@@ -161,6 +176,7 @@ impl RotaryEncoding {
     ///
     /// # Panics
     /// If the input has fewer than 2 dimensions or its last axis is not `d_model`.
+    #[compute(bounds = self.bounds(&x))]
     pub fn apply<const D: usize>(&self, x: Tensor<D>, start: usize) -> Tensor<D> {
         let [_, d_model, _] = self.freq_complex.dims();
         assert_shape!(x, [.., _, d_model]);
@@ -282,6 +298,29 @@ mod tests {
     use super::*;
     use burn::tensor::Tolerance;
     type FT = f32;
+
+    /// A rotation reads the frequencies of the positions it rotates, not the whole table.
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_rotation_reads_the_frequencies_of_its_positions() {
+        let device = Default::default();
+        let rope = RotaryEncodingConfig::new(10, 4).init(&device);
+        let x = Tensor::<3>::zeros([2, 3, 4], &device);
+
+        let recorded = crate::recording::recorded(|| {
+            rope.forward(x);
+        });
+
+        assert_eq!(recorded.lines(), ["rotary encoding"]);
+        assert_eq!(
+            recorded.declared("rotary encoding"),
+            Some(Bounds {
+                read: (2 * 3 * 4 + 3 * 4 * 2) * 4,
+                write: 2 * 3 * 4 * 4,
+                flops: 0,
+            })
+        );
+    }
 
     #[test]
     #[should_panic(expected = "assert_shape!(x, [.., _, d_model]): axis 2 expected 4, got 6")]
@@ -581,9 +620,21 @@ mod tests {
     #[test]
     fn test_rotary_encoding_shift_multiple() {
         let device = Default::default();
+        let input =
+            Tensor::<3>::from_floats([[[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]]], &device);
+        let expected_output = RotaryEncodingConfig::new(10, 4)
+            .init(&device)
+            .apply(input.clone(), 5);
+
+        // The second shift keeps part of a window that no longer starts at 0.
         let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init(&device);
         rotary_encoding.shift(2);
         rotary_encoding.shift(5);
+
+        rotary_encoding
+            .apply(input, 0)
+            .into_data()
+            .assert_approx_eq::<FT>(&expected_output.into_data(), Tolerance::default());
     }
 
     #[test]

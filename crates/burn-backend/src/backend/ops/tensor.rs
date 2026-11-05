@@ -2,6 +2,7 @@ use super::cat::cat_with_slice_assign;
 use super::grid_sample::float_grid_sample_2d_ref;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
+use crate::RandomKey;
 use crate::ops::GridSampleOptions;
 use crate::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{Backend, Distribution, TensorData, get_or_init_device_settings};
@@ -32,15 +33,21 @@ pub trait FloatTensorOps<B: Backend> {
     /// * `distribution` - The distribution to sample from.
     /// * `device` - The device to create the tensor on.
     /// * `dtype` - The target data type.
+    /// * `key` - Explicit randomness for this operation.
     ///
     /// # Returns
     ///
     /// The tensor with the given shape and random values.
+    ///
+    /// This must use only the supplied key without reading or changing the backend's implicit
+    /// RNG state. Deferred backends retain the key so scheduling and later reseeding cannot
+    /// affect the draw.
     fn float_random(
         shape: Shape,
         distribution: Distribution,
         device: &Device<B>,
         dtype: FloatDType,
+        key: RandomKey,
     ) -> FloatTensor<B>;
 
     /// Creates a new tensor with zeros.
@@ -327,6 +334,35 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The result of applying the modulus of the scalar to the tensor.
     fn float_remainder_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B>;
+
+    /// Computes the floating-point remainder of dividing `lhs` by `rhs` element-wise.
+    ///
+    /// Unlike [float_remainder](FloatTensorOps::float_remainder), the result has the same sign
+    /// as `lhs`, matching C's `fmod`.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The dividend tensor.
+    /// * `rhs` - The divisor tensor.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise floating-point remainder.
+    fn float_fmod(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Computes the floating-point remainder of dividing `lhs` by a scalar element-wise.
+    ///
+    /// The result has the same sign as `lhs`, matching C's `fmod`.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The dividend tensor.
+    /// * `rhs` - The divisor scalar.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise floating-point remainder.
+    fn float_fmod_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B>;
 
     /// Multiplies two tensors together using matrix multiplication.
     ///

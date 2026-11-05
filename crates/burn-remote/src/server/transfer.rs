@@ -2,10 +2,10 @@
 //!
 //! Server-to-server tensor movement is independent from the compute-session transport: a tensor is
 //! *exposed* on the source server and *downloaded* by the target server without routing the data
-//! through the controlling client. Each transport implements this its own way —
+//! through the controlling client. Each transport implements this its own way:
 //! [`IrohTransfer`](crate::transport::iroh::IrohTransfer) over authenticated Iroh streams,
-//! [`WebSocketTransfer`](crate::transport::websocket::WebSocketTransfer) over the legacy data
-//! service — and the session worker drives it through this trait, knowing nothing about the wire.
+//! [`WebSocketTransfer`](crate::transport::websocket::WebSocketTransfer) over burn-communication's
+//! data service. The session worker drives it through this trait, knowing nothing about the wire.
 
 use std::future::Future;
 

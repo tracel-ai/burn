@@ -176,7 +176,9 @@ fn adapt(
     containers: &[String],
 ) -> PackTensor {
     match adapter {
-        Some(adapter) => adapter.adapt(tensor, ModuleContext::new(containers)),
+        Some(adapter) => adapter
+            .adapt(tensor.into(), ModuleContext::new(containers))
+            .into_pack(),
         None => tensor,
     }
 }
@@ -245,6 +247,7 @@ impl ModuleVisitor for Collector {
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
+    use crate::StoreTensor;
 
     use burn_core as burn;
 
@@ -1045,9 +1048,9 @@ mod tests {
     }
 
     impl ModuleAdapter for RecordingAdapter {
-        fn adapt(&self, tensor: PackTensor, ctx: ModuleContext<'_>) -> PackTensor {
+        fn adapt(&self, tensor: StoreTensor, ctx: ModuleContext<'_>) -> StoreTensor {
             self.seen.lock().unwrap().push((
-                tensor.name.clone(),
+                tensor.name().to_string(),
                 ctx.module_type().map(|t| t.to_string()),
             ));
             tensor

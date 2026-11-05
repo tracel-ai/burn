@@ -2,7 +2,33 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-//! The core crate of Burn.
+//! The core of Burn: modules, configuration, records and data loading, on top of the tensor API.
+//!
+//! Applications should depend on [`burn`](https://docs.rs/burn), which re-exports everything here
+//! together with neural network layers, optimizers and training. This crate is the dependency for
+//! libraries that only need the core abstractions.
+//!
+//! - [`tensor`]: Burn's tensor API, re-exported from `burn-tensor`.
+//! - [`module`]: the [`Module`](module::Module) trait, implemented with `#[derive(Module)]`, and
+//!   [`Param`](module::Param) for trainable tensors.
+//! - [`config`]: serializable configuration structs with `#[derive(Config)]`.
+//! - [`store`]: module records and the burnpack format.
+//! - [`data`]: datasets, batchers and data loaders (`std` only).
+//! - [`instrument`]: declaring components with `#[compute]` and measuring where a pass's device
+//!   time goes.
+//! - [`prelude`]: the types most programs import.
+//!
+//! # Feature flags
+//!
+//! Backend features (`wgpu`, `cuda`, `flex`, ...) and the `autodiff`, `fusion`, `remote` and
+//! `capture` features match those of `burn`. Others:
+//!
+//! - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
+//! - `dataset`: the dataset library in [`data`]; `vision`, `audio` and `sqlite` add sources.
+//! - `network`: file downloads with a progress bar.
+//! - `instrument`: arm the `#[compute]` annotations, for [`instrument`] to measure a model.
+//!   Without it they compile away.
+//! - `tracing`: trace operations with the `tracing` crate.
 
 // `derive_new` provides the `#[derive(new)]` macro used across the crate; the lint mistakenly
 // reports the `#[macro_use]` as unused.
@@ -26,6 +52,9 @@ pub mod module;
 /// Module for saving and loading module/optimizer state in the burnpack format.
 pub mod store;
 
+/// Declaring components and measuring where a pass's device time goes.
+pub use burn_instrument as instrument;
+
 /// Module for the tensor.
 pub mod tensor;
 // Tensor at root: `burn::Tensor`
@@ -42,6 +71,14 @@ extern crate alloc;
 #[allow(missing_docs)]
 pub fn test_device() -> burn_tensor::Device {
     burn_tensor::Device::flex()
+}
+
+#[cfg(all(test, feature = "shard"))]
+#[allow(missing_docs)]
+pub fn test_sharded_device() -> burn_tensor::Device {
+    burn_tensor::Device::shard_options(&[test_device(), test_device()])
+        .init()
+        .unwrap()
 }
 
 #[cfg(test)]

@@ -182,20 +182,20 @@ where
 
             if !self.eval {
                 progress.items_processed += 1;
-                processor.process_train(RLEvent::EnvStep(EvaluationItem::new(
-                    context[0].clone(),
-                    progress.clone(),
-                    None,
+                interrupter.fail_on_error(processor.process_train(RLEvent::EnvStep(
+                    EvaluationItem::new(context[0].clone(), progress.clone(), None),
                 )));
 
                 if step_result.done {
-                    processor.process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
-                        EpisodeSummary {
-                            episode_length: self.step_num,
-                            cum_reward: self.current_reward,
-                        },
-                        progress.clone(),
-                        None,
+                    interrupter.fail_on_error(processor.process_train(RLEvent::EpisodeEnd(
+                        EvaluationItem::new(
+                            EpisodeSummary {
+                                episode_length: self.step_num,
+                                cum_reward: self.current_reward,
+                            },
+                            progress.clone(),
+                            None,
+                        ),
                     )));
                 }
             }
@@ -235,22 +235,28 @@ where
                 steps.push(step.clone());
 
                 if self.eval {
-                    processor.process_valid(AgentEvaluationEvent::EnvStep(EvaluationItem::new(
-                        step.action_context.clone(),
-                        Progress::new(steps.len() + 1, steps.len() + 1, Some("steps".to_string())),
-                        None,
-                    )));
+                    interrupter.fail_on_error(processor.process_valid(
+                        AgentEvaluationEvent::EnvStep(EvaluationItem::new(
+                            step.action_context.clone(),
+                            Progress::new(
+                                steps.len() + 1,
+                                steps.len() + 1,
+                                Some("steps".to_string()),
+                            ),
+                            None,
+                        )),
+                    ));
 
                     if step.done {
-                        processor.process_valid(AgentEvaluationEvent::EpisodeEnd(
-                            EvaluationItem::new(
+                        interrupter.fail_on_error(processor.process_valid(
+                            AgentEvaluationEvent::EpisodeEnd(EvaluationItem::new(
                                 EpisodeSummary {
                                     episode_length: step.ep_len,
                                     cum_reward: step.cum_reward,
                                 },
                                 Progress::new(ep + 1, num_episodes, Some("episodes".to_string())),
                                 None,
-                            ),
+                            )),
                         ));
                     }
                 }
@@ -320,11 +326,7 @@ mod tests {
         let mut runner = setup(0, false, false);
         let mut processor = AsyncProcessorTraining::new(MockProcessor);
         let interrupter = Interrupter::new();
-        let mut progress = Progress {
-            items_processed: 0,
-            items_total: 1,
-            unit: Some("steps".to_string()),
-        };
+        let mut progress = Progress::new(0, 1, Some("steps".to_string()));
 
         let steps = runner.run_steps(1, &mut processor, &interrupter, &mut progress);
         assert_eq!(steps.len(), 1);
@@ -337,11 +339,7 @@ mod tests {
         let mut runner = setup(0, false, false);
         let mut processor = AsyncProcessorTraining::new(MockProcessor);
         let interrupter = Interrupter::new();
-        let mut progress = Progress {
-            items_processed: 0,
-            items_total: 1,
-            unit: Some("steps".to_string()),
-        };
+        let mut progress = Progress::new(0, 1, Some("steps".to_string()));
 
         let trajectories = runner.run_episodes(1, &mut processor, &interrupter, &mut progress);
         assert_eq!(trajectories.len(), 1);

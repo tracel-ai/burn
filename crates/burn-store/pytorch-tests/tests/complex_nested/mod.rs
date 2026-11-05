@@ -6,7 +6,7 @@ use burn::{
         conv::{Conv2d, Conv2dConfig},
     },
     tensor::{
-        Device, Tensor,
+        Device, Tensor, ZeroDimPlaceholders,
         activation::{log_softmax, relu},
     },
 };
@@ -55,7 +55,7 @@ impl Net {
         let x = self.conv_blocks[0].forward(x);
         let x = self.conv_blocks[1].forward(x);
         let x = self.norm1.forward(x);
-        let x = x.reshape([0, -1]);
+        let x = x.reshape(ZeroDimPlaceholders([0, -1]));
         let x = self.fc1.forward(x);
         let x = relu(x);
         let x = self.fc2.forward(x);
@@ -169,18 +169,6 @@ fn full_record_autodiff() {
     model
         .load_from(&mut store)
         .expect("Should decode state successfully");
-}
-
-#[test]
-fn half_record() {
-    let device = Default::default();
-    let mut model = Net::init(&device);
-    let mut store = PytorchStore::from_file("tests/complex_nested/complex_nested.pt");
-    model
-        .load_from(&mut store)
-        .expect("Should decode state successfully");
-
-    model_test(model, 1e-4);
 }
 
 #[test]

@@ -4,8 +4,8 @@ Saving your trained machine learning model is quite easy. As mentioned in the
 [Record](./building-blocks/record.md) section, a module's parameters are captured in a
 `ModuleRecord` and serialized to the [burnpack](./building-blocks/record.md) format (`.bpk`).
 
-For checkpoints saved with an older Burn release, see
-[Migrating checkpoints](./migrating-to-0.22.md#migrating-checkpoints).
+For checkpoints saved before Burn 0.22, see
+[Migrating checkpoints](https://github.com/tracel-ai/burn/blob/release/0.22/burn-book/src/migrating-to-0.22.md#migrating-checkpoints).
 
 ```rust, ignore
 use burn::store::ModuleRecord;
@@ -357,7 +357,9 @@ full tensor name), so anchor it to keep exactly one list; a nested list such as
 
 #### Zero-Copy Loading
 
-For embedded models or large files, use zero-copy loading to avoid memory copies:
+For embedded models, `from_static` slices tensor data straight out of the binary without copying.
+File loads are lazy: only the header is read up front, and each tensor is read from disk when it is
+accessed.
 
 ```rust, ignore
 // Embedded model (compile-time)
@@ -365,9 +367,8 @@ static MODEL_DATA: &[u8] = include_bytes!("model.bpk");
 let mut store = BurnpackStore::from_static(MODEL_DATA);
 model.load_from(&mut store)?;
 
-// Large file (memory-mapped)
-let mut store = BurnpackStore::from_file("large_model.bpk")
-    .zero_copy(true);
+// Large file (tensors read on access)
+let mut store = BurnpackStore::from_file("large_model.bpk");
 model.load_from(&mut store)?;
 ```
 
@@ -441,10 +442,10 @@ let names = store.keys()?;
 
 // Get specific tensor
 if let Some(tensor) = store.get_tensor("encoder.layer0.weight")? {
-    println!("Shape: {:?}, DType: {:?}", tensor.shape, tensor.dtype);
+    println!("Shape: {:?}, DType: {:?}", tensor.shape(), tensor.dtype());
 
-    // Reading the data is a free function, not a method on the tensor
-    let data = burn_store::bridge::to_data(tensor)?;
+    // Reads the tensor's data from the file
+    let data = tensor.to_data()?;
 }
 ```
 
@@ -485,7 +486,6 @@ model2.apply(snapshots, Some(filter), None, false);
 |               | `map_indices_contiguous(bool)`         | Remap non-contiguous indices         |
 |               | `map_indices_contiguous_except(regex)` | Keep indices under matching prefixes |
 |               | `metadata(key, value)`                 | Add custom metadata                  |
-|               | `zero_copy(bool)`                      | Enable zero-copy loading             |
 
 #### Direct Access Methods
 

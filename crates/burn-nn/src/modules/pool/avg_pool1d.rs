@@ -1,3 +1,6 @@
+use crate::modules::bounds::{self, Windows};
+use burn::instrument::{Bounds, compute};
+use burn::tensor::module::avg_pool_output_size;
 use burn_core as burn;
 
 use crate::PaddingConfig1d;
@@ -5,7 +8,7 @@ use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::ops::PadMode;
+use burn::tensor::ops::AvgPoolOptions;
 
 use burn::tensor::module::avg_pool1d;
 
@@ -90,6 +93,31 @@ impl AvgPool1dConfig {
 }
 
 impl AvgPool1d {
+    /// The options the pool runs with, its padding resolved against `input`'s size.
+    fn options(&self, input: &Tensor<3>) -> AvgPoolOptions<1> {
+        let [_batch_size, _channels, length] = input.dims();
+        let padding = self
+            .padding
+            .calculate_padding_1d_pair(length, self.kernel_size, self.stride);
+
+        AvgPoolOptions::new([self.kernel_size])
+            .with_stride([self.stride])
+            .with_padding_pairs([padding])
+            .with_count_include_pad(self.count_include_pad)
+            .with_ceil_mode(self.ceil_mode)
+    }
+
+    /// None where the pool cannot size its output, which it rejects.
+    fn bounds(&self, input: &Tensor<3>) -> Option<Bounds> {
+        let options = self.options(input);
+        let output_size = avg_pool_output_size(bounds::spatial(input), &options)?;
+        Some(
+            Windows::avg_pool(&options)
+                .over(input, output_size)
+                .resampling(input),
+        )
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// See [avg_pool1d](burn::tensor::module::avg_pool1d) for more information.
@@ -98,68 +126,10 @@ impl AvgPool1d {
     ///
     /// - input: `[batch_size, channels, length_in]`
     /// - output: `[batch_size, channels, length_out]`
+    #[compute(bounds = Self::bounds)]
     pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
-        let [_batch_size, _channels, length] = input.dims();
-
-        // Calculate padding as pair - handles Same, Valid, and Explicit uniformly
-        let (left, right) =
-            self.padding
-                .calculate_padding_1d_pair(length, self.kernel_size, self.stride);
-
-        // TODO: Move asymmetric padding to functional level via PoolOptions
-        // See: https://github.com/tracel-ai/burn/issues/4362
-        // Handle asymmetric padding by applying explicit pad operation first
-        if left != right {
-            let valid = if self.count_include_pad {
-                None
-            } else {
-                let device = input.device();
-                Some(
-                    Tensor::<3>::ones([1, 1, length], (&device, input.dtype()))
-                        .pad((left, right, 0, 0), PadMode::Constant(0.0)),
-                )
-            };
-            // Burn's pad takes (left, right, top, bottom) for the last two dimensions
-            // For 1D (NCL format), we only pad L (last dim), so top/bottom = 0
-            let padded = input.pad((left, right, 0, 0), PadMode::Constant(0.0));
-            // Use zero padding for the pool operation since we already padded
-            let output = avg_pool1d(
-                padded,
-                self.kernel_size,
-                self.stride,
-                0,
-                self.count_include_pad,
-                self.ceil_mode,
-            );
-
-            if let Some(valid) = valid {
-                // Materialized padding is indistinguishable from input to the backend. Pooling a
-                // validity mask with the same settings recovers the fraction of real values in
-                // each window, including partial windows created by ceil mode.
-                let valid = avg_pool1d(
-                    valid,
-                    self.kernel_size,
-                    self.stride,
-                    0,
-                    false,
-                    self.ceil_mode,
-                );
-                let empty = valid.clone().equal_elem(0.0);
-                output / valid.mask_fill(empty, 1.0)
-            } else {
-                output
-            }
-        } else {
-            // Symmetric padding
-            avg_pool1d(
-                input,
-                self.kernel_size,
-                self.stride,
-                left,
-                self.count_include_pad,
-                self.ceil_mode,
-            )
-        }
+        let options = self.options(&input);
+        avg_pool1d(input, options)
     }
 }
 

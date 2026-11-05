@@ -1,7 +1,7 @@
 //! Pretrained weights loading for LPIPS.
 
 use burn_std::network::downloader::download_file_as_bytes;
-use burn_store::{ModuleSnapshot, PytorchStore};
+use burn_store::{ModuleSnapshot, PytorchStore, pytorch::PytorchStoreError};
 use std::fs::{File, create_dir_all};
 use std::io::Write;
 use std::path::PathBuf;
@@ -19,7 +19,7 @@ const LPIPS_SQUEEZE_URL: &str =
 
 /// URLs for ImageNet pretrained backbone weights from PyTorch.
 const VGG16_IMAGENET_URL: &str = "https://download.pytorch.org/models/vgg16-397923af.pth";
-const ALEXNET_IMAGENET_URL: &str = "https://download.pytorch.org/models/alexnet-owt-4df8aa71.pth";
+const ALEXNET_IMAGENET_URL: &str = "https://download.pytorch.org/models/alexnet-owt-7be5be79.pth";
 const SQUEEZENET_IMAGENET_URL: &str =
     "https://download.pytorch.org/models/squeezenet1_1-f364aa15.pth";
 
@@ -80,12 +80,41 @@ fn download_if_needed(url: &str, cache_path: &PathBuf, message: &str) {
 /// # Returns
 ///
 /// The LPIPS module with loaded pretrained weights.
+///
+/// # Panics
+///
+/// Panics on cache setup, download or checkpoint-loading failures. Use
+/// [`try_load_pretrained_weights`] to handle checkpoint-loading errors instead.
 pub fn load_pretrained_weights(mut lpips: Lpips, net: LpipsNet) -> Lpips {
+    lpips =
+        try_load_pretrained_weights(lpips, net).expect("Failed to load pretrained LPIPS weights");
+    lpips
+}
+
+/// Download and load pretrained backbone and LPIPS linear-head weights.
+///
+/// Each checkpoint uses a stage filter and the store's default strict loading.
+/// Parameters outside that stage, such as backbone classifier weights, are ignored.
+/// Backbone cache filenames match the checkpoint URL filenames, including their hashes.
+///
+/// # Errors
+///
+/// Returns [`PytorchStoreError`] if reading or parsing a checkpoint fails,
+/// a tensor fails validation, or a required parameter is missing from either stage.
+///
+/// # Panics
+///
+/// Panics if the cache directory cannot be determined or created, or if
+/// downloading or writing a checkpoint to the cache fails.
+pub fn try_load_pretrained_weights(
+    mut lpips: Lpips,
+    net: LpipsNet,
+) -> Result<Lpips, PytorchStoreError> {
     let cache_dir = get_cache_dir();
 
     // Step 1: Load backbone ImageNet weights
     let backbone_url = get_backbone_weights_url(net);
-    let backbone_cache_path = cache_dir.join(format!("{:?}_backbone.pth", net).to_lowercase());
+    let backbone_cache_path = cache_dir.join(backbone_url.rsplit('/').next().unwrap());
     let backbone_message = match net {
         LpipsNet::Vgg => "Downloading VGG16 ImageNet weights...",
         LpipsNet::Alex => "Downloading AlexNet ImageNet weights...",
@@ -104,21 +133,21 @@ pub fn load_pretrained_weights(mut lpips: Lpips, net: LpipsNet) -> Lpips {
     download_if_needed(lpips_url, &lpips_cache_path, lpips_message);
 
     // Load backbone weights first
-    lpips = load_backbone_weights(lpips, &backbone_cache_path);
+    lpips = load_backbone_weights(lpips, &backbone_cache_path)?;
 
     // Then load LPIPS linear layer weights
-    lpips = load_lpips_weights(lpips, &lpips_cache_path);
+    lpips = load_lpips_weights(lpips, &lpips_cache_path)?;
 
-    lpips
+    Ok(lpips)
 }
 
 /// Load ImageNet pretrained backbone weights.
-fn load_backbone_weights(lpips: Lpips, cache_path: &PathBuf) -> Lpips {
+fn load_backbone_weights(lpips: Lpips, cache_path: &PathBuf) -> Result<Lpips, PytorchStoreError> {
     // Load directly into the inner struct to avoid enum variant issues
     match lpips {
         Lpips::Vgg(mut inner) => {
             let mut store = PytorchStore::from_file(cache_path)
-                .allow_partial(true)
+                .with_regex(r"^extractor\.")
                 // VGG16 features.X -> extractor.convY_Z
                 .with_key_remapping(r"^features\.0\.", "extractor.conv1_1.")
                 .with_key_remapping(r"^features\.2\.", "extractor.conv1_2.")
@@ -133,28 +162,24 @@ fn load_backbone_weights(lpips: Lpips, cache_path: &PathBuf) -> Lpips {
                 .with_key_remapping(r"^features\.24\.", "extractor.conv5_1.")
                 .with_key_remapping(r"^features\.26\.", "extractor.conv5_2.")
                 .with_key_remapping(r"^features\.28\.", "extractor.conv5_3.");
-            if let Err(e) = inner.load_from(&mut store) {
-                log::warn!("Some VGG backbone weights could not be loaded: {:?}", e);
-            }
-            Lpips::Vgg(inner)
+            inner.load_from(&mut store)?;
+            Ok(Lpips::Vgg(inner))
         }
         Lpips::Alex(mut inner) => {
             let mut store = PytorchStore::from_file(cache_path)
-                .allow_partial(true)
+                .with_regex(r"^extractor\.")
                 // AlexNet features.X -> extractor.convY
                 .with_key_remapping(r"^features\.0\.", "extractor.conv1.")
                 .with_key_remapping(r"^features\.3\.", "extractor.conv2.")
                 .with_key_remapping(r"^features\.6\.", "extractor.conv3.")
                 .with_key_remapping(r"^features\.8\.", "extractor.conv4.")
                 .with_key_remapping(r"^features\.10\.", "extractor.conv5.");
-            if let Err(e) = inner.load_from(&mut store) {
-                log::warn!("Some AlexNet backbone weights could not be loaded: {:?}", e);
-            }
-            Lpips::Alex(inner)
+            inner.load_from(&mut store)?;
+            Ok(Lpips::Alex(inner))
         }
         Lpips::Squeeze(mut inner) => {
             let mut store = PytorchStore::from_file(cache_path)
-                .allow_partial(true)
+                .with_regex(r"^extractor\.")
                 // SqueezeNet features.X -> extractor.*
                 .with_key_remapping(r"^features\.0\.", "extractor.conv1.")
                 .with_key_remapping(r"^features\.3\.", "extractor.fire1.")
@@ -165,50 +190,41 @@ fn load_backbone_weights(lpips: Lpips, cache_path: &PathBuf) -> Lpips {
                 .with_key_remapping(r"^features\.10\.", "extractor.fire6.")
                 .with_key_remapping(r"^features\.11\.", "extractor.fire7.")
                 .with_key_remapping(r"^features\.12\.", "extractor.fire8.");
-            if let Err(e) = inner.load_from(&mut store) {
-                log::warn!(
-                    "Some SqueezeNet backbone weights could not be loaded: {:?}",
-                    e
-                );
-            }
-            Lpips::Squeeze(inner)
+            inner.load_from(&mut store)?;
+            Ok(Lpips::Squeeze(inner))
         }
     }
 }
 
 /// Load LPIPS trained linear layer weights.
-fn load_lpips_weights(lpips: Lpips, cache_path: &PathBuf) -> Lpips {
+fn load_lpips_weights(lpips: Lpips, cache_path: &PathBuf) -> Result<Lpips, PytorchStoreError> {
     // Load directly into the inner struct to avoid enum variant issues
     match lpips {
         Lpips::Vgg(mut inner) => {
             let mut store = PytorchStore::from_file(cache_path)
-                .allow_partial(true)
+                .with_regex(r"^lin[0-6]\.")
                 .with_key_remapping(r"^lin0\.model\.1\.", "lin0.")
                 .with_key_remapping(r"^lin1\.model\.1\.", "lin1.")
                 .with_key_remapping(r"^lin2\.model\.1\.", "lin2.")
                 .with_key_remapping(r"^lin3\.model\.1\.", "lin3.")
                 .with_key_remapping(r"^lin4\.model\.1\.", "lin4.");
-            if let Err(e) = inner.load_from(&mut store) {
-                log::warn!("Some VGG LPIPS weights could not be loaded: {:?}", e);
-            }
-            Lpips::Vgg(inner)
+            inner.load_from(&mut store)?;
+            Ok(Lpips::Vgg(inner))
         }
         Lpips::Alex(mut inner) => {
             let mut store = PytorchStore::from_file(cache_path)
-                .allow_partial(true)
+                .with_regex(r"^lin[0-6]\.")
                 .with_key_remapping(r"^lin0\.model\.1\.", "lin0.")
                 .with_key_remapping(r"^lin1\.model\.1\.", "lin1.")
                 .with_key_remapping(r"^lin2\.model\.1\.", "lin2.")
                 .with_key_remapping(r"^lin3\.model\.1\.", "lin3.")
                 .with_key_remapping(r"^lin4\.model\.1\.", "lin4.");
-            if let Err(e) = inner.load_from(&mut store) {
-                log::warn!("Some AlexNet LPIPS weights could not be loaded: {:?}", e);
-            }
-            Lpips::Alex(inner)
+            inner.load_from(&mut store)?;
+            Ok(Lpips::Alex(inner))
         }
         Lpips::Squeeze(mut inner) => {
             let mut store = PytorchStore::from_file(cache_path)
-                .allow_partial(true)
+                .with_regex(r"^lin[0-6]\.")
                 .with_key_remapping(r"^lin0\.model\.1\.", "lin0.")
                 .with_key_remapping(r"^lin1\.model\.1\.", "lin1.")
                 .with_key_remapping(r"^lin2\.model\.1\.", "lin2.")
@@ -216,10 +232,8 @@ fn load_lpips_weights(lpips: Lpips, cache_path: &PathBuf) -> Lpips {
                 .with_key_remapping(r"^lin4\.model\.1\.", "lin4.")
                 .with_key_remapping(r"^lin5\.model\.1\.", "lin5.")
                 .with_key_remapping(r"^lin6\.model\.1\.", "lin6.");
-            if let Err(e) = inner.load_from(&mut store) {
-                log::warn!("Some SqueezeNet LPIPS weights could not be loaded: {:?}", e);
-            }
-            Lpips::Squeeze(inner)
+            inner.load_from(&mut store)?;
+            Ok(Lpips::Squeeze(inner))
         }
     }
 }

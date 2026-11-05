@@ -1,10 +1,86 @@
 use super::*;
 use alloc::{vec, vec::Vec};
+use burn_backend::ops::ModuleOps;
+use burn_dispatch::Dispatch;
 use burn_tensor::Shape;
 use burn_tensor::activation::gelu;
 use burn_tensor::module::conv2d;
 use burn_tensor::ops::ConvOptions;
 use burn_tensor::{TensorData, Tolerance};
+
+#[test]
+fn test_conv2d_bias_backward_channels_last() {
+    conv2d_bias_backward(channels_last_bias_output_grad())
+        .into_data()
+        .assert_eq(&TensorData::from([14.0, 16.0, 22.0]), false);
+}
+
+#[test]
+fn test_conv2d_bias_backward_bf16() {
+    let grad = channels_last_bias_output_grad();
+    if !grad.device().supports_dtype(burn_tensor::DType::BF16) {
+        return;
+    }
+    conv2d_bias_backward(grad.cast(burn_tensor::DType::BF16))
+        .into_data()
+        .assert_eq(&TensorData::from([14.0, 16.0, 22.0]), false);
+}
+
+#[test]
+fn test_conv2d_bias_backward_cancels_large_spatial_sums() {
+    // Each spatial sum in channel 0 overflows f16, but the complete sum is zero.
+    let grad = TestTensor::from_data(
+        [
+            [
+                [[32768.0; 4]; 2],
+                [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]],
+            ],
+            [
+                [[-32768.0; 4]; 2],
+                [[-1.0, -2.0, -3.0, -4.0], [-5.0, -6.0, -7.0, 8.0]],
+            ],
+        ],
+        &Default::default(),
+    );
+
+    conv2d_bias_backward(grad)
+        .into_data()
+        .assert_eq(&TensorData::from([0.0, 16.0]), false);
+}
+
+fn channels_last_bias_output_grad() -> TestTensor<4> {
+    // Store NHWC, then present NCHW.
+    TestTensor::from_data(
+        [
+            [
+                [[1.0, -5.0, 9.0], [2.0, 6.0, -10.0]],
+                [[-3.0, 7.0, 11.0], [4.0, -8.0, 12.0]],
+            ],
+            [
+                [[-2.0, 6.0, -10.0], [3.0, -7.0, 11.0]],
+                [[4.0, 8.0, 12.0], [5.0, 9.0, -13.0]],
+            ],
+        ],
+        &Default::default(),
+    )
+    .permute([0, 3, 1, 2])
+}
+
+fn conv2d_bias_backward(output_grad: TestTensor<4>) -> TestTensor<1> {
+    let device = output_grad.device();
+    let dtype = output_grad.dtype();
+    let [batch, channels, height, width] = output_grad.dims();
+    let input = TestTensor::<4>::zeros([batch, 1, height, width], (&device, dtype));
+    let bias = TestTensor::<1>::zeros([channels], (&device, dtype));
+    let actual = TestTensor::from_dispatch(Dispatch::conv2d_bias_backward(
+        input.into_dispatch(),
+        bias.into_dispatch(),
+        output_grad.into_dispatch(),
+    ));
+    assert_eq!(actual.dtype(), dtype);
+    assert_eq!(actual.device(), device);
+    actual
+}
 
 #[test]
 fn test_conv2d_simple() {
@@ -636,6 +712,142 @@ fn test_conv2d_complex() {
             [[14356., 28882., 14509.], [22651., 45454., 22777.]],
             [[23267., 47135., 23852.], [37232., 75263., 38006.]],
             [[32178., 65388., 33195.], [51813., 105072., 53235.]],
+        ],
+    ]));
+}
+
+#[test]
+fn test_conv2d_many_channels_strided() {
+    // More than 4 input channels, so Flex takes its generic im2col path
+    let test = Conv2dTestCase {
+        batch_size: 1,
+        channels_in: 5,
+        channels_out: 2,
+        kernel_size_1: 3,
+        kernel_size_2: 3,
+        padding_1: 1,
+        padding_2: 1,
+        stride_1: 2,
+        stride_2: 2,
+        dilation_1: 1,
+        dilation_2: 1,
+        groups: 1,
+        height: 4,
+        width: 5,
+    };
+
+    test.assert_output(TestTensor::from([[
+        [[27920., 42305., 28440.], [45195., 68160., 45615.]],
+        [[66621., 102381., 69841.], [113371., 173461., 117841.]],
+    ]]));
+}
+
+#[test]
+fn test_conv2d_many_channels_dilated_padding_beyond_kernel_reach() {
+    // Padding wider than the dilated kernel reach: the first and last output rows only see
+    // padding, so they are the bias alone
+    let test = Conv2dTestCase {
+        batch_size: 1,
+        channels_in: 5,
+        channels_out: 2,
+        kernel_size_1: 2,
+        kernel_size_2: 3,
+        padding_1: 3,
+        padding_2: 2,
+        stride_1: 1,
+        stride_2: 1,
+        dilation_1: 2,
+        dilation_2: 2,
+        groups: 1,
+        height: 3,
+        width: 3,
+    };
+
+    test.assert_output(TestTensor::from([[
+        [
+            [0., 0., 0.],
+            [4220., 2060., 4030.],
+            [4715., 2300., 4495.],
+            [8860., 4315., 8420.],
+            [4055., 1970., 3835.],
+            [4460., 2165., 4210.],
+            [0., 0., 0.],
+        ],
+        [
+            [1., 1., 1.],
+            [9921., 4911., 9731.],
+            [11316., 5601., 11096.],
+            [22061., 10916., 21621.],
+            [10656., 5271., 10436.],
+            [11961., 5916., 11711.],
+            [1., 1., 1.],
+        ],
+    ]]));
+}
+
+#[test]
+fn test_conv2d_many_channels_groups_batched() {
+    let test = Conv2dTestCase {
+        batch_size: 2,
+        channels_in: 6,
+        channels_out: 4,
+        kernel_size_1: 3,
+        kernel_size_2: 3,
+        padding_1: 1,
+        padding_2: 1,
+        stride_1: 1,
+        stride_2: 1,
+        dilation_1: 1,
+        dilation_2: 1,
+        groups: 2,
+        height: 3,
+        width: 3,
+    };
+
+    test.assert_output(TestTensor::from([
+        [
+            [
+                [2658., 4026., 2694.],
+                [4122., 6201., 4122.],
+                [2694., 4026., 2658.],
+            ],
+            [
+                [6223., 9616., 6583.],
+                [10198., 15679., 10684.],
+                [7231., 11074., 7519.],
+            ],
+            [
+                [32144., 48497., 32504.],
+                [49079., 74000., 49565.],
+                [33152., 49955., 33440.],
+            ],
+            [
+                [44457., 67209., 45141.],
+                [68277., 103161., 69249.],
+                [46437., 70125., 47049.],
+            ],
+        ],
+        [
+            [
+                [12378., 18120., 11766.],
+                [17244., 25155., 16272.],
+                [10470., 15204., 9786.],
+            ],
+            [
+                [33439., 49954., 33151.],
+                [49564., 73999., 49078.],
+                [32503., 48496., 32143.],
+            ],
+            [
+                [76856., 115079., 76568.],
+                [114689., 171686., 114203.],
+                [75920., 113621., 75560.],
+            ],
+            [
+                [106665., 160035., 106701.],
+                [160131., 240213., 160131.],
+                [106701., 160035., 106665.],
+            ],
         ],
     ]));
 }

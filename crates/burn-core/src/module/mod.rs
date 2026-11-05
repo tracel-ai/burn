@@ -1,6 +1,7 @@
 mod base;
 mod display;
 mod lora;
+pub mod parallel;
 mod param;
 mod quantize;
 

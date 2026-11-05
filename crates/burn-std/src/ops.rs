@@ -166,6 +166,160 @@ impl<const N: usize> From<ConvOptions<N>> for PaddedConvOptions<N> {
     }
 }
 
+/// Max pooling options.
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct MaxPoolOptions<const N: usize> {
+    /// Kernel size (non-zero).
+    pub kernel_size: [usize; N],
+
+    /// Stride (non-zero).
+    pub stride: [usize; N],
+
+    /// Padding as `(begin, end)` pairs for each spatial dimension.
+    pub padding: [(usize, usize); N],
+
+    /// Dilation (non-zero).
+    pub dilation: [usize; N],
+
+    /// If true, use ceiling instead of floor for output size calculation.
+    pub ceil_mode: bool,
+}
+
+impl<const N: usize> MaxPoolOptions<N> {
+    /// Constructs max pooling options with the given kernel size.
+    ///
+    /// Defaults to a stride equal to the kernel size, no padding, a dilation
+    /// of 1 and floor mode.
+    pub fn new(kernel_size: [usize; N]) -> Self {
+        let kernel_size = kernel_size.map(|k| check_nonzero(k, "kernel size must be non-zero"));
+        Self {
+            kernel_size,
+            stride: kernel_size,
+            padding: [(0, 0); N],
+            dilation: [1; N],
+            ceil_mode: false,
+        }
+    }
+
+    /// Sets the stride.
+    pub fn with_stride(mut self, stride: [usize; N]) -> Self {
+        self.stride = stride.map(|s| check_nonzero(s, "stride must be non-zero"));
+        self
+    }
+
+    /// Sets symmetric padding for every spatial dimension.
+    pub fn with_padding(mut self, padding: [usize; N]) -> Self {
+        self.padding = padding.map(|padding| (padding, padding));
+        self
+    }
+
+    /// Sets explicit `(begin, end)` padding for every spatial dimension.
+    pub fn with_padding_pairs(mut self, padding: [(usize, usize); N]) -> Self {
+        self.padding = padding;
+        self
+    }
+
+    /// Sets the dilation.
+    pub fn with_dilation(mut self, dilation: [usize; N]) -> Self {
+        self.dilation = dilation.map(|d| check_nonzero(d, "dilation must be non-zero"));
+        self
+    }
+
+    /// Sets whether to use ceiling instead of floor for output size calculation.
+    pub fn with_ceil_mode(mut self, ceil_mode: bool) -> Self {
+        self.ceil_mode = ceil_mode;
+        self
+    }
+
+    /// Returns true if padding is asymmetric.
+    pub fn is_asymmetric(&self) -> bool {
+        self.padding.iter().any(|(begin, end)| begin != end)
+    }
+}
+
+/// Average pooling options.
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct AvgPoolOptions<const N: usize> {
+    /// Kernel size (non-zero).
+    pub kernel_size: [usize; N],
+
+    /// Stride (non-zero).
+    pub stride: [usize; N],
+
+    /// Padding as `(begin, end)` pairs for each spatial dimension.
+    pub padding: [(usize, usize); N],
+
+    /// Dilation (non-zero).
+    pub dilation: [usize; N],
+
+    /// If true, padded values are counted in the denominator of the average.
+    pub count_include_pad: bool,
+
+    /// If true, use ceiling instead of floor for output size calculation.
+    pub ceil_mode: bool,
+}
+
+impl<const N: usize> AvgPoolOptions<N> {
+    /// Constructs average pooling options with the given kernel size.
+    ///
+    /// Defaults to a stride equal to the kernel size, no padding, a dilation
+    /// of 1, counting padded values in the average and floor mode.
+    pub fn new(kernel_size: [usize; N]) -> Self {
+        let kernel_size = kernel_size.map(|k| check_nonzero(k, "kernel size must be non-zero"));
+        Self {
+            kernel_size,
+            stride: kernel_size,
+            padding: [(0, 0); N],
+            dilation: [1; N],
+            count_include_pad: true,
+            ceil_mode: false,
+        }
+    }
+
+    /// Sets the stride.
+    pub fn with_stride(mut self, stride: [usize; N]) -> Self {
+        self.stride = stride.map(|s| check_nonzero(s, "stride must be non-zero"));
+        self
+    }
+
+    /// Sets symmetric padding for every spatial dimension.
+    pub fn with_padding(mut self, padding: [usize; N]) -> Self {
+        self.padding = padding.map(|padding| (padding, padding));
+        self
+    }
+
+    /// Sets explicit `(begin, end)` padding for every spatial dimension.
+    pub fn with_padding_pairs(mut self, padding: [(usize, usize); N]) -> Self {
+        self.padding = padding;
+        self
+    }
+
+    /// Sets the dilation.
+    ///
+    /// Window element `k` reads input position `start + k * dilation`, as in max pooling.
+    pub fn with_dilation(mut self, dilation: [usize; N]) -> Self {
+        self.dilation = dilation.map(|d| check_nonzero(d, "dilation must be non-zero"));
+        self
+    }
+
+    /// Sets whether padded values are counted in the denominator of the average.
+    pub fn with_count_include_pad(mut self, count_include_pad: bool) -> Self {
+        self.count_include_pad = count_include_pad;
+        self
+    }
+
+    /// Sets whether to use ceiling instead of floor for output size calculation.
+    pub fn with_ceil_mode(mut self, ceil_mode: bool) -> Self {
+        self.ceil_mode = ceil_mode;
+        self
+    }
+
+    /// Returns true if padding is asymmetric.
+    pub fn is_asymmetric(&self) -> bool {
+        self.padding.iter().any(|(begin, end)| begin != end)
+    }
+}
+
 /// Deformable convolution options.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct DeformConvOptions<const N: usize> {
@@ -268,68 +422,66 @@ impl UnfoldOptions {
 }
 
 /// Algorithm used.
-#[derive(new, Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum InterpolateMode {
-    /// Nearest-neighbor floor interpolation.
-    /// Matches the legacy behavior of OpenCV’s INTER_NEAREST. It results in a bottom-right shift when resizing.
-    /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
+    /// Nearest neighbor with asymmetric coordinates and floor rounding.
     Nearest,
-
-    /// Nearest-neighbor exact interpolation.
-    /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
+    /// Nearest neighbor with half-pixel coordinates and rounding ties upward.
     NearestExact,
-
     /// Bilinear interpolation.
-    /// <https://en.wikipedia.org/wiki/Bilinear_interpolation>
-    Bilinear,
+    Bilinear {
+        /// Mapping from output coordinates to input coordinates.
+        coordinate_transform: CoordinateTransformMode,
+    },
+    /// Bicubic interpolation with edge clamping.
+    Bicubic {
+        /// Mapping from output coordinates to input coordinates.
+        coordinate_transform: CoordinateTransformMode,
+        /// Cubic convolution coefficient. The conventional Burn value is `-0.75`.
+        a: f32,
+    },
+    /// Lanczos interpolation with a radius of three pixels.
+    Lanczos3 {
+        /// Mapping from output coordinates to input coordinates.
+        coordinate_transform: CoordinateTransformMode,
+    },
+}
 
-    /// Bicubic interpolation.
-    /// <https://en.wikipedia.org/wiki/Bicubic_interpolation>
-    Bicubic,
-
-    /// Lanczos3 interpolation (6-tap sinc-based filter).
-    /// <https://en.wikipedia.org/wiki/Lanczos_resampling>
-    Lanczos3,
+/// Coordinate transformation mode for bilinear, bicubic and Lanczos3 interpolation.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CoordinateTransformMode {
+    /// Half-pixel coordinate mapping: `(x_out + 0.5) / scale - 0.5`.
+    HalfPixel,
+    /// Align corners coordinate mapping: `x_out * (l_in - 1) / (l_out - 1)`.
+    AlignCorners,
 }
 
 /// Interpolation options.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct InterpolateOptions {
     /// Algorithm used.
     pub mode: InterpolateMode,
-    /// If `true`, the input and output tensors are aligned by their corner pixels.
-    /// If `false`, half-pixel coordinate mapping is used instead.
-    pub align_corners: bool,
     /// Output spatial size `[height, width]`.
     ///
     /// Exactly one of `output_size` or `scale_factor` must be set when calling
-    /// `burn_tensor::module::interpolate`. Backends receive the resolved size as a
-    /// separate argument and ignore this field.
+    /// `burn_tensor::module::interpolate`.
     pub output_size: Option<[usize; 2]>,
     /// Scale factor `[scale_height, scale_width]` applied to the input spatial size.
     /// The output size is `floor(input_size * scale_factor)`.
-    ///
-    /// Exactly one of `output_size` or `scale_factor` must be set when calling
-    /// `burn_tensor::module::interpolate`. Backends ignore this field.
+    /// Scale-dependent transforms use these supplied factors for coordinates rather
+    /// than recomputing the output/input ratio. `AlignCorners` maps coordinates
+    /// from the resolved sizes instead.
     pub scale_factor: Option<[f32; 2]>,
 }
 
 impl InterpolateOptions {
-    /// Create new interpolate options with the given mode.
-    /// Defaults to `align_corners = true` and no output size or scale factor.
+    /// Create interpolation options for the selected algorithm and its settings.
     pub fn new(mode: InterpolateMode) -> Self {
         Self {
             mode,
-            align_corners: true,
             output_size: None,
             scale_factor: None,
         }
-    }
-
-    /// Set align_corners.
-    pub fn with_align_corners(mut self, align_corners: bool) -> Self {
-        self.align_corners = align_corners;
-        self
     }
 
     /// Set the output size `[height, width]`, clearing any scale factor.
@@ -345,6 +497,15 @@ impl InterpolateOptions {
         self.output_size = None;
         self
     }
+}
+
+/// Interpolation algorithm for sampling an explicit coordinate grid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum GridSampleMode {
+    /// Nearest-neighbor sampling.
+    Nearest,
+    /// Bilinear sampling.
+    Bilinear,
 }
 
 /// Padding mode for grid sampling when coordinates are out of bounds.
@@ -364,8 +525,8 @@ pub enum GridSamplePaddingMode {
 /// Options for grid sampling operations.
 #[derive(Debug, Clone)]
 pub struct GridSampleOptions {
-    /// Interpolation mode (bilinear, nearest, or bicubic).
-    pub mode: InterpolateMode,
+    /// Interpolation mode (bilinear or nearest).
+    pub mode: GridSampleMode,
     /// Padding mode for out-of-bounds coordinates.
     pub padding_mode: GridSamplePaddingMode,
     /// If `true`, grid values of -1 and 1 correspond to the corner pixels.
@@ -377,15 +538,15 @@ pub struct GridSampleOptions {
 impl Default for GridSampleOptions {
     fn default() -> Self {
         Self {
-            mode: InterpolateMode::Bilinear,
+            mode: GridSampleMode::Bilinear,
             padding_mode: GridSamplePaddingMode::Zeros,
             align_corners: false,
         }
     }
 }
 
-impl From<InterpolateMode> for GridSampleOptions {
-    fn from(value: InterpolateMode) -> Self {
+impl From<GridSampleMode> for GridSampleOptions {
+    fn from(value: GridSampleMode) -> Self {
         GridSampleOptions::new(value)
     }
 }
@@ -394,7 +555,7 @@ impl GridSampleOptions {
     /// Create new grid sample options with the given interpolation mode.
     ///
     /// Uses default values for padding_mode (Zeros) and align_corners (false).
-    pub fn new(mode: InterpolateMode) -> Self {
+    pub fn new(mode: GridSampleMode) -> Self {
         Self {
             mode,
             ..Default::default()
@@ -476,7 +637,61 @@ pub struct AttentionModuleOptions {
     /// can only attend to key positions at or before it. This is more efficient than
     /// passing an explicit lower-triangular bool mask because backends can use optimized
     /// kernel paths (e.g. flash attention with causal mode).
+    ///
+    /// When `seq_q != seq_k`, [`causal_alignment`](Self::causal_alignment) decides which
+    /// query row lines up with which key column.
     pub is_causal: bool,
+
+    /// Where the causal diagonal is anchored when `seq_q != seq_k`. Ignored unless
+    /// `is_causal` is set. Both alignments agree when `seq_q == seq_k`.
+    ///
+    /// Options serialized before this field existed deserialize as
+    /// [`BottomRight`](CausalAlignment::BottomRight), the alignment burn used until then.
+    #[serde(default)]
+    pub causal_alignment: CausalAlignment,
+
+    /// Sliding window over the key axis: each query attends to at most this many keys,
+    /// ending at its own position. `None` disables the window; `Some(0)` is invalid.
+    ///
+    /// The window is always bottom-right aligned: query `i` sees the keys in
+    /// `[i + seq_kv - seq_q - (w - 1), i + seq_kv - seq_q]`. This alignment does not depend on
+    /// [`causal_alignment`](Self::causal_alignment), which only places the causal edge.
+    ///
+    /// With [`CausalAlignment::BottomRight`], the window subsumes the causal edge, so enabling
+    /// `is_causal` does not change the visible set. With [`CausalAlignment::TopLeft`] and
+    /// `seq_q != seq_k`, the masks intersect: the causal edge can hide keys the window keeps and,
+    /// when the window starts after the query's own position, every key of a row.
+    #[serde(default)]
+    pub sliding_window: Option<u32>,
+}
+
+/// Anchor of the causal diagonal for [`AttentionModuleOptions::is_causal`].
+///
+/// Query `i` may attend key `j` iff `j <= i + offset`, where `offset` is `0` for
+/// [`TopLeft`](Self::TopLeft) and `seq_k - seq_q` for [`BottomRight`](Self::BottomRight).
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, serde::Deserialize, serde::Serialize,
+)]
+pub enum CausalAlignment {
+    /// The last query row sees every key: `offset = seq_k - seq_q`. This is the
+    /// KV-cache convention (the queries are the newest `seq_q` positions), used by
+    /// FlashAttention 2.1+ and by ONNX `Attention` when a `past_key` is supplied.
+    #[default]
+    BottomRight,
+    /// The first query row sees the first key: `offset = 0` (`tril` on `[seq_q, seq_k]`).
+    /// This is PyTorch's `scaled_dot_product_attention(is_causal=True)` and ONNX
+    /// `Attention` without a KV cache.
+    TopLeft,
+}
+
+impl CausalAlignment {
+    /// The offset of the causal diagonal: query `i` may attend key `j` iff `j <= i + offset`.
+    pub fn offset(self, seq_q: usize, seq_k: usize) -> i64 {
+        match self {
+            CausalAlignment::BottomRight => seq_k as i64 - seq_q as i64,
+            CausalAlignment::TopLeft => 0,
+        }
+    }
 }
 
 /// Computation to be used to update the existing values in indexed assignment operations (scatter/select).
@@ -564,6 +779,56 @@ mod tests {
     #[should_panic = "groups must be non-zero"]
     fn conv_options_groups_zero() {
         let _opt = ConvOptions::new([1, 1], [0, 0], [1, 1], 0);
+    }
+
+    #[test]
+    fn pool_options_defaults() {
+        let max = MaxPoolOptions::new([2, 3]);
+        let avg = AvgPoolOptions::new([2, 3]);
+
+        assert_eq!(max.stride, [2, 3]);
+        assert_eq!(max.padding, [(0, 0), (0, 0)]);
+        assert_eq!(max.dilation, [1, 1]);
+        assert!(!max.ceil_mode);
+        assert_eq!(avg.stride, [2, 3]);
+        assert_eq!(avg.padding, [(0, 0), (0, 0)]);
+        assert_eq!(avg.dilation, [1, 1]);
+        assert!(avg.count_include_pad);
+        assert!(!avg.ceil_mode);
+    }
+
+    #[test]
+    fn pool_options_padding() {
+        let symmetric = MaxPoolOptions::new([2, 2]).with_padding([0, 1]);
+        let asymmetric = AvgPoolOptions::new([2]).with_padding_pairs([(0, 1)]);
+
+        assert_eq!(symmetric.padding, [(0, 0), (1, 1)]);
+        assert!(!symmetric.is_asymmetric());
+        assert!(asymmetric.is_asymmetric());
+    }
+
+    #[test]
+    #[should_panic = "kernel size must be non-zero"]
+    fn max_pool_options_kernel_size_zero() {
+        let _opt = MaxPoolOptions::new([0, 1]);
+    }
+
+    #[test]
+    #[should_panic = "dilation must be non-zero"]
+    fn max_pool_options_dilation_zero() {
+        let _opt = MaxPoolOptions::new([1, 1]).with_dilation([0, 1]);
+    }
+
+    #[test]
+    #[should_panic = "dilation must be non-zero"]
+    fn avg_pool_options_dilation_zero() {
+        let _opt = AvgPoolOptions::new([1, 1]).with_dilation([0, 1]);
+    }
+
+    #[test]
+    #[should_panic = "stride must be non-zero"]
+    fn avg_pool_options_stride_zero() {
+        let _opt = AvgPoolOptions::new([1, 1]).with_stride([0, 1]);
     }
 
     #[test]

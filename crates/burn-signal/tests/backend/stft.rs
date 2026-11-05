@@ -208,11 +208,17 @@ fn stft_rejects_zero_nfft() {
 }
 
 #[test]
-#[should_panic(expected = "power of two")]
-fn stft_rejects_non_power_of_two_nfft() {
-    // n_fft=5 is not a power of two; should hard-fail in StftOptions::assert_valid.
-    let signal = TestTensor::<2>::from([[1.0; 8]]);
-    let _ = stft(signal, None, opts(5, 1, false, true));
+fn stft_istft_roundtrip_non_power_of_two_nfft() {
+    // n_fft=5 is handled through Bluestein's algorithm instead of a panic.
+    let original = TestTensor::<2>::from([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]]);
+    let o = opts(5, 1, false, true);
+    let spectrum = stft(original.clone(), None, o);
+    assert_eq!(spectrum.dims(), [1, 4, 3, 2]);
+    let reconstructed = istft(spectrum, None, Some(8), o);
+
+    reconstructed
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&original.into_data(), Tolerance::absolute(1e-2));
 }
 
 #[test]

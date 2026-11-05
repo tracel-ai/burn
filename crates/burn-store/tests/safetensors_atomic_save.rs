@@ -9,12 +9,18 @@ use burn_core as burn;
 
 use burn_core::module::{Module, Param, ParamId};
 use burn_core::tensor::{DType, Device, Tensor, TensorData};
-use burn_pack::Tensor as PackTensor;
-use burn_store::{ModuleAdapter, ModuleContext, ModuleSnapshot, SafetensorsStore};
+use burn_store::{ModuleAdapter, ModuleContext, ModuleSnapshot, SafetensorsStore, StoreTensor};
 
 #[derive(Module, Debug)]
 struct Model {
     w: Param<Tensor<1>>,
+}
+
+#[derive(Module, Debug)]
+struct MultiTensorModel {
+    first: Param<Tensor<1>>,
+    second: Param<Tensor<1>>,
+    third: Param<Tensor<1>>,
 }
 
 fn model(device: &Device) -> Model {
@@ -26,20 +32,29 @@ fn model(device: &Device) -> Model {
     }
 }
 
+fn multi_tensor_model(device: &Device) -> MultiTensorModel {
+    MultiTensorModel {
+        first: Param::initialized(ParamId::new(), Tensor::from_data([1.0, 2.0], device)),
+        second: Param::initialized(ParamId::new(), Tensor::from_data([3.0, 4.0], device)),
+        third: Param::initialized(ParamId::new(), Tensor::from_data([5.0, 6.0], device)),
+    }
+}
+
 /// Replaces each tensor with one whose data cannot be produced, standing in for a device
 /// readback that fails partway through a save.
 #[derive(Debug, Clone, Default)]
 struct FailingAdapter;
 
 impl ModuleAdapter for FailingAdapter {
-    fn adapt(&self, tensor: PackTensor, _ctx: ModuleContext<'_>) -> PackTensor {
+    fn adapt(&self, tensor: StoreTensor, _ctx: ModuleContext<'_>) -> StoreTensor {
         burn_store::bridge::deferred(
-            tensor.name.clone(),
+            tensor.name().to_string(),
             DType::F32,
-            tensor.shape.clone(),
+            tensor.shape().into(),
             None,
             || Err(burn_pack::Error::IoError("device readback failed".into())),
         )
+        .into()
     }
 
     fn clone_box(&self) -> Box<dyn ModuleAdapter> {
@@ -55,19 +70,20 @@ struct PlantingAdapter {
 }
 
 impl ModuleAdapter for PlantingAdapter {
-    fn adapt(&self, tensor: PackTensor, _ctx: ModuleContext<'_>) -> PackTensor {
+    fn adapt(&self, tensor: StoreTensor, _ctx: ModuleContext<'_>) -> StoreTensor {
         let dest = self.dest.clone();
-        let shape = tensor.shape.clone();
+        let shape = tensor.shape().to_vec();
         burn_store::bridge::deferred(
-            tensor.name.clone(),
+            tensor.name().to_string(),
             DType::F32,
-            tensor.shape.clone(),
+            tensor.shape().into(),
             None,
             move || {
                 std::fs::write(&dest, b"theirs").unwrap();
                 Ok(TensorData::zeros::<f32, _>(shape.clone()))
             },
         )
+        .into()
     }
 
     fn clone_box(&self) -> Box<dyn ModuleAdapter> {
@@ -147,6 +163,37 @@ fn a_successful_save_lands_at_the_destination() {
 
     // Nothing but the container itself.
     assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+}
+
+/// Every deferred tensor reads its own validated byte range from the shared container.
+#[test]
+fn loading_multiple_tensors_uses_each_tensor_data_range() {
+    let device: Device = Default::default();
+    let model = multi_tensor_model(&device);
+    let mut store = SafetensorsStore::from_bytes(None);
+    model.save_into(&mut store).unwrap();
+    let bytes = store.get_bytes().unwrap();
+
+    let mut loaded = MultiTensorModel {
+        first: Param::initialized(ParamId::new(), Tensor::zeros([2], &device)),
+        second: Param::initialized(ParamId::new(), Tensor::zeros([2], &device)),
+        third: Param::initialized(ParamId::new(), Tensor::zeros([2], &device)),
+    };
+    let mut store = SafetensorsStore::from_bytes(Some(bytes));
+    loaded.load_from(&mut store).unwrap();
+
+    assert_eq!(
+        loaded.first.val().to_data().try_to_vec::<f32>().unwrap(),
+        vec![1.0, 2.0]
+    );
+    assert_eq!(
+        loaded.second.val().to_data().try_to_vec::<f32>().unwrap(),
+        vec![3.0, 4.0]
+    );
+    assert_eq!(
+        loaded.third.val().to_data().try_to_vec::<f32>().unwrap(),
+        vec![5.0, 6.0]
+    );
 }
 
 /// Saving replaces the destination rather than truncating it, so the new file is a new inode.

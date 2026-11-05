@@ -9,7 +9,8 @@ use burn_backend::{
     ops::{
         AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
         DeformConvOptions, FloatTensorOps, IntTensorOps, InterpolateMode, InterpolateOptions,
-        MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, conv::pad_asymmetric_conv_input,
+        MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices,
+        ModuleOps, conv::pad_asymmetric_conv_input,
     },
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
@@ -311,6 +312,7 @@ impl ModuleOps<Flex> for Flex {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Flex> {
@@ -320,6 +322,7 @@ impl ModuleOps<Flex> for Flex {
                 kernel_size,
                 stride,
                 padding,
+                dilation,
                 count_include_pad,
                 ceil_mode,
             ),
@@ -328,6 +331,7 @@ impl ModuleOps<Flex> for Flex {
                 kernel_size,
                 stride,
                 padding,
+                dilation,
                 count_include_pad,
                 ceil_mode,
             ),
@@ -336,6 +340,7 @@ impl ModuleOps<Flex> for Flex {
                 kernel_size,
                 stride,
                 padding,
+                dilation,
                 count_include_pad,
                 ceil_mode,
             ),
@@ -344,6 +349,7 @@ impl ModuleOps<Flex> for Flex {
                 kernel_size,
                 stride,
                 padding,
+                dilation,
                 count_include_pad,
                 ceil_mode,
             ),
@@ -357,6 +363,7 @@ impl ModuleOps<Flex> for Flex {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         _divisor_override: bool,
     ) -> FloatTensor<Flex> {
@@ -367,6 +374,7 @@ impl ModuleOps<Flex> for Flex {
                 kernel_size,
                 stride,
                 padding,
+                dilation,
                 count_include_pad,
             ),
             DType::F64 => pool::avg_pool2d_backward_f64(
@@ -375,6 +383,7 @@ impl ModuleOps<Flex> for Flex {
                 kernel_size,
                 stride,
                 padding,
+                dilation,
                 count_include_pad,
             ),
             DType::F16 => pool::avg_pool2d_backward_f16(
@@ -383,6 +392,7 @@ impl ModuleOps<Flex> for Flex {
                 kernel_size,
                 stride,
                 padding,
+                dilation,
                 count_include_pad,
             ),
             DType::BF16 => pool::avg_pool2d_backward_bf16(
@@ -391,9 +401,111 @@ impl ModuleOps<Flex> for Flex {
                 kernel_size,
                 stride,
                 padding,
+                dilation,
                 count_include_pad,
             ),
             dtype => panic!("avg_pool2d_backward: unsupported dtype {:?}", dtype),
+        }
+    }
+
+    fn avg_pool3d(
+        x: FloatTensor<Flex>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<Flex> {
+        match x.dtype() {
+            DType::F32 => pool::avg_pool3d_f32(
+                x,
+                kernel_size,
+                stride,
+                padding,
+                dilation,
+                count_include_pad,
+                ceil_mode,
+            ),
+            DType::F64 => pool::avg_pool3d_f64(
+                x,
+                kernel_size,
+                stride,
+                padding,
+                dilation,
+                count_include_pad,
+                ceil_mode,
+            ),
+            DType::F16 => pool::avg_pool3d_f16(
+                x,
+                kernel_size,
+                stride,
+                padding,
+                dilation,
+                count_include_pad,
+                ceil_mode,
+            ),
+            DType::BF16 => pool::avg_pool3d_bf16(
+                x,
+                kernel_size,
+                stride,
+                padding,
+                dilation,
+                count_include_pad,
+                ceil_mode,
+            ),
+            dtype => panic!("avg_pool3d: unsupported dtype {:?}", dtype),
+        }
+    }
+
+    fn avg_pool3d_backward(
+        x: FloatTensor<Flex>,
+        grad: FloatTensor<Flex>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        count_include_pad: bool,
+        _ceil_mode: bool,
+    ) -> FloatTensor<Flex> {
+        match x.dtype() {
+            DType::F32 => pool::avg_pool3d_backward_f32(
+                x,
+                grad,
+                kernel_size,
+                stride,
+                padding,
+                dilation,
+                count_include_pad,
+            ),
+            DType::F64 => pool::avg_pool3d_backward_f64(
+                x,
+                grad,
+                kernel_size,
+                stride,
+                padding,
+                dilation,
+                count_include_pad,
+            ),
+            DType::F16 => pool::avg_pool3d_backward_f16(
+                x,
+                grad,
+                kernel_size,
+                stride,
+                padding,
+                dilation,
+                count_include_pad,
+            ),
+            DType::BF16 => pool::avg_pool3d_backward_bf16(
+                x,
+                grad,
+                kernel_size,
+                stride,
+                padding,
+                dilation,
+                count_include_pad,
+            ),
+            dtype => panic!("avg_pool3d_backward: unsupported dtype {:?}", dtype),
         }
     }
 
@@ -547,59 +659,157 @@ impl ModuleOps<Flex> for Flex {
         MaxPool2dBackward::new(x_grad)
     }
 
+    fn max_pool3d(
+        x: FloatTensor<Flex>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+    ) -> FloatTensor<Flex> {
+        match x.dtype() {
+            DType::F32 => {
+                pool::max_pool3d_f32(x, kernel_size, stride, padding, dilation, ceil_mode)
+            }
+            DType::F64 => {
+                pool::max_pool3d_f64(x, kernel_size, stride, padding, dilation, ceil_mode)
+            }
+            DType::F16 => {
+                pool::max_pool3d_f16(x, kernel_size, stride, padding, dilation, ceil_mode)
+            }
+            DType::BF16 => {
+                pool::max_pool3d_bf16(x, kernel_size, stride, padding, dilation, ceil_mode)
+            }
+            dtype => panic!("max_pool3d: unsupported dtype {:?}", dtype),
+        }
+    }
+
+    fn max_pool3d_with_indices(
+        x: FloatTensor<Flex>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        indices_dtype: IntDType,
+    ) -> MaxPool3dWithIndices<Flex> {
+        let (output, mut indices) = match x.dtype() {
+            DType::F32 => pool::max_pool3d_with_indices_f32(
+                x,
+                kernel_size,
+                stride,
+                padding,
+                dilation,
+                ceil_mode,
+            ),
+            DType::F64 => pool::max_pool3d_with_indices_f64(
+                x,
+                kernel_size,
+                stride,
+                padding,
+                dilation,
+                ceil_mode,
+            ),
+            DType::F16 => pool::max_pool3d_with_indices_f16(
+                x,
+                kernel_size,
+                stride,
+                padding,
+                dilation,
+                ceil_mode,
+            ),
+            DType::BF16 => pool::max_pool3d_with_indices_bf16(
+                x,
+                kernel_size,
+                stride,
+                padding,
+                dilation,
+                ceil_mode,
+            ),
+            dtype => panic!("max_pool3d_with_indices: unsupported dtype {:?}", dtype),
+        };
+        if indices.dtype() != DType::from(indices_dtype) {
+            indices = Flex::int_cast(indices, indices_dtype);
+        }
+        MaxPool3dWithIndices::new(output, indices)
+    }
+
+    fn max_pool3d_with_indices_backward(
+        x: FloatTensor<Flex>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _dilation: [usize; 3],
+        _ceil_mode: bool,
+        output_grad: FloatTensor<Flex>,
+        indices: IntTensor<Flex>,
+    ) -> MaxPool3dBackward<Flex> {
+        let x_grad = match x.dtype() {
+            DType::F32 => pool::max_pool3d_backward_f32(x, output_grad, indices),
+            DType::F64 => pool::max_pool3d_backward_f64(x, output_grad, indices),
+            DType::F16 => pool::max_pool3d_backward_f16(x, output_grad, indices),
+            DType::BF16 => pool::max_pool3d_backward_bf16(x, output_grad, indices),
+            dtype => panic!(
+                "max_pool3d_with_indices_backward: unsupported dtype {:?}",
+                dtype
+            ),
+        };
+        MaxPool3dBackward::new(x_grad)
+    }
+
     fn interpolate(
         x: FloatTensor<Flex>,
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<Flex> {
         match (options.mode, x.dtype()) {
-            (InterpolateMode::Nearest, DType::F32) => {
-                interpolate::interpolate_nearest_f32(x, output_size, options.align_corners)
+            (InterpolateMode::Nearest | InterpolateMode::NearestExact, DType::F32) => {
+                interpolate::interpolate_nearest_f32(x, output_size, &options)
             }
-            (InterpolateMode::Nearest, DType::F64) => {
-                interpolate::interpolate_nearest_f64(x, output_size, options.align_corners)
+            (InterpolateMode::Nearest | InterpolateMode::NearestExact, DType::F64) => {
+                interpolate::interpolate_nearest_f64(x, output_size, &options)
             }
-            (InterpolateMode::Nearest, DType::F16) => {
-                interpolate::interpolate_nearest_f16(x, output_size, options.align_corners)
+            (InterpolateMode::Nearest | InterpolateMode::NearestExact, DType::F16) => {
+                interpolate::interpolate_nearest_f16(x, output_size, &options)
             }
-            (InterpolateMode::Nearest, DType::BF16) => {
-                interpolate::interpolate_nearest_bf16(x, output_size, options.align_corners)
+            (InterpolateMode::Nearest | InterpolateMode::NearestExact, DType::BF16) => {
+                interpolate::interpolate_nearest_bf16(x, output_size, &options)
             }
-            (InterpolateMode::Bilinear, DType::F32) => {
-                interpolate::interpolate_bilinear_f32(x, output_size, options.align_corners)
+            (InterpolateMode::Bilinear { .. }, DType::F32) => {
+                interpolate::interpolate_bilinear_f32(x, output_size, &options)
             }
-            (InterpolateMode::Bilinear, DType::F64) => {
-                interpolate::interpolate_bilinear_f64(x, output_size, options.align_corners)
+            (InterpolateMode::Bilinear { .. }, DType::F64) => {
+                interpolate::interpolate_bilinear_f64(x, output_size, &options)
             }
-            (InterpolateMode::Bilinear, DType::F16) => {
-                interpolate::interpolate_bilinear_f16(x, output_size, options.align_corners)
+            (InterpolateMode::Bilinear { .. }, DType::F16) => {
+                interpolate::interpolate_bilinear_f16(x, output_size, &options)
             }
-            (InterpolateMode::Bilinear, DType::BF16) => {
-                interpolate::interpolate_bilinear_bf16(x, output_size, options.align_corners)
+            (InterpolateMode::Bilinear { .. }, DType::BF16) => {
+                interpolate::interpolate_bilinear_bf16(x, output_size, &options)
             }
-            (InterpolateMode::Bicubic, DType::F32) => {
-                interpolate::interpolate_bicubic_f32(x, output_size, options.align_corners)
+            (InterpolateMode::Bicubic { .. }, DType::F32) => {
+                interpolate::interpolate_bicubic_f32(x, output_size, &options)
             }
-            (InterpolateMode::Bicubic, DType::F64) => {
-                interpolate::interpolate_bicubic_f64(x, output_size, options.align_corners)
+            (InterpolateMode::Bicubic { .. }, DType::F64) => {
+                interpolate::interpolate_bicubic_f64(x, output_size, &options)
             }
-            (InterpolateMode::Bicubic, DType::F16) => {
-                interpolate::interpolate_bicubic_f16(x, output_size, options.align_corners)
+            (InterpolateMode::Bicubic { .. }, DType::F16) => {
+                interpolate::interpolate_bicubic_f16(x, output_size, &options)
             }
-            (InterpolateMode::Bicubic, DType::BF16) => {
-                interpolate::interpolate_bicubic_bf16(x, output_size, options.align_corners)
+            (InterpolateMode::Bicubic { .. }, DType::BF16) => {
+                interpolate::interpolate_bicubic_bf16(x, output_size, &options)
             }
-            (InterpolateMode::Lanczos3, DType::F32) => {
-                interpolate::interpolate_lanczos3_f32(x, output_size, options.align_corners)
+            (InterpolateMode::Lanczos3 { .. }, DType::F32) => {
+                interpolate::interpolate_lanczos3_f32(x, output_size, &options)
             }
-            (InterpolateMode::Lanczos3, DType::F64) => {
-                interpolate::interpolate_lanczos3_f64(x, output_size, options.align_corners)
+            (InterpolateMode::Lanczos3 { .. }, DType::F64) => {
+                interpolate::interpolate_lanczos3_f64(x, output_size, &options)
             }
-            (InterpolateMode::Lanczos3, DType::F16) => {
-                interpolate::interpolate_lanczos3_f16(x, output_size, options.align_corners)
+            (InterpolateMode::Lanczos3 { .. }, DType::F16) => {
+                interpolate::interpolate_lanczos3_f16(x, output_size, &options)
             }
-            (InterpolateMode::Lanczos3, DType::BF16) => {
-                interpolate::interpolate_lanczos3_bf16(x, output_size, options.align_corners)
+            (InterpolateMode::Lanczos3 { .. }, DType::BF16) => {
+                interpolate::interpolate_lanczos3_bf16(x, output_size, &options)
             }
             (mode, dtype) => panic!(
                 "interpolate: unsupported mode {:?} / dtype {:?}",
@@ -615,101 +825,41 @@ impl ModuleOps<Flex> for Flex {
         options: InterpolateOptions,
     ) -> FloatTensor<Flex> {
         match (options.mode, x.dtype()) {
-            (InterpolateMode::Nearest, DType::F32) => {
-                interpolate::interpolate_nearest_backward_f32(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+            (InterpolateMode::Nearest | InterpolateMode::NearestExact, DType::F32) => {
+                interpolate::interpolate_nearest_backward_f32(x, grad, output_size, &options)
             }
-            (InterpolateMode::Nearest, DType::F64) => {
-                interpolate::interpolate_nearest_backward_f64(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+            (InterpolateMode::Nearest | InterpolateMode::NearestExact, DType::F64) => {
+                interpolate::interpolate_nearest_backward_f64(x, grad, output_size, &options)
             }
-            (InterpolateMode::Nearest, DType::F16) => {
-                interpolate::interpolate_nearest_backward_f16(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+            (InterpolateMode::Nearest | InterpolateMode::NearestExact, DType::F16) => {
+                interpolate::interpolate_nearest_backward_f16(x, grad, output_size, &options)
             }
-            (InterpolateMode::Nearest, DType::BF16) => {
-                interpolate::interpolate_nearest_backward_bf16(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+            (InterpolateMode::Nearest | InterpolateMode::NearestExact, DType::BF16) => {
+                interpolate::interpolate_nearest_backward_bf16(x, grad, output_size, &options)
             }
-            (InterpolateMode::Bilinear, DType::F32) => {
-                interpolate::interpolate_bilinear_backward_f32(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+            (InterpolateMode::Bilinear { .. }, DType::F32) => {
+                interpolate::interpolate_bilinear_backward_f32(x, grad, output_size, &options)
             }
-            (InterpolateMode::Bilinear, DType::F64) => {
-                interpolate::interpolate_bilinear_backward_f64(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+            (InterpolateMode::Bilinear { .. }, DType::F64) => {
+                interpolate::interpolate_bilinear_backward_f64(x, grad, output_size, &options)
             }
-            (InterpolateMode::Bilinear, DType::F16) => {
-                interpolate::interpolate_bilinear_backward_f16(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+            (InterpolateMode::Bilinear { .. }, DType::F16) => {
+                interpolate::interpolate_bilinear_backward_f16(x, grad, output_size, &options)
             }
-            (InterpolateMode::Bilinear, DType::BF16) => {
-                interpolate::interpolate_bilinear_backward_bf16(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+            (InterpolateMode::Bilinear { .. }, DType::BF16) => {
+                interpolate::interpolate_bilinear_backward_bf16(x, grad, output_size, &options)
             }
-            (InterpolateMode::Bicubic, DType::F32) => {
-                interpolate::interpolate_bicubic_backward_f32(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+            (InterpolateMode::Bicubic { .. }, DType::F32) => {
+                interpolate::interpolate_bicubic_backward_f32(x, grad, output_size, &options)
             }
-            (InterpolateMode::Bicubic, DType::F64) => {
-                interpolate::interpolate_bicubic_backward_f64(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+            (InterpolateMode::Bicubic { .. }, DType::F64) => {
+                interpolate::interpolate_bicubic_backward_f64(x, grad, output_size, &options)
             }
-            (InterpolateMode::Bicubic, DType::F16) => {
-                interpolate::interpolate_bicubic_backward_f16(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+            (InterpolateMode::Bicubic { .. }, DType::F16) => {
+                interpolate::interpolate_bicubic_backward_f16(x, grad, output_size, &options)
             }
-            (InterpolateMode::Bicubic, DType::BF16) => {
-                interpolate::interpolate_bicubic_backward_bf16(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+            (InterpolateMode::Bicubic { .. }, DType::BF16) => {
+                interpolate::interpolate_bicubic_backward_bf16(x, grad, output_size, &options)
             }
             (mode, dtype) => {
                 panic!(

@@ -2,10 +2,8 @@ use super::*;
 use burn_tensor::quantization::QuantValue;
 use burn_tensor::{DType, Element, TensorData, Tolerance};
 
-// BitNet b1.58 ternary weights (`Q2S`, values in {-1, 0, +1}) take the ndarray backend's native
-// multiply-free matmul path (`NdArray::q_matmul`): `+1 => add`, `-1 => subtract`, `0 => skip`, then
-// one per-tensor scale at the end. These tests pin its guarantee — the result matches the
-// dequantize-then-float-matmul path within f32 rounding — and that an all-zero weight is exactly 0.
+// Compare BitNet b1.58 ternary weights against dequantize-then-matmul on Flex,
+// including all-zero weights.
 
 #[test]
 fn q2s_ternary_matmul_matches_dequantized() {
@@ -42,7 +40,7 @@ fn q2s_ternary_matmul_matches_dequantized() {
         .with_value(QuantValue::Q2S);
     let wq = w.quantize_dynamic(&scheme);
 
-    // Native path (multiply-free skip/add/sub) vs. dequantize-then-float-matmul reference.
+    // Quantized matmul vs. dequantize-then-float-matmul reference.
     let native = a.clone().matmul(wq.clone());
     let reference = a.matmul(wq.dequantize());
 

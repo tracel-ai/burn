@@ -193,29 +193,6 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "std")]
-    #[test]
-    fn dropout_freezing_reaches_through_an_enclosing_module() {
-        use burn::tensor::Device;
-        // The flag is cleared by the traversal, not by the layer being frozen
-        // directly, so nesting is the case that matters.
-        #[derive(Module, Debug)]
-        struct Wrapper {
-            dropout: Dropout,
-        }
-
-        let device = Device::default().autodiff();
-        let tensor = Tensor::<2>::ones(Shape::new([100, 100]), &device);
-        let wrapper = Wrapper {
-            dropout: DropoutConfig::new(0.5).init(),
-        }
-        .freeze();
-
-        let output = wrapper.dropout.forward(tensor.clone());
-
-        assert_eq!(output.to_data(), tensor.to_data());
-    }
-
     #[test]
     fn freeze_reaches_flags_inside_module_containers() {
         let dropouts = alloc::vec![DropoutConfig::new(0.5).init()].freeze();

@@ -193,7 +193,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
             let docs = field.docs();
 
             body.extend(quote! {
-                #name: #name,
+                #name,
             });
             args.push(quote! {
                 #name: #ty

@@ -1,7 +1,7 @@
 # Runtime Configuration
 
-Burn provides runtime configuration for autotuning, profiling, logging, operation fusion, and
-remote-backend batching.
+Burn provides runtime configuration for matmul precision, autotuning, profiling, logging, operation
+fusion, and remote-backend batching.
 
 ## Overview
 
@@ -24,6 +24,9 @@ with a warning.
 A typical `burn.toml` file might look like this:
 
 ```toml
+[cubek.matmul]
+allow_tf32 = true
+
 [cubecl.autotune]
 level = "balanced"
 
@@ -44,11 +47,30 @@ flush_bytes_threshold = 1048576
 Each section configures a different aspect of Burn:
 
 - **cubecl**: Configures autotuning, profiling, compilation, and memory for CubeCL backends.
+- **cubek**: Configures CubeK kernels used by CubeCL backends, including matmul precision.
 - **fusion**: Controls operation fusion and its logging.
 - **autodiff**: Controls automatic differentiation logging.
 - **remote**: Configures remote-backend batching and logging.
 
 ## Configuration Options
+
+### CubeK Matmul Precision
+
+On supported devices, CubeK permits automatic F32-to-TF32 conversion for accelerated matrix
+multiplication by default. To preserve F32 operands during automatic selection, add:
+
+```toml
+# burn.toml
+[cubek.matmul]
+allow_tf32 = false
+```
+
+`allow_tf32` defaults to `true`. Disabling it may reduce performance. It applies to CubeK matmul
+with or without fusion and autotuning.
+
+At each directory level, CubeK checks `cubek.toml` and `CubeK.toml` before `[cubek]` in `burn.toml`
+or `Burn.toml`, then searches parent directories. Files are not merged. Standalone CubeK files use
+`[matmul]` without the `cubek.` prefix.
 
 ### CubeCL
 
@@ -63,6 +85,30 @@ version used by Burn.
 At each directory level, CubeCL checks `cubecl.toml` and `CubeCL.toml` before the `[cubecl]` section
 in `burn.toml` or `Burn.toml`, then searches parent directories. It uses the first valid
 configuration; separate files and embedded sections are not merged.
+
+#### Persistent caches
+
+The `persistence` Cargo feature enables persistent caches for selected CubeCL backends. It forwards
+to `cubecl/persistence`:
+
+```toml
+[dependencies]
+burn = { version = "0.22", default-features = false, features = ["std", "cuda", "persistence"] }
+```
+
+Runtime configuration controls which caches are used. Persistent autotune results are enabled by
+default when persistence is available. Compiled-kernel caching is opt-in:
+
+```toml
+# burn.toml
+[cubecl.compilation]
+cache = true
+```
+
+To rerun autotuning in each process while retaining compiled kernels, also set
+`disable_cache = true` under `[cubecl.autotune]`. In-memory caches remain active. Persistent
+compiled-kernel caching requires a supported native target; runtime settings cannot enable a cache
+whose persistence support was compiled out.
 
 ### Fusion
 
@@ -119,7 +165,8 @@ logger = { level = "basic", stderr = true }
 
 ### Remote Backend
 
-The `[remote]` section controls outgoing message batching and remote-backend logging.
+The `[remote]` section controls outgoing message batching, remote-backend logging and the Iroh
+transport.
 
 **Log Levels:**
 
@@ -135,6 +182,11 @@ The `[remote]` section controls outgoing message batching and remote-backend log
 
 Larger thresholds allow more batching; smaller thresholds reduce the delay before buffered work is
 sent.
+
+**Transport Settings:**
+
+- `iroh_segmentation_offload`: Lets the Iroh endpoints Burn binds send segmentation-offloaded (GSO)
+  batches (default: `false`, see [iroh#4555](https://github.com/n0-computer/iroh/issues/4555)).
 
 **Example:**
 

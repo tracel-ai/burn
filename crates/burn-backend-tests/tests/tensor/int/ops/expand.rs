@@ -22,7 +22,7 @@ fn should_all_negative_one() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Cannot substitute -1 for a non-existing dimension")]
 fn should_panic_negative_one_on_non_existing_dim() {
     let tensor = TestTensorInt::<1>::from([1, 2, 3]);
     let _expanded_tensor = tensor.expand([-1, 3]);

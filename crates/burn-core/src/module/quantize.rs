@@ -69,7 +69,7 @@ impl ModuleMapper for Quantizer {
     }
 }
 
-#[cfg(all(test, not(feature = "tch")))]
+#[cfg(test)]
 mod tests {
     use crate::module::{Module, ParamGroup, Quantizer};
     use crate::tensor::DType;

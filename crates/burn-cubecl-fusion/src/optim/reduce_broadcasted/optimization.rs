@@ -1,23 +1,26 @@
 #[cfg(feature = "autotune")]
+use crate::engine::{launch::FuseTraceLauncher, trace::TraceError};
+#[cfg(feature = "autotune")]
 use crate::optim::reduce::tune::fused_reduce_autotune;
+#[cfg(feature = "autotune")]
+use crate::optim::reduce_broadcasted::{
+    launch::FusedReduceBroadcastedLaunch, tune::fused_broadcasted_reduce_autotune,
+};
+#[cfg(feature = "autotune")]
+use crate::tune::TunedTrace;
 use crate::{
     CubeFusionHandle, FallbackOperation,
-    engine::{
-        launch::FuseTraceLauncher,
-        trace::{FuseTrace, TraceError, TuneOutput},
-    },
+    engine::trace::{FuseTrace, TuneOutput},
     optim::{
         FusedOperation,
         elemwise::{ElemwiseOptimization, ElemwiseOptimizationState},
         reduce::{ReduceOptimizationInfo, ReduceOptimizationState, ReduceOptimizationTuneArg},
-        reduce_broadcasted::{
-            launch::{FusedReduceBroadcastedLaunch, ReduceBroadcastedFuseBlock},
-            tune::fused_broadcasted_reduce_autotune,
-        },
+        reduce_broadcasted::launch::ReduceBroadcastedFuseBlock,
     },
 };
 use burn_fusion::stream::Context;
 use cubecl::prelude::*;
+#[cfg(feature = "autotune")]
 use cubek::reduce::launch::RoutineStrategy;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -63,11 +66,20 @@ impl ReduceBlockOptimInfo {
     }
 }
 
+// Without the autotune, only the fallbacks are read: the rest is what it tunes over.
+#[cfg_attr(not(feature = "autotune"), allow(dead_code))]
 pub(crate) struct ReduceBroadcastedOptimizationTuneArg {
     pub(crate) fallbacks: Vec<ReduceBlockOptimArg>,
     pub(crate) broadcasted: Arc<ReduceBroadcastedInfo>,
     pub(crate) client: Client,
     pub(crate) device: cubecl::Device,
+}
+
+#[cfg(feature = "autotune")]
+impl TunedTrace for ReduceBroadcastedOptimizationTuneArg {
+    fn trace(&self) -> &FuseTrace {
+        &self.broadcasted.trace
+    }
 }
 
 pub(crate) enum ReduceBlockOptimArg {
@@ -121,6 +133,7 @@ pub enum ReduceBlockState {
 }
 
 impl ReduceBroadcastedOptimizationTuneArg {
+    #[cfg(feature = "autotune")]
     pub fn execute_fused(
         &self,
         context: &mut Context<CubeFusionHandle>,
@@ -186,9 +199,12 @@ impl ReduceBroadcastedOptimization {
             })
             .collect();
 
-        let empty_reduce_axis = self.info.fallbacks.iter().any(|fallback| match fallback {
+        // An empty reduce input means either the reduced axis is empty, which no fused kernel
+        // accepts, or the output is empty, which leaves the kernels nothing to launch over.
+        let empty_input = self.info.fallbacks.iter().any(|fallback| match fallback {
             ReduceBlockOptimInfo::Reduce(info) => {
-                context.tensors.get(&info.reduce.op.input.id).unwrap().shape[info.reduce.axis] == 0
+                let input = context.tensors.get(&info.reduce.op.input.id).unwrap();
+                input.shape.num_elements() == 0
             }
             ReduceBlockOptimInfo::Elemwise(_) => false,
         });
@@ -200,7 +216,7 @@ impl ReduceBroadcastedOptimization {
             broadcasted: self.info.broadcasted.clone(),
         };
 
-        if empty_reduce_axis {
+        if empty_input {
             arg.execute_empty_axis_fallback(context);
             return;
         }

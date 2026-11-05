@@ -4,6 +4,7 @@
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn-pack.svg)](https://crates.io/crates/burn-pack)
 [![Documentation](https://docs.rs/burn-pack/badge.svg)](https://docs.rs/burn-pack)
+[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT)
 
 `burn-pack` reads and writes the burnpack container format. It is tensor-library-agnostic and
 dependency-light: it depends only on [`burn-std`](https://crates.io/crates/burn-std) (for `DType`
@@ -64,3 +65,10 @@ See the [docs](https://docs.rs/burn-pack) for the format layout and the full API
 ## License
 
 This project is dual-licensed under MIT and Apache-2.0.
+
+<!-- burn-crate-footer -->
+
+---
+
+Part of the [Burn](https://github.com/tracel-ai/burn) deep learning framework. See the
+[Burn Book](https://burn.dev/books/burn/) and the [API documentation](https://docs.rs/burn).

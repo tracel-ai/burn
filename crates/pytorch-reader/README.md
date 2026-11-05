@@ -3,6 +3,7 @@
 Read PyTorch checkpoint files (`.pt`, `.pth`) without PyTorch or Burn.
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/pytorch-reader.svg)](https://crates.io/crates/pytorch-reader)
+[![Documentation](https://docs.rs/pytorch-reader/badge.svg)](https://docs.rs/pytorch-reader)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT)
 
 The crate parses the pickle inside a checkpoint and hands back each tensor's name, element
@@ -34,3 +35,10 @@ any `serde` type with `PytorchReader::load_config`.
 
 This is the reader behind [`burn-store`](https://crates.io/crates/burn-store), which wraps
 its tensors for loading into [Burn](https://github.com/tracel-ai/burn) modules.
+
+<!-- burn-crate-footer -->
+
+---
+
+Part of the [Burn](https://github.com/tracel-ai/burn) deep learning framework. See the
+[Burn Book](https://burn.dev/books/burn/) and the [API documentation](https://docs.rs/burn).

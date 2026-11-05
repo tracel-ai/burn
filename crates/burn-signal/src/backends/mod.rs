@@ -8,5 +8,3 @@ mod flex;
 mod fusion;
 #[cfg(feature = "router")]
 pub(crate) mod router;
-#[cfg(feature = "tch")]
-mod tch;

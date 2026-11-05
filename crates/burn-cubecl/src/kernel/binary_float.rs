@@ -1,4 +1,5 @@
 use crate::kernel::memory_order::in_memory_order;
+use crate::kernel::{FloatUnaryOp, FloatUnaryOpFamily, launch_unary_float};
 use crate::{
     kernel::utils::{address_type, broadcast_shape},
     ops::{max_vector_size, numeric::empty_device_dtype},
@@ -7,6 +8,7 @@ use crate::{
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
     calculate_cube_count_elemwise,
+    ir::FloatKind,
     prelude::*,
     std::tensor::layout::linear::{LinearView, LinearViewMut},
 };
@@ -22,8 +24,13 @@ pub(crate) trait BinaryOpFloat<C: Float, N: Size>: 'static + Send + Sync {
 }
 
 pub(crate) struct ArcTan2Op;
+pub(crate) struct FmodOp;
 
 impl BinaryOpFloatFamily for ArcTan2Op {
+    type BinaryOp<C: Float, N: Size> = Self;
+}
+
+impl BinaryOpFloatFamily for FmodOp {
     type BinaryOp<C: Float, N: Size> = Self;
 }
 
@@ -32,6 +39,89 @@ impl<T: Float, N: Size> BinaryOpFloat<T, N> for ArcTan2Op {
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         Vector::atan2(lhs, rhs)
     }
+}
+
+pub(crate) struct GeluBackwardOp;
+
+impl BinaryOpFloatFamily for GeluBackwardOp {
+    type BinaryOp<C: Float, N: Size> = Self;
+}
+
+#[cube]
+impl<T: Float, N: Size> BinaryOpFloat<T, N> for GeluBackwardOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
+        let dtype = elem_type_of::<T>().comptime();
+        let define!(C) = comptime!(match dtype {
+            ElemType::Float(FloatKind::F64) => dtype,
+            _ => ElemType::Float(FloatKind::F32),
+        });
+
+        let x = Vector::<C, N>::cast_from(lhs);
+        let dy = Vector::<C, N>::cast_from(rhs);
+        let half = Vector::<C, N>::new(<C as Float>::new(0.5));
+        let one = Vector::<C, N>::new(<C as Float>::new(1.0));
+        let inv_sqrt2 = Vector::<C, N>::new(<C as Float>::new(core::f64::consts::FRAC_1_SQRT_2));
+        let inv_sqrt2pi = Vector::<C, N>::new(<C as Float>::new(0.3989422804014327));
+
+        let cdf = half * (one + Vector::erf(x * inv_sqrt2));
+        let pdf = inv_sqrt2pi * Vector::exp(-half * x * x);
+
+        Vector::<T, N>::cast_from(dy * (cdf + x * pdf))
+    }
+}
+
+pub(crate) struct SigmoidBackwardOp;
+
+impl BinaryOpFloatFamily for SigmoidBackwardOp {
+    type BinaryOp<C: Float, N: Size> = Self;
+}
+
+#[cube]
+impl<T: Float, N: Size> BinaryOpFloat<T, N> for SigmoidBackwardOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
+        let dtype = elem_type_of::<T>().comptime();
+        let define!(C) = comptime!(match dtype {
+            ElemType::Float(FloatKind::F64) => dtype,
+            _ => ElemType::Float(FloatKind::F32),
+        });
+
+        let s = Vector::<C, N>::cast_from(lhs);
+        let dy = Vector::<C, N>::cast_from(rhs);
+        let one = Vector::<C, N>::new(<C as Float>::new(1.0));
+
+        Vector::<T, N>::cast_from(dy * s * (one - s))
+    }
+}
+
+#[cube]
+impl<T: Float, N: Size> BinaryOpFloat<T, N> for FmodOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
+        fmod_vector(lhs, rhs)
+    }
+}
+
+impl FloatUnaryOpFamily for FmodOp {
+    type Options = InputScalar;
+    type Unary<F: Float, N: Size> = Self;
+}
+
+#[cube]
+impl<F: Float, N: Size> FloatUnaryOp<F, N> for FmodOp {
+    type Options = InputScalar;
+
+    fn execute(input: Vector<F, N>, options: &Self::Options) -> Vector<F, N> {
+        fmod_vector(input, Vector::new(options.get::<F>()))
+    }
+}
+
+/// `fmod(x, ±inf)` is `x` for a finite `x` and NaN for an infinite one. Targets disagree on `%`
+/// there: WGSL and Vulkan allow `x - y * trunc(x / y)`, which is NaN for a finite `x`, and NVPTX
+/// returns `x` even when `x` is infinite. So that case is handled explicitly.
+#[cube]
+fn fmod_vector<F: Float, N: Size>(lhs: Vector<F, N>, rhs: Vector<F, N>) -> Vector<F, N> {
+    let nan = Vector::new(F::new(f64::NAN));
+    let inf_divisor = select_many(Vector::is_inf(lhs), nan, lhs);
+    select_many(Vector::is_inf(rhs), inf_divisor, lhs % rhs)
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
@@ -129,4 +219,15 @@ pub(crate) fn launch_binop_float<O: BinaryOpFloatFamily>(
 /// Calculate the four-quadrant inverse tangent of `lhs / rhs`.
 pub fn atan2(lhs: CubeTensor, rhs: CubeTensor) -> CubeTensor {
     launch_binop_float::<ArcTan2Op>(lhs, rhs)
+}
+
+/// Calculate the floating-point remainder of `lhs / rhs`, with the sign of `lhs`.
+pub fn fmod(lhs: CubeTensor, rhs: CubeTensor) -> CubeTensor {
+    launch_binop_float::<FmodOp>(lhs, rhs)
+}
+
+/// Calculate the floating-point remainder of `lhs / rhs` for a scalar `rhs`, with the sign of
+/// `lhs`.
+pub fn fmod_scalar(lhs: CubeTensor, rhs: InputScalar) -> CubeTensor {
+    launch_unary_float::<FmodOp, _>(lhs, |_| rhs)
 }

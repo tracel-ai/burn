@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use burn_core::data::dataloader::Progress;
+use burn_core::tensor::TensorReadError;
 use burn_optim::lr_scheduler::module_lr_scheduler::ModuleLearningRate;
 
 /// Metric metadata that can be used when computing metrics.
@@ -20,11 +21,7 @@ impl MetricMetadata {
     #[cfg(test)]
     pub fn fake() -> Self {
         Self {
-            progress: Progress {
-                items_processed: 1,
-                items_total: 1,
-                unit: Some("items".to_string()),
-            },
+            progress: Progress::new(1, 1, Some("items".to_string())),
             iteration: Some(0),
             lr: None,
         }
@@ -105,10 +102,23 @@ pub trait Metric: Send + Sync + Clone {
     }
 
     /// Update the metric state and returns the current metric entry.
-    fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> SerializedEntry;
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`TensorReadError`] when a tensor read fails. In that case, the metric state
+    /// could hold part or none of this update.
+    fn update(
+        &mut self,
+        item: &Self::Input,
+        metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError>;
 
     /// Compute the final metric value.
-    fn compute(&mut self) -> SerializedEntry;
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`TensorReadError`] when a tensor read fails.
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError>;
 
     /// Clear the metric state.
     fn clear(&mut self);
@@ -119,8 +129,9 @@ pub type MetricName = Arc<String>;
 
 /// Adaptor are used to transform types so that they can be used by metrics.
 ///
-/// This should be implemented by a model's output type for all [metric inputs](Metric::Input) that are
-/// registered with the specific learning paradigm (i.e. [SupervisedTraining](crate::SupervisedTraining)).
+/// Implement this for the registered event source, such as a model output or
+/// [`OptimizerStepOutput`](crate::metric::OptimizerStepOutput), to provide each
+/// [metric input](Metric::Input).
 pub trait Adaptor<T> {
     /// Adapt the type to be passed to a [metric](Metric).
     fn adapt(&self) -> T;

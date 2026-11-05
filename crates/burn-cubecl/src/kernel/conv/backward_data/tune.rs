@@ -5,19 +5,23 @@ use cubecl::{
     ir::ElemType,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
 };
-use cubek::convolution::AcceleratedTileKind;
+use cubek::convolution::{AcceleratedTileKind, UnitStrategy, UnitTiling};
 
 use crate::{
     CubeAutotuneKey, CubeTuneId,
     kernel::conv::{
         ConvAutotuneKey,
-        backward_data::{fallback::conv_data_backward_fallback, implicit_gemm::*},
-        im2col::dgrad_im2col_1x1,
+        backward_data::{
+            fallback::conv_data_backward_fallback, implicit_gemm::*,
+            stride_phases::dgrad_stride_phases,
+        },
+        im2col::{dgrad_im2col, dgrad_im2col_1x1},
+        unit::dgrad_unit,
     },
     tensor::CubeTensor,
 };
 
-/// Executes autotune on conv2d operations
+/// Executes autotune on the data gradient of conv operations.
 pub fn dgrad_autotune<const N: usize>(
     out_grad: CubeTensor,
     weights: CubeTensor,
@@ -33,50 +37,159 @@ pub fn dgrad_autotune<const N: usize>(
     // No CMMA for TMA because swizzling will be mandatory for good performance on dgrad.
     let tune_id = CubeTuneId::new(&out_grad.client, &out_grad.device);
     let tunables = TUNER.init(&tune_id, || {
-        TunableSet::new(create_key::<N>, create_wgrad_input::<N>)
+        TunableSet::new(create_key::<N>, create_dgrad_input::<N>)
             .with(Tunable::new(
-                "wgrad_fallback",
+                "dgrad_fallback",
                 |(out_grad, weights, input_shape, options)| {
                     conv_data_backward_fallback::<N>(out_grad, weights, input_shape, options)
                 },
             ))
-            // Declines every shape but the pointwise one. It earns its place
-            // because a device with no accelerated matmul for the dtype
-            // declines every candidate below, leaving the fallback unopposed.
+            .with(Tunable::new(
+                "dgrad_stride_phases",
+                |(out_grad, weights, input_shape, options)| {
+                    dgrad_stride_phases::<N>(out_grad, weights, input_shape, options)
+                },
+            ))
+            // Pointwise unit stride only; `dgrad_im2col` declines this shape so
+            // the unmaterialised matmul is the dense candidate.
             .with(Tunable::new(
                 "dgrad_im2col_1x1",
                 |(out_grad, weights, input_shape, options)| {
                     dgrad_im2col_1x1::<N>(out_grad, weights, input_shape, options)
                 },
             ))
+            // Every other `groups == 1` dense shape, including stride other
+            // than 1, which the implicit-GEMM candidates below decline in
+            // setup. Materialises `[M, taps * C_in]` and scatter-adds; autotune
+            // drops it when that loses.
+            .with(Tunable::new(
+                "dgrad_im2col",
+                |(out_grad, weights, input_shape, options)| {
+                    dgrad_im2col::<N>(out_grad, weights, input_shape, options)
+                },
+            ))
+            // The data gradient's matmul has `N = C_in`, `M = batch * input
+            // spatial` and `K = taps * C_out`; the same regime span as the
+            // forward applies, so it carries the same forced tilings. A cached
+            // key that does not fit any of them still falls back in `dgrad_unit`.
+            .with(Tunable::new(
+                "dgrad_unit_narrow",
+                |(grad, weights, shape, options)| {
+                    dgrad_unit(
+                        grad,
+                        weights,
+                        shape,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::NARROW),
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "dgrad_unit_balanced",
+                |(grad, weights, shape, options)| {
+                    dgrad_unit(
+                        grad,
+                        weights,
+                        shape,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::BALANCED),
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "dgrad_unit_wide",
+                |(grad, weights, shape, options)| {
+                    dgrad_unit(
+                        grad,
+                        weights,
+                        shape,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::WIDE),
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "dgrad_unit_deep",
+                |(grad, weights, shape, options)| {
+                    dgrad_unit(
+                        grad,
+                        weights,
+                        shape,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::DEEP),
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "dgrad_unit_tall",
+                |(grad, weights, shape, options)| {
+                    dgrad_unit(
+                        grad,
+                        weights,
+                        shape,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::TALL),
+                    )
+                },
+            ))
             .with(Tunable::new(
                 "simple_sync_cmma",
-                |(input, grad, shape, options)| {
-                    dgrad_gemm_simple_sync(input, grad, shape, options, AcceleratedTileKind::Cmma)
+                |(out_grad, weights, input_shape, options)| {
+                    dgrad_gemm_simple_sync(
+                        out_grad,
+                        weights,
+                        input_shape,
+                        options,
+                        AcceleratedTileKind::Cmma,
+                    )
                 },
             ))
             .with(Tunable::new(
                 "simple_sync_mma",
-                |(input, grad, shape, options)| {
-                    dgrad_gemm_simple_sync(input, grad, shape, options, AcceleratedTileKind::Mma)
+                |(out_grad, weights, input_shape, options)| {
+                    dgrad_gemm_simple_sync(
+                        out_grad,
+                        weights,
+                        input_shape,
+                        options,
+                        AcceleratedTileKind::Mma,
+                    )
                 },
             ))
             .with(Tunable::new(
                 "simple_async_cmma",
-                |(input, grad, shape, options)| {
-                    dgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Cmma)
+                |(out_grad, weights, input_shape, options)| {
+                    dgrad_gemm_simple_async(
+                        out_grad,
+                        weights,
+                        input_shape,
+                        options,
+                        AcceleratedTileKind::Cmma,
+                    )
                 },
             ))
             .with(Tunable::new(
                 "simple_async_mma",
-                |(input, grad, shape, options)| {
-                    dgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Mma)
+                |(out_grad, weights, input_shape, options)| {
+                    dgrad_gemm_simple_async(
+                        out_grad,
+                        weights,
+                        input_shape,
+                        options,
+                        AcceleratedTileKind::Mma,
+                    )
                 },
             ))
             .with(Tunable::new(
                 "simple_tma_mma",
-                |(input, grad, shape, options)| {
-                    dgrad_gemm_simple_tma(input, grad, shape, options, AcceleratedTileKind::Mma)
+                |(out_grad, weights, input_shape, options)| {
+                    dgrad_gemm_simple_tma(
+                        out_grad,
+                        weights,
+                        input_shape,
+                        options,
+                        AcceleratedTileKind::Mma,
+                    )
                 },
             ))
     });
@@ -89,7 +202,7 @@ pub fn dgrad_autotune<const N: usize>(
     )
 }
 
-pub fn create_wgrad_input<const N: usize>(
+pub fn create_dgrad_input<const N: usize>(
     _key: &CubeAutotuneKey,
     (out_grad, weights, input_shape, options): &(CubeTensor, CubeTensor, Shape, ConvOptions<N>),
 ) -> (CubeTensor, CubeTensor, Shape, ConvOptions<N>) {

@@ -1,14 +1,30 @@
-use super::{conv, ctc, linear, pool};
+use super::{attention, conv, ctc, linear, pool};
 use crate::ops::unfold::{create_unfolding_weight, unfold4d_using_conv2d};
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
 use crate::{Backend, Scalar, TensorMetadata};
 #[allow(deprecated)]
 pub use burn_std::ops::{
-    AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConvOptions,
-    GridSampleOptions, GridSamplePaddingMode, InterpolateMode, InterpolateOptions, PadMode,
+    AttentionModuleOptions, AvgPoolOptions, CausalAlignment, ConvOptions, ConvTransposeOptions,
+    CoordinateTransformMode, DeformConvOptions, GridSampleMode, GridSampleOptions,
+    GridSamplePaddingMode, InterpolateMode, InterpolateOptions, MaxPoolOptions, PadMode,
     PaddedConvOptions, UnfoldOptions,
 };
 use burn_std::{IndexingUpdateOp, IntDType, Shape};
+
+/// Gradients computed during the backward pass for each input of
+/// [attention_with_logsumexp](ModuleOps::attention_with_logsumexp).
+#[derive(new)]
+pub struct AttentionBackward<B: Backend> {
+    /// Query gradient, `[batch_size, num_heads, seq_len_q, head_dim]`.
+    pub query_grad: FloatTensor<B>,
+
+    /// Key gradient, `[batch_size, num_kv_heads, seq_len_k, head_dim]`: every query head of a
+    /// group summed into its key head.
+    pub key_grad: FloatTensor<B>,
+
+    /// Value gradient, `[batch_size, num_kv_heads, seq_len_k, val_dim]`.
+    pub value_grad: FloatTensor<B>,
+}
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
 #[derive(new)]
@@ -109,6 +125,23 @@ pub struct BatchNormTrainBackward<B: Backend> {
 /// Results from [max_pool2d](ModuleOps::max_pool2d_with_indices).
 #[derive(new)]
 pub struct MaxPool2dWithIndices<B: Backend> {
+    /// The output tensor.
+    pub output: FloatTensor<B>,
+
+    /// The indices tensor.
+    pub indices: IntTensor<B>,
+}
+
+/// Gradient computed during the backward pass for each tensor used by [max_pool3d](ModuleOps::max_pool3d).
+#[derive(new, Debug, Clone)]
+pub struct MaxPool3dBackward<B: Backend> {
+    /// Gradient.
+    pub x_grad: FloatTensor<B>,
+}
+
+/// Results from [max_pool3d](ModuleOps::max_pool3d_with_indices).
+#[derive(new, Debug, Clone)]
+pub struct MaxPool3dWithIndices<B: Backend> {
     /// The output tensor.
     pub output: FloatTensor<B>,
 
@@ -728,6 +761,7 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B> {
@@ -736,17 +770,20 @@ pub trait ModuleOps<B: Backend> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
     }
     /// Backward pass for the [avg pooling 1d](ModuleOps::avg_pool1d) operation.
+    #[allow(clippy::too_many_arguments)]
     fn avg_pool1d_backward(
         x: FloatTensor<B>,
         grad: FloatTensor<B>,
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B> {
@@ -756,6 +793,7 @@ pub trait ModuleOps<B: Backend> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
@@ -770,16 +808,45 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B>;
     /// Backward pass for the [avg pooling 2d](ModuleOps::avg_pool2d) operation.
+    #[allow(clippy::too_many_arguments)]
     fn avg_pool2d_backward(
         x: FloatTensor<B>,
         grad: FloatTensor<B>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<B>;
+    /// Three dimensional avg pooling.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, depth, height, width],
+    fn avg_pool3d(
+        x: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<B>;
+    /// Backward pass for the [avg pooling 3d](ModuleOps::avg_pool3d) operation.
+    #[allow(clippy::too_many_arguments)]
+    fn avg_pool3d_backward(
+        x: FloatTensor<B>,
+        grad: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B>;
@@ -916,6 +983,47 @@ pub trait ModuleOps<B: Backend> {
         indices: IntTensor<B>,
     ) -> MaxPool2dBackward<B>;
 
+    /// Three dimensional max pooling.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, depth, height, width],
+    fn max_pool3d(
+        x: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+    ) -> FloatTensor<B>;
+
+    /// Three dimensional max pooling with indices.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, depth, height, width],
+    fn max_pool3d_with_indices(
+        x: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        indices_dtype: IntDType,
+    ) -> MaxPool3dWithIndices<B>;
+    /// Backward pass for the [max pooling 3d](ModuleOps::max_pool3d_with_indices) operation.
+    #[allow(clippy::too_many_arguments)]
+    fn max_pool3d_with_indices_backward(
+        x: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        output_grad: FloatTensor<B>,
+        indices: IntTensor<B>,
+    ) -> MaxPool3dBackward<B>;
+
     /// Down/up samples the input.
     ///
     /// # Shapes
@@ -937,17 +1045,33 @@ pub trait ModuleOps<B: Backend> {
 
     /// Computes scaled dot-product attention: softmax(QKᵗ * scale) · V,
     /// where scale defaults to 1/sqrt(head_dim). Optionally applies masking,
-    /// additive bias, causal masking, and softcap to the attention scores.
+    /// additive bias, causal and sliding-window masking, and softcap to the attention scores.
+    ///
+    /// The scores are computed in this order, which every backend must follow:
+    /// 1. `s = Q·Kᵗ · scale`
+    /// 2. `s = softcap · tanh(s / softcap)` if `options.softcap` is set
+    /// 3. `s = -inf` where `mask` is `true` or the causal or sliding-window mask hides the key
+    /// 4. `s = s + attn_bias`
+    /// 5. `p = softmax(s)` over keys; a row with every key hidden yields `p = 0`
+    /// 6. `out = p · V`
+    ///
+    /// Softcap comes before the masks so that hidden keys stay at `-inf`.
     ///
     /// # Arguments
     /// - `query`: Query tensor of shape `[batch_size, num_heads, seq_len_q, head_dim]`
-    /// - `key`: Key tensor of shape `[batch_size, num_heads, seq_len_k, head_dim]`
-    /// - `value`: Value tensor of shape `[batch_size, num_heads, seq_len_k, val_dim]`
+    /// - `key`: Key tensor of shape `[batch_size, num_kv_heads, seq_len_k, head_dim]`
+    /// - `value`: Value tensor of shape `[batch_size, num_kv_heads, seq_len_k, val_dim]`
+    ///
+    ///   `num_heads` must be a multiple of `num_kv_heads` (grouped-query attention;
+    ///   `num_kv_heads == 1` is multi-query attention). Query head `h` attends with K/V
+    ///   head `h / (num_heads / num_kv_heads)`, the PyTorch and ONNX convention.
     /// - `mask`: Optional boolean mask of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`,
     ///   where `true` indicates positions to mask (i.e. set to -inf before softmax).
     /// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
     ///   added to the attention scores before softmax (e.g. ALiBi, relative position biases).
-    /// - `options`: Additional attention options (custom scale, softcap, causal masking).
+    /// - `options`: Additional attention options (custom scale, softcap, causal masking
+    ///   and its [alignment](crate::ops::CausalAlignment), and sliding-window masking). A
+    ///   sliding window must span at least one key when set.
     ///
     /// # Returns
     /// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`
@@ -964,6 +1088,59 @@ pub trait ModuleOps<B: Backend> {
         attn_bias: Option<FloatTensor<B>>,
         options: AttentionModuleOptions,
     ) -> FloatTensor<B>;
+
+    /// Returns `true` if this backend implements
+    /// [attention_backward](ModuleOps::attention_backward) natively.
+    ///
+    /// Autodiff queries this flag, for an attention with no mask and no additive bias, to decide
+    /// between two paths:
+    /// - `true`: the forward pass is [attention_with_logsumexp](ModuleOps::attention_with_logsumexp)
+    ///   and the backward pass `attention_backward`, which reads the probabilities back from the
+    ///   logsumexp instead of keeping the scores.
+    /// - `false`: autodiff differentiates the decomposed
+    ///   [attention_fallback](attention::attention_fallback).
+    ///
+    /// Backends that override `attention_backward` must also override this to return `true`.
+    fn has_attention_backward() -> bool {
+        false
+    }
+
+    /// [attention](ModuleOps::attention) with no mask and no additive bias, and each query's
+    /// logsumexp of its scores, `[batch_size, num_heads, seq_len_q]` in `f32` whatever the
+    /// operands' dtype: the forward pass [attention_backward](ModuleOps::attention_backward) reads
+    /// back, where `exp(score − logsumexp)` is where its precision is lost.
+    ///
+    /// The default composes it from tensor operations
+    /// ([attention::attention_with_logsumexp_default]).
+    fn attention_with_logsumexp(
+        query: FloatTensor<B>,
+        key: FloatTensor<B>,
+        value: FloatTensor<B>,
+        options: AttentionModuleOptions,
+    ) -> (FloatTensor<B>, FloatTensor<B>) {
+        attention::attention_with_logsumexp_default::<B>(query, key, value, options)
+    }
+
+    /// Backward pass for [attention_with_logsumexp](ModuleOps::attention_with_logsumexp): the
+    /// gradients against the query, the key and the value, from `out_grad`, the loss's gradient
+    /// against the output, and the forward's `out` and `logsumexp`.
+    ///
+    /// Autodiff only calls it when [has_attention_backward](ModuleOps::has_attention_backward)
+    /// returns `true`. The default composes the gradients from tensor operations
+    /// ([attention::attention_backward_default]).
+    fn attention_backward(
+        query: FloatTensor<B>,
+        key: FloatTensor<B>,
+        value: FloatTensor<B>,
+        out: FloatTensor<B>,
+        logsumexp: FloatTensor<B>,
+        out_grad: FloatTensor<B>,
+        options: AttentionModuleOptions,
+    ) -> AttentionBackward<B> {
+        attention::attention_backward_default::<B>(
+            query, key, value, out, logsumexp, out_grad, options,
+        )
+    }
 
     /// Applies Layer Normalization over the last dimension of the input tensor.
     ///
@@ -1055,10 +1232,15 @@ pub trait ModuleOps<B: Backend> {
 
     /// Backward pass for [ctc_loss](ModuleOps::ctc_loss): gradient w.r.t. `log_probs`.
     ///
-    /// Only called when [has_ctc_loss_backward](ModuleOps::has_ctc_loss_backward)
+    /// Autodiff only calls it when [has_ctc_loss_backward](ModuleOps::has_ctc_loss_backward)
     /// returns `true`. Backends without a native implementation should leave
     /// both methods at their defaults; the gradient is computed automatically by
     /// autodiff against the decomposed [ctc::ctc_loss_default] forward.
+    ///
+    /// The default composes the gradient from tensor operations
+    /// ([ctc::ctc_loss_backward_default]). It serves callers that hold no autodiff
+    /// graph for this backend, such as the interpreter behind a router, whose
+    /// client asked for the gradient as one operation.
     ///
     /// # Arguments
     ///
@@ -1073,15 +1255,20 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// Gradient w.r.t. `log_probs` of shape `[T, N, C]`
     fn ctc_loss_backward(
-        _log_probs: FloatTensor<B>,
-        _targets: IntTensor<B>,
-        _input_lengths: IntTensor<B>,
-        _target_lengths: IntTensor<B>,
-        _grad_loss: FloatTensor<B>,
-        _blank: usize,
+        log_probs: FloatTensor<B>,
+        targets: IntTensor<B>,
+        input_lengths: IntTensor<B>,
+        target_lengths: IntTensor<B>,
+        grad_loss: FloatTensor<B>,
+        blank: usize,
     ) -> FloatTensor<B> {
-        unreachable!(
-            "ctc_loss_backward called on a backend whose has_ctc_loss_backward() returns false"
+        ctc::ctc_loss_backward_default::<B>(
+            log_probs,
+            targets,
+            input_lengths,
+            target_lengths,
+            grad_loss,
+            blank,
         )
     }
 }

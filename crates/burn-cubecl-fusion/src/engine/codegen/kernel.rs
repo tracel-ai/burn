@@ -115,7 +115,7 @@ pub fn init_locals(
     let mut ref_shape = Array::new(config.rank);
     let mut ref_strides = Array::new(config.rank);
 
-    let locals = match config.ref_layout.clone() {
+    match config.ref_layout.clone() {
         RefLayout::Concrete(arg) => match comptime![arg] {
             FuseArg::Input(index, ..) => {
                 let layout = inputs.tensors.index(index);
@@ -128,12 +128,6 @@ pub fn init_locals(
                     ref_shape[i] = shape;
                     ref_strides[i] = normalize_reference_stride(shape, stride);
                 }
-
-                LocalArgs::new(
-                    ref_shape.as_slice(),
-                    ref_strides.as_slice(),
-                    layout.tensor.vector_size(),
-                )
             }
             FuseArg::Output(index, ..) => {
                 let layout = outputs.tensors.index(index);
@@ -146,12 +140,6 @@ pub fn init_locals(
                     ref_shape[i] = shape;
                     ref_strides[i] = normalize_reference_stride(shape, stride);
                 }
-
-                LocalArgs::new(
-                    ref_shape.as_slice(),
-                    ref_strides.as_slice(),
-                    layout.tensor.vector_size(),
-                )
             }
             _ => comptime![panic!("Invalid concrete ref layout.")],
         },
@@ -177,17 +165,8 @@ pub fn init_locals(
 
                     stride_curr *= ref_shape[comptime![reverse]];
                 }
-
-                LocalArgs::new(
-                    ref_shape.as_slice(),
-                    ref_strides.as_slice(),
-                    layout.tensor.vector_size(),
-                )
             }
-            VirtualLayout::Reshaped {
-                reshape_pos,
-                vector_size,
-            } => {
+            VirtualLayout::Reshaped { reshape_pos } => {
                 let mut stride_curr = 1;
                 let start = reshape_pos * config.rank;
 
@@ -203,8 +182,6 @@ pub fn init_locals(
 
                     stride_curr *= ref_shape[comptime![reverse]];
                 }
-
-                LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), vector_size)
             }
             VirtualLayout::Runtime { pos } => {
                 let start_shape = (pos * 2) * config.rank;
@@ -220,10 +197,8 @@ pub fn init_locals(
                     ref_shape[i] = shape;
                     ref_strides[i] = normalize_reference_stride(shape, stride);
                 }
-
-                LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), config.width)
             }
-            VirtualLayout::Shape(original, vector_size) => {
+            VirtualLayout::Shape(original) => {
                 let layout = match original.clone() {
                     FuseArg::Input(pos, ..) => inputs.tensors.index(pos),
                     FuseArg::Output(pos, ..) => outputs.tensors.index(pos),
@@ -242,11 +217,12 @@ pub fn init_locals(
 
                     stride_curr *= ref_shape[comptime![reverse]];
                 }
-
-                LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), vector_size)
             }
         },
-    };
+    }
+
+    // Positions count units of the block width, whatever vector size the reference is launched with.
+    let locals = LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), config.width);
     comment!("Init locals end");
     locals
 }
@@ -272,6 +248,7 @@ fn fuse(
             FuseOp::Sub(op) => sub::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Mul(op) => mul::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Powf(op) => powf::<E, N>(inputs, outputs, locals, pos, op, config),
+            FuseOp::Powi(op) => powi::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Erf(op) => erf::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Sqrt(op) => sqrt::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Abs(op) => abs::<E, N>(inputs, outputs, locals, pos, op, config),
@@ -346,6 +323,7 @@ fn fuse(
                 config,
             ),
             FuseOp::Rem(op) => rem::<E, N>(inputs, outputs, locals, pos, op, config),
+            FuseOp::Fmod(op) => fmod::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Clamp {
                 input,
                 min,
@@ -518,46 +496,29 @@ fn gather<C: Numeric, N: Size>(
     let stride_input_dim = global_stride(inputs, dim, pos_input);
 
     let mut index = 0;
+    let mut index_offset = 0;
     let mut result = Vector::<C, N>::empty();
 
-    if comptime![dim > 0] {
-        let index_before = global_offset(
-            inputs,
-            &*outputs,
-            &*locals,
-            write_pos,
-            input.clone(),
-            comptime![Some((0, dim))],
-            config,
-        );
-        index += index_before;
+    // Gather's output has the indices' shape, even when the source is larger or the
+    // output is broadcast by another fused operation. Both indexed inputs are scalar.
+    let offset_ref = write_pos * vector_size;
+    #[unroll]
+    for axis in 0..config.rank {
+        let coordinate =
+            offset_ref / locals.ref_strides[axis] % global_shape(inputs, axis, pos_indices);
+        index_offset += coordinate * global_stride(inputs, axis, pos_indices);
+        if axis != dim {
+            index += coordinate * global_stride(inputs, axis, pos_input);
+        }
     }
 
-    if comptime![dim + 1 < config.rank] {
-        let index_after = global_offset(
-            inputs,
-            &*outputs,
-            &*locals,
-            write_pos,
-            input,
-            comptime![Some((dim + 1, config.rank))],
-            config,
-        );
-        index += index_after;
-    }
-
-    let index_offset = global_offset(
-        inputs,
-        &*outputs,
-        &*locals,
-        write_pos,
-        indices,
-        comptime![Some((0, config.rank))],
-        config,
+    // A singleton gather output repeats across vector lanes when an epilogue broadcasts it.
+    let broadcast_vector = global_shape(inputs, config.rank - 1, pos_indices) == 1;
+    let stride_indices_vector = select(
+        broadcast_vector,
+        0usize,
+        global_stride(inputs, config.rank - 1, pos_indices),
     );
-
-    // TODO: new IR to differentiate between Gather and GatherBroadcasted at comptime?
-    let stride_indices_vector = global_stride(inputs, config.rank - 1, pos_indices);
 
     if comptime![dim == config.rank - 1] {
         // Per-element indexing (along the dimension)
@@ -585,7 +546,11 @@ fn gather<C: Numeric, N: Size>(
             result.insert(i, input.extract(0usize));
         }
     } else {
-        let stride_input_vector = global_stride(inputs, config.rank - 1, pos_input);
+        let stride_input_vector = select(
+            broadcast_vector,
+            0usize,
+            global_stride(inputs, config.rank - 1, pos_input),
+        );
 
         #[unroll]
         for i in 0..vector_size {
@@ -985,11 +950,12 @@ fn clamp<C: Numeric, N: Size>(
 
     let elem_type = elem_type_of::<C>();
     let result = if comptime!(elem_type.is_float()) {
-        // clamp lowers to max(min(x, max), min), which returns the non-NaN operand and so mapped
-        // NaN to a bound. Comparisons against NaN are false, so it survives here, in the same
-        // order as the clamp_min/clamp_max trait default.
-        let clamped = select(input > max, max, input);
-        select(clamped < min, min, clamped)
+        let define!(F) = elem_type;
+        Vector::cast_from(clamp_nan(
+            Vector::<F, N>::cast_from(input),
+            Vector::<F, N>::cast_from(min),
+            Vector::<F, N>::cast_from(max),
+        ))
     } else {
         cubecl::prelude::clamp(input, min, max)
     };
@@ -1061,7 +1027,7 @@ fn dequantize<C: Float, N: Size>(
         QuantStore::PackedU32(dim) | QuantStore::PackedNative(dim) => dim,
     }];
 
-    if comptime![packed_dim == 0] {
+    if comptime![packed_dim == 0 && config.width >= scheme.num_quants()] {
         let q_vector_size = N::value().comptime() / scheme.num_quants();
         let size!(QStoreSize) = q_vector_size;
         let input = read_quantized::<QStoreType, QStoreSize>(
@@ -1150,7 +1116,34 @@ comparison_op!(lower, Vector::<C, N>::less_than);
 comparison_op!(lower_equal, Vector::<C, N>::less_equal);
 
 binary_func!(powf, Vector::<C, N>::powf, Float);
+
+#[cube]
+fn powi<C: Float, N: Size>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    write_pos: usize,
+    #[comptime] op: BinaryFuseArgs,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    let lhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.lhs, config);
+    let rhs = read::<i32, N>(inputs, &*outputs, &*locals, write_pos, op.rhs, config);
+    let result = lhs.powi(rhs);
+    write::<C, N>(inputs, outputs, locals, write_pos, result, op.out, config);
+}
+
 binary_func!(rem, Vector::<C, N>::mod_floor, Float);
+binary_func!(fmod, fmod_vector::<C, N>, Float);
+
+/// `fmod(x, ±inf)` is `x` for a finite `x` and NaN for an infinite one. Targets disagree on `%`
+/// there: WGSL and Vulkan allow `x - y * trunc(x / y)`, which is NaN for a finite `x`, and NVPTX
+/// returns `x` even when `x` is infinite. So that case is handled explicitly.
+#[cube]
+fn fmod_vector<F: Float, N: Size>(lhs: Vector<F, N>, rhs: Vector<F, N>) -> Vector<F, N> {
+    let nan = Vector::new(F::new(f64::NAN));
+    let inf_divisor = select_many(Vector::is_inf(lhs), nan, lhs);
+    select_many(Vector::is_inf(rhs), inf_divisor, lhs % rhs)
+}
 
 unary_func!(exp, Vector::<C, N>::exp, Float);
 unary_func!(log, Vector::<C, N>::ln, Float);

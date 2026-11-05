@@ -1,7 +1,28 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-//! Burn JIT Backend
+//! The Burn backend for every [CubeCL](https://github.com/tracel-ai/cubecl) runtime.
+//!
+//! [`CubeBackend`] implements Burn's tensor operations as CubeCL kernels, compiled just in time
+//! for the device they run on. CUDA, ROCm, Metal, Vulkan, WebGPU, wgpu and the CubeCL CPU
+//! runtime all share this one backend type: a tensor's [`CubeDevice`] says which runtime it
+//! uses. [`Cube`] is the type dispatch uses, wrapped in `burn_fusion::Fusion` when the `fusion`
+//! feature is on.
+//!
+//! Applications reach this backend through a `burn` feature such as `cuda`, `wgpu` or `cpu`
+//! and a `Device` constructor; the runtime crates (`burn-cuda`, `burn-wgpu`, `burn-rocm`,
+//! `burn-cpu`) are thin wrappers that select a runtime. Use this crate directly to write
+//! custom kernels: [`kernel`] and [`ops`] hold the building blocks, and [`cubecl`] is
+//! re-exported so kernels use the same CubeCL version.
+//!
+//! # Feature flags
+//!
+//! - `cuda`, `hip`, `wgpu`, `metal`, `vulkan`, `webgpu`, `cpu`: compile in a CubeCL runtime.
+//! - `fusion`: kernel fusion through `burn-fusion`.
+//! - `autotune`: benchmark kernel variants at runtime and keep the fastest.
+//! - `fft`: FFT kernels.
+//! - `template`: launch hand-written, non-JIT kernels.
+//! - `tracing`: instrument operations with the `tracing` crate.
 
 #[macro_use]
 extern crate derive_new;
@@ -21,6 +42,7 @@ pub mod element;
 pub use element::{BoolElement, CubeElement, FloatElement, IntElement};
 
 mod backend;
+mod execution;
 
 pub use backend::*;
 
@@ -58,3 +80,6 @@ pub type Cube = CubeBackend;
 /// streams. See [`CubeBackend`] for the unfused type.
 #[cfg(feature = "fusion")]
 pub type Cube = burn_fusion::Fusion<CubeBackend>;
+
+/// Whether [`Cube`] runs its operations through a fusion server.
+pub const FUSED: bool = cfg!(feature = "fusion");

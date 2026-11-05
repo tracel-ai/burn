@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use burn_backend::RandomKey;
 use burn_backend::{
     BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::{FloatTensorOps, PadMode},
@@ -30,8 +31,9 @@ impl FloatTensorOps<Self> for Dispatch {
         distribution: burn_backend::Distribution,
         device: &DispatchDevice,
         dtype: FloatDType,
+        key: RandomKey,
     ) -> FloatTensor<Self> {
-        B::float_random(shape, distribution, device, dtype)
+        B::float_random(shape, distribution, device, dtype, key)
     }
 
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
@@ -99,6 +101,14 @@ impl FloatTensorOps<Self> for Dispatch {
 
     fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
         B::float_remainder_scalar(lhs, rhs)
+    }
+
+    fn float_fmod(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        B::float_fmod(lhs, rhs)
+    }
+
+    fn float_fmod_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        B::float_fmod_scalar(lhs, rhs)
     }
 
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {

@@ -1,0 +1,28 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science", "development-tools::profiling"]
+description = "Read a measurement burn-instrument took, and report where its device time went"
+documentation = "https://docs.rs/burn-instrument-report"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "profiling"]
+license.workspace = true
+name = "burn-instrument-report"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-instrument-report"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+burn-instrument = { workspace = true, features = ["std"] }
+# Kernel names are cubecl type names, shortened the way the runtime's own logs shorten them;
+# `std`, as a host binary: without it cubecl's IR builds `no_std`.
+cubecl = { workspace = true, features = ["std"] }
+
+[dev-dependencies]
+# The dtype a test's compute peak is stated at.
+burn-tensor = { workspace = true }
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]

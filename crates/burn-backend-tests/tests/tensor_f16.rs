@@ -4,6 +4,7 @@
     feature = "vulkan",
     feature = "cuda",
     feature = "rocm",
+    feature = "wgpu-msl",
     feature = "metal",
     feature = "flex"
 ))]

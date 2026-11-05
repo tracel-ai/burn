@@ -127,7 +127,6 @@ pub fn classify(op: &OperationIr) -> OpClass {
         O::Init(_) => OpClass::Init,
         O::Custom(_) => OpClass::Custom,
         O::Drop(_) => OpClass::Drop,
-        O::Distributed(_) => OpClass::Distributed,
         O::Bool(_) | O::Int(_) => OpClass::Elementwise,
     }
 }
@@ -337,6 +336,7 @@ impl TelemetryEvent {
     }
 }
 
+#[cfg(any(feature = "client", feature = "server"))]
 pub(crate) const CHANNEL_CAPACITY: usize = 4096;
 
 /// Cloneable handle a worker emits into. Inert until a [`TelemetrySubscription`] is attached.

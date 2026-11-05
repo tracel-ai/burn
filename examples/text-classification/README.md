@@ -21,43 +21,6 @@ It also provides an example of finetuning using [LoRA](https://arxiv.org/pdf/210
 
 # Usage
 
-## Torch GPU backend
-
-```bash
-git clone https://github.com/tracel-ai/burn.git
-cd burn
-
-# Use the --release flag to really speed up training.
-# Use the f16 feature if your CUDA device supports FP16 (half precision) operations. May not work well on every device.
-
-export TORCH_CUDA_VERSION=cu128  # Set the cuda version (CUDA users)
-
-# AG News
-cargo run -p text-classification --example ag-news-train --release --features tch-gpu   # Train on the ag news dataset
-cargo run -p text-classification --example ag-news-infer --release --features tch-gpu   # Run inference on the ag news dataset
-
-# DbPedia
-cargo run -p text-classification --example db-pedia-train --release --features tch-gpu  # Train on the db pedia dataset
-cargo run -p text-classification --example db-pedia-infer --release --features tch-gpu  # Run inference db pedia dataset
-```
-
-## Torch CPU backend
-
-```bash
-git clone https://github.com/tracel-ai/burn.git
-cd burn
-
-# Use the --release flag to really speed up training.
-
-# AG News
-cargo run -p text-classification --example ag-news-train --release --features tch-cpu   # Train on the ag news dataset
-cargo run -p text-classification --example ag-news-infer --release --features tch-cpu   # Run inference on the ag news dataset
-
-# DbPedia
-cargo run -p text-classification --example db-pedia-train --release --features tch-cpu  # Train on the db pedia dataset
-cargo run -p text-classification --example db-pedia-infer --release --features tch-cpu  # Run inference db pedia dataset
-```
-
 ## Flex backend
 
 ```bash
@@ -74,6 +37,21 @@ cargo run -p text-classification --example ag-news-infer --release --features fl
 cargo run -p text-classification --example db-pedia-train --release --features flex  # Train on the db pedia dataset
 cargo run -p text-classification --example db-pedia-infer --release --features flex  # Run inference db pedia dataset
 ```
+
+## Profiling
+
+The `profile` example measures where the AG News classifier's inference spends its device time,
+component by component, and prints the report. It needs a CubeCL backend:
+
+```bash
+cargo run -p text-classification --example profile --release --features cuda,profile
+# Also save the measurement, to hold a later run against with `burn-instrument-report --against`.
+cargo run -p text-classification --example profile --release --features cuda,profile -- now.json
+# In half precision, with `f16`, `bf16` or `flex32`.
+cargo run -p text-classification --example profile --release --features cuda,profile,f16
+```
+
+See [Profiling](../../burn-book/src/performance/profiling.md) in the Burn Book for how to read it.
 
 ## WGPU backend
 

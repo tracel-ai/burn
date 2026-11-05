@@ -13,6 +13,7 @@ pub struct DataLoaderBuilder<I, O> {
     drop_last: bool,
     batcher: Arc<dyn Batcher<I, O>>,
     num_threads: Option<usize>,
+    prefetch: Option<usize>,
     shuffle: Option<u64>,
     device: Option<Device>,
 }
@@ -40,6 +41,7 @@ where
             batch_size: None,
             drop_last: false,
             num_threads: None,
+            prefetch: None,
             shuffle: None,
             device: None,
         }
@@ -114,6 +116,26 @@ where
         self
     }
 
+    /// Sets the total number of finished batches the workers may queue ahead of the consumer,
+    /// shared by all workers. Lower it when device memory is tight, raise it when batches take
+    /// long to build. `0` hands each batch over directly, with nothing queued. Has no effect
+    /// without workers.
+    ///
+    /// Only the default scales with the number of workers: two batches per worker, so eight
+    /// with four workers. An explicit `prefetch(2)` queues two batches in total.
+    ///
+    /// # Arguments
+    ///
+    /// * `prefetch` - The total number of batches the workers may queue.
+    ///
+    /// # Returns
+    ///
+    /// The data loader builder.
+    pub fn prefetch(mut self, prefetch: usize) -> Self {
+        self.prefetch = Some(prefetch);
+        self
+    }
+
     /// Sets the data loader device.
     ///
     /// # Arguments
@@ -152,14 +174,18 @@ where
         if let Some(num_threads) = self.num_threads
             && num_threads > 0
         {
-            return Arc::new(MultiThreadDataLoader::new(
+            let dataloader = MultiThreadDataLoader::new(
                 strategy,
                 dataset,
                 self.batcher,
                 num_threads,
                 device,
                 rng,
-            ));
+            );
+            return Arc::new(match self.prefetch {
+                Some(prefetch) => dataloader.with_prefetch(prefetch),
+                None => dataloader,
+            });
         }
 
         Arc::new(BatchDataLoader::new(
@@ -271,18 +297,26 @@ mod tests {
     }
 
     #[test]
+    fn prefetch_yields_every_batch() {
+        let dataloader = DataLoaderBuilder::new(TestBatcherDevice::new())
+            .batch_size(1)
+            .num_workers(2)
+            .prefetch(0)
+            .build(FakeDataset::<String>::new(9));
+
+        assert_eq!(dataloader.iter().map(Result::unwrap).count(), 9);
+    }
+
+    #[test]
     fn test_dataloader_slice_multi_device() {
         let dataloader = DataLoaderBuilder::new(TestBatcherDevice::new())
             .batch_size(1)
             .num_workers(1)
             .build(FakeDataset::<String>::new(11));
 
-        #[cfg(all(test, not(feature = "tch"), not(feature = "cuda")))]
+        #[cfg(all(test, not(feature = "cuda")))]
         // Only one device exists...
         let (device1, device2) = (Device::flex(), Device::flex());
-
-        #[cfg(all(test, feature = "tch"))]
-        let (device1, device2) = (Device::libtorch_cuda(0), Device::libtorch_cuda(1));
 
         #[cfg(all(test, feature = "cuda"))]
         let (device1, device2) = (Device::cuda(0), Device::cuda(1));

@@ -83,7 +83,7 @@ fn different_input_types() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "source and destination must be equal")]
 fn edge_different_sizes() {
     let device = Default::default();
     let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);
@@ -103,7 +103,7 @@ fn edge_out_of_bound_axis() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "contain duplicates")]
 fn edge_vec_is_not_a_set() {
     let device = Default::default();
     let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);

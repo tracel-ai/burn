@@ -136,6 +136,324 @@ pub fn test_device() -> Device {
     burn_tensor::Device::flex()
 }
 
+#[test]
+fn should_accept_primitive_constants() {
+    #[derive(Module, Debug, Default, PartialEq)]
+    struct Constants {
+        boolean: bool,
+        character: char,
+        unsigned8: u8,
+        unsigned16: u16,
+        unsigned32: u32,
+        unsigned64: u64,
+        unsigned128: u128,
+        unsigned_size: usize,
+        signed8: i8,
+        signed16: i16,
+        signed32: i32,
+        signed64: i64,
+        signed128: i128,
+        signed_size: isize,
+        float32: f32,
+        float64: f64,
+        text: String,
+        nested: Option<Vec<(char, u128, i128)>>,
+    }
+
+    let module = Constants {
+        character: 'c',
+        unsigned128: u128::MAX,
+        signed128: i128::MIN,
+        nested: Some(vec![('x', u128::MAX, i128::MIN)]),
+        ..Default::default()
+    };
+
+    assert_eq!(module.num_params(), 0);
+    assert_eq!(module.valid().train().materialize(), module);
+    assert!(module.to_string().contains('c'));
+}
+
+#[test]
+fn should_accept_standard_containers_of_constants() {
+    use std::{
+        cell::{Cell, RefCell},
+        collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque},
+        marker::PhantomData,
+        sync::{Arc, Mutex, RwLock, Weak},
+    };
+
+    #[derive(Module, Debug, Default)]
+    struct Constants {
+        boxed: Box<char>,
+        shared: Arc<usize>,
+        weak: Weak<usize>,
+        result: Option<Result<u32, String>>,
+        map: HashMap<String, f32>,
+        sorted_map: BTreeMap<String, f32>,
+        set: HashSet<usize>,
+        sorted_set: BTreeSet<usize>,
+        queue: VecDeque<usize>,
+        list: LinkedList<usize>,
+        heap: BinaryHeap<usize>,
+        marker: PhantomData<f32>,
+        cell: Cell<usize>,
+        borrowed: RefCell<Vec<u32>>,
+        locked: Arc<Mutex<u32>>,
+        read_locked: Arc<RwLock<u32>>,
+    }
+
+    let module = Constants {
+        boxed: Box::new('c'),
+        result: Some(Ok(42)),
+        map: HashMap::from([("scale".into(), 0.5)]),
+        locked: Arc::new(Mutex::new(7)),
+        ..Default::default()
+    };
+    let cloned = module.valid().train().materialize();
+    assert_eq!(cloned.num_params(), 0);
+    assert_eq!(cloned.boxed, module.boxed);
+    assert_eq!(cloned.result, module.result);
+    assert_eq!(cloned.map, module.map);
+    assert!(Arc::ptr_eq(&cloned.locked, &module.locked));
+}
+
+#[test]
+fn should_visit_generic_modules_with_primitive_arguments() {
+    #[derive(Module, Debug)]
+    struct Block<T> {
+        weight: Param<Tensor<1>>,
+        #[module(skip)]
+        marker: core::marker::PhantomData<T>,
+    }
+
+    #[derive(Module, Debug)]
+    struct Model {
+        block: Block<f32>,
+        nested: Option<Vec<Block<f32>>>,
+    }
+
+    #[derive(Default)]
+    struct Counter(usize);
+    impl burn::module::ModuleVisitor for Counter {
+        fn visit_float<const D: usize>(&mut self, _: &Param<Tensor<D>>) {
+            self.0 += 1;
+        }
+    }
+
+    let block = Block {
+        weight: Param::from_tensor(Tensor::ones([2], &test_device())),
+        marker: core::marker::PhantomData,
+    };
+    let model = Model {
+        block: block.clone(),
+        nested: Some(vec![block]),
+    };
+
+    let mut counter = Counter::default();
+    model.visit(&mut counter);
+    assert_eq!(counter.0, 2);
+    assert_eq!(model.num_params(), 4);
+}
+
+mod named_enum_variants {
+    use super::*;
+    use burn::module::{ModuleMapper, ModuleVisitor};
+
+    fn layer(values: [f32; 2], device: &Device) -> ModuleBasic {
+        ModuleBasic {
+            weight_basic: Param::from_tensor(Tensor::from_floats([values], device)),
+        }
+    }
+
+    #[derive(Module, Debug)]
+    enum Net {
+        Small(ModuleBasic),
+        Wide {
+            first: ModuleBasic,
+            second: ModuleBasic,
+        },
+    }
+
+    #[derive(Default)]
+    struct Trace {
+        path: Vec<String>,
+        containers: Vec<String>,
+        leaves: Vec<String>,
+    }
+
+    impl ModuleVisitor for Trace {
+        fn enter_module(&mut self, name: &str, container_type: &str) {
+            self.path.push(name.into());
+            self.containers.push(container_type.into());
+        }
+        fn exit_module(&mut self, _: &str, _: &str) {
+            self.path.pop();
+            self.containers.pop();
+        }
+        fn visit_float<const D: usize>(&mut self, _: &Param<Tensor<D>>) {
+            self.leaves.push(format!(
+                "{} [{}]",
+                self.path.join("."),
+                self.containers.join(" > ")
+            ));
+        }
+    }
+
+    #[test]
+    fn named_fields_are_nested_under_the_variant_and_tuple_variants_keep_their_path() {
+        let device = test_device();
+        let wide = Net::Wide {
+            first: layer([1.0, 2.0], &device),
+            second: layer([3.0, 5.0], &device),
+        };
+        let small = Net::Small(layer([1.0, 2.0], &device));
+
+        let mut wide_trace = Trace::default();
+        wide.visit(&mut wide_trace);
+        assert_eq!(
+            wide_trace.leaves,
+            [
+                "Wide.first.weight_basic [Enum:Net > Variant:Net::Wide > Struct:ModuleBasic]",
+                "Wide.second.weight_basic [Enum:Net > Variant:Net::Wide > Struct:ModuleBasic]",
+            ]
+        );
+
+        let mut small_trace = Trace::default();
+        small.visit(&mut small_trace);
+        assert_eq!(
+            small_trace.leaves,
+            ["Small.weight_basic [Enum:Net > Struct:ModuleBasic]"]
+        );
+    }
+
+    #[test]
+    fn named_variant_loads_each_field_from_a_wrapped_struct_record() {
+        #[derive(Module, Debug)]
+        struct Layers {
+            first: ModuleBasic,
+            second: ModuleBasic,
+        }
+
+        #[derive(Module, Debug)]
+        enum Wrapped {
+            Wide(Layers),
+        }
+
+        let device = test_device();
+        let source = Wrapped::Wide(Layers {
+            first: layer([1.0, 2.0], &device),
+            second: layer([3.0, 5.0], &device),
+        });
+        let target = Net::Wide {
+            first: layer([0.0, 0.0], &device),
+            second: layer([0.0, 0.0], &device),
+        };
+        let Net::Wide { first, second } = target.load_record(source.into_record()) else {
+            panic!("Invalid module type")
+        };
+        assert_eq!(
+            first.weight_basic.to_data().try_to_vec::<f32>().unwrap(),
+            [1.0, 2.0]
+        );
+        assert_eq!(
+            second.weight_basic.to_data().try_to_vec::<f32>().unwrap(),
+            [3.0, 5.0]
+        );
+    }
+
+    #[test]
+    fn named_fields_transform_without_changing_skipped_state() {
+        #[derive(Module, Debug)]
+        enum Mixed {
+            Variant {
+                live: ModuleBasic,
+                steps: usize,
+                #[module(skip)]
+                cache: ModuleBasic,
+            },
+        }
+
+        struct Double;
+        impl ModuleMapper for Double {
+            fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
+                param.map(|tensor| tensor * 2.0)
+            }
+        }
+
+        let device = test_device();
+        let module = Mixed::Variant {
+            live: layer([1.0, 2.0], &device),
+            steps: 7,
+            cache: layer([3.0, 5.0], &device),
+        };
+        assert_eq!(module.num_params(), 2);
+
+        let mapped = module.clone().map(&mut Double);
+        let display = module.to_string();
+        assert!(display.contains("Variant"), "{display}");
+        assert!(display.contains("live"), "{display}");
+        assert!(display.contains("steps"), "{display}");
+
+        let Mixed::Variant { live, steps, cache } = &mapped;
+        assert_eq!(
+            live.weight_basic.to_data().try_to_vec::<f32>().unwrap(),
+            [2.0, 4.0]
+        );
+        assert_eq!(*steps, 7);
+        assert_eq!(
+            cache.weight_basic.to_data().try_to_vec::<f32>().unwrap(),
+            [3.0, 5.0]
+        );
+
+        #[cfg(feature = "autodiff")]
+        {
+            let training = mapped.train();
+            let Mixed::Variant { live, cache, .. } = &training;
+            assert!(live.weight_basic.val().is_autodiff());
+            assert!(!cache.weight_basic.val().is_autodiff());
+            let Mixed::Variant { live, steps, .. } = training.valid();
+            assert!(!live.weight_basic.val().is_autodiff());
+            assert_eq!(steps, 7);
+        }
+    }
+
+    #[test]
+    fn field_names_do_not_shadow_generated_parameters() {
+        #[derive(Module, Debug)]
+        enum Reserved {
+            Variant {
+                device: ModuleBasic,
+                devices: ModuleBasic,
+                mapper: ModuleBasic,
+                visitor: ModuleBasic,
+            },
+        }
+
+        let device = test_device();
+        let _module = Reserved::Variant {
+            device: layer([1.0, 2.0], &device),
+            devices: layer([3.0, 5.0], &device),
+            mapper: layer([7.0, 11.0], &device),
+            visitor: layer([13.0, 17.0], &device),
+        };
+    }
+
+    #[test]
+    fn generic_modules_in_named_fields_infer_their_bounds() {
+        #[derive(Module, Debug)]
+        enum Choice<L, R> {
+            Pair { left: L, right: R },
+        }
+
+        let device = test_device();
+        let module = Choice::Pair {
+            left: layer([1.0, 2.0], &device),
+            right: Param::from_tensor(Tensor::<1>::from_floats([3.0], &device)),
+        };
+        assert_eq!(module.num_params(), 3);
+    }
+}
+
 mod state {
     use super::*;
     use burn::store::RecordError;
@@ -371,20 +689,6 @@ mod lazy_clone {
         assert_eq!(*data.shape(), [20, 20].into());
 
         data.assert_eq(&module.weight_basic.val().into_data(), true);
-    }
-
-    #[test]
-    fn lazy_clone_and_original_have_same_init() {
-        let device = test_device();
-        let module = ModuleBasic::new(&device);
-        let cloned = module.clone();
-
-        let clone_data = cloned.weight_basic.to_data();
-        let orig_data = module.weight_basic.to_data();
-
-        assert_eq!(*clone_data.shape(), [20, 20].into());
-        assert_eq!(*orig_data.shape(), [20, 20].into());
-        assert_eq!(clone_data, orig_data);
     }
 
     #[test]

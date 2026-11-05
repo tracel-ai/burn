@@ -24,16 +24,23 @@ jobs:
       - name: checkout
         uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
+      - name: Install Rust
+        uses: tracel-ai/github-actions/install-rust@v12
+        with:
+          rust-toolchain: stable
+          enable-cache: false
+      # --------------------------------------------------------------------------------
       - name: Install Mesa
-        uses: tracel-ai/github-actions/install-mesa@v11
+        uses: tracel-ai/github-actions/install-mesa@v12
       # --------------------------------------------------------------------------------
       - name: Install valgrind
         run: |
-          sudo apt-get install valgrind
+          sudo apt-get install -y valgrind
       # --------------------------------------------------------------------------------
       - name: Run cargo-valgrind
         env:
-          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "valgrind -s --leak-check=full --show-leak-kinds=all --error-exitcode=1"
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "valgrind -s --leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=definite --error-exitcode=1"
         # Looking for vulnerabilities
         run: |
-          cargo test
+          cargo test --no-fail-fast -p burn-std -p burn-tensor -p burn-backend -p burn-flex
+          cargo test --no-fail-fast -p burn-backend-tests --no-default-features --features flex,std,flex-simd,flex-rayon

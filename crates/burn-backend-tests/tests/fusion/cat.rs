@@ -424,3 +424,34 @@ fn cat_of_permuted_operands_is_correct_along_every_axis() {
         }
     });
 }
+
+/// Two `cat`s of different output shapes fused into one block: the narrower one must not
+/// become a broadcast of the wider reference, whose layout `cat` computes its coordinates from.
+#[test]
+fn cat_outputs_of_different_shapes_read_their_own_inputs() {
+    let stream = test_stream();
+    stream.executes(|| {
+        let device = Default::default();
+        let narrow = TestTensorInt::<2>::from_data([[1]], &device).mul_scalar(3);
+        let wide = TestTensorInt::<2>::from_data([[10, 20, 30, 40]], &device).add_scalar(1);
+        device.sync().unwrap();
+
+        let inspector = FusionInspector::install(stream);
+        let narrow = TestTensorInt::cat(vec![narrow], 0);
+        let wide = TestTensorInt::cat(vec![wide], 0);
+        let out = TestTensorInt::cat(vec![narrow, wide], 1).into_data();
+        device.sync().unwrap();
+        let tables = inspector
+            .drain()
+            .iter()
+            .map(|report| report.format_table())
+            .collect::<Vec<_>>()
+            .join("\n\n");
+
+        assert_eq!(
+            out,
+            TensorData::from([[3, 11, 21, 31, 41]]).convert_dtype(out.dtype()),
+            "\n\n{tables}"
+        );
+    });
+}

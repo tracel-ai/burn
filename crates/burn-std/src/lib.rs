@@ -4,8 +4,24 @@
 
 //! # Burn Standard Library
 //!
-//! This library contains core types and utilities shared across Burn, including shapes, indexing,
-//! and data types.
+//! Core types and utilities shared across the Burn crates.
+//!
+//! - [`Shape`], slicing ([`s!`]) and indexing helpers.
+//! - [`DType`], the element traits and conversions, and [`TensorData`], the backend-independent
+//!   representation of tensor contents.
+//! - [`Distribution`] for random tensor initialization.
+//! - [`DeviceSettings`], per-device defaults such as dtypes.
+//! - Quantization schemes, [`Bytes`], identifiers and errors.
+//! - [`config`]: runtime configuration read from `burn.toml`.
+//! - `network`: file downloads with a progress bar (`network` feature).
+//!
+//! Applications use these through `burn::tensor`. The crate supports `no_std` with `alloc`.
+//!
+//! # Feature flags
+//!
+//! - `std` (default): standard library support.
+//! - `network`: file downloads.
+//! - `tracing`: instrument operations with the `tracing` crate.
 
 #[macro_use]
 extern crate derive_new;
@@ -26,6 +42,9 @@ pub use data::*;
 /// Random value distributions.
 pub mod distribution;
 pub use distribution::*;
+
+mod random;
+pub use random::RandomKey;
 
 /// Traits for tensor element types and conversions.
 pub mod element;
@@ -55,31 +74,6 @@ pub use cubecl_zspace::errors::{self, *};
 #[cfg(feature = "network")]
 pub mod network;
 
-/// An ID unique to any unordered combination of devices, used by collective /
-/// communication primitives (distributed training etc.).
-///
-/// Mirrors `cubecl_runtime::server::CommunicationId` so that the
-/// `burn_fusion::FusionUtilities::initialized_comms` set (and other consumers)
-/// can be reused without depending on cubecl directly.
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
-pub struct CommunicationId {
-    /// Stable hash of the (sorted) set of device ids that participate.
-    pub id: u64,
-}
-
-impl From<alloc::vec::Vec<cubecl_common::device::DeviceId>> for CommunicationId {
-    fn from(mut value: alloc::vec::Vec<cubecl_common::device::DeviceId>) -> Self {
-        use core::hash::{Hash, Hasher};
-        // Sort so any permutation of the same devices yields the same id.
-        value.sort();
-        let mut hasher = ahash::AHasher::default();
-        value.hash(&mut hasher);
-        CommunicationId {
-            id: hasher.finish(),
-        }
-    }
-}
-
 pub use cubecl_common::device_handle::DeviceHandle;
 pub use cubecl_common::*;
 pub use cubecl_environment::bytes::*;
@@ -88,6 +82,13 @@ pub use cubecl_environment::bytes::*;
 // backends and other burn crates don't have to depend on it directly.
 pub use cubecl_environment::future::reader;
 pub use cubecl_environment::{backtrace, future, rand, stream, sync};
+
+/// Compute environment values, kept by the cubecl runtimes and carried by every backend.
+pub mod environment {
+    pub use cubecl_environment::environment::{
+        EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
+    };
+}
 
 pub use half::{bf16, f16};
 

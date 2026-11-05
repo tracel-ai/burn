@@ -13,7 +13,7 @@ keywords = [
 ]
 license.workspace = true
 name = "burn-pack"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-pack"
 version.workspace = true
 

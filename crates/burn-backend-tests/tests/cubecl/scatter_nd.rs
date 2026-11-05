@@ -82,7 +82,7 @@ fn scatter_nd_should_work_with_non_contiguous_values() {
     let data_ref = TestTensor::<4>::from_data(data.to_data(), &ref_device);
     let indices_ref =
         TestTensorInt::<5>::from_data(TensorData::new(indices_vec, [1, 2, 4, 1, 4]), &ref_device);
-    // NdArray scatter_nd requires contiguous values; same logical content as the stepped view.
+    // Use contiguous reference values with the same logical content as the stepped view.
     let values_ref =
         TestTensor::<4>::from_data(TensorData::new(values_vec, [1, 2, 4, 1]), &ref_device);
 

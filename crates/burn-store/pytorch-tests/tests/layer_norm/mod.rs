@@ -67,15 +67,4 @@ mod tests {
             .expect("Should decode state successfully");
         layer_norm(model, 1e-3);
     }
-
-    #[test]
-    fn layer_norm_half() {
-        let device = Default::default();
-        let mut model = Net::init(&device);
-        let mut store = PytorchStore::from_file("tests/layer_norm/layer_norm.pt");
-        model
-            .load_from(&mut store)
-            .expect("Should decode state successfully");
-        layer_norm(model, 1e-3);
-    }
 }

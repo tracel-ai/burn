@@ -3,7 +3,7 @@
 //! A WebSocket session is one full-duplex socket; `burn_communication` splits it into independent
 //! send/receive halves, which map directly onto [`FrameSink`] / [`FrameSource`]. The inherent
 //! `send`/`recv`/`close` on each half do the binary framing; here we only adapt the message type
-//! (`Message` ↔ `Bytes`) and the error type (`String`).
+//! (`Message` ↔ `Bytes`) and the error type (`String`), and hold a frame to the reader's limit.
 
 use bytes::Bytes;
 
@@ -27,11 +27,12 @@ impl FrameSink for WsServerSink {
 }
 
 impl FrameSource for WsServerStream {
-    async fn recv(&mut self) -> Result<Option<Bytes>, String> {
+    async fn recv(&mut self, max_len: usize) -> Result<Option<Bytes>, String> {
         WsServerStream::recv(self)
             .await
-            .map(|message| message.map(|message| message.data))
-            .map_err(|err| err.to_string())
+            .map_err(|err| err.to_string())?
+            .map(|message| ReceivedFrame(message).at_most(max_len))
+            .transpose()
     }
 }
 
@@ -50,10 +51,27 @@ impl FrameSink for WsClientSink {
 }
 
 impl FrameSource for WsClientStream {
-    async fn recv(&mut self) -> Result<Option<Bytes>, String> {
+    async fn recv(&mut self, max_len: usize) -> Result<Option<Bytes>, String> {
         WsClientStream::recv(self)
             .await
-            .map(|message| message.map(|message| message.data))
-            .map_err(|err| err.to_string())
+            .map_err(|err| err.to_string())?
+            .map(|message| ReceivedFrame(message).at_most(max_len))
+            .transpose()
+    }
+}
+
+/// A frame the socket has already read in full, held to a reader's limit only once it arrived.
+struct ReceivedFrame(Message);
+
+impl ReceivedFrame {
+    fn at_most(self, max_len: usize) -> Result<Bytes, String> {
+        let frame = self.0.data;
+        if frame.len() > max_len {
+            return Err(format!(
+                "Peer sent an oversized Burn Remote frame: {} bytes (max {max_len})",
+                frame.len()
+            ));
+        }
+        Ok(frame)
     }
 }

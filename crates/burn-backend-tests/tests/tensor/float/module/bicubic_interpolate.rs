@@ -2,7 +2,7 @@ use super::*;
 use burn_tensor::Shape;
 use burn_tensor::Tolerance;
 use burn_tensor::module::interpolate;
-use burn_tensor::ops::{InterpolateMode, InterpolateOptions};
+use burn_tensor::ops::{CoordinateTransformMode, InterpolateMode, InterpolateOptions};
 
 #[test]
 fn test_upsample_interpolation() {
@@ -99,7 +99,11 @@ fn test_1d_bicubic() {
 
     let output = interpolate(
         input,
-        InterpolateOptions::new(InterpolateMode::Bicubic).with_output_size([1, 9]),
+        InterpolateOptions::new(InterpolateMode::Bicubic {
+            coordinate_transform: CoordinateTransformMode::AlignCorners,
+            a: -0.75,
+        })
+        .with_output_size([1, 9]),
     );
 
     assert_eq!(output.dims(), [1, 1, 1, 9]);
@@ -146,9 +150,15 @@ impl InterpolateTestCase {
         );
         let output = interpolate(
             x,
-            InterpolateOptions::new(InterpolateMode::Bicubic)
-                .with_align_corners(align_corners)
-                .with_output_size([self.height_out, self.width_out]),
+            InterpolateOptions::new(InterpolateMode::Bicubic {
+                coordinate_transform: if align_corners {
+                    CoordinateTransformMode::AlignCorners
+                } else {
+                    CoordinateTransformMode::HalfPixel
+                },
+                a: -0.75,
+            })
+            .with_output_size([self.height_out, self.width_out]),
         );
 
         let tolerance = Tolerance::permissive();
@@ -192,5 +202,27 @@ fn test_upsample_half_pixel() {
             ],
         ]]]),
         false,
+    );
+}
+
+#[test]
+fn test_bicubic_non_default_spline_parameter() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data([[[[10., 0., 0., 30.]]]], &device);
+    // At coordinate 1.5 the two outer weights are a/8, giving 40 * (-0.5/8).
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bicubic {
+            coordinate_transform: CoordinateTransformMode::HalfPixel,
+            a: -0.5,
+        })
+        .with_output_size([1, 1]),
+    );
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &burn_tensor::TensorData::from([[[[-2.5]]]]),
+        Tolerance::default(),
     );
 }

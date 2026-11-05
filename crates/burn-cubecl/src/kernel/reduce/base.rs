@@ -1,5 +1,7 @@
 #[cfg(feature = "autotune")]
-use super::{autotune_reduce, autotune_reduce_with_indices, autotune_sum};
+use super::{
+    autotune_reduce, autotune_reduce_dims_plan, autotune_reduce_with_indices, autotune_sum,
+};
 use crate::ops::permute;
 use crate::{
     ops::numeric::{empty_device_contiguous_dtype, fill_device_dtype, zeros_client},
@@ -201,7 +203,39 @@ pub fn reduce(
 /// tensor whose memory order is its logical one. A layout holding every reduced
 /// dimension together therefore takes a single launch, and one that scatters them
 /// takes no more launches than reducing them one at a time would have.
+/// With autotuning enabled, multi-axis sum and mean also compare this plan with
+/// a permutation and reshape followed by one reduction, including any required copy.
 pub fn reduce_dims(
+    input: CubeTensor,
+    output_dtype: Option<DType>,
+    dims: &[usize],
+    strategy: KernelReduceStrategy,
+    config: ReduceOperationConfig,
+) -> Result<CubeTensor, ReduceError> {
+    let input = crate::kernel::untile(input);
+
+    #[cfg(feature = "autotune")]
+    if matches!(strategy, KernelReduceStrategy::Autotune)
+        && output_dtype.is_none()
+        && matches!(
+            config,
+            ReduceOperationConfig::Sum | ReduceOperationConfig::Mean
+        )
+        && (matches!(config, ReduceOperationConfig::Sum) || input.dtype.is_float())
+        && (0..input.meta.num_dims())
+            .filter(|dim| dims.contains(dim))
+            .count()
+            > 1
+        && input.meta.shape().iter().all(|&size| size > 0)
+    {
+        return Ok(autotune_reduce_dims_plan(input, dims, config));
+    }
+
+    reduce_dims_folded(input, output_dtype, dims, strategy, config)
+}
+
+/// Reduces a rank-N input in contiguous memory runs, keeping reduced axes at size one.
+pub(super) fn reduce_dims_folded(
     input: CubeTensor,
     output_dtype: Option<DType>,
     dims: &[usize],
@@ -266,6 +300,37 @@ pub fn reduce_dims(
     }
 
     Ok(tensor)
+}
+
+#[cfg(feature = "autotune")]
+/// Presents the input as `[kept_elements, reduced_elements]`, copying when required.
+/// Restores the input rank with reduced axes at size one after a single reduction.
+pub(super) fn reduce_dims_copy(
+    input: CubeTensor,
+    dims: &[usize],
+    config: ReduceOperationConfig,
+) -> Result<CubeTensor, ReduceError> {
+    let rank = input.meta.num_dims();
+    let original_shape = input.meta.shape().clone();
+    let kept: Vec<usize> = (0..rank).filter(|dim| !dims.contains(dim)).collect();
+    let reduced: Vec<usize> = (0..rank).filter(|dim| dims.contains(dim)).collect();
+    let kept_len = kept.iter().map(|&dim| original_shape[dim]).product();
+    let reduced_len = reduced.iter().map(|&dim| original_shape[dim]).product();
+    let order: Vec<usize> = kept.into_iter().chain(reduced.iter().copied()).collect();
+
+    let presented = permute(input, &order);
+    let folded = crate::ops::reshape(presented, Shape::new([kept_len, reduced_len]));
+    let mut output = reduce_dim(folded, None, 1, KernelReduceStrategy::Autotune, config)?;
+
+    let mut output_shape = original_shape;
+    for dim in reduced {
+        output_shape[dim] = 1;
+    }
+    *output.meta = Metadata::new(
+        output_shape.clone(),
+        burn_std::tensor::contiguous_strides(&output_shape),
+    );
+    Ok(output)
 }
 
 /// The dimensions among `left` that memory already holds together — consecutive in
@@ -426,6 +491,11 @@ pub fn reduce_dim(
     if axis_length == 0 {
         return reduce_empty_axis(output, axis_length, config);
     }
+    // A zero-length axis other than `dim` leaves no output to compute, and cubek cannot size a
+    // launch over zero output units. A `k` too large for the axis still goes to cubek to be rejected.
+    if output.meta.num_elements() == 0 && axis_length >= accumulator_len {
+        return Ok(output);
+    }
 
     let result = match strategy {
         KernelReduceStrategy::Unspecified => cubek::reduce::reduce(
@@ -530,6 +600,10 @@ pub fn reduce_dim_with_indices(
             axis_length: 0,
             k: out_len,
         });
+    }
+    // Same as in `reduce_dim`: an empty output has nothing to compute.
+    if values.meta.num_elements() == 0 && input.meta.shape[dim] >= out_len {
+        return Ok((values, indices));
     }
 
     let client = input.client.clone();

@@ -734,10 +734,6 @@ pub(crate) trait BasicOps: TensorKind {
     /// The number of windows is `0` when `shape[dim] < size`, and otherwise
     /// `(shape[dim] - size) / step + 1`.
     ///
-    /// # Warning
-    ///
-    /// For the `ndarray` backend; this is not a view but a full copy.
-    ///
     /// # Arguments
     ///
     /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
@@ -749,4 +745,18 @@ pub(crate) trait BasicOps: TensorKind {
     ///
     /// A tensor view with shape ``[pre=..., windows, post=..., size]``.
     fn unfold(tensor: BridgeTensor, dim: usize, size: usize, step: usize) -> BridgeTensor;
+
+    /// Every member receives every member's tensor, concatenated along `dim` in member order.
+    fn all_gather(tensors: Vec<BridgeTensor>, dim: usize) -> Vec<BridgeTensor>;
+
+    /// Member `i` receives chunk `i` along `split_dim` of every member's tensor, concatenated
+    /// along `concat_dim` in member order.
+    fn all_to_all(
+        tensors: Vec<BridgeTensor>,
+        split_dim: usize,
+        concat_dim: usize,
+    ) -> Vec<BridgeTensor>;
+
+    /// Each of `devices` receives `tensor`.
+    fn broadcast(tensor: BridgeTensor, devices: &[Device]) -> Vec<BridgeTensor>;
 }

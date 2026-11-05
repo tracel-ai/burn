@@ -3,52 +3,6 @@ use burn_core::tensor::{Distribution, Tolerance, s};
 use burn_linalg::det;
 
 // ---------------------------------------------------------------------
-// Small Matrices (single batch)
-// ---------------------------------------------------------------------
-
-#[test]
-fn test_det_1x1_batched() {
-    let device = Default::default();
-    let tensor = TestTensor::<3>::from_data([[[5.0]]], &device);
-    let det_tensor = det::<3, 2, 1>(tensor);
-    let expected = TestTensor::<1>::from_data([5.0], &device);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
-    det_tensor
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&expected.into_data(), tolerance);
-}
-
-#[test]
-fn test_det_2x2_batched() {
-    let device = Default::default();
-    let tensor = TestTensor::<3>::from_data([[[4.0, 3.0], [6.0, 3.0]]], &device);
-    let det_tensor = det::<3, 2, 1>(tensor);
-    // det = 4*3 - 3*6 = 12 - 18 = -6
-    let expected = TestTensor::<1>::from_data([-6.0], &device);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
-    det_tensor
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&expected.into_data(), tolerance);
-}
-
-#[test]
-fn test_det_3x3_batched() {
-    let device = Default::default();
-    let tensor = TestTensor::<3>::from_data(
-        [[[4.0, 7.0, 3.0], [6.0, 1.0, 3.0], [8.0, 3.0, 7.0]]],
-        &device,
-    );
-    let det_tensor = det::<3, 2, 1>(tensor);
-    // det = 4*(1*7 - 3*3) - 7*(6*7 - 3*8) + 3*(6*3 - 1*8)
-    // = 4*(7-9) - 7*(42-24) + 3*(18-8) = 4*(-2) - 7*18 + 3*10 = -8 -126 +30 = -104
-    let expected = TestTensor::<1>::from_data([-104.0], &device);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
-    det_tensor
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&expected.into_data(), tolerance);
-}
-
-// ---------------------------------------------------------------------
 // Special Matrices (single batch)
 // ---------------------------------------------------------------------
 

@@ -44,6 +44,15 @@ impl FlexTensor {
 
     /// Create a tensor from TensorData.
     pub fn from_data(data: TensorData) -> Self {
+        // Materialize lazy device readback before the source tensor can be mutated.
+        // Otherwise this CPU tensor could observe later updates to the device buffer.
+        // TODO: Remove this workaround once CubeCL lazy readback prevents in-place
+        // mutation of the source allocation until materialization or drop.
+        if data.bytes().property() == burn_std::AllocationProperty::Device {
+            data.bytes()
+                .read(burn_std::Reader::new())
+                .expect("Failed to read device data into Flex");
+        }
         let (bytes, shape, dtype) = data.into_parts();
         let layout = Layout::contiguous(shape);
         Self {
@@ -70,12 +79,16 @@ impl FlexTensor {
                 // Buffer exactly matches logical size; try zero-copy unwrap
                 match Arc::try_unwrap(self.data) {
                     Ok(bytes) => bytes,
-                    Err(arc) => Bytes::from_bytes_vec((*arc)[..expected_bytes].to_vec()),
+                    // Preserve allocation alignment so typed consumers can reuse
+                    // this copy instead of copying a second time from Vec<u8>.
+                    Err(arc) => (*arc).clone(),
                 }
             } else {
                 // Contiguous at offset 0 but buffer is oversized (e.g., narrowed view).
                 // Truncate to exact logical size.
-                Bytes::from_bytes_vec(self.data[..expected_bytes].to_vec())
+                let mut bytes = zeroed_bytes(self.layout.num_elements(), self.dtype);
+                bytes.copy_from_slice(&self.data[..expected_bytes]);
+                bytes
             };
             TensorData::from_bytes(bytes, self.layout.shape().clone(), self.dtype)
         } else {
@@ -231,9 +244,7 @@ impl FlexTensor {
 
     /// Create an empty tensor with given shape and dtype.
     pub fn empty(shape: Shape, dtype: DType) -> Self {
-        let num_elements = shape.num_elements();
-        let elem_size = dtype_size(dtype);
-        let bytes = Bytes::from_bytes_vec(alloc::vec![0u8; num_elements * elem_size]);
+        let bytes = zeroed_bytes(shape.num_elements(), dtype);
         let layout = Layout::contiguous(shape);
         Self {
             data: Arc::new(bytes),
@@ -916,11 +927,11 @@ fn copy_2d_tiled<E: Copy + Send + Sync>(
 ///
 /// Panics if the dtype has a zero-byte element size. `burn_std::DType::size()`
 /// returns 0 for sub-byte quantized dtypes (Q4F, Q4S, Q2F, Q2S, and most
-/// `QuantStore::PackedNative` variants). burn-flex does not yet support these
-/// packed quantization formats; passing them here would silently produce
-/// empty allocations in `FlexTensor::empty`, truncated buffers in `into_data`,
-/// and zero-byte memcpys in `repeat_dim`. The panic turns all three into a
-/// loud, actionable failure at the dispatch boundary.
+/// `QuantStore::PackedNative` variants). Flex holds quantized values as one
+/// `i8` code each, so these never reach a `FlexTensor`; passing them here
+/// would silently produce empty allocations in `FlexTensor::empty`, truncated
+/// buffers in `into_data`, and zero-byte memcpys in `repeat_dim`. The panic
+/// turns all three into a loud, actionable failure at the dispatch boundary.
 pub(crate) fn dtype_size(dtype: DType) -> usize {
     // Delegate to burn-std's canonical size to stay in sync.
     let size = dtype.size();
@@ -933,10 +944,34 @@ pub(crate) fn dtype_size(dtype: DType) -> usize {
     size
 }
 
+/// Zeroed storage for `num_elements` values of `dtype`, allocated with the
+/// element's alignment. `Bytes::from_bytes_vec` would copy a `Vec<u8>` into a
+/// second, 16-byte aligned buffer.
+pub(crate) fn zeroed_bytes(num_elements: usize, dtype: DType) -> Bytes {
+    match dtype_size(dtype) {
+        8 => Bytes::from_elems(alloc::vec![0u64; num_elements]),
+        4 => Bytes::from_elems(alloc::vec![0u32; num_elements]),
+        2 => Bytes::from_elems(alloc::vec![0u16; num_elements]),
+        1 => Bytes::from_elems(alloc::vec![0u8; num_elements]),
+        size => unreachable!("burn-flex: unsupported element size {size}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use alloc::vec;
+
+    #[test]
+    fn test_shared_export_preserves_typed_allocation() {
+        let tensor = FlexTensor::from_data(TensorData::from([1.0f64, 2.0, 3.0]));
+        let data = tensor.clone().into_data();
+        let ptr = data.bytes().as_ptr();
+        let values = data.try_into_vec::<f64>().unwrap();
+        assert_eq!(values.as_ptr().cast::<u8>(), ptr);
+        assert_eq!(values, vec![1.0, 2.0, 3.0]);
+        assert_eq!(tensor.storage::<f64>(), &[1.0, 2.0, 3.0]);
+    }
 
     #[test]
     fn test_from_data_roundtrip() {

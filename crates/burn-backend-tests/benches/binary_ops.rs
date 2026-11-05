@@ -210,6 +210,32 @@ macro_rules! bench_backend {
                     bencher.bench_synced(|| a.clone().atan2(b.clone()));
                 }
             }
+
+            // Fmod operations
+            #[divan::bench_group(name = "fmod")]
+            mod fmod {
+                use super::*;
+
+                #[divan::bench]
+                fn medium(bencher: Bencher) {
+                    let a = make_tensor(MEDIUM);
+                    let b = make_tensor(MEDIUM);
+                    bencher.bench_synced(|| a.clone().fmod(b.clone()));
+                }
+
+                #[divan::bench]
+                fn large(bencher: Bencher) {
+                    let a = make_tensor(LARGE);
+                    let b = make_tensor(LARGE);
+                    bencher.bench_synced(|| a.clone().fmod(b.clone()));
+                }
+
+                #[divan::bench]
+                fn scalar_large(bencher: Bencher) {
+                    let a = make_tensor(LARGE);
+                    bencher.bench_synced(|| a.clone().fmod_scalar(0.3));
+                }
+            }
         }
     };
 }

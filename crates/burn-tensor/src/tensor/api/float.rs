@@ -15,7 +15,6 @@ use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Float, Int, TensorPrimitive};
 #[cfg(feature = "std")]
 use burn_backend::AutodiffBackend;
-use burn_backend::ElementConversion;
 use burn_backend::Scalar;
 use burn_backend::TensorMetadata;
 #[cfg(feature = "std")]
@@ -25,6 +24,7 @@ use burn_backend::ops::FloatTensorOps;
 use burn_backend::ops::GridSampleOptions;
 use burn_backend::ops::QTensorOps;
 use burn_backend::quantization::QuantizationParametersPrimitive;
+use burn_backend::{Backend, ElementConversion};
 use burn_dispatch::Dispatch;
 use core::f32;
 
@@ -96,6 +96,51 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// strategy, with halfway cases rounded to the nearest even integer value.
     pub fn round(self) -> Self {
         Self::new(round_impl(self.primitive))
+    }
+
+    /// Applies element wise round operation to the given number of decimal places.
+    ///
+    /// Positive `decimals` round to the right of the decimal point, while negative
+    /// values round to the left (for example, `decimals = -2` rounds to the nearest
+    /// hundred). Halfway cases follow the same [round half to even](https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even)
+    /// strategy as [`round`](Self::round), and `decimals == 0` is equivalent to
+    /// [`round`](Self::round).
+    ///
+    /// Scaling is inexact and can move halfway cases across the rounding boundary.
+    /// It can also overflow in the tensor's dtype, producing infinity or NaN,
+    /// particularly for low-precision dtypes or large absolute decimal counts.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the scale factor `10^|decimals|` exceeds the finite range of `f64`.
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::Tensor;
+    ///
+    /// let device = Default::default();
+    /// let tensor = Tensor::<1>::from_floats([1.2345, 2.3456, 3.4567], &device);
+    /// let rounded = tensor.round_to(2);
+    /// ```
+    pub fn round_to(self, decimals: i32) -> Self {
+        if decimals == 0 {
+            return self.round();
+        }
+
+        // Build 10^|decimals| on the host so the operation stays no_std friendly.
+        let mut scale = 1.0f64;
+        for _ in 0..decimals.unsigned_abs() {
+            scale *= 10.0;
+            if !scale.is_finite() {
+                panic!("round_to: {decimals} decimals cannot be represented by an f64 scale");
+            }
+        }
+
+        if decimals > 0 {
+            self.mul_scalar(scale).round().div_scalar(scale)
+        } else {
+            self.div_scalar(scale).round().mul_scalar(scale)
+        }
     }
 
     /// Applies element wise floor operation.
@@ -672,13 +717,13 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example
     ///
     /// ```ignore
-    /// use burn_tensor::ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode};
+    /// use burn_tensor::ops::{GridSampleOptions, GridSamplePaddingMode, GridSampleMode};
     ///
     /// // Default options (bilinear, zeros padding, align_corners=false)
     /// let output = tensor.grid_sample_2d(grid, GridSampleOptions::default());
     ///
     /// // Custom options
-    /// let options = GridSampleOptions::new(InterpolateMode::Bilinear)
+    /// let options = GridSampleOptions::new(GridSampleMode::Bilinear)
     ///     .with_padding_mode(GridSamplePaddingMode::Border)
     ///     .with_align_corners(true);
     /// let output = tensor.grid_sample_2d(grid, options);
@@ -1157,11 +1202,13 @@ fn int_impl(p: BridgeTensor, device: Device) -> BridgeTensor {
 }
 
 fn random_like_impl(p: &BridgeTensor, distribution: Distribution) -> BridgeTensor {
+    let device = p.as_dispatch().device();
     BridgeTensor::float(Dispatch::float_random(
         p.shape(),
         distribution,
-        &p.as_dispatch().device(),
+        &device,
         p.dtype().into(),
+        Dispatch::next_random_key(&device),
     ))
 }
 

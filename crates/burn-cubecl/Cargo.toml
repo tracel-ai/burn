@@ -1,4 +1,5 @@
 [package]
+workspace = "../.."
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
 description = "Generic backend that can be compiled just-in-time to any shader language target"
@@ -7,7 +8,7 @@ edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "gpu"]
 license.workspace = true
 name = "burn-cubecl"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-cubecl"
 version.workspace = true
 
@@ -30,7 +31,7 @@ std = [
     "burn-fusion?/std",
     "burn-cubecl-fusion?/std",
 ]
-doc = ["default", "wgpu", "fft"]
+doc = ["default", "wgpu", "fft", "dep:branches"]
 # Native FFT kernels, enabled by burn-signal.
 fft = ["cubek/fft"]
 
@@ -43,7 +44,8 @@ cuda = ["cubecl/cuda", "burn-backend/cubecl-cuda"]
 hip = ["cubecl/hip", "burn-backend/cubecl-hip"]
 cpu = ["cubecl/cpu", "burn-backend/cubecl-cpu"]
 wgpu = ["cubecl/wgpu", "burn-backend/cubecl-wgpu"]
-metal = ["wgpu", "cubecl/metal", "burn-backend/cubecl-metal"]
+wgpu-msl = ["wgpu", "cubecl/wgpu-msl", "burn-backend/cubecl-wgpu-msl"]
+metal = ["cubecl/metal", "burn-backend/cubecl-metal"]
 vulkan = ["wgpu", "cubecl/vulkan", "burn-backend/cubecl-vulkan"]
 webgpu = ["wgpu", "cubecl/webgpu", "burn-backend/cubecl-webgpu"]
 
@@ -56,12 +58,16 @@ tracing = [
     "burn-cubecl-fusion?/tracing",
 ]
 
+# Compile persistent caches; runtime configuration controls which caches are used.
+persistence = ["cubecl/persistence"]
 autotune = ["burn-cubecl-fusion?/autotune"]
 autotune-checks = [
     "autotune",
     "cubecl/autotune-checks",
+    "cubek/autotune-checks",
     "burn-cubecl-fusion?/autotune-checks",
 ]
+
 
 fusion = ["burn-fusion", "burn-cubecl-fusion"]
 fusion-experimental = ["fusion"]
@@ -70,6 +76,7 @@ template = []
 
 
 [dependencies]
+branches = { workspace = true, optional = true }
 burn-cubecl-fusion = { workspace = true, optional = true }
 burn-fusion = { workspace = true, optional = true }
 burn-ir = { workspace = true }
@@ -82,9 +89,11 @@ burn-backend = { workspace = true, features = [
 cubecl = { workspace = true, features = ["stdlib"] }
 cubek = { workspace = true, features = [
     "attention",
+    "attention-tiled",
+    "attention-backward",
     "matmul",
-    "matmul-multi-level",
     "matmul-tiled",
+    "microkernel",
     "convolution",
     "interpolate",
     "pool",

@@ -1,6 +1,9 @@
 use crate::Initializer;
 use alloc::format;
 
+use crate::modules::bounds;
+use burn::instrument::{Bounds, compute};
+use burn::tensor::module::conv_transpose_output_size;
 use burn_core as burn;
 
 use crate::conv::checks;
@@ -131,6 +134,31 @@ impl ConvTranspose1dConfig {
 }
 
 impl ConvTranspose1d {
+    /// The options the transposed convolution runs with.
+    fn options(&self) -> ConvTransposeOptions<1> {
+        ConvTransposeOptions::new(
+            [self.stride],
+            [self.padding],
+            [self.padding_out],
+            [self.dilation],
+            self.groups,
+        )
+    }
+
+    /// None where the transposed convolution cannot size its output, which it rejects.
+    fn bounds(&self, input: &Tensor<3>) -> Option<Bounds> {
+        let weight = self.weight.val();
+        let output_size =
+            conv_transpose_output_size(bounds::spatial(input), &weight.shape(), &self.options())?;
+        Some(bounds::transposed_convolution(
+            input,
+            &weight,
+            &self.bias,
+            self.groups,
+            output_size,
+        ))
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// See also [conv_transpose1d](burn::tensor::module::conv_transpose1d).
@@ -139,18 +167,13 @@ impl ConvTranspose1d {
     ///
     /// - input: `[batch_size, channels_in, length_in]`
     /// - output: `[batch_size, channels_out, length_out]`
+    #[compute(bounds = Self::bounds)]
     pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
         conv_transpose1d(
             input,
             self.weight.val(),
             self.bias.as_ref().map(|bias| bias.val()),
-            ConvTransposeOptions::new(
-                [self.stride],
-                [self.padding],
-                [self.padding_out],
-                [self.dilation],
-                self.groups,
-            ),
+            self.options(),
         )
     }
 }

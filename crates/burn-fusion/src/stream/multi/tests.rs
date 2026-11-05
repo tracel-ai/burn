@@ -1,19 +1,29 @@
-//! Cross-thread last-use (consuming read or foreign `Drop`) of a materialized
-//! tensor. The core property is determinism: the composition must depend on
-//! the home thread's op sequence alone, never on when the foreign message
-//! lands (the `*_timing_*` tests). The rest pin the free-timing contract:
+//! Cross-thread last-use (consuming read or foreign `Drop`) of a tensor. The
+//! core property is determinism: the composition must depend on the home
+//! thread's op sequence alone, never on when the foreign message lands (the
+//! `*_timing_*` tests). The rest pin the free-timing contract:
 //! deferred only while pending ops still reference the tensor, released at
 //! the next boundary, immediate otherwise.
 
 use super::*;
 use crate::{
-    FuserProperties, FuserStatus, NumOperations, OperationFuser, OperationRan, Optimization,
-    UnfusedOp,
+    Client, FuserProperties, FuserStatus, FusionTensor, NumOperations, OperationFuser,
+    OperationRan, Optimization, UnfusedOp,
+    server::FusionServer,
     stream::{Context, Operation, OrderedExecution},
 };
-use burn_backend::{DType, DeviceId, DeviceOps, DeviceSettings, ExecutionError, Shape};
-use burn_ir::{FloatOperationIr, TensorError, TensorIr, TensorStatus, UnaryOpIr};
+use burn_backend::{
+    DType, DeviceId, DeviceOps, DeviceService, DeviceSettings, ExecutionError, Shape,
+};
+use burn_ir::{
+    BinaryOpIr, FloatOperationIr, NumericOperationIr, TensorError, TensorIr, TensorStatus,
+    UnaryOpIr,
+};
 use burn_std::{BoolDType, FloatDType, IntDType, device::Device};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 #[derive(Debug)]
 struct TestRuntime;
@@ -31,6 +41,9 @@ enum Fusing {
     /// Closes and reports ready, so the block compiles to one fused
     /// kernel and runs through `OrderedExecution::execute_optimization`.
     Fused,
+    /// Fuses one operation and closes on the next, so each block runs as
+    /// its own segment when the next operation is registered.
+    Split,
 }
 
 /// Carried on the device rather than in ambient state because
@@ -46,7 +59,8 @@ impl Device for TestDevice {
         let fusing = match device_id.index_id {
             0 => Fusing::Deferred,
             1 => Fusing::Eager,
-            _ => Fusing::Fused,
+            2 => Fusing::Fused,
+            _ => Fusing::Split,
         };
         Self { fusing }
     }
@@ -58,6 +72,7 @@ impl Device for TestDevice {
                 Fusing::Deferred => 0,
                 Fusing::Eager => 1,
                 Fusing::Fused => 2,
+                Fusing::Split => 3,
             },
         }
     }
@@ -232,6 +247,61 @@ impl OperationFuser<TestOptimization> for EagerFuser {
     }
 }
 
+/// Fuses one operation and closes on the next without taking it, the way a
+/// fuser rejects what it cannot fuse, so a segment boundary falls between them.
+#[derive(Clone, Debug, Default)]
+struct SplitFuser {
+    outputs: Vec<TensorId>,
+    len: usize,
+    closed: bool,
+}
+
+impl OperationFuser<TestOptimization> for SplitFuser {
+    fn fuse(&mut self, operation: &OperationIr) {
+        match self.len {
+            0 => {
+                self.len = 1;
+                self.outputs.extend(operation.outputs().map(|node| node.id));
+            }
+            _ => self.closed = true,
+        }
+    }
+
+    fn finish(&mut self) -> TestOptimization {
+        TestOptimization {
+            len: self.len,
+            outputs: core::mem::take(&mut self.outputs),
+            ..Default::default()
+        }
+    }
+
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
+
+    fn status(&self) -> FuserStatus {
+        match self.closed {
+            true => FuserStatus::Closed,
+            false => FuserStatus::Open,
+        }
+    }
+
+    fn properties(&self) -> FuserProperties {
+        FuserProperties {
+            score: 1,
+            ready: self.len > 0,
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<TestOptimization>> {
+        Box::new(self.clone())
+    }
+}
+
 /// Closes and reports ready, so its block compiles to one fused kernel.
 /// The counterpart of [`NeverReadyFuser`], covering the path where a
 /// segment runs through `OrderedExecution::execute_optimization`.
@@ -325,6 +395,7 @@ impl FusionRuntime for TestRuntime {
             Fusing::Deferred => vec![Box::new(NeverReadyFuser::default())],
             Fusing::Eager => vec![Box::new(EagerFuser::default())],
             Fusing::Fused => vec![Box::new(FusingFuser::default())],
+            Fusing::Split => vec![Box::new(SplitFuser::default())],
         }
     }
 }
@@ -337,6 +408,26 @@ struct ProduceOp {
 
 impl Operation<TestRuntime> for ProduceOp {
     fn execute(&self, handles: &mut HandleContainer<TestHandle>) -> Result<(), ExecutionError> {
+        handles.register_handle(self.out, TestHandle);
+
+        Ok(())
+    }
+}
+
+/// Registers `out` only while `input` is still there, so a free that ran early fails the read.
+#[derive(Debug)]
+struct ReadOp {
+    input: TensorId,
+    out: TensorId,
+}
+
+impl Operation<TestRuntime> for ReadOp {
+    fn execute(&self, handles: &mut HandleContainer<TestHandle>) -> Result<(), ExecutionError> {
+        if !handles.has_handle(&self.input) {
+            return Err(ExecutionError::generic(
+                "the input was freed before its read",
+            ));
+        }
         handles.register_handle(self.out, TestHandle);
 
         Ok(())
@@ -550,14 +641,10 @@ fn compose_with_injection(
 fn foreign_drop_timing_does_not_change_composition() {
     let shared = TensorId::new(100);
     let drop_shared = |setup: &mut TestSetup| {
-        let handled = setup.streams.foreign_drop(
+        setup.streams.foreign_drop(
             setup.id,
             tensor_ir(shared, TensorStatus::ReadWrite),
             &mut setup.handles,
-        );
-        assert!(
-            handled,
-            "materialized tensor must not fall back to the queue"
         );
     };
 
@@ -671,22 +758,70 @@ fn read_of_unreferenced_tensor_frees_directly_even_on_idle_stream() {
     assert!(matches!(plan, ReadPlan::Direct));
 }
 
+/// Where a foreign `Drop` lands depends on another thread, so a drain there would cut the
+/// home stream's pending segment at a different point on every step.
 #[test]
-fn foreign_drop_of_unmaterialized_tensor_falls_back_to_the_queue() {
-    let mut setup = TestSetup::new();
+fn foreign_drop_of_unmaterialized_tensor_waits_for_its_producer() {
+    let mut server = FusionServer::<TestRuntime>::init(TestDevice::default().to_id());
+    let id = StreamId::current();
     let t0 = TensorId::new(0);
     let t1 = TensorId::new(1);
+    let t2 = TensorId::new(2);
 
-    setup.register_exp(t0, t1);
-
-    // t1's producer is pending: only the queue can order the drop.
-    let handled = setup.streams.foreign_drop(
-        setup.id,
-        tensor_ir(t1, TensorStatus::ReadWrite),
-        &mut setup.handles,
+    server.handles.register_handle(t0, TestHandle);
+    server.register(
+        id,
+        exp_op(t0, t1),
+        UnfusedOp::new(ProduceOp { out: t1 }, id),
     );
-    assert!(!handled);
-    assert_eq!(setup.num_pending(), 1);
+    server.register(
+        id,
+        exp_op(t1, t2),
+        UnfusedOp::new(ReadOp { input: t1, out: t2 }, id),
+    );
+
+    server.foreign_drop(id, tensor_ir(t1, TensorStatus::ReadWrite));
+    assert!(
+        !server.handles.has_handle(&t2),
+        "the pending segment must not run"
+    );
+
+    server.drain_stream(id);
+    assert!(server.handles.has_handle(&t2), "producer and reader ran");
+    assert!(!server.handles.has_handle(&t1), "freed at that boundary");
+}
+
+#[test]
+fn foreign_drop_waits_for_a_reader_past_a_segment_boundary() {
+    let device = TestDevice {
+        fusing: Fusing::Split,
+    };
+    let mut server = FusionServer::<TestRuntime>::init(device.to_id());
+    let id = StreamId::current();
+    let t0 = TensorId::new(0);
+    let t1 = TensorId::new(1);
+    let t2 = TensorId::new(2);
+
+    server.handles.register_handle(t0, TestHandle);
+    server.register(
+        id,
+        exp_op(t0, t1),
+        UnfusedOp::new(ProduceOp { out: t1 }, id),
+    );
+    server.foreign_drop(id, tensor_ir(t1, TensorStatus::ReadWrite));
+    server.register(
+        id,
+        exp_op(t1, t2),
+        UnfusedOp::new(ProduceOp { out: t2 }, id),
+    );
+    assert!(
+        server.handles.has_handle(&t1) && !server.handles.has_handle(&t2),
+        "the producer ran at the boundary, its reader is still pending"
+    );
+
+    server.drain_stream(id);
+    assert!(server.handles.has_handle(&t2), "the reader ran");
+    assert!(!server.handles.has_handle(&t1), "freed after its reader");
 }
 
 #[test]
@@ -698,12 +833,11 @@ fn foreign_drop_of_referenced_tensor_is_deferred_to_the_next_boundary() {
     setup.handles.register_handle(t0, TestHandle);
     setup.register_exp(t0, t1);
 
-    let handled = setup.streams.foreign_drop(
+    setup.streams.foreign_drop(
         setup.id,
         tensor_ir(t0, TensorStatus::ReadWrite),
         &mut setup.handles,
     );
-    assert!(handled);
     assert!(
         setup.handles.has_handle(&t0),
         "a pending op still reads t0: the free must wait for the boundary"
@@ -725,12 +859,11 @@ fn foreign_drop_of_unreferenced_tensor_frees_immediately() {
     setup.streams.drain(&mut setup.handles, setup.id);
 
     // Nothing pending references t0 anymore: free on the spot.
-    let handled = setup.streams.foreign_drop(
+    setup.streams.foreign_drop(
         setup.id,
         tensor_ir(t0, TensorStatus::ReadWrite),
         &mut setup.handles,
     );
-    assert!(handled);
     assert!(!setup.handles.has_handle(&t0));
 
     let stale = setup
@@ -739,6 +872,121 @@ fn foreign_drop_of_unreferenced_tensor_frees_immediately() {
         .get(&setup.id)
         .is_some_and(|stream| stream.queue.variables.contains_key(&t0));
     assert!(!stale, "the stale variables entry is cleaned up");
+}
+
+/// Records whether its input was there when it ran.
+#[derive(Debug)]
+struct SeeInputOp {
+    input: TensorId,
+    seen: Arc<AtomicBool>,
+}
+
+impl Operation<TestRuntime> for SeeInputOp {
+    fn execute(&self, handles: &mut HandleContainer<TestHandle>) -> Result<(), ExecutionError> {
+        self.seen
+            .store(handles.has_handle(&self.input), Ordering::Relaxed);
+
+        Ok(())
+    }
+}
+
+/// An operation reading a tensor through one clone still finds it when it runs, the other clone
+/// dropped by `drop_elsewhere` between the operation taking its input and its submission, and the
+/// tensor is freed once the operation has read it.
+fn assert_a_read_outlives_a_clone_dropped_elsewhere(
+    drop_elsewhere: impl FnOnce(FusionTensor<TestRuntime>) + Send + 'static,
+) {
+    let client = Client::<TestRuntime>::new(TestDevice::default());
+    let stream = StreamId::current();
+    let id = client.register_tensor_handle(TestHandle);
+    let tensor = FusionTensor::new(id, Shape::new([32, 32]), DType::F32, client.clone(), stream);
+    let elsewhere = tensor.clone();
+
+    let input = tensor.into_ir();
+    std::thread::spawn(move || drop_elsewhere(elsewhere))
+        .join()
+        .expect("the clone was dropped");
+
+    let seen = Arc::new(AtomicBool::new(false));
+    let out = client.create_empty_handle();
+    let outputs = client.register(
+        stream,
+        OperationIr::Float(
+            DType::F32,
+            FloatOperationIr::Exp(UnaryOpIr {
+                input,
+                out: tensor_ir(out, TensorStatus::NotInit),
+            }),
+        ),
+        SeeInputOp {
+            input: id,
+            seen: seen.clone(),
+        },
+    );
+    client.sync(|| ());
+    drop(outputs);
+    assert!(seen.load(Ordering::Relaxed), "the read found its input");
+
+    let found_after = Arc::new(AtomicBool::new(true));
+    let out = client.create_empty_handle();
+    let outputs = client.register(
+        stream,
+        exp_op(id, out),
+        SeeInputOp {
+            input: id,
+            seen: found_after.clone(),
+        },
+    );
+    client.sync(|| ());
+    drop(outputs);
+    assert!(
+        !found_after.load(Ordering::Relaxed),
+        "the last clone's release freed the tensor"
+    );
+}
+
+#[test]
+fn a_clone_dropped_on_another_thread_leaves_the_tensor_to_its_pending_read() {
+    assert_a_read_outlives_a_clone_dropped_elsewhere(drop);
+}
+
+/// Dropped under the tensor's own stream, the clone queues a drop rather than freeing outright.
+#[test]
+fn a_clone_dropped_on_its_stream_from_another_thread_leaves_the_tensor_to_its_pending_read() {
+    let stream = StreamId::current();
+    assert_a_read_outlives_a_clone_dropped_elsewhere(move |clone| stream.executes(|| drop(clone)));
+}
+
+/// Holding an operation's first read of a tensor changes nothing it decides: read through two
+/// clones, the tensor is still consumed at the second.
+#[test]
+fn an_operation_reading_a_tensor_twice_consumes_it_at_its_last_clone() {
+    let client = Client::<TestRuntime>::new(TestDevice::default());
+    let stream = StreamId::current();
+    let id = client.register_tensor_handle(TestHandle);
+    let tensor = FusionTensor::new(id, Shape::new([32, 32]), DType::F32, client.clone(), stream);
+
+    let lhs = tensor.clone().into_ir();
+    let rhs = tensor.into_ir();
+    assert_eq!(
+        [lhs.status, rhs.status],
+        [TensorStatus::ReadOnly, TensorStatus::ReadWrite]
+    );
+
+    let out = client.create_empty_handle();
+    client.register(
+        stream,
+        OperationIr::NumericFloat(
+            DType::F32,
+            NumericOperationIr::Add(BinaryOpIr {
+                lhs,
+                rhs,
+                out: tensor_ir(out, TensorStatus::NotInit),
+            }),
+        ),
+        ProduceOp { out },
+    );
+    client.sync(|| ());
 }
 
 /// The error a failure leaves is what a read of the tensor reports. The

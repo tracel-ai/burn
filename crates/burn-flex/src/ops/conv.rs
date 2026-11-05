@@ -26,9 +26,9 @@
 
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_backend::DType;
 use burn_backend::ops::ConvOptions;
 use burn_backend::ops::conv::calculate_conv_output_size;
+use burn_backend::{DType, ElementConversion};
 use burn_std::{Bytes, Shape, f16};
 
 use crate::{FlexTensor, Layout};
@@ -291,6 +291,28 @@ fn conv3d_impl<
 
     let [dilation_d, dilation_h, dilation_w] = options.dilation;
 
+    // Only true 2D convolutions: with depth padding, the single output slice can lie in padding
+    if kernel_d == 1 && in_d == 1 && out_d == 1 && pad_d == 0 {
+        let output = conv2d_im2col_nchw(
+            x_data,
+            w_data,
+            [batch_size, channels_in, in_h, in_w],
+            [channels_out, channels_per_group, kernel_h, kernel_w],
+            [out_h, out_w],
+            [stride_h, stride_w],
+            [pad_h, pad_w],
+            [dilation_h, dilation_w],
+            groups,
+            IM2COL_MAX_ELEMS,
+        );
+        return conv_output(
+            output,
+            bias,
+            [batch_size, channels_out, out_d, out_h, out_w],
+            dtype,
+        );
+    }
+
     // Tile size for processing output pixels. Larger = better GEMM utilization,
     // smaller = more parallelism and better cache usage. 512 is a good balance.
     const TILE_SIZE: usize = 512;
@@ -513,7 +535,24 @@ fn conv3d_impl<
         }
     };
 
-    let mut output = output;
+    conv_output(
+        output,
+        bias,
+        [batch_size, channels_out, out_d, out_h, out_w],
+        dtype,
+    )
+}
+
+/// Add the optional bias and wrap an NCDHW output buffer as a tensor.
+fn conv_output<
+    T: bytemuck::Pod + Copy + burn_backend::Element + burn_backend::ElementAdd + Send + Sync,
+>(
+    mut output: Vec<T>,
+    bias: Option<FlexTensor>,
+    shape: [usize; 5],
+    dtype: DType,
+) -> FlexTensor {
+    let [batch_size, channels_out, out_d, out_h, out_w] = shape;
     if let Some(bias) = bias {
         let bias = bias.to_contiguous();
         let bias_data: &[T] = bias.storage();
@@ -522,16 +561,193 @@ fn conv3d_impl<
             bias_data,
             batch_size,
             channels_out,
-            spatial_out,
+            out_d * out_h * out_w,
         );
     }
 
-    let out_shape = Shape::from(vec![batch_size, channels_out, out_d, out_h, out_w]);
     FlexTensor::new(
         Bytes::from_elems(output),
-        Layout::contiguous(out_shape),
+        Layout::contiguous(Shape::from(shape.to_vec())),
         dtype,
     )
+}
+
+/// Upper bound on the im2col buffer, in elements (16 MiB of f32). Larger outputs are
+/// processed in tiles of output positions so memory stays bounded for big images.
+const IM2COL_MAX_ELEMS: usize = 4 * 1024 * 1024;
+
+/// 2D convolution on NCHW data: im2col + GEMM per (batch, group, tile of output positions).
+///
+/// The im2col rows are ordered `(c_in, kh, kw)`, the same order as the OIHW weight, so the
+/// weight is the GEMM lhs as-is and the input needs no NHWC copy. The GEMM writes its
+/// `[c_out, tile]` block straight into the output.
+#[allow(clippy::too_many_arguments)]
+fn conv2d_im2col_nchw<T>(
+    x: &[T],
+    w: &[T],
+    [batch, c_in, in_h, in_w]: [usize; 4],
+    [c_out, c_in_group, kernel_h, kernel_w]: [usize; 4],
+    [out_h, out_w]: [usize; 2],
+    [stride_h, stride_w]: [usize; 2],
+    [pad_h, pad_w]: [usize; 2],
+    [dilation_h, dilation_w]: [usize; 2],
+    groups: usize,
+    max_col_elems: usize,
+) -> Vec<T>
+where
+    T: bytemuck::Pod + Copy + Send + Sync + ElementConversion + 'static,
+{
+    let zero = T::zeroed();
+    let spatial_out = out_h * out_w;
+    let c_out_group = c_out / groups;
+    let col_len = c_in_group * kernel_h * kernel_w;
+    let in_plane = in_h * in_w;
+
+    let mut output = vec![zero; batch * c_out * spatial_out];
+    if spatial_out == 0 || col_len == 0 || c_out_group == 0 {
+        return output;
+    }
+
+    let tile = (max_col_elems / col_len).clamp(1, spatial_out);
+    // [col_len, tile], reused for every (batch, group, tile)
+    let mut col = vec![zero; col_len * tile];
+
+    for b in 0..batch {
+        for g in 0..groups {
+            let x_group = &x[(b * c_in + g * c_in_group) * in_plane..][..c_in_group * in_plane];
+            let w_group = &w[g * c_out_group * col_len..][..c_out_group * col_len];
+            let out_group = &mut output[(b * c_out + g * c_out_group) * spatial_out..]
+                [..c_out_group * spatial_out];
+
+            for start in (0..spatial_out).step_by(tile) {
+                let n = tile.min(spatial_out - start);
+                let col = &mut col[..col_len * n];
+
+                let fill_row = |row_idx: usize, row: &mut [T]| {
+                    let c = row_idx / (kernel_h * kernel_w);
+                    let kh = (row_idx / kernel_w) % kernel_h;
+                    let kw = row_idx % kernel_w;
+                    im2col_nchw_row(
+                        row,
+                        start,
+                        &x_group[c * in_plane..][..in_plane],
+                        [in_h, in_w],
+                        out_w,
+                        [kh * dilation_h, kw * dilation_w],
+                        [stride_h, stride_w],
+                        [pad_h, pad_w],
+                    );
+                };
+
+                #[cfg(feature = "rayon")]
+                {
+                    use rayon::prelude::*;
+                    // Batch short rows (late layers) so each task copies a useful amount
+                    let rows_per_task = (32 * 1024 / n).max(1);
+                    col.par_chunks_mut(n * rows_per_task)
+                        .enumerate()
+                        .for_each(|(task, rows)| {
+                            for (i, row) in rows.chunks_mut(n).enumerate() {
+                                fill_row(task * rows_per_task + i, row);
+                            }
+                        });
+                }
+                #[cfg(not(feature = "rayon"))]
+                for (row_idx, row) in col.chunks_mut(n).enumerate() {
+                    fill_row(row_idx, row);
+                }
+
+                #[cfg(feature = "rayon")]
+                let parallelism = if c_out_group * n * col_len >= 32 * 32 * 32 {
+                    gemm::Parallelism::Rayon(0)
+                } else {
+                    gemm::Parallelism::None
+                };
+                #[cfg(not(feature = "rayon"))]
+                let parallelism = gemm::Parallelism::None;
+
+                // out_group[:, start..start + n] = w_group[c_out_group, col_len] @ col[col_len, n]
+                unsafe {
+                    gemm::gemm(
+                        c_out_group,
+                        n,
+                        col_len,
+                        out_group[start..].as_mut_ptr(),
+                        1,
+                        spatial_out as isize,
+                        false,
+                        w_group.as_ptr(),
+                        1,
+                        col_len as isize,
+                        col.as_ptr(),
+                        1,
+                        n as isize,
+                        zero,
+                        T::from_elem(1.0f32),
+                        false,
+                        false,
+                        false,
+                        parallelism,
+                    );
+                }
+            }
+        }
+    }
+    output
+}
+
+/// Fill one im2col row for output positions `start..start + row.len()`: the input plane value
+/// at kernel offset `(off_h, off_w)` for each position, zero where the window reaches into padding.
+#[allow(clippy::too_many_arguments)]
+fn im2col_nchw_row<T: bytemuck::Pod + Copy>(
+    row: &mut [T],
+    start: usize,
+    plane: &[T],
+    [in_h, in_w]: [usize; 2],
+    out_w: usize,
+    [off_h, off_w]: [usize; 2],
+    [stride_h, stride_w]: [usize; 2],
+    [pad_h, pad_w]: [usize; 2],
+) {
+    let zero = T::zeroed();
+    let shift_w = off_w as isize - pad_w as isize;
+    let mut filled = 0;
+    while filled < row.len() {
+        // The next run stays within one output row
+        let pos = start + filled;
+        let (oh, ow0) = (pos / out_w, pos % out_w);
+        let run = (out_w - ow0).min(row.len() - filled);
+        let dst = &mut row[filled..filled + run];
+        filled += run;
+
+        let ih = (oh * stride_h + off_h) as isize - pad_h as isize;
+        if ih < 0 || ih >= in_h as isize {
+            dst.fill(zero);
+            continue;
+        }
+        let src = &plane[ih as usize * in_w..][..in_w];
+        if stride_w == 1 {
+            // Columns [lo, hi) of this run map onto the input row; the rest is padding
+            let first = ow0 as isize + shift_w;
+            let lo = (-first).clamp(0, run as isize) as usize;
+            let hi = (in_w as isize - first).clamp(lo as isize, run as isize) as usize;
+            dst[..lo].fill(zero);
+            if lo < hi {
+                let a = (first + lo as isize) as usize;
+                dst[lo..hi].copy_from_slice(&src[a..a + (hi - lo)]);
+            }
+            dst[hi..].fill(zero);
+        } else {
+            for (q, value) in dst.iter_mut().enumerate() {
+                let iw = ((ow0 + q) * stride_w) as isize + shift_w;
+                *value = if iw >= 0 && iw < in_w as isize {
+                    src[iw as usize]
+                } else {
+                    zero
+                };
+            }
+        }
+    }
 }
 
 /// Build im2col tile for a range of output positions.
@@ -3052,5 +3268,42 @@ mod tests {
         let depthwise = conv2d_with_non_finite_weight(2, 2, 2);
         assert_non_finite_padding_pattern(&depthwise[..16]);
         assert!(depthwise[16..].iter().all(|value| value.is_finite()));
+    }
+    // NCHW im2col path: tiling must not change results
+
+    #[test]
+    fn test_conv2d_im2col_nchw_tiled_matches_untiled() {
+        // A tiny im2col budget forces many tiles, including ones that start mid-row
+        let (c_in, c_out, h, w) = (3, 5, 9, 11);
+        let x: Vec<f32> = (0..2 * c_in * h * w)
+            .map(|i| (i % 13) as f32 - 6.0)
+            .collect();
+        let wt: Vec<f32> = (0..c_out * c_in * 9)
+            .map(|i| (i % 7) as f32 * 0.1)
+            .collect();
+        let run = |budget| {
+            conv2d_im2col_nchw(
+                &x,
+                &wt,
+                [2, c_in, h, w],
+                [c_out, c_in, 3, 3],
+                [5, 6],
+                [2, 2],
+                [1, 1],
+                [1, 1],
+                1,
+                budget,
+            )
+        };
+        let full = run(usize::MAX);
+        for budget in [27, 27 * 4, 27 * 7] {
+            // Tile width changes the GEMM summation order, so allow rounding differences
+            for (i, (a, e)) in run(budget).iter().zip(&full).enumerate() {
+                assert!(
+                    (a - e).abs() < 1e-4,
+                    "budget {budget}, index {i}: {a} != {e}"
+                );
+            }
+        }
     }
 }

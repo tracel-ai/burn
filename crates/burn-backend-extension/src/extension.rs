@@ -2,7 +2,7 @@
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::parse::{Parse, ParseStream};
+use syn::parse::{Parse, ParseStream, Parser};
 use syn::punctuated::Punctuated;
 use syn::{
     Attribute, FnArg, GenericArgument, GenericParam, Ident, ItemTrait, Meta, Pat, PathArguments,
@@ -12,10 +12,11 @@ use syn::{
 use crate::{
     BACKENDS,
     ir::{Backend, InputKind, Invocation, Operation, OperationInput, OperationOutput, TensorKind},
+    parse::strip_argument_attributes,
     routing::{self, OutputRoute},
 };
 
-pub(crate) fn expand(attr: TokenStream2, item: TokenStream2) -> syn::Result<TokenStream2> {
+pub fn expand(attr: TokenStream2, item: TokenStream2) -> syn::Result<TokenStream2> {
     let backends: Backends = syn::parse2(attr)?;
     let trait_definition: ItemTrait = syn::parse2(item)?;
     let extension = lower_extension(backends, &trait_definition)?;
@@ -244,7 +245,7 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
                 invocation: Invocation::Trait {
                     trait_name: item.ident.clone(),
                     await_call: f.sig.asyncness.is_some() || returns_future,
-                    unsafe_call: f.sig.unsafety.is_some(),
+                    unsafe_call: matches!(f.sig.safety, syn::Safety::Unsafe(_)),
                     generic_args,
                 },
             },
@@ -266,25 +267,32 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
     })
 }
 
-fn strip_argument_attributes(signature: &mut Signature) {
-    for argument in &mut signature.inputs {
-        if let FnArg::Typed(argument) = argument {
-            argument.attrs.retain(|attribute| {
-                !attribute.path().is_ident("extension_type") && !attribute.path().is_ident("fusion")
-            });
-        }
-    }
-}
-
-fn expand_extension(ir: Extension, mut original_trait: ItemTrait) -> TokenStream2 {
+fn expand_extension(mut ir: Extension, mut original_trait: ItemTrait) -> TokenStream2 {
     let trait_name = &ir.trait_name;
-    let fusion = if ir.backends.fusion.0 {
-        let cfg = ir.backends.fusion.1.as_ref().map(|c| quote!(#[#c]));
-        let implementation =
-            crate::fusion::expand(&original_trait).unwrap_or_else(syn::Error::into_compile_error);
-        quote!(#cfg #implementation)
+    let fusion_cfg = ir.backends.fusion.1.as_ref().map(|c| quote!(#[#c]));
+    // With Fusion listed, the router backends, `Remote` and `ShardedCompute`, are generated from
+    // the same metadata: one client for every router channel, which the generated `Fusion<B>`
+    // implementation wraps into the remote backend, and the handlers a server or a sharded
+    // compute device's members run. Without it, their implementations stay handwritten.
+    let router_gate = match ir.backends.fusion.0 {
+        true => router_gate(&mut ir.backends.concrete, fusion_cfg.as_ref()),
+        false => Ok(None),
+    };
+    let router_gate = match router_gate {
+        Ok(gate) => gate,
+        Err(error) => return error.to_compile_error(),
+    };
+    // One parse feeds both emitters; each implements every method, a malformed one included, so
+    // its error is the only one.
+    let (fusion, remote) = if ir.backends.fusion.0 {
+        let model = crate::parse::LazyTrait::new(&original_trait);
+        let implementation = crate::fusion::expand(&model, router_gate.as_ref());
+        let remote = router_gate
+            .as_ref()
+            .map(|gate| crate::remote::expand(&model, gate));
+        (quote!(#fusion_cfg #implementation), remote)
     } else {
-        quote!()
+        (quote!(), None)
     };
 
     // Argument attributes `#[extension_type]` and `#[fusion(...)]` are macro helpers. Strip them from the
@@ -302,10 +310,63 @@ fn expand_extension(ir: Extension, mut original_trait: ItemTrait) -> TokenStream
     quote! {
         #original_trait
         #fusion
+        #remote
 
         impl #trait_name for burn::backend::Dispatch {
             #( #dispatch_methods )*
         }
+    }
+}
+
+/// The condition the router client is generated under, `None` when no router backend is listed:
+/// any listed router backend's together with Fusion's. Each router backend implements the trait
+/// only where that client exists, so Fusion's condition joins its own.
+fn router_gate(
+    backends: &mut [Backend],
+    fusion_cfg: Option<&TokenStream2>,
+) -> syn::Result<Option<TokenStream2>> {
+    let mut routers: Vec<&mut Backend> = backends
+        .iter_mut()
+        .filter(|backend| {
+            BACKENDS
+                .iter()
+                .any(|spec| spec.router && backend.ident == spec.name)
+        })
+        .collect();
+    if routers.is_empty() {
+        return Ok(None);
+    }
+    let conditions = routers
+        .iter()
+        .map(|router| cfg_condition(router.cfg_attr.as_ref()))
+        .collect::<syn::Result<Vec<_>>>()?;
+    // An ungated router backend leaves the client ungated.
+    let any = match conditions.into_iter().collect::<Option<Vec<_>>>() {
+        Some(conditions) => quote!(#[cfg(any(#(#conditions),*))]),
+        None => quote!(),
+    };
+    for router in &mut routers {
+        let own = router.cfg_attr.take();
+        let gate = quote!(#own #fusion_cfg);
+        router.cfg_attr = (!gate.is_empty()).then_some(gate);
+    }
+    Ok(Some(quote!(#any #fusion_cfg)))
+}
+
+/// The predicate of a backend's `cfg(...)`, `None` for an ungated backend.
+fn cfg_condition(cfg_attr: Option<&TokenStream2>) -> syn::Result<Option<TokenStream2>> {
+    let Some(cfg_attr) = cfg_attr else {
+        return Ok(None);
+    };
+    let attributes = Attribute::parse_outer.parse2(cfg_attr.clone())?;
+    match attributes.as_slice() {
+        [attribute] if attribute.path().is_ident("cfg") => {
+            Ok(Some(attribute.meta.require_list()?.tokens.clone()))
+        }
+        _ => Err(syn::Error::new_spanned(
+            cfg_attr,
+            "a router backend's condition is a `cfg(...)`",
+        )),
     }
 }
 
@@ -440,9 +501,9 @@ fn validate_extension_ty(ty: &Type) -> syn::Result<()> {
 /// Backend identity is nested inside `DispatchTensorKind::Autodiff` for tracked float tensors, and
 /// extension structs can't be destructured in a dispatch-kind match. Therefore we:
 /// 1. Find a routing [`DispatchTensor`] (a bare tensor itself, or a struct's via
-///    `ExtensionType::routing_tensor`) and fold its `.kind` and float status into small values.
-///    Separately merge every input's autodiff context. This drops all borrows before any input is
-///    moved.
+///    `ExtensionType::routing_tensor`) and fold its `.kind` into a backend tag. Separately merge
+///    every input's autodiff context and check whether any float has autodiff enabled. This drops
+///    all borrows before any input is moved.
 /// 2. In the matched context/backend arm, unwrap every input and re-wrap the output.
 ///
 /// For an autodiff arm the target backend is `Autodiff<B>`: float tensors/fields unwrap through the
@@ -469,10 +530,10 @@ fn gen_tensor_input_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream
         &paths,
         "backend extension op received no tensor input to select a backend from (e.g. an enum input on a tensor-less variant with no other tensor input)",
     );
-    let autodiff_context = routing::operation_autodiff_context(op, &paths);
+    let (autodiff_routing, _) = routing::operation_autodiff_routing(op, &paths);
 
-    // The routing tensor selects the concrete backend. The merged context and whether the active
-    // inputs contain a float decide if the autodiff implementation is needed.
+    // The routing tensor selects the concrete backend. The merged context controls the output
+    // association, while an autodiff-associated float selects the autodiff implementation.
     let kind_arms = routing::backend_kind_arms(
         &paths,
         &ir.backends.concrete,
@@ -498,13 +559,13 @@ fn gen_tensor_input_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream
     quote! {
         // Compute the autodiff context and backend tag in a scoped block so the routing tensor's
         // borrow of the inputs ends before the dispatch arms below move them.
-        let (__burn_backend_tag, __ad_ctx, __has_float_input): (
+        let (__burn_backend_tag, __ad_ctx, __has_autodiff_float_input): (
             usize,
             burn::backend::DispatchAutodiffContext,
             bool,
         ) = {
             #routing_tensor_init
-            #autodiff_context
+            #autodiff_routing
             let __backend_tag = match &__routing_tensor.kind {
                 #ad_tag_arm
                 #( #concrete_tag_arms )*
@@ -514,10 +575,10 @@ fn gen_tensor_input_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream
             (
                 __backend_tag,
                 __ad_ctx,
-                __routing_tensor_is_float,
+                __has_autodiff_float_input,
             )
         };
-        match (__burn_backend_tag, __has_float_input) {
+        match (__burn_backend_tag, __has_autodiff_float_input) {
             #( #dispatch_arms )*
             _ => unimplemented!("Backend not supported for custom op `{}`", stringify!(#name)),
         }
@@ -542,7 +603,7 @@ fn gen_tensor_input_backend_arm(
     );
     quote! {
         #cfg_attr
-        (#i, __has_float_input) => { #routes },
+        (#i, __has_autodiff_float_input) => { #routes },
     }
 }
 

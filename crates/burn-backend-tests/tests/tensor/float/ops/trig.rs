@@ -306,7 +306,7 @@ fn should_support_rad2deg_ops() {
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
-#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[cfg(feature = "flex")]
 #[test]
 fn degree_radian_conversions_preserve_f64_precision() {
     use burn_tensor::DType;

@@ -92,7 +92,7 @@ fn test_topk_with_indices_supports_k_dim_size() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "The selected index k is out of range")]
 fn test_topk_should_panic_k_larger() {
     let tensor = TestTensor::<2>::from_data(
         TensorData::from([[12., -2., 3.], [5., 3., 6.]]),
@@ -104,7 +104,7 @@ fn test_topk_should_panic_k_larger() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "The selected index k is out of range")]
 fn test_topk_with_indices_should_panic_k_larger() {
     let tensor = TestTensor::<2>::from_data(
         TensorData::from([[12., -2., 3.], [5., 3., 6.]]),

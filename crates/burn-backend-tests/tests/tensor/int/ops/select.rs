@@ -133,7 +133,7 @@ fn should_select_assign_max_2d_dim0_int() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Number of indices (1) should be equal")]
 fn should_panic_select_add_invalid_num_indices() {
     let device = Default::default();
     let tensor = TestTensorInt::<1>::from_data([0; 12], &device);

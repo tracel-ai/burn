@@ -104,7 +104,7 @@ fn clamp_max_nan_propagation() {
 }
 
 // A NaN bound makes every element NaN, not just one: x > NaN and x < NaN are both false, so
-// each element falls through to the bound. Flex only, ndarray returns the input unchanged.
+// each element falls through to the bound. Flex only.
 #[cfg(feature = "flex")]
 #[test]
 fn clamp_min_nan_bound_propagation() {
@@ -147,18 +147,40 @@ fn clamp_nan_bound_propagation() {
     }
 }
 
-// Taking the NaN bounds out of the way must leave the native clamp in charge, which
-// returns -0.0 rather than the lower bound.
-#[cfg(feature = "flex")]
+// The sign may vary when zero operands have opposite signs.
 #[test]
-fn clamp_keeps_negative_zero() {
-    let tensor = TestTensor::<1>::from([-0.0, 0.0]);
+fn clamp_signed_zero() {
+    for (input, min, max, expected, exact_sign) in [
+        (-0.0_f32, 0.0, 1.0, 0.0_f32, false),
+        (-0.0, -1.0, 1.0, -0.0, true),
+        (0.0, -1.0, 1.0, 0.0, true),
+        (-1.0, -0.0, 1.0, -0.0, true),
+        (1.0, -1.0, -0.0, -0.0, true),
+    ] {
+        let tensor = TestTensor::<1>::from([input; 4]);
+        let output = tensor.clamp(min, max).into_data().convert::<f32>();
+        for &value in output.as_slice::<f32>().unwrap() {
+            assert_eq!(value, expected);
+            if exact_sign {
+                assert_eq!(value.to_bits(), expected.to_bits());
+            }
+        }
+    }
+}
 
-    let output = tensor.clamp(0.0, 1.0).into_data().convert::<f32>();
-    let values = output.as_slice::<f32>().unwrap();
-
-    assert!(values[0].is_sign_negative(), "{values:?}");
-    assert!(values[1].is_sign_positive(), "{values:?}");
+// Exercise the backend's default dtype, including f16 and fused CubeCL kernels.
+#[cfg(any(feature = "flex", feature = "cube"))]
+#[test]
+fn clamp_nan_bounds() {
+    for (min, max) in [(f32::NAN, 1.0), (0.0, f32::NAN), (f32::NAN, f32::NAN)] {
+        let tensor = TestTensor::<1>::from([-1.0, 0.0, 5.0, f32::NAN]);
+        let output = tensor
+            .clamp(min, max)
+            .mul_scalar(2.0)
+            .into_data()
+            .convert::<f32>();
+        assert!(output.as_slice::<f32>().unwrap().iter().all(|v| v.is_nan()));
+    }
 }
 
 #[test]
@@ -172,9 +194,26 @@ fn clamp_nan_propagation() {
     assert_eq!(values[1..], [0.0, 1.0]);
 }
 
-#[cfg(feature = "ndarray")]
 #[test]
-fn clamp_nan_propagation_through_simd() {
+fn clamp_nan_propagation_vectorized() {
+    let tensor = TestTensor::<1>::from([f32::NAN, -1.0, 2.0, f32::NAN]);
+
+    // A following operation also exercises clamp inside a fusion candidate.
+    let output = tensor
+        .clamp(0.0, 1.0)
+        .mul_scalar(2.0)
+        .into_data()
+        .convert::<f32>();
+    let values = output.as_slice::<f32>().unwrap();
+
+    assert!(values[0].is_nan());
+    assert_eq!(values[1..3], [0.0, 2.0]);
+    assert!(values[3].is_nan());
+}
+
+#[cfg(feature = "flex")]
+#[test]
+fn clamp_nan_propagation_large_input() {
     let mut data = vec![2.0; 64];
     data[0] = f32::NAN;
     let tensor = TestTensor::<1>::from_data(TensorData::new(data, [64]), &Default::default());
@@ -192,9 +231,9 @@ fn clamp_nan_propagation_through_simd() {
     }
 }
 
-#[cfg(feature = "ndarray")]
+#[cfg(feature = "flex")]
 #[test]
-fn clamp_nan_propagation_through_simd_f64() {
+fn clamp_nan_propagation_large_input_f64() {
     let mut data = vec![2.0_f32; 64];
     data[0] = f32::NAN;
     let tensor = TestTensor::<1>::from_data(TensorData::new(data, [64]), &Default::default())
@@ -213,7 +252,7 @@ fn clamp_nan_propagation_through_simd_f64() {
     }
 }
 
-#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[cfg(feature = "flex")]
 #[test]
 fn clamp_min_max_nan_propagation_f64() {
     let tensor = TestTensor::<1>::from([f32::NAN, -1.0, 2.0]).cast(burn_tensor::DType::F64);

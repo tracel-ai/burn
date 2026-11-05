@@ -1,19 +1,22 @@
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+use burn_backend::RandomKey;
 #[cfg(cube_backend)]
 use burn_backend::cubecl::{Device as CubeDevice, RuntimeId};
 
 // The cubecl runtimes — `cpu` among them — enumerate through `cube_devices` rather than a
 // `vec![]` literal, so only the backends that still list a fixed device need this.
-#[cfg(any(feature = "ndarray", feature = "flex"))]
+#[cfg(feature = "flex")]
 use alloc::vec;
 
 #[cfg(feature = "autodiff")]
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
 use burn_backend::{
-    AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError, MemoryPoolUsage,
-    ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport,
+    AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, DeviceDescription,
+    DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
+    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
+    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
 };
 
 /// A captured graph from one of the dispatched backends (see
@@ -34,17 +37,12 @@ pub enum DispatchGraph {
     #[cfg(feature = "flex")]
     Flex(BackendGraph<Flex>),
 
-    /// A graph captured on the [NdArray backend](NdArray).
-    #[cfg(feature = "ndarray")]
-    NdArray(BackendGraph<NdArray>),
-
-    /// A graph captured on the [LibTorch backend](LibTorch).
-    #[cfg(feature = "tch")]
-    LibTorch(BackendGraph<LibTorch>),
-
     /// A graph captured on the [Remote backend](Remote).
     #[cfg(feature = "remote")]
     Remote(BackendGraph<Remote>),
+    /// A graph captured on the [sharded compute device backend](ShardedCompute).
+    #[cfg(feature = "shard")]
+    ShardedCompute(BackendGraph<ShardedCompute>),
     /// A graph captured by the non-executing capture backend.
     #[cfg(feature = "capture")]
     Capture(BackendGraph<Capture>),
@@ -119,16 +117,7 @@ macro_rules! is_tracked_arms {
     };
 }
 
-#[cfg(all(
-    feature = "autodiff",
-    any(
-        cube_backend,
-        feature = "flex",
-        feature = "ndarray",
-        feature = "tch",
-        feature = "remote"
-    )
-))]
+#[cfg(all(feature = "autodiff", executing_backend))]
 use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
 use burn_autodiff::grads::Gradients;
@@ -141,12 +130,6 @@ use crate::DispatchDeviceId;
 use crate::DispatchTensorKind;
 #[cfg(feature = "flex")]
 use crate::devices::FlexDevice;
-#[cfg(feature = "tch")]
-use crate::devices::LibTorchDevice;
-#[cfg(feature = "ndarray")]
-use crate::devices::NdArrayDevice;
-#[cfg(feature = "remote-websocket")]
-use crate::devices::RemoteDevice;
 use crate::{DispatchDevice, DispatchTensor, backends::*};
 
 /// The main execution backend in Burn.
@@ -206,6 +189,10 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::seed(device, seed))
     }
 
+    fn next_random_key(device: &Self::Device) -> RandomKey {
+        dispatch_device!(device, |device| B::next_random_key(device))
+    }
+
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::sync(device))
     }
@@ -232,6 +219,61 @@ impl Backend for Dispatch {
 
     fn profile_abandon(device: &Self::Device, token: ProfileToken) {
         dispatch_device!(device, |device| B::profile_abandon(device, token))
+    }
+
+    fn execution_mode_open(
+        device: &Self::Device,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        dispatch_device!(device, |device| B::execution_mode_open(device, mode))
+    }
+
+    fn execution_mode_statistics(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        dispatch_device!(device, |device| B::execution_mode_statistics(device, token))
+    }
+
+    fn execution_mode_close(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        dispatch_device!(device, |device| B::execution_mode_close(device, token))
+    }
+
+    fn environment_create(
+        device: &Self::Device,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_create(device, name, origin))
+    }
+
+    fn environment_activate(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_activate(device, id))
+    }
+
+    fn environment_active(device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_active(device))
+    }
+
+    fn environment_save(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_save(device, id))
+    }
+
+    fn environment_merge(
+        device: &Self::Device,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_merge(device, id, origin))
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
@@ -267,17 +309,16 @@ impl Backend for Dispatch {
 
     fn device_count(type_id: u16) -> usize {
         let (dispatch_id, backend_type_id) = DispatchDevice::decode_type_id(type_id);
+        #[allow(unreachable_patterns)]
         match dispatch_id {
             #[cfg(cube_backend)]
             DispatchDeviceId::Cube => Cube::device_count(backend_type_id),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
-            #[cfg(feature = "ndarray")]
-            DispatchDeviceId::NdArray => NdArray::device_count(backend_type_id),
-            #[cfg(feature = "tch")]
-            DispatchDeviceId::LibTorch => LibTorch::device_count(backend_type_id),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Remote::device_count(backend_type_id),
+            #[cfg(feature = "shard")]
+            DispatchDeviceId::ShardedCompute => ShardedCompute::device_count(backend_type_id),
             #[cfg(feature = "capture")]
             DispatchDeviceId::Capture => Capture::device_count(backend_type_id),
             _ => unreachable!("No backend feature enabled."),
@@ -302,12 +343,20 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::memory_cleanup(device))
     }
 
-    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
-        dispatch_device!(device, |device| B::memory_pool_report(device))
+    fn device_description(device: &Self::Device) -> Option<DeviceDescription> {
+        dispatch_device!(device, |device| B::device_description(device))
     }
 
-    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
-        dispatch_device!(device, |device| B::memory_pool_usage(device))
+    fn measure_telemetry(device: &Self::Device) -> DeviceTelemetry {
+        dispatch_device!(device, |device| B::measure_telemetry(device))
+    }
+
+    fn measure_memory(device: &Self::Device) -> Option<MemoryReport> {
+        dispatch_device!(device, |device| B::measure_memory(device))
+    }
+
+    fn measure_peaks(device: &Self::Device, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        dispatch_device!(device, |device| B::measure_peaks(device, keys))
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
@@ -321,7 +370,7 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::supports_dtype(device, dtype))
     }
 
-    fn flush(device: &Self::Device) {
+    fn flush(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::flush(device))
     }
 }
@@ -348,16 +397,7 @@ fn enable_autodiff_context(context: DispatchAutodiffContext) -> DispatchAutodiff
 #[cfg(feature = "autodiff")]
 // Capture does not support autodiff. Without an execution backend, the dispatch
 // arms below only panic, leaving gradient arguments unused and return code unreachable.
-#[cfg_attr(
-    not(any(
-        cube_backend,
-        feature = "flex",
-        feature = "ndarray",
-        feature = "tch",
-        feature = "remote"
-    )),
-    allow(unused_variables, unreachable_code)
-)]
+#[cfg_attr(not(executing_backend), allow(unused_variables, unreachable_code))]
 impl AutodiffBackend for Dispatch {
     type InnerBackend = Dispatch;
 
@@ -374,12 +414,10 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Cube(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "ndarray")]
-                DispatchTensorKind::NdArray(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "tch")]
-                DispatchTensorKind::LibTorch(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor.autodiff().backward(),
+                #[cfg(feature = "shard")]
+                DispatchTensorKind::ShardedCompute(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "capture")]
                 DispatchTensorKind::Capture(_) => {
                     panic!("Capture tensors do not support autodiff")
@@ -408,21 +446,16 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Flex(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "ndarray")]
-                DispatchTensorKind::NdArray(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::NdArray(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "tch")]
-                DispatchTensorKind::LibTorch(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::LibTorch(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Remote(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "shard")]
+                DispatchTensorKind::ShardedCompute(tensor) => tensor
+                    .as_autodiff()
+                    .grad(grads)
+                    .map(|t| DispatchTensorKind::ShardedCompute(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "capture")]
                 DispatchTensorKind::Capture(_) => {
                     panic!("Capture tensors do not support autodiff")
@@ -455,21 +488,16 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Flex(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "ndarray")]
-                DispatchTensorKind::NdArray(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::NdArray(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "tch")]
-                DispatchTensorKind::LibTorch(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::LibTorch(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Remote(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "shard")]
+                DispatchTensorKind::ShardedCompute(tensor) => tensor
+                    .as_autodiff()
+                    .grad_remove(grads)
+                    .map(|t| DispatchTensorKind::ShardedCompute(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "capture")]
                 DispatchTensorKind::Capture(_) => {
                     panic!("Capture tensors do not support autodiff")
@@ -508,14 +536,15 @@ impl AutodiffBackend for Dispatch {
                 (DispatchTensorKind::Flex(tensor), DispatchTensorKind::Flex(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
-                #[cfg(feature = "ndarray")]
-                (DispatchTensorKind::NdArray(tensor), DispatchTensorKind::NdArray(grad)) => {
-                    tensor.as_autodiff().grad_replace(grads, grad.float())
-                }
                 #[cfg(feature = "remote")]
                 (DispatchTensorKind::Remote(tensor), DispatchTensorKind::Remote(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
+                #[cfg(feature = "shard")]
+                (
+                    DispatchTensorKind::ShardedCompute(tensor),
+                    DispatchTensorKind::ShardedCompute(grad),
+                ) => tensor.as_autodiff().grad_replace(grads, grad.float()),
                 (DispatchTensorKind::Autodiff(_), _) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -547,16 +576,12 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Flex(tensor) => DispatchTensorKind::Flex(
                     crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
-                #[cfg(feature = "ndarray")]
-                DispatchTensorKind::NdArray(tensor) => DispatchTensorKind::NdArray(
-                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
-                ),
-                #[cfg(feature = "tch")]
-                DispatchTensorKind::LibTorch(tensor) => DispatchTensorKind::LibTorch(
-                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
-                ),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => DispatchTensorKind::Remote(
+                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
+                ),
+                #[cfg(feature = "shard")]
+                DispatchTensorKind::ShardedCompute(tensor) => DispatchTensorKind::ShardedCompute(
                     crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
                 #[cfg(feature = "capture")]
@@ -611,22 +636,18 @@ impl AutodiffBackend for Dispatch {
                     crate::BackendTensor::Autodiff(Autodiff::<Flex>::from_inner(tensor.float())),
                 )))
             }
-            #[cfg(feature = "ndarray")]
-            DispatchTensorKind::NdArray(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::NdArray(
-                    crate::BackendTensor::Autodiff(Autodiff::<NdArray>::from_inner(tensor.float())),
-                )))
-            }
-            #[cfg(feature = "tch")]
-            DispatchTensorKind::LibTorch(tensor) => DispatchTensorKind::Autodiff(Box::new(
-                DispatchTensorKind::LibTorch(crate::BackendTensor::Autodiff(
-                    Autodiff::<LibTorch>::from_inner(tensor.float()),
-                )),
-            )),
             #[cfg(feature = "remote")]
             DispatchTensorKind::Remote(tensor) => {
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Remote(
                     crate::BackendTensor::Autodiff(Autodiff::<Remote>::from_inner(tensor.float())),
+                )))
+            }
+            #[cfg(feature = "shard")]
+            DispatchTensorKind::ShardedCompute(tensor) => {
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::ShardedCompute(
+                    crate::BackendTensor::Autodiff(Autodiff::<ShardedCompute>::from_inner(
+                        tensor.float(),
+                    )),
                 )))
             }
             #[cfg(feature = "capture")]
@@ -789,11 +810,22 @@ mod autodiff_context_tests {
         fn conditional_float_route(
             int: IntTensor<Self>,
             float: Option<FloatTensor<Self>>,
+            expect_autodiff: bool,
         ) -> IntTensor<Self> {
-            // `optional_float_only_uses_autodiff_when_present` exercises both routes: an enabled
-            // int alone uses the concrete backend, while a present float selects `Autodiff<B>`.
-            assert_eq!(float.is_some(), B::ad_enabled(&int.device()));
+            let _ = float;
+            assert_eq!(expect_autodiff, B::ad_enabled(&int.device()));
             int
+        }
+
+        fn mixed_plain_float_and_enabled_int_route(
+            float: FloatTensor<Self>,
+            _int: IntTensor<Self>,
+        ) -> FloatTensor<Self> {
+            assert!(
+                !B::ad_enabled(&float.device()),
+                "an enabled integer should not route a plain float through autodiff"
+            );
+            float
         }
 
         fn optional_routing_tensor(
@@ -812,6 +844,15 @@ mod autodiff_context_tests {
                 .chain(second)
                 .next()
                 .expect("test requires one tensor")
+        }
+
+        fn vector_float_route(
+            int: IntTensor<Self>,
+            _floats: Vec<FloatTensor<Self>>,
+            expect_autodiff: bool,
+        ) -> IntTensor<Self> {
+            assert_eq!(expect_autodiff, B::ad_enabled(&int.device()));
+            int
         }
     }
 
@@ -911,13 +952,51 @@ mod autodiff_context_tests {
     fn optional_float_only_uses_autodiff_when_present() {
         let strategy = GradientCheckpointingStrategy::Balanced;
         let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device(strategy));
-        let output = Dispatch::conditional_float_route(int, None);
+        let output = Dispatch::conditional_float_route(int, None, false);
         assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
 
         let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &inner_device());
-        let float = float([1.0, 2.0], &device(strategy));
-        let output = Dispatch::conditional_float_route(int, Some(float));
+        let enabled_float = float([1.0, 2.0], &device(strategy));
+        assert!(!Dispatch::is_tracked(&enabled_float));
+        let output = Dispatch::conditional_float_route(int, Some(enabled_float), true);
         assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device(strategy));
+        let plain_float = float([1.0, 2.0], &inner_device());
+        let output = Dispatch::conditional_float_route(int, Some(plain_float), false);
+        assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+    }
+
+    #[test]
+    fn vector_float_route_uses_only_autodiff_floats_to_select_autodiff() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device(strategy));
+        let output =
+            Dispatch::vector_float_route(int, vec![float([1.0, 2.0], &inner_device())], false);
+        assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &inner_device());
+        let output = Dispatch::vector_float_route(
+            int,
+            vec![
+                float([1.0, 2.0], &inner_device()),
+                float([3.0, 4.0], &device(strategy)),
+            ],
+            true,
+        );
+        assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+    }
+
+    #[test]
+    fn enabled_integer_does_not_route_a_plain_float_through_autodiff() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let float = float([1.0, 2.0], &inner_device());
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device(strategy));
+
+        let output = Dispatch::mixed_plain_float_and_enabled_int_route(float, int);
+
+        assert_enabled_float(&output, strategy);
+        assert!(!Dispatch::is_tracked(&output));
     }
 
     #[test]
@@ -1130,7 +1209,8 @@ impl AutodiffBackend for Dispatch {
 impl Dispatch {
     /// List all available devices of the specified [type id](DispatchDeviceId).
     pub fn enumerate(type_id: DispatchDeviceId) -> Vec<DispatchDevice> {
-        // TODO: right now this assumes `type_id = 0`, but WgpuDevice and LibTorchDevice have other types.
+        // TODO: right now this assumes `type_id = 0`, but WgpuDevice has other types.
+        #[allow(unreachable_patterns)]
         match type_id {
             #[cfg(cube_backend)]
             DispatchDeviceId::Cube => CubeDevice::enumerate_all()
@@ -1140,17 +1220,12 @@ impl Dispatch {
                 .collect(),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => vec![FlexDevice.into()],
-            #[cfg(feature = "ndarray")]
-            DispatchDeviceId::NdArray => vec![NdArrayDevice::Cpu.into()],
-            #[cfg(feature = "tch")]
-            DispatchDeviceId::LibTorch => (0..LibTorch::device_count(0))
-                .map(|i| LibTorchDevice::Cuda(i).into())
-                .collect(),
             #[cfg(feature = "remote")]
-            // Remote devices are keyed by a network address, which the type-id-only
-            // `enumerate` can't carry. Use [`Dispatch::enumerate_remote_websocket`] to list the devices
-            // behind a given address.
+            // A remote device needs its server's address, which a type id cannot carry.
             DispatchDeviceId::Remote => Vec::new(),
+            #[cfg(feature = "shard")]
+            // A sharded compute device is made from its members, which a type id cannot carry.
+            DispatchDeviceId::ShardedCompute => Vec::new(),
             #[cfg(feature = "capture")]
             // Capture devices are created together with a lifecycle handle and therefore
             // cannot be reconstructed from a type ID alone.
@@ -1173,22 +1248,6 @@ impl Dispatch {
             .map(DispatchDevice::Cube)
             .collect()
     }
-
-    /// List every device hosted by the remote server at `address`.
-    ///
-    /// Unlike [`enumerate`](Self::enumerate), remote devices are identified by a network
-    /// address rather than enumerable local hardware, so they need a dedicated entry point.
-    /// Connecting to the server (required to learn its device count) happens here; see
-    /// [`RemoteDevice::enumerate_websocket`].
-    ///
-    /// Websocket-only: Iroh peers are addressed by endpoint identity, not a URL string.
-    #[cfg(feature = "remote-websocket")]
-    pub fn enumerate_remote_websocket(address: &str) -> Vec<DispatchDevice> {
-        RemoteDevice::enumerate_websocket(address)
-            .into_iter()
-            .map(DispatchDevice::Remote)
-            .collect()
-    }
 }
 
 /// Whether `runtime` is one this crate's features asked for.
@@ -1205,13 +1264,13 @@ fn cube_runtime_enabled(runtime: RuntimeId) -> bool {
         RuntimeId::Wgpu => cfg!(any(
             feature = "wgpu",
             feature = "vulkan",
-            feature = "metal",
+            feature = "wgpu-msl",
             feature = "webgpu"
         )),
         RuntimeId::Cpu => cfg!(feature = "cpu"),
-        // burn's `metal` feature is wgpu compiling to MSL; cubecl's native Metal runtime has no
-        // burn feature to enable it.
-        RuntimeId::Metal => false,
+        // `metal` is cubecl's own Metal runtime; `wgpu-msl` is wgpu compiling to MSL, a
+        // `RuntimeId::Wgpu` device.
+        RuntimeId::Metal => cfg!(feature = "metal"),
     }
 }
 

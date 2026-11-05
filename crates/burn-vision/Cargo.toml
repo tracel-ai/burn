@@ -10,7 +10,7 @@ edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "gpu"]
 license.workspace = true
 name = "burn-vision"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-vision"
 version.workspace = true
 
@@ -52,10 +52,10 @@ rocm = ["cubecl-backend", "burn-core/rocm", "burn-cubecl/hip"]
 wgpu = ["cubecl-backend", "burn-core/wgpu", "burn-cubecl/wgpu"]
 vulkan = ["cubecl-backend", "burn-core/vulkan", "burn-cubecl/vulkan"]
 webgpu = ["cubecl-backend", "burn-core/webgpu", "burn-cubecl/webgpu"]
+wgpu-msl = ["cubecl-backend", "burn-core/wgpu-msl", "burn-cubecl/wgpu-msl"]
 metal = ["cubecl-backend", "burn-core/metal", "burn-cubecl/metal"]
 cpu = ["cubecl-backend", "burn-core/cpu", "burn-cubecl/cpu"]
 flex = ["burn-core/flex"]
-tch = ["burn-core/tch"]
 
 # TODO: move somewhere else
 loss = ["std", "dep:burn-nn", "burn-store/pytorch", "burn-std/network", "dirs"]

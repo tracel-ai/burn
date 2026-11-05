@@ -1,6 +1,7 @@
 use crate::metric::{MetricAttributes, MetricName, NumericEntry, SerializedEntry, format_float};
 
 use super::super::{Metric, MetricMetadata, state::FormatOptions};
+use burn_core::tensor::TensorReadError;
 use burn_core::{
     prelude::Tensor,
     tensor::{Int, s},
@@ -241,7 +242,11 @@ impl<const D: usize> Metric for DiceMetric<D> {
         self.name.clone()
     }
 
-    fn update(&mut self, item: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        item: &Self::Input,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         // Dice coefficient: 2 * (|X ∩ Y|) / (|X| + |Y|)
         if item.outputs.dims() != item.targets.dims() {
             panic!(
@@ -272,9 +277,9 @@ impl<const D: usize> Metric for DiceMetric<D> {
         let targets_sum = targets.sum();
 
         // Convert to f64
-        let intersection_val = intersection.into_scalar::<f64>();
-        let outputs_sum_val = outputs_sum.into_scalar::<f64>();
-        let targets_sum_val = targets_sum.into_scalar::<f64>();
+        let intersection_val = intersection.try_into_scalar::<f64>()?;
+        let outputs_sum_val = outputs_sum.try_into_scalar::<f64>()?;
+        let targets_sum_val = targets_sum.try_into_scalar::<f64>()?;
 
         self.state.update(
             intersection_val,
@@ -283,17 +288,17 @@ impl<const D: usize> Metric for DiceMetric<D> {
             batch_size,
             self.config.epsilon,
         );
-        self.state.compute_update(
+        Ok(self.state.compute_update(
             FormatOptions::new(self.name()).precision(4),
             self.config.epsilon,
-        )
+        ))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state.compute_final(
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self.state.compute_final(
             FormatOptions::new(self.name()).precision(4),
             self.config.epsilon,
-        )
+        ))
     }
 
     /// Clears the metric state.
@@ -339,7 +344,7 @@ mod tests {
             Tensor::from_data([[[[1, 0], [1, 0]]]], &device),
             Tensor::from_data([[[[1, 0], [1, 0]]]], &device),
         );
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert!((metric.value().unwrap().current() - 1.0).abs() < 1e-6);
     }
 
@@ -351,7 +356,7 @@ mod tests {
             Tensor::from_data([[[[1, 0], [1, 0]]]], &device),
             Tensor::from_data([[[[0, 1], [0, 1]]]], &device),
         );
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert!(metric.value().unwrap().current() < 1e-6);
     }
 
@@ -363,7 +368,7 @@ mod tests {
             Tensor::from_data([[[[1, 1], [0, 0]]]], &device),
             Tensor::from_data([[[[1, 0], [1, 0]]]], &device),
         );
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         // intersection = 1, sum = 2+2=4, dice = 2*1/4 = 0.5
         assert!((metric.value().unwrap().current() - 0.5).abs() < 1e-6);
     }
@@ -374,29 +379,33 @@ mod tests {
         let mut metric = DiceMetric::<4>::new();
 
         // A perfect batch with one foreground pixel.
-        metric.update(
-            &DiceInput::new(
-                Tensor::from_data([[[[1]]]], &device),
-                Tensor::from_data([[[[1]]]], &device),
-            ),
-            &MetricMetadata::fake(),
-        );
+        metric
+            .update(
+                &DiceInput::new(
+                    Tensor::from_data([[[[1]]]], &device),
+                    Tensor::from_data([[[[1]]]], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
 
         // A batch with four false-positive foreground pixels.
-        metric.update(
-            &DiceInput::new(
-                Tensor::from_data([[[[1, 1, 1, 1]]]], &device),
-                Tensor::from_data([[[[0, 0, 0, 0]]]], &device),
-            ),
-            &MetricMetadata::fake(),
-        );
+        metric
+            .update(
+                &DiceInput::new(
+                    Tensor::from_data([[[[1, 1, 1, 1]]]], &device),
+                    Tensor::from_data([[[[0, 0, 0, 0]]]], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
 
         // Global Dice: (2 * 1 + epsilon) / (5 + 1 + epsilon) = 1 / 3.
         // Averaging the two batch scores would incorrectly produce approximately 1 / 2.
         let expected = (2.0 + metric.config.epsilon) / (6.0 + metric.config.epsilon);
         let current = metric.value().unwrap().current();
         let running = metric.running_value().unwrap().current();
-        let computed = NumericEntry::deserialize(&metric.compute().serialized)
+        let computed = NumericEntry::deserialize(&metric.compute().unwrap().serialized)
             .unwrap()
             .current();
         let final_value = metric.final_value().current();
@@ -412,20 +421,24 @@ mod tests {
         let device = Default::default();
         let mut metric = DiceMetric::<4>::new();
 
-        metric.update(
-            &DiceInput::new(
-                Tensor::from_data([[[[1, 0, 1, 0]]]], &device),
-                Tensor::from_data([[[[1, 0, 0, 0]]]], &device),
-            ),
-            &MetricMetadata::fake(),
-        );
-        metric.update(
-            &DiceInput::new(
-                Tensor::from_data([[[[1]]], [[[1]]], [[[1]]]], &device),
-                Tensor::from_data([[[[0]]], [[[1]]], [[[0]]]], &device),
-            ),
-            &MetricMetadata::fake(),
-        );
+        metric
+            .update(
+                &DiceInput::new(
+                    Tensor::from_data([[[[1, 0, 1, 0]]]], &device),
+                    Tensor::from_data([[[[1, 0, 0, 0]]]], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+        metric
+            .update(
+                &DiceInput::new(
+                    Tensor::from_data([[[[1]]], [[[1]]], [[[1]]]], &device),
+                    Tensor::from_data([[[[0]]], [[[1]]], [[[0]]]], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
 
         // PyTorch global-micro reference: (2 * 2 + epsilon) / (5 + 2 + epsilon).
         let expected = (4.0 + metric.config.epsilon) / (7.0 + metric.config.epsilon);
@@ -439,20 +452,24 @@ mod tests {
         let device = Default::default();
         let mut metric = DiceMetric::<4>::new();
 
-        metric.update(
-            &DiceInput::new(
-                Tensor::from_data([[[[0, 0]]]], &device),
-                Tensor::from_data([[[[0, 0]]]], &device),
-            ),
-            &MetricMetadata::fake(),
-        );
-        metric.update(
-            &DiceInput::new(
-                Tensor::from_data([[[[0, 0, 0]]], [[[0, 0, 0]]]], &device),
-                Tensor::from_data([[[[0, 0, 0]]], [[[0, 0, 0]]]], &device),
-            ),
-            &MetricMetadata::fake(),
-        );
+        metric
+            .update(
+                &DiceInput::new(
+                    Tensor::from_data([[[[0, 0]]]], &device),
+                    Tensor::from_data([[[[0, 0]]]], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+        metric
+            .update(
+                &DiceInput::new(
+                    Tensor::from_data([[[[0, 0, 0]]], [[[0, 0, 0]]]], &device),
+                    Tensor::from_data([[[[0, 0, 0]]], [[[0, 0, 0]]]], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
 
         // Burn's epsilon convention defines two empty masks as a perfect match.
         assert!((metric.value().unwrap().current() - 1.0).abs() < 1e-6);
@@ -465,20 +482,24 @@ mod tests {
         let device = Default::default();
         let mut metric = DiceMetric::<4>::new();
 
-        metric.update(
-            &DiceInput::new(
-                Tensor::from_data([[[[1, 1, 0, 0]], [[0, 1, 1, 0]]]], &device),
-                Tensor::from_data([[[[1, 0, 1, 0]], [[0, 1, 0, 1]]]], &device),
-            ),
-            &MetricMetadata::fake(),
-        );
-        metric.update(
-            &DiceInput::new(
-                Tensor::from_data([[[[0, 0]], [[1, 1]]]], &device),
-                Tensor::from_data([[[[1, 1]], [[1, 1]]]], &device),
-            ),
-            &MetricMetadata::fake(),
-        );
+        metric
+            .update(
+                &DiceInput::new(
+                    Tensor::from_data([[[[1, 1, 0, 0]], [[0, 1, 1, 0]]]], &device),
+                    Tensor::from_data([[[[1, 0, 1, 0]], [[0, 1, 0, 1]]]], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+        metric
+            .update(
+                &DiceInput::new(
+                    Tensor::from_data([[[[0, 0]], [[1, 1]]]], &device),
+                    Tensor::from_data([[[[1, 1]], [[1, 1]]]], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
 
         // Only class 1 is included: (2 * 3 + epsilon) / (4 + 4 + epsilon).
         let expected = (6.0 + metric.config.epsilon) / (8.0 + metric.config.epsilon);
@@ -496,7 +517,7 @@ mod tests {
             Tensor::from_data([[[[1]]]], &device),
         );
 
-        metric.update(&input, &MetricMetadata::fake());
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
         metric.clear();
 
         assert!(metric.value().unwrap().current().is_nan());
@@ -525,7 +546,7 @@ mod tests {
             Tensor::from_data([[[[0, 0], [0, 0]]]], &device),
             Tensor::from_data([[[[0, 0], [0, 0]]]], &device),
         );
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert!((metric.value().unwrap().current() - 1.0).abs() < 1e-6);
     }
 
@@ -537,7 +558,7 @@ mod tests {
             Tensor::ones(Shape::new([1, 1, 2, 2]), &device),
             Tensor::ones(Shape::new([1, 1, 2, 2]), &device),
         );
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert!((metric.value().unwrap().current() - 1.0).abs() < 1e-6);
     }
 
@@ -553,7 +574,7 @@ mod tests {
             Tensor::ones(Shape::new([1, 2, 2, 2]), &device),
             Tensor::ones(Shape::new([1, 2, 2, 2]), &device),
         );
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert!((metric.value().unwrap().current() - 1.0).abs() < 1e-6);
     }
 
@@ -569,7 +590,7 @@ mod tests {
             Tensor::ones(Shape::new([1, 2, 2, 2]), &device),
             Tensor::ones(Shape::new([1, 2, 2, 2]), &device),
         );
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert!((metric.value().unwrap().current() - 1.0).abs() < 1e-6);
     }
 
@@ -611,7 +632,7 @@ mod tests {
             Tensor::from_data([[[[1.0; 2]; 1]; 1]; 1], &device),
         );
         // n_classes = 2, should not panic
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let config = DiceMetricConfig {
             epsilon: 1e-7,
@@ -623,6 +644,6 @@ mod tests {
             Tensor::from_data([[[[1.0; 1]; 1]; 1]; 1], &device),
         );
         // n_classes = 1, should panic
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
     }
 }

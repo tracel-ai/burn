@@ -1,5 +1,12 @@
 use alloc::boxed::Box;
-use core::any::Any;
+use core::any::{Any, type_name};
+
+fn panic_type_mismatch<T>(id: &impl core::fmt::Debug) -> ! {
+    panic!(
+        "Tensor type mismatch for ID {id:?}: requested `{}`. Make sure the requested tensor rank matches the registered tensor rank.",
+        type_name::<T>()
+    )
+}
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
@@ -39,7 +46,9 @@ where
     pub fn get<T: Clone + Send + 'static>(&self, id: &ID) -> Option<T> {
         let grad = self.tensors.get(id)?;
 
-        let tensor = grad.downcast_ref::<T>().unwrap();
+        let tensor = grad
+            .downcast_ref::<T>()
+            .unwrap_or_else(|| panic_type_mismatch::<T>(id));
 
         Some(tensor.clone())
     }
@@ -48,7 +57,9 @@ where
     pub fn get_mut_ref<T: Clone + Send + 'static>(&mut self, id: &ID) -> Option<&mut T> {
         let grad = self.tensors.get_mut(id)?;
 
-        let tensor = grad.downcast_mut::<T>().unwrap();
+        let tensor = grad
+            .downcast_mut::<T>()
+            .unwrap_or_else(|| panic_type_mismatch::<T>(id));
 
         Some(tensor)
     }
@@ -64,9 +75,11 @@ where
 
     /// Remove a tensor for the given ID and returns it.
     pub fn remove<T: Clone + Send + 'static>(&mut self, id: &ID) -> Option<T> {
-        self.tensors
-            .remove(id)
-            .map(|item| *item.downcast::<T>().unwrap())
+        self.tensors.remove(id).map(|item| {
+            *item
+                .downcast::<T>()
+                .unwrap_or_else(|_| panic_type_mismatch::<T>(id))
+        })
     }
 
     /// The number of tensors registered.

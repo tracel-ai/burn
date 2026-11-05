@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 
 use regex::{self, Regex};
 
-use burn_pack::Tensor as PackTensor;
+use crate::StoreTensor;
 
 /// Key remapper for transforming tensor names.
 ///
@@ -132,11 +132,12 @@ impl KeyRemapper {
     /// A tuple containing:
     /// * The remapped tensors, with updated names
     /// * A vector of (new_path, original_path) showing the transformations
-    pub fn remap(&self, tensors: Vec<PackTensor>) -> (Vec<PackTensor>, Vec<(String, String)>) {
+    #[must_use]
+    pub fn remap(&self, tensors: Vec<StoreTensor>) -> (Vec<StoreTensor>, Vec<(String, String)>) {
         if self.patterns.is_empty() {
             let remapped_names = tensors
                 .iter()
-                .map(|t| (t.name.clone(), t.name.clone()))
+                .map(|t| (t.name().to_string(), t.name().to_string()))
                 .collect();
             return (tensors, remapped_names);
         }
@@ -145,7 +146,7 @@ impl KeyRemapper {
         let mut remapped_names = Vec::new();
 
         for mut tensor in tensors {
-            let original_path = tensor.name.clone();
+            let original_path = tensor.name().to_string();
             let mut new_path = original_path.clone();
 
             // Apply all patterns to get the new path
@@ -157,7 +158,7 @@ impl KeyRemapper {
                 }
             }
 
-            tensor.name = new_path.clone();
+            tensor.set_name(new_path.clone());
 
             remapped_names.push((new_path, original_path));
             remapped_tensors.push(tensor);
@@ -212,8 +213,8 @@ impl KeyRemapper {
 /// * The mapped tensors, with updated names
 /// * A vector of (new_path, original_path) showing the transformations
 pub fn map_indices_contiguous(
-    tensors: Vec<PackTensor>,
-) -> (Vec<PackTensor>, Vec<(String, String)>) {
+    tensors: Vec<StoreTensor>,
+) -> (Vec<StoreTensor>, Vec<(String, String)>) {
     map_indices_contiguous_except(tensors, |_| false)
 }
 
@@ -240,9 +241,9 @@ pub fn map_indices_contiguous(
 /// - `flows.0.weight`, `flows.2.weight`, `flows.4.weight`
 /// - `fc.0.weight`, `fc.1.weight`
 pub fn map_indices_contiguous_except(
-    tensors: Vec<PackTensor>,
+    tensors: Vec<StoreTensor>,
     keep: impl Fn(&str) -> bool,
-) -> (Vec<PackTensor>, Vec<(String, String)>) {
+) -> (Vec<StoreTensor>, Vec<(String, String)>) {
     if tensors.is_empty() {
         return (tensors, Vec::new());
     }
@@ -257,7 +258,7 @@ pub fn map_indices_contiguous_except(
 
     // First pass: collect all indices at each position using original prefixes
     for tensor in &tensors {
-        let path = &tensor.name;
+        let path = tensor.name();
         let parts: Vec<&str> = path.split('.').collect();
 
         // Check each part for numeric indices
@@ -294,10 +295,10 @@ pub fn map_indices_contiguous_except(
     let mut transformations = Vec::new();
 
     for mut tensor in tensors {
-        let original_path = tensor.name.clone();
+        let original_path = tensor.name().to_string();
         let new_path = remap_all_indices_with_original_prefix(&original_path, &index_maps);
 
-        tensor.name = new_path.clone();
+        tensor.set_name(new_path.clone());
 
         transformations.push((new_path, original_path));
         mapped_tensors.push(tensor);
@@ -341,9 +342,9 @@ mod tests {
     use burn_core::module::ParamId;
     use burn_core::tensor::{DType, TensorData, shape};
 
-    fn create_test_tensor(name: &str) -> PackTensor {
+    fn create_test_tensor(name: &str) -> StoreTensor {
         let data = TensorData::from_bytes_vec(vec![0u8; 4 * 4], shape![2, 2], DType::F32);
-        crate::bridge::from_data(data, name.to_string(), Some(ParamId::new().val()))
+        crate::bridge::from_data(data, name.to_string(), Some(ParamId::new().val())).into()
     }
 
     #[test]
@@ -363,9 +364,9 @@ mod tests {
         assert!(
             remapped
                 .iter()
-                .any(|v| v.name == "transformer.encoder.layer1.weight")
+                .any(|v| v.name() == "transformer.encoder.layer1.weight")
         );
-        assert!(remapped.iter().any(|v| v.name == "decoder.layer1.weight"));
+        assert!(remapped.iter().any(|v| v.name() == "decoder.layer1.weight"));
         assert_eq!(remapped.len(), 2);
 
         // Check transformations
@@ -391,7 +392,7 @@ mod tests {
         assert!(
             remapped
                 .iter()
-                .any(|v| v.name == "transformer.encoder.layer1.weight")
+                .any(|v| v.name() == "transformer.encoder.layer1.weight")
         );
         assert_eq!(remapped.len(), 1);
     }
@@ -405,7 +406,11 @@ mod tests {
 
         let (remapped, _) = remapper.remap(tensors);
 
-        assert!(remapped.iter().any(|v| v.name == "burn.linear.bias_param"));
+        assert!(
+            remapped
+                .iter()
+                .any(|v| v.name() == "burn.linear.bias_param")
+        );
     }
 
     #[test]
@@ -417,7 +422,7 @@ mod tests {
 
         let (remapped, transformations) = remapper.remap(tensors);
 
-        assert!(remapped.iter().any(|v| v.name == "test.weight"));
+        assert!(remapped.iter().any(|v| v.name() == "test.weight"));
         assert_eq!(remapped.len(), 1);
         assert_eq!(transformations.len(), 1);
         assert_eq!(
@@ -442,12 +447,12 @@ mod tests {
         let (reindexed, transformations) = map_indices_contiguous(tensors);
 
         // Check that indices are now contiguous
-        assert!(reindexed.iter().any(|v| v.name == "fc.0.weight"));
-        assert!(reindexed.iter().any(|v| v.name == "fc.0.bias"));
-        assert!(reindexed.iter().any(|v| v.name == "fc.1.weight"));
-        assert!(reindexed.iter().any(|v| v.name == "fc.1.bias"));
-        assert!(reindexed.iter().any(|v| v.name == "fc.2.weight"));
-        assert!(reindexed.iter().any(|v| v.name == "fc.2.bias"));
+        assert!(reindexed.iter().any(|v| v.name() == "fc.0.weight"));
+        assert!(reindexed.iter().any(|v| v.name() == "fc.0.bias"));
+        assert!(reindexed.iter().any(|v| v.name() == "fc.1.weight"));
+        assert!(reindexed.iter().any(|v| v.name() == "fc.1.bias"));
+        assert!(reindexed.iter().any(|v| v.name() == "fc.2.weight"));
+        assert!(reindexed.iter().any(|v| v.name() == "fc.2.bias"));
         assert_eq!(reindexed.len(), 6);
 
         // Check transformations
@@ -475,9 +480,9 @@ mod tests {
 
         let (reindexed, transformations) = map_indices_contiguous(tensors);
 
-        assert!(reindexed.iter().any(|v| v.name == "fc.0.weight"));
-        assert!(reindexed.iter().any(|v| v.name == "fc.1.weight"));
-        assert!(reindexed.iter().any(|v| v.name == "fc.2.weight"));
+        assert!(reindexed.iter().any(|v| v.name() == "fc.0.weight"));
+        assert!(reindexed.iter().any(|v| v.name() == "fc.1.weight"));
+        assert!(reindexed.iter().any(|v| v.name() == "fc.2.weight"));
         assert_eq!(reindexed.len(), 3);
 
         // All transformations should have same old and new paths
@@ -499,12 +504,12 @@ mod tests {
         let (reindexed, _) = map_indices_contiguous(tensors);
 
         // encoder: 0, 2 -> 0, 1
-        assert!(reindexed.iter().any(|v| v.name == "encoder.0.weight"));
-        assert!(reindexed.iter().any(|v| v.name == "encoder.1.weight"));
+        assert!(reindexed.iter().any(|v| v.name() == "encoder.0.weight"));
+        assert!(reindexed.iter().any(|v| v.name() == "encoder.1.weight"));
 
         // decoder: 1, 5 -> 0, 1
-        assert!(reindexed.iter().any(|v| v.name == "decoder.0.weight"));
-        assert!(reindexed.iter().any(|v| v.name == "decoder.1.weight"));
+        assert!(reindexed.iter().any(|v| v.name() == "decoder.0.weight"));
+        assert!(reindexed.iter().any(|v| v.name() == "decoder.1.weight"));
     }
 
     #[test]
@@ -517,8 +522,8 @@ mod tests {
 
         let (reindexed, transformations) = map_indices_contiguous(tensors);
 
-        assert!(reindexed.iter().any(|v| v.name == "encoder.weight"));
-        assert!(reindexed.iter().any(|v| v.name == "decoder.bias"));
+        assert!(reindexed.iter().any(|v| v.name() == "encoder.weight"));
+        assert!(reindexed.iter().any(|v| v.name() == "decoder.bias"));
 
         for (new, old) in &transformations {
             assert_eq!(new, old);
@@ -527,7 +532,7 @@ mod tests {
 
     #[test]
     fn test_map_indices_contiguous_empty() {
-        let tensors: Vec<PackTensor> = vec![];
+        let tensors: Vec<StoreTensor> = vec![];
         let (reindexed, transformations) = map_indices_contiguous(tensors);
 
         assert!(reindexed.is_empty());
@@ -545,9 +550,9 @@ mod tests {
 
         let (reindexed, _) = map_indices_contiguous(tensors);
 
-        assert!(reindexed.iter().any(|v| v.name == "fc.0.weight"));
-        assert!(reindexed.iter().any(|v| v.name == "fc.1.weight")); // 2 -> 1
-        assert!(reindexed.iter().any(|v| v.name == "output.weight")); // unchanged
+        assert!(reindexed.iter().any(|v| v.name() == "fc.0.weight"));
+        assert!(reindexed.iter().any(|v| v.name() == "fc.1.weight")); // 2 -> 1
+        assert!(reindexed.iter().any(|v| v.name() == "output.weight")); // unchanged
     }
 
     #[test]
@@ -584,25 +589,25 @@ mod tests {
         assert!(
             mapped
                 .iter()
-                .any(|v| v.name == "feature.layers.0.conv_block.0.weight"),
+                .any(|v| v.name() == "feature.layers.0.conv_block.0.weight"),
             "0.0 should stay as 0.0"
         );
         assert!(
             mapped
                 .iter()
-                .any(|v| v.name == "feature.layers.0.conv_block.1.weight"),
+                .any(|v| v.name() == "feature.layers.0.conv_block.1.weight"),
             "0.2 should become 0.1"
         );
         assert!(
             mapped
                 .iter()
-                .any(|v| v.name == "feature.layers.1.conv_block.0.weight"),
+                .any(|v| v.name() == "feature.layers.1.conv_block.0.weight"),
             "2.0 should become 1.0"
         );
         assert!(
             mapped
                 .iter()
-                .any(|v| v.name == "feature.layers.1.conv_block.1.weight"),
+                .any(|v| v.name() == "feature.layers.1.conv_block.1.weight"),
             "2.2 should become 1.1"
         );
 
@@ -636,23 +641,23 @@ mod tests {
         // a.0.b.2.c: 0 -> 0
         // a.2.b.0.c: 0 -> 0
 
-        assert!(mapped.iter().any(|v| v.name == "a.0.b.0.c.0.weight"));
+        assert!(mapped.iter().any(|v| v.name() == "a.0.b.0.c.0.weight"));
         assert!(
-            mapped.iter().any(|v| v.name == "a.0.b.0.c.1.weight"),
+            mapped.iter().any(|v| v.name() == "a.0.b.0.c.1.weight"),
             "a.0.b.0.c.2 should become a.0.b.0.c.1"
         );
         assert!(
-            mapped.iter().any(|v| v.name == "a.0.b.1.c.0.weight"),
+            mapped.iter().any(|v| v.name() == "a.0.b.1.c.0.weight"),
             "a.0.b.2.c.0 should become a.0.b.1.c.0"
         );
         assert!(
-            mapped.iter().any(|v| v.name == "a.1.b.0.c.0.weight"),
+            mapped.iter().any(|v| v.name() == "a.1.b.0.c.0.weight"),
             "a.2.b.0.c.0 should become a.1.b.0.c.0"
         );
     }
 
-    fn names(tensors: &[PackTensor]) -> Vec<&str> {
-        tensors.iter().map(|t| t.name.as_str()).collect()
+    fn names(tensors: &[StoreTensor]) -> Vec<&str> {
+        tensors.iter().map(StoreTensor::name).collect()
     }
 
     #[test]

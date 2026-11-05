@@ -12,6 +12,15 @@ use cubek::convolution::{
     launch_depthwise,
 };
 
+fn skip_large_filter(filter_shape: &[usize]) -> bool {
+    // The tile routine expands the filter taps into IR. Weight-gradient fallback
+    // uses the output-gradient map as its filter, so even a 3x3 layer can arrive
+    // here with a 160x160 window. More channels do not bound that expansion:
+    // reject large windows for every channel count and let conv_direct handle
+    // them with runtime loops. The kernel dimensions are exact in the tune key.
+    filter_shape.iter().product::<usize>() > 256
+}
+
 /// Perform a depthwise 2D convolution: one filter per channel, `groups == channels`, under the
 /// stated [`DepthwiseStrategy`].
 ///
@@ -45,6 +54,11 @@ pub fn conv_depthwise<const N: usize>(
 
     let out_channels = weight.meta.shape()[0];
     let weight_shape = &weight.meta.shape()[1..dim_c];
+
+    // Reject before allocating output or launching any of the depthwise tilings.
+    if skip_large_filter(weight_shape) {
+        return Err(ConvSetupError::Unknown);
+    }
 
     let mut out_shape = calculate_conv_output_sizes(
         weight_shape,

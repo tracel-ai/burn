@@ -5,18 +5,37 @@ use crate::{
     reduce_float_dim_ops, reduce_float2int_dim_ops, reduce_int_dim_ops, scalar_float_cmp_ops,
     scalar_float_ops, scalar_int_cmp_ops, scalar_int_ops, unary_float_ops, unary_int_ops,
 };
-use alloc::boxed::Box;
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
 use burn_backend::{
-    Backend, DType, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
-    Shape, TensorData, distributed::DistributedOps, tensor::IndexingUpdateOp,
+    Backend, BackendGraph, DType, DeviceDescription, DeviceOps, DeviceTelemetry, EnvironmentBundle,
+    EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, FloatDType, MemoryReport, Peak, PeakError, PeakKey,
+    ProfileDuration, ProfileOptions, ProfileToken, Shape, TensorData, TensorMetadata,
+    TensorPrimitive, ops::TransactionPrimitive,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
     HandleContainer, HandleKind, IntOperationIr, ModuleOperationIr, NumericOperationIr,
-    OperationIr, TensorId, TensorIr, TensorStatus,
+    OperationIr, TensorError, TensorId, TensorIr, TensorStatus,
 };
 use burn_std::{DeviceSettings, future::DynFut};
 use portable_atomic::{AtomicU64, Ordering};
+
+/// `$float` on a float tensor and `$quantized` on a quantized one, each with the tensor bound to
+/// `$tensor`, so an op that has a quantized kernel keeps its tensor quantized.
+macro_rules! float_or_quantized {
+    ($tensor:ident, $float:expr, $quantized:expr) => {
+        match $tensor {
+            TensorPrimitive::Float($tensor) => TensorPrimitive::Float($float),
+            TensorPrimitive::QFloat($tensor) => TensorPrimitive::QFloat($quantized),
+        }
+    };
+}
 
 /// An interpreter's context contains a [handle container](HandleContainer) to manage
 /// (i.e., fetch and update) existing tensors.
@@ -73,6 +92,12 @@ impl<B: BackendIr> TensorInterpreter<B> {
         }
     }
 
+    /// The handles of the tensors on this interpreter's device, for a handler that runs one
+    /// operation over several interpreters at once.
+    pub fn handles_mut(&mut self) -> &mut HandleContainer<B::Handle> {
+        &mut self.context.handles
+    }
+
     /// Get the tensor handle for the given [tensor representation](TensorIr).
     pub fn get_tensor_handle(&mut self, tensor: &TensorIr) -> B::Handle {
         let handles = &mut self.context.handles;
@@ -82,20 +107,18 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// Take the typed backend primitive for `tensor`, dispatching on its dtype.
     ///
     /// Unlike [`get_tensor_handle`](Self::get_tensor_handle) (which returns the opaque
-    /// `B::Handle`), this returns the concrete float/int/bool primitive so the caller can hand
-    /// it to `B::*_to_device`. Used by the same-host transfer path, which moves a tensor between
-    /// two interpreters living in the same server process without a host round-trip.
+    /// `B::Handle`), this returns the concrete float/int/bool/quantized primitive so the caller
+    /// can hand it to `B::*_to_device`.
     pub fn get_tensor(&mut self, tensor: &TensorIr) -> HandleKind<B> {
         let handles = &mut self.context.handles;
-        let dtype = tensor.dtype;
-        if dtype.is_float() {
-            HandleKind::Float(handles.get_float_tensor::<B>(tensor))
-        } else if dtype.is_int() || dtype.is_uint() {
-            HandleKind::Int(handles.get_int_tensor::<B>(tensor))
-        } else if dtype.is_bool() {
-            HandleKind::Bool(handles.get_bool_tensor::<B>(tensor))
-        } else {
-            todo!("Local transfer of {dtype:?} tensors is not supported yet");
+        match tensor.dtype {
+            DType::QFloat(_) => HandleKind::Quantized(handles.get_quantized_tensor::<B>(tensor)),
+            dtype if dtype.is_float() => HandleKind::Float(handles.get_float_tensor::<B>(tensor)),
+            dtype if dtype.is_int() || dtype.is_uint() => {
+                HandleKind::Int(handles.get_int_tensor::<B>(tensor))
+            }
+            dtype if dtype.is_bool() => HandleKind::Bool(handles.get_bool_tensor::<B>(tensor)),
+            dtype => unreachable!("{dtype:?} is neither float, int, bool nor quantized"),
         }
     }
 
@@ -120,9 +143,36 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 let tensor = B::bool_to_device(tensor, &self.device);
                 ctx.handles.register_bool_tensor::<B>(&id, tensor);
             }
-            HandleKind::Quantized(_) => {
-                todo!("Local transfer of quantized tensors is not supported yet");
+            HandleKind::Quantized(tensor) => {
+                let tensor = B::q_to_device(tensor, &self.device);
+                ctx.handles.register_quantized_tensor::<B>(&id, tensor);
             }
+        }
+    }
+
+    /// Register `id` as failed by `error`, so a read of it reports why instead of finding nothing.
+    pub fn set_error(&mut self, id: TensorId, error: TensorError) {
+        self.context.handles.set_error(id, error);
+    }
+
+    /// Register `id` as failed by `error`, unless something wrote it or a failure already claims
+    /// it: for a failure that cannot name its write set.
+    pub fn claim_unwritten(&mut self, id: TensorId, error: TensorError) {
+        self.context.handles.claim_unwritten(id, error);
+    }
+
+    /// The failure `tensor` carries, taken the way [`get_tensor`](Self::get_tensor) takes its
+    /// handle: a read-write use releases it.
+    pub fn take_error(&mut self, tensor: &TensorIr) -> Option<TensorError> {
+        self.context.handles.take_error(tensor)
+    }
+
+    /// Why `id` cannot be read, if it cannot: a failure claimed it, or nothing produced it.
+    pub fn read_failure(&self, id: &TensorId) -> Option<String> {
+        let handles = &self.context.handles;
+        match handles.error(id) {
+            Some(error) => Some(error.to_string()),
+            None => (!handles.has_handle(id)).then(|| format!("tensor {id:?} was never produced")),
         }
     }
 
@@ -148,8 +198,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// [`RouterClient::register_alias`](crate::RouterClient::register_alias)). Cloning the backend
     /// handle is a cheap `Arc`-style refcount bump, so the buffer survives until *both* ids are
     /// freed — consuming the alias on one stream can't pull it out from under the other.
+    ///
+    /// An alias of a tensor a failure claimed carries the same failure.
     pub fn register_alias(&mut self, new_id: TensorId, src_id: TensorId) {
         let ctx = &mut self.context;
+        if let Some(error) = ctx.handles.error(&src_id) {
+            let error = error.clone();
+            ctx.handles.set_error(new_id, error);
+            return;
+        }
         let handle = ctx
             .handles
             .get_handle_ref(&src_id)
@@ -163,39 +220,33 @@ impl<B: BackendIr> TensorInterpreter<B> {
         let ctx = &mut self.context;
         let dtype = data.dtype();
 
-        if dtype.is_float() {
-            let tensor = B::float_from_data(data, &self.device);
-            ctx.handles.register_float_tensor::<B>(&id, tensor)
-        } else if dtype.is_int() || dtype.is_uint() {
-            let tensor = B::int_from_data(data, &self.device);
-            ctx.handles.register_int_tensor::<B>(&id, tensor)
-        } else if dtype.is_bool() {
-            let tensor = B::bool_from_data(data, &self.device);
-            ctx.handles.register_bool_tensor::<B>(&id, tensor)
-        } else if let DType::QFloat(_) = dtype {
-            todo!();
+        match dtype {
+            DType::QFloat(_) => {
+                let tensor = B::q_from_data(data, &self.device);
+                ctx.handles.register_quantized_tensor::<B>(&id, tensor)
+            }
+            dtype if dtype.is_float() => {
+                let tensor = B::float_from_data(data, &self.device);
+                ctx.handles.register_float_tensor::<B>(&id, tensor)
+            }
+            dtype if dtype.is_int() || dtype.is_uint() => {
+                let tensor = B::int_from_data(data, &self.device);
+                ctx.handles.register_int_tensor::<B>(&id, tensor)
+            }
+            dtype if dtype.is_bool() => {
+                let tensor = B::bool_from_data(data, &self.device);
+                ctx.handles.register_bool_tensor::<B>(&id, tensor)
+            }
+            dtype => unreachable!("{dtype:?} is neither float, int, bool nor quantized"),
         }
     }
 
     /// Register a tensor and returns its intermediate representation.
     pub fn register_tensor_data_desc(&mut self, data: TensorData) -> TensorIr {
-        let ctx = &mut self.context;
-        let id = ctx.create_empty_handle();
+        let id = self.context.create_empty_handle();
         let shape = data.shape().clone();
         let dtype = data.dtype();
-
-        if dtype.is_float() {
-            let tensor = B::float_from_data(data, &self.device);
-            ctx.handles.register_float_tensor::<B>(&id, tensor)
-        } else if dtype.is_int() || dtype.is_uint() {
-            let tensor = B::int_from_data(data, &self.device);
-            ctx.handles.register_int_tensor::<B>(&id, tensor)
-        } else if dtype.is_bool() {
-            let tensor = B::bool_from_data(data, &self.device);
-            ctx.handles.register_bool_tensor::<B>(&id, tensor)
-        } else if let DType::QFloat(_) = dtype {
-            todo!();
-        }
+        self.register_tensor_data_id(id, data);
 
         TensorIr {
             id,
@@ -213,43 +264,81 @@ impl<B: BackendIr> TensorInterpreter<B> {
 
 impl<B: BackendIr> TensorInterpreter<B> {
     /// Execute a tensor operation.
+    ///
+    /// Failures are deferred to the tensors the operation was going to write,
+    /// as on fusion and CubeCL backends: an operation reading a tensor a
+    /// failure claimed is skipped and its outputs carry that failure, reported
+    /// by the read of one of those outputs, while work sharing no tensor with
+    /// the failure runs as usual. A backend reports its failures as errors; one
+    /// that panics is not caught here.
     pub fn register_op(&mut self, op: OperationIr) {
-        // Remove unused tensor handles
-        let ctx = &mut self.context;
+        let handles = &mut self.context.handles;
+        if let Some(error) = handles.input_error(&op) {
+            let error = error.propagated();
+            handles.free_inputs(&op);
+            handles.set_output_errors(&op, &error);
+            return;
+        }
 
-        let handles = &mut ctx.handles;
-        match &op {
+        self.execute_op(&op);
+    }
+
+    fn execute_op(&mut self, op: &OperationIr) {
+        let handles = &mut self.context.handles;
+        match op {
             // For every op: get the input(s), execute the operation and register the output(s)
             OperationIr::BaseFloat(op) => match op {
                 BaseOperationIr::Reshape(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let tensor = handles.get_float_primitive::<B>(&desc.input);
+                    let shape = desc.out.shape.clone();
 
-                    let output = B::float_reshape(tensor, desc.out.shape.clone());
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                    let output = float_or_quantized!(
+                        tensor,
+                        B::float_reshape(tensor, shape),
+                        B::q_reshape(tensor, shape)
+                    );
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::SwapDims(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let tensor = handles.get_float_primitive::<B>(&desc.input);
 
-                    let output = B::float_swap_dims(tensor, desc.dim1, desc.dim2);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                    let output = float_or_quantized!(
+                        tensor,
+                        B::float_swap_dims(tensor, desc.dim1, desc.dim2),
+                        B::q_swap_dims(tensor, desc.dim1, desc.dim2)
+                    );
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Permute(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let tensor = handles.get_float_primitive::<B>(&desc.input);
 
-                    let output = B::float_permute(tensor, &desc.axes);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                    let output = float_or_quantized!(
+                        tensor,
+                        B::float_permute(tensor, &desc.axes),
+                        B::q_permute(tensor, &desc.axes)
+                    );
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Flip(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let tensor = handles.get_float_primitive::<B>(&desc.input);
 
-                    let output = B::float_flip(tensor, &desc.axes);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                    let output = float_or_quantized!(
+                        tensor,
+                        B::float_flip(tensor, &desc.axes),
+                        B::q_flip(tensor, &desc.axes)
+                    );
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Expand(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let tensor = handles.get_float_primitive::<B>(&desc.input);
+                    let shape = desc.out.shape.clone();
 
-                    let output = B::float_expand(tensor, desc.out.shape.clone());
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                    let output = float_or_quantized!(
+                        tensor,
+                        B::float_expand(tensor, shape),
+                        B::q_expand(tensor, shape)
+                    );
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Unfold(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
@@ -258,10 +347,14 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Slice(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let tensor = handles.get_float_primitive::<B>(&desc.tensor);
 
-                    let output = B::float_slice(tensor, &desc.ranges);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                    let output = float_or_quantized!(
+                        tensor,
+                        B::float_slice(tensor, &desc.ranges),
+                        B::q_slice(tensor, &desc.ranges)
+                    );
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::SliceAssign(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
@@ -271,11 +364,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Gather(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let tensor = handles.get_float_primitive::<B>(&desc.tensor);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
 
-                    let output = B::float_gather(desc.dim, tensor, indices);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                    let output = float_or_quantized!(
+                        tensor,
+                        B::float_gather(desc.dim, tensor, indices),
+                        B::q_gather(desc.dim, tensor, indices)
+                    );
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Scatter(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
@@ -301,11 +398,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Select(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let tensor = handles.get_float_primitive::<B>(&desc.tensor);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
 
-                    let output = B::float_select(tensor, desc.dim, indices);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                    let output = float_or_quantized!(
+                        tensor,
+                        B::float_select(tensor, desc.dim, indices),
+                        B::q_select(tensor, desc.dim, indices)
+                    );
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::SelectAssign(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
@@ -533,7 +634,11 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::int_cat(tensors, desc.dim);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationIr::Cast(_) => unreachable!(),
+                BaseOperationIr::Cast(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_cast(tensor, desc.out.dtype.into());
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
                 BaseOperationIr::Empty(desc) => {
                     let shape = desc.out.shape.clone();
                     let output = B::int_empty(shape, &self.device, desc.out.dtype.into());
@@ -638,19 +743,23 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_bool_tensor::<B>(&desc.value);
 
-                    let output = match desc.update {
-                        IndexingUpdateOp::Add => {
-                            B::bool_scatter_or(desc.dim, tensor, indices, value)
-                        }
-                        _ => unimplemented!(),
-                    };
+                    let output = B::bool_scatter(desc.dim, tensor, indices, value, desc.update);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationIr::ScatterNd(_) => {
-                    unreachable!("scatter_nd not supported for bool tensors")
+                BaseOperationIr::ScatterNd(desc) => {
+                    let data = handles.get_bool_tensor::<B>(&desc.data);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+                    let values = handles.get_bool_tensor::<B>(&desc.values);
+
+                    let output = B::bool_scatter_nd(data, indices, values, desc.reduction);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationIr::GatherNd(_) => {
-                    unreachable!("gather_nd not supported for bool tensors")
+                BaseOperationIr::GatherNd(desc) => {
+                    let data = handles.get_bool_tensor::<B>(&desc.data);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::bool_gather_nd(data, indices);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Select(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
@@ -664,12 +773,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_bool_tensor::<B>(&desc.value);
 
-                    let output = match desc.update {
-                        IndexingUpdateOp::Add => {
-                            B::bool_select_or(tensor, desc.dim, indices, value)
-                        }
-                        _ => unimplemented!(),
-                    };
+                    let output =
+                        B::bool_select_assign(tensor, desc.dim, indices, value, desc.update);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::MaskWhere(desc) => {
@@ -1191,6 +1296,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.distribution,
                         &self.device,
                         desc.out.dtype.into(),
+                        desc.key(),
                     );
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
@@ -1369,6 +1475,10 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 FloatOperationIr::ArcTanh(desc) => unary_float_ops!(handles, desc, B::float_atanh),
                 FloatOperationIr::ArcTan2(desc) => binary_float_ops!(handles, desc, B::float_atan2),
                 FloatOperationIr::Hypot(desc) => binary_float_ops!(handles, desc, B::float_hypot),
+                FloatOperationIr::Fmod(desc) => binary_float_ops!(handles, desc, B::float_fmod),
+                FloatOperationIr::FmodScalar(desc) => {
+                    scalar_float_ops!(handles, desc, B::float_fmod_scalar)
+                }
                 FloatOperationIr::Round(desc) => {
                     unary_float_ops!(handles, desc, B::float_round)
                 }
@@ -1387,6 +1497,16 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::float_into_int(tensor, desc.out.dtype.into());
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
+                FloatOperationIr::Matmul(desc)
+                    if matches!(desc.lhs.dtype, DType::QFloat(_))
+                        || matches!(desc.rhs.dtype, DType::QFloat(_)) =>
+                {
+                    let lhs = handles.get_float_primitive::<B>(&desc.lhs);
+                    let rhs = handles.get_float_primitive::<B>(&desc.rhs);
+
+                    let output = Self::as_recorded(B::q_matmul(lhs, rhs), desc.out.dtype);
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
+                }
                 FloatOperationIr::Matmul(desc) => {
                     binary_float_ops!(handles, desc, B::float_matmul)
                 }
@@ -1404,14 +1524,26 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.distribution,
                         &self.device,
                         desc.out.dtype.into(),
+                        desc.key(),
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 FloatOperationIr::Recip(desc) => {
                     unary_float_ops!(handles, desc, B::float_recip)
                 }
-                FloatOperationIr::Quantize(_) => todo!(),
-                FloatOperationIr::Dequantize(_) => todo!(),
+                FloatOperationIr::Quantize(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let qparams = handles.get_quantization_parameters::<B>(&desc.qparams);
+
+                    let output = B::quantize(tensor, &desc.scheme, qparams);
+                    handles.register_quantized_tensor::<B>(&desc.out.id, output);
+                }
+                FloatOperationIr::Dequantize(desc) => {
+                    let tensor = handles.get_quantized_tensor::<B>(&desc.input);
+
+                    let output = B::dequantize(tensor, desc.out.dtype.into());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 FloatOperationIr::IsNan(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
 
@@ -1711,6 +1843,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.kernel_size,
                         desc.stride,
                         desc.padding,
+                        desc.dilation,
                         desc.count_include_pad,
                         desc.ceil_mode,
                     );
@@ -1724,6 +1857,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.kernel_size,
                         desc.stride,
                         desc.padding,
+                        desc.dilation,
                         desc.count_include_pad,
                         desc.ceil_mode,
                     );
@@ -1739,6 +1873,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.kernel_size,
                         desc.stride,
                         desc.padding,
+                        desc.dilation,
                         desc.count_include_pad,
                         desc.ceil_mode,
                     );
@@ -1754,6 +1889,37 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.kernel_size,
                         desc.stride,
                         desc.padding,
+                        desc.dilation,
+                        desc.count_include_pad,
+                        desc.ceil_mode,
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::AvgPool3d(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+
+                    let output = B::avg_pool3d(
+                        x,
+                        desc.kernel_size,
+                        desc.stride,
+                        desc.padding,
+                        desc.dilation,
+                        desc.count_include_pad,
+                        desc.ceil_mode,
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::AvgPool3dBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let grad = handles.get_float_tensor::<B>(&desc.grad);
+
+                    let output = B::avg_pool3d_backward(
+                        x,
+                        grad,
+                        desc.kernel_size,
+                        desc.stride,
+                        desc.padding,
+                        desc.dilation,
                         desc.count_include_pad,
                         desc.ceil_mode,
                     );
@@ -1888,6 +2054,51 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output.x_grad);
                 }
+                ModuleOperationIr::MaxPool3d(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+
+                    let output = B::max_pool3d(
+                        x,
+                        desc.kernel_size,
+                        desc.stride,
+                        desc.padding,
+                        desc.dilation,
+                        desc.ceil_mode,
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::MaxPool3dWithIndices(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+
+                    let output = B::max_pool3d_with_indices(
+                        x,
+                        desc.kernel_size,
+                        desc.stride,
+                        desc.padding,
+                        desc.dilation,
+                        desc.ceil_mode,
+                        desc.out_indices.dtype.into(),
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output.output);
+                    handles.register_int_tensor::<B>(&desc.out_indices.id, output.indices);
+                }
+                ModuleOperationIr::MaxPool3dWithIndicesBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.grad);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::max_pool3d_with_indices_backward(
+                        x,
+                        desc.kernel_size,
+                        desc.stride,
+                        desc.padding,
+                        desc.dilation,
+                        desc.ceil_mode,
+                        output_grad,
+                        indices,
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output.x_grad);
+                }
                 ModuleOperationIr::Interpolate(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
 
@@ -1926,6 +2137,39 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     );
 
                     handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::AttentionWithLogsumexp(desc) => {
+                    let query = handles.get_float_tensor::<B>(&desc.query);
+                    let key = handles.get_float_tensor::<B>(&desc.key);
+                    let value = handles.get_float_tensor::<B>(&desc.value);
+
+                    let (out, logsumexp) =
+                        B::attention_with_logsumexp(query, key, value, desc.options.clone().into());
+
+                    handles.register_float_tensor::<B>(&desc.out.id, out);
+                    handles.register_float_tensor::<B>(&desc.logsumexp.id, logsumexp);
+                }
+                ModuleOperationIr::AttentionBackward(desc) => {
+                    let query = handles.get_float_tensor::<B>(&desc.query);
+                    let key = handles.get_float_tensor::<B>(&desc.key);
+                    let value = handles.get_float_tensor::<B>(&desc.value);
+                    let out = handles.get_float_tensor::<B>(&desc.out);
+                    let logsumexp = handles.get_float_tensor::<B>(&desc.logsumexp);
+                    let out_grad = handles.get_float_tensor::<B>(&desc.out_grad);
+
+                    let gradients = B::attention_backward(
+                        query,
+                        key,
+                        value,
+                        out,
+                        logsumexp,
+                        out_grad,
+                        desc.options.clone().into(),
+                    );
+
+                    handles.register_float_tensor::<B>(&desc.query_grad.id, gradients.query_grad);
+                    handles.register_float_tensor::<B>(&desc.key_grad.id, gradients.key_grad);
+                    handles.register_float_tensor::<B>(&desc.value_grad.id, gradients.value_grad);
                 }
                 ModuleOperationIr::CtcLoss(desc) => {
                     let log_probs = handles.get_float_tensor::<B>(&desc.log_probs);
@@ -2115,11 +2359,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
             },
             OperationIr::Custom(desc) => match self.custom_ops.get(&desc.id) {
                 Some(handler) => handler(handles, desc, &self.device),
-                None => panic!(
-                    "No custom-op handler registered for `{}`. Register one on the server via \
-                     `CustomOpRegistry`/the server builder before starting it.",
-                    desc.id
-                ),
+                None => {
+                    let error = TensorError::new(ExecutionError::with_context(format!(
+                        "No custom-op handler registered for `{}`. Register one in the \
+                         `CustomOpRegistry` the server or sharded compute device is made with.",
+                        desc.id
+                    )));
+                    handles.free_inputs(op);
+                    handles.set_output_errors(op, &error);
+                }
             },
             OperationIr::Init(_) => {
                 // Nothing to do.
@@ -2127,55 +2375,80 @@ impl<B: BackendIr> TensorInterpreter<B> {
             OperationIr::Drop(repr) => {
                 handles.remove_handle(repr.id);
             }
-            OperationIr::Distributed(op) => match op {
-                burn_ir::DistributedOperationIr::AllReduce(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
-                    let device_ids = desc.device_ids.iter().map(|id| (*id).into()).collect();
-
-                    let output = <B as DistributedOps<B>>::all_reduce(tensor, desc.op, device_ids);
-                    // Safety: the collective tensor is resolved through the normal op stream
-                    // (a `SyncCollective` op follows), so the handle is valid once that runs.
-                    let output = unsafe { output.assume_resolved() };
-                    B::flush(&self.device);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
-                burn_ir::DistributedOperationIr::SyncCollective => B::sync_collective(&self.device),
-            },
         }
     }
 
     /// Read a tensor's data, returning a future for the host readback.
+    ///
+    /// A tensor a failure claimed reads as that failure.
     pub fn read_tensor_async(
         &mut self,
         tensor: TensorIr,
     ) -> DynFut<Result<TensorData, ExecutionError>> {
-        let ctx = &mut self.context;
-
-        enum Output<B: Backend> {
-            Float(B::FloatTensorPrimitive),
-            Int(B::IntTensorPrimitive),
-            Bool(B::BoolTensorPrimitive),
+        match self.context.handles.take_error(&tensor) {
+            Some(error) => {
+                let error = ExecutionError::from(error);
+                Box::pin(async move { Err(error) })
+            }
+            None => self.take_for_read(&tensor).into_data(),
         }
+    }
 
-        let tensor = if tensor.dtype.is_float() {
-            let tensor = ctx.handles.get_float_tensor::<B>(&tensor);
-            Output::<B>::Float(tensor)
-        } else if tensor.dtype.is_int() || tensor.dtype.is_uint() {
-            let tensor = ctx.handles.get_int_tensor::<B>(&tensor);
-            Output::Int(tensor)
-        } else if tensor.dtype.is_bool() {
-            let tensor = ctx.handles.get_bool_tensor::<B>(&tensor);
-            Output::Bool(tensor)
-        } else if let DType::QFloat(_) = tensor.dtype {
-            todo!()
-        } else {
-            unimplemented!()
+    /// Read several tensors in the order given, those that are not quantized as one backend
+    /// transaction.
+    ///
+    /// When a failure claimed one of them, the read is that failure; the others are still taken.
+    pub fn read_tensors_async(
+        &mut self,
+        tensors: &[TensorIr],
+    ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
+        let mut batch = ReadBatch::default();
+        let mut failure = None;
+        for tensor in tensors {
+            match self.context.handles.take_error(tensor) {
+                Some(error) => {
+                    failure.get_or_insert(error);
+                }
+                None => batch.push(self.take_for_read(tensor)),
+            }
+        }
+        match failure {
+            Some(error) => {
+                let error = ExecutionError::from(error);
+                Box::pin(async move { Err(error) })
+            }
+            None => Box::pin(batch.execute()),
+        }
+    }
+
+    fn take_for_read(&mut self, tensor: &TensorIr) -> ReadPrimitive<B> {
+        let handles = &mut self.context.handles;
+        match tensor.dtype {
+            DType::QFloat(_) => ReadPrimitive::Quantized(handles.get_quantized_tensor::<B>(tensor)),
+            dtype if dtype.is_float() => {
+                ReadPrimitive::Float(handles.get_float_tensor::<B>(tensor))
+            }
+            dtype if dtype.is_int() || dtype.is_uint() => {
+                ReadPrimitive::Int(handles.get_int_tensor::<B>(tensor))
+            }
+            dtype if dtype.is_bool() => ReadPrimitive::Bool(handles.get_bool_tensor::<B>(tensor)),
+            dtype => unreachable!("{dtype:?} is neither float, int, bool nor quantized"),
+        }
+    }
+
+    /// `output` in the dtype the client recorded for it, which a backend picking a quantized
+    /// matmul's output from its own settings may not have produced.
+    fn as_recorded(output: TensorPrimitive<B>, dtype: DType) -> TensorPrimitive<B> {
+        if output.dtype() == dtype {
+            return output;
+        }
+        let output = match output {
+            TensorPrimitive::Float(tensor) => tensor,
+            TensorPrimitive::QFloat(tensor) => B::dequantize(tensor, FloatDType::F32),
         };
-
-        match tensor {
-            Output::Float(val) => Box::pin(B::float_into_data(val)),
-            Output::Int(val) => Box::pin(B::int_into_data(val)),
-            Output::Bool(val) => Box::pin(B::bool_into_data(val)),
+        match dtype {
+            DType::QFloat(scheme) => TensorPrimitive::QFloat(B::quantize_dynamic(output, &scheme)),
+            dtype => TensorPrimitive::Float(B::float_cast(output, dtype.into())),
         }
     }
 
@@ -2185,6 +2458,10 @@ impl<B: BackendIr> TensorInterpreter<B> {
     }
 
     /// Block until all queued backend work has completed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`ExecutionError`] when the queued work failed.
     pub fn sync(&self) -> Result<(), ExecutionError> {
         B::sync(&self.device)
     }
@@ -2217,5 +2494,391 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// measuring it.
     pub fn profile_abandon(&self, token: ProfileToken) {
         B::profile_abandon(&self.device, token)
+    }
+
+    /// Open `mode` on the backend where the calling stream stands.
+    pub fn execution_mode_open(
+        &self,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        B::execution_mode_open(&self.device, mode)
+    }
+
+    /// What the work under the mode `token` opened has triggered so far.
+    pub fn execution_mode_statistics(
+        &self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::execution_mode_statistics(&self.device, token)
+    }
+
+    /// Close the mode `token` opened.
+    pub fn execution_mode_close(
+        &self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::execution_mode_close(&self.device, token)
+    }
+
+    /// Create a compute environment in the storage the backend reaches.
+    pub fn environment_create(
+        &self,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_create(&self.device, name, origin)
+    }
+
+    /// Make `id` the backend's compute environment, where the calling stream
+    /// stands.
+    pub fn environment_activate(
+        &self,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_activate(&self.device, id)
+    }
+
+    /// The backend's compute environment.
+    pub fn environment_active(&self) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_active(&self.device)
+    }
+
+    /// Serialize the compute environment `id`, where the calling stream
+    /// stands.
+    pub fn environment_save(
+        &self,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        B::environment_save(&self.device, id)
+    }
+
+    /// Bring what `origin` holds into the environment `id` of the backend.
+    pub fn environment_merge(
+        &self,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        B::environment_merge(&self.device, id, origin)
+    }
+
+    /// What the backend's device is, as its driver states it.
+    pub fn device_description(&self) -> Option<DeviceDescription> {
+        B::device_description(&self.device)
+    }
+
+    /// One reading of the counters of the backend's device.
+    pub fn measure_telemetry(&self) -> DeviceTelemetry {
+        B::measure_telemetry(&self.device)
+    }
+
+    /// What the allocator of the backend's device holds, where the calling
+    /// stream stands.
+    pub fn measure_memory(&self) -> Option<MemoryReport> {
+        B::measure_memory(&self.device)
+    }
+
+    /// The peak throughput of the backend's device for each of `keys`.
+    pub fn measure_peaks(&self, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        B::measure_peaks(&self.device, keys)
+    }
+
+    /// Prepare the backend for a graph capture.
+    pub fn graph_prepare(&self) -> Result<(), ExecutionError> {
+        B::graph_prepare(&self.device)
+    }
+
+    /// Start recording the backend's launches on the calling stream into a graph.
+    pub fn graph_start_capture(&self) -> Result<(), ExecutionError> {
+        B::graph_start_capture(&self.device)
+    }
+
+    /// Stop the recording on the calling stream and return the backend's graph.
+    pub fn graph_stop_capture(&self) -> Result<BackendGraph<B>, ExecutionError> {
+        B::graph_stop_capture(&self.device)
+    }
+
+    /// Replay `graph` on the calling stream.
+    ///
+    /// # Safety
+    ///
+    /// The contract of [`Backend::graph_replay`].
+    pub unsafe fn graph_replay(&self, graph: &BackendGraph<B>) -> Result<(), ExecutionError> {
+        // Safety: forwarded verbatim from this method's own contract.
+        unsafe { B::graph_replay(&self.device, graph) }
+    }
+}
+
+/// A tensor taken from the handle container to be read.
+enum ReadPrimitive<B: Backend> {
+    Float(B::FloatTensorPrimitive),
+    Int(B::IntTensorPrimitive),
+    Bool(B::BoolTensorPrimitive),
+    Quantized(B::QuantizedTensorPrimitive),
+}
+
+impl<B: Backend> ReadPrimitive<B> {
+    fn into_data(self) -> DynFut<Result<TensorData, ExecutionError>> {
+        match self {
+            Self::Float(tensor) => Box::pin(B::float_into_data(tensor)),
+            Self::Int(tensor) => Box::pin(B::int_into_data(tensor)),
+            Self::Bool(tensor) => Box::pin(B::bool_into_data(tensor)),
+            Self::Quantized(tensor) => Box::pin(B::q_into_data(tensor)),
+        }
+    }
+}
+
+/// The tensors of one read, the quantized ones kept out of the backend transaction because a
+/// fused backend's transaction cannot read them.
+#[derive(Default)]
+struct ReadBatch<B: Backend> {
+    transaction: TransactionPrimitive<B>,
+    quantized: Vec<QuantizedRead<B>>,
+    len: usize,
+}
+
+/// A quantized tensor of a [`ReadBatch`], and where its data goes in the batch's answer.
+struct QuantizedRead<B: Backend> {
+    position: usize,
+    tensor: B::QuantizedTensorPrimitive,
+}
+
+impl<B: Backend> ReadBatch<B> {
+    fn transaction_holds_tensors(&self) -> bool {
+        self.quantized.len() < self.len
+    }
+
+    fn push(&mut self, tensor: ReadPrimitive<B>) {
+        match tensor {
+            ReadPrimitive::Float(tensor) => self
+                .transaction
+                .register_float(TensorPrimitive::Float(tensor)),
+            ReadPrimitive::Int(tensor) => self.transaction.register_int(tensor),
+            ReadPrimitive::Bool(tensor) => self.transaction.register_bool(tensor),
+            ReadPrimitive::Quantized(tensor) => self.quantized.push(QuantizedRead {
+                position: self.len,
+                tensor,
+            }),
+        }
+        self.len += 1;
+    }
+
+    async fn execute(self) -> Result<Vec<TensorData>, ExecutionError> {
+        // Some backends' transactions cannot run without a tensor to find their device from.
+        let mut data = if self.transaction_holds_tensors() {
+            self.transaction.execute_async().await?
+        } else {
+            Vec::with_capacity(self.len)
+        };
+        for read in self.quantized {
+            data.insert(read.position, B::q_into_data(read.tensor).await?);
+        }
+        Ok(data)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_backend::quantization::{QuantScheme, QuantStore, QuantValue};
+    use burn_flex::Flex;
+    use burn_ir::{CastOpIr, MatmulOpIr};
+
+    #[test]
+    fn a_quantized_matmul_yields_the_dtype_the_client_recorded() {
+        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native);
+        let lhs = TensorData::quantized(vec![1i8, 2, 3, 4], [2, 2], scheme, &[0.5], None);
+        let lhs = interpreter.register_tensor_data_desc(lhs);
+        let rhs = TensorData::new(vec![1.0f32, 0.0, 0.0, 1.0], [2, 2]);
+        let rhs = interpreter.register_tensor_data_desc(rhs);
+        let mut out = TensorIr::uninit(TensorId::new(u64::MAX), Shape::new([2, 2]), DType::F16);
+
+        interpreter.register_op(OperationIr::Float(
+            DType::F32,
+            FloatOperationIr::Matmul(MatmulOpIr {
+                lhs,
+                rhs,
+                out: out.clone(),
+            }),
+        ));
+
+        out.status = TensorStatus::ReadWrite;
+        let data = burn_std::reader::try_read_sync(interpreter.read_tensor_async(out))
+            .expect("flex reads synchronously")
+            .unwrap();
+        assert_eq!(data.dtype(), DType::F16);
+    }
+
+    /// A tensor a failure claimed reads as that failure, rather than panicking the worker that
+    /// serves the read, and a read-write read releases it as it would release a handle.
+    #[test]
+    fn a_failed_tensor_reads_as_its_failure() {
+        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
+        let written = interpreter.register_tensor_data_desc(TensorData::from([1.0f32]));
+        let failed = TensorIr::uninit(TensorId::new(u64::MAX), Shape::new([1]), DType::F32);
+        interpreter.set_error(
+            failed.id,
+            TensorError::new(ExecutionError::with_context("the work failed")),
+        );
+
+        let read = TensorIr {
+            status: TensorStatus::ReadOnly,
+            ..failed
+        };
+        let error = burn_std::reader::try_read_sync(
+            interpreter.read_tensors_async(&[written, read.clone()]),
+        )
+        .expect("flex reads synchronously")
+        .unwrap_err();
+        assert!(error.to_string().contains("the work failed"), "{error}");
+
+        // A read-write read is the tensor's last use, so it releases the failure with it.
+        let last = TensorIr {
+            status: TensorStatus::ReadWrite,
+            ..read
+        };
+        let read = burn_std::reader::try_read_sync(interpreter.read_tensor_async(last.clone()))
+            .expect("flex reads synchronously");
+        assert!(read.is_err());
+        assert_eq!(
+            interpreter.read_failure(&last.id),
+            Some(format!("tensor {:?} was never produced", last.id))
+        );
+    }
+
+    /// An operation reading a tensor a failure claimed does not run: its output reports the root
+    /// failure, and an operation sharing no tensor with it still runs.
+    #[test]
+    fn an_op_on_a_failed_tensor_is_skipped_and_its_output_reports_the_root() {
+        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
+        let healthy = interpreter.register_tensor_data_desc(TensorData::from([0.0f32]));
+        let failed = TensorIr::uninit(TensorId::new(u64::MAX), Shape::new([1]), DType::F32);
+        interpreter.set_error(
+            failed.id,
+            TensorError::new(ExecutionError::with_context("the root failure")),
+        );
+
+        let (skipped, skipped_out) = exp(&failed, u64::MAX - 1);
+        let (downstream, downstream_out) = exp(&skipped_out, u64::MAX - 2);
+        let (independent, independent_out) = exp(&healthy, u64::MAX - 3);
+        interpreter.register_op(skipped);
+        interpreter.register_op(downstream);
+        interpreter.register_op(independent);
+
+        let error = read(&mut interpreter, &downstream_out).unwrap_err();
+        assert!(error.to_string().contains("the root failure"), "{error}");
+        read(&mut interpreter, &independent_out)
+            .unwrap()
+            .assert_eq(&TensorData::from([1.0f32]), true);
+    }
+
+    /// A skipped operation still releases the inputs it consumes: no `Drop` follows a read-write
+    /// use, so the healthy operand's buffer and the failed operand's error would otherwise stay
+    /// held for the life of the interpreter.
+    #[test]
+    fn a_skipped_op_releases_the_inputs_it_consumes() {
+        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
+        let healthy = interpreter.register_tensor_data_desc(TensorData::from([1.0f32]));
+        let failed = TensorIr::uninit(TensorId::new(u64::MAX), Shape::new([1]), DType::F32);
+        interpreter.set_error(
+            failed.id,
+            TensorError::new(ExecutionError::with_context("the root failure")),
+        );
+        let out = TensorIr::uninit(TensorId::new(u64::MAX - 1), Shape::new([1]), DType::F32);
+
+        let consumed = |tensor: &TensorIr| TensorIr {
+            status: TensorStatus::ReadWrite,
+            ..tensor.clone()
+        };
+        interpreter.register_op(OperationIr::NumericFloat(
+            DType::F32,
+            NumericOperationIr::Add(burn_ir::BinaryOpIr {
+                lhs: consumed(&failed),
+                rhs: consumed(&healthy),
+                out: out.clone(),
+            }),
+        ));
+
+        let handles = &interpreter.context.handles;
+        assert!(
+            !handles.has_handle(&healthy.id),
+            "the healthy operand leaked"
+        );
+        assert!(
+            handles.error(&failed.id).is_none(),
+            "the failed operand's error leaked"
+        );
+        assert!(
+            handles.error(&out.id).is_some(),
+            "the output was not claimed"
+        );
+    }
+
+    /// An alias of a tensor a failure claimed reads as that failure.
+    #[test]
+    fn an_alias_of_a_failed_tensor_carries_its_failure() {
+        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
+        let failed = TensorId::new(u64::MAX);
+        interpreter.set_error(
+            failed,
+            TensorError::new(ExecutionError::with_context("the root failure")),
+        );
+
+        let alias = TensorId::new(u64::MAX - 1);
+        interpreter.register_alias(alias, failed);
+
+        assert!(
+            interpreter
+                .read_failure(&alias)
+                .is_some_and(|reason| reason.contains("the root failure"))
+        );
+    }
+
+    #[test]
+    fn an_int_cast_yields_the_element_the_client_recorded() {
+        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
+        let input = interpreter.register_tensor_data_desc(TensorData::from([1i32, -2, 3]));
+        let mut out = TensorIr::uninit(TensorId::new(u64::MAX), Shape::new([3]), DType::I64);
+
+        interpreter.register_op(OperationIr::BaseInt(BaseOperationIr::Cast(CastOpIr {
+            input,
+            out: out.clone(),
+        })));
+
+        out.status = TensorStatus::ReadWrite;
+        let data = burn_std::reader::try_read_sync(interpreter.read_tensor_async(out))
+            .expect("flex reads synchronously")
+            .unwrap();
+        data.assert_eq(&TensorData::from([1i64, -2, 3]), true);
+    }
+
+    fn read(
+        interpreter: &mut TensorInterpreter<Flex>,
+        tensor: &TensorIr,
+    ) -> Result<TensorData, ExecutionError> {
+        let tensor = TensorIr {
+            status: TensorStatus::ReadOnly,
+            ..tensor.clone()
+        };
+        burn_std::reader::try_read_sync(interpreter.read_tensor_async(tensor))
+            .expect("flex reads synchronously")
+    }
+
+    fn exp(input: &TensorIr, out: u64) -> (OperationIr, TensorIr) {
+        let out = TensorIr::uninit(TensorId::new(out), input.shape.clone(), DType::F32);
+        let input = TensorIr {
+            status: TensorStatus::ReadOnly,
+            ..input.clone()
+        };
+        let op = OperationIr::Float(
+            DType::F32,
+            FloatOperationIr::Exp(burn_ir::UnaryOpIr {
+                input,
+                out: out.clone(),
+            }),
+        );
+        (op, out)
     }
 }

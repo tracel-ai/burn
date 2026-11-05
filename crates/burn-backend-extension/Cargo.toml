@@ -4,7 +4,7 @@ description = "Burn backend extension proc macro"
 edition.workspace = true
 license.workspace = true
 name = "burn-backend-extension"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-backend-extension"
 version.workspace = true
 

@@ -2,7 +2,29 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-//! Burn neural network module.
+//! Neural network building blocks for Burn.
+//!
+//! Every layer is a [`Module`](burn_core::module::Module) built from a `Config`:
+//! `LinearConfig::new(784, 128).init(&device)` returns a [`Linear`]. Applications use these through
+//! `burn::nn`.
+//!
+//! - Layers: linear, convolution and transposed convolution (1D to 3D), pooling, normalization
+//!   (batch, layer, group, instance, RMS), embeddings, dropout, recurrent layers (LSTM, GRU),
+//!   attention and transformers, positional and rotary encodings, interpolation, and more.
+//! - [`activation`]: activation functions as modules.
+//! - [`loss`]: loss functions, from mean squared error and cross-entropy to CTC.
+//! - [`Initializer`]: weight initialization schemes.
+//!
+//! Each layer is a [`compute`](burn_core::instrument::compute) component, so
+//! [`burn::instrument`](burn_core::instrument) breaks a model built from them down by layer, and
+//! the layers that run one operation declare the floor they are scored against.
+//!
+//! # Feature flags
+//!
+//! - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
+//! - `tracing`: instrument operations with the `tracing` crate.
+//! - `linalg`: enables orthogonal initialization, the cosine similarity and pairwise distance
+//!   modules, and the cosine embedding and triplet margin losses. Requires `burn-linalg`.
 
 /// Loss module
 pub mod loss;
@@ -26,7 +48,10 @@ pub use padding::*;
 
 extern crate alloc;
 
+#[cfg(all(test, feature = "std"))]
+mod recording;
+
 #[cfg(test)]
 fn test_device() -> burn_core::tensor::Device {
-    burn_core::tensor::Device::flex()
+    burn_core::tensor::Device::default()
 }

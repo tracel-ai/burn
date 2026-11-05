@@ -1,11 +1,11 @@
-use super::NoOp;
 use crate::{
-    Fusion, FusionBackend, binary_int_cmp_ops, binary_int_ops,
+    Fusion, FusionBackend, FusionTensor, binary_int_cmp_ops, binary_int_ops,
     client::GlobalFusionClient,
     get_client, reduce_ops, scalar_int_cmp_ops, scalar_int_ops,
     stream::{StreamId, execution::Operation},
     unary_int_ops,
 };
+use burn_backend::RandomKey;
 use burn_backend::{
     BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
     TensorData,
@@ -100,15 +100,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let shape = burn_backend::TensorMetadata::shape(&tensor);
 
         let handle = B::int_tensor_handle(tensor);
-        let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
+        let id = client.register_tensor_handle(handle);
 
-        client
-            .register(
-                StreamId::current(),
-                OperationIr::Init(desc),
-                NoOp::<B>::new(),
-            )
-            .output()
+        FusionTensor::new(id, shape, dtype, client, StreamId::current())
     }
 
     fn int_to_device(tensor: IntTensor<Self>, device_dst: &Device<Self>) -> IntTensor<Self> {
@@ -2020,6 +2014,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         distribution: Distribution,
         device: &Device<Self>,
         dtype: IntDType,
+        key: RandomKey,
     ) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct IntRandomOps<B: FusionBackend> {
@@ -2038,6 +2033,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                     self.desc.distribution,
                     &self.device,
                     self.desc.out.dtype.into(),
+                    self.desc.key(),
                 );
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
 
@@ -2047,7 +2043,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let dtype = dtype.into();
         let client = get_client::<B>(device);
-        let desc = RandomOpIr::create(shape, dtype, distribution, || client.create_empty_handle());
+        let desc = RandomOpIr::create(shape, dtype, distribution, key, || {
+            client.create_empty_handle()
+        });
 
         client
             .register(

@@ -35,3 +35,11 @@ advanced user or a beginner. We have crafted some sections for you:
 
 Throughout the book, we assume a basic understanding of deep learning concepts, but we may refer to
 additional material when it seems appropriate.
+
+## License
+
+Unless otherwise noted, this book and its code examples are licensed under either the
+[MIT License](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT) or the
+[Apache License, Version 2.0](https://github.com/tracel-ai/burn/blob/main/LICENSE-APACHE). See the
+licenses for details. Third-party materials and externally downloaded datasets or models remain
+subject to their respective licenses.
