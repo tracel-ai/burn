@@ -153,7 +153,7 @@ remains in [`release/0.22`](https://github.com/tracel-ai/burn/blob/release/0.22/
 | [2,1,32,32] x [1,4,32,32] | 7.11 us | 7.00 us  | ~1x    | 34.4 KB |
 | [4,1,64,64] x [1,4,64,64] | 54.2 us | 50.0 us  | ~1x    | 262 KB  |
 
-### Transformer Shapes (f32)
+### Transformer Shapes (f16, weight grad in f32)
 
 | Shape                           | Now     | Apr 2026 | Change | Mem     |
 | ------------------------------- | ------- | -------- | ------ | ------- |
@@ -507,7 +507,7 @@ mul and add. The composite rows include the NCHW to NHWC reshape ConvNeXt does a
 | ConvNeXt c384, 30x28  | decomposed  | 155 us  | -        | new    | 2.58 MB |
 | d768, seq 512, b2     | fused_trait | 108 us  | -        | new    | 3.15 MB |
 | d768, seq 512, b2     | decomposed  | 355 us  | -        | new    | 6.29 MB |
-| c48, 488x448          | composite   | 3.79 ms | -        | new    | 21.2 MB |
+| c48, 244x224          | composite   | 3.79 ms | -        | new    | 21.2 MB |
 | c96, 122x112          | composite   | 1.79 ms | -        | new    | 10.5 MB |
 | c192, 61x56           | composite   | 925 us  | -        | new    | 5.26 MB |
 | c384, 30x28           | composite   | 443 us  | -        | new    | 2.58 MB |
@@ -930,7 +930,7 @@ Both fuse scale + softcap + masking + bias + softmax into a single pass.
 | 256       | 44.7 us | -        | new    | 2.34 KB |
 | 512       | 44.2 us | -        | new    | 2.34 KB |
 
-### Transformer Shapes (h32, 8 KV heads, d128)
+### Transformer Shapes (h32, 8 KV heads, d128; f16, training in f32)
 
 | Config            | Now     | Apr 2026 | Change | Mem     |
 | ----------------- | ------- | -------- | ------ | ------- |
@@ -1083,35 +1083,36 @@ These ops override burn's default trait implementations with direct storage oper
 
 ## FFT (Real FFT)
 
-From `burn-signal`, which enables Flex's native FFT kernels.
+From `burn-signal`, which enables Flex's native FFT kernels. Measured at `c800a9e5e`, which has the
+same Flex and tensor code as the commit above.
 
 ### 1D rfft
 
 | Size    | Now     | Apr 2026 | Change | Mem     |
 | ------- | ------- | -------- | ------ | ------- |
-| n=256   | 963 ns  | 841 ns   | 0.9x   | 1.70 KB |
-| n=1024  | 2.79 us | 2.64 us  | ~1x    | 8.36 KB |
-| n=4096  | 10.7 us | 10.6 us  | ~1x    | 49.3 KB |
-| n=16384 | 46.0 us | 45.4 us  | ~1x    | 197 KB  |
-| n=65536 | 232 us  | 231 us   | ~1x    | 787 KB  |
+| n=256   | 986 ns  | 841 ns   | 0.9x   | 1.70 KB |
+| n=1024  | 2.87 us | 2.64 us  | ~1x    | 8.36 KB |
+| n=4096  | 10.8 us | 10.6 us  | ~1x    | 49.3 KB |
+| n=16384 | 46.8 us | 45.4 us  | ~1x    | 197 KB  |
+| n=65536 | 236 us  | 231 us   | ~1x    | 787 KB  |
 
 ### Batched 2D rfft (along last dim)
 
 | Size      | Now     | Apr 2026 | Change   | Mem     |
 | --------- | ------- | -------- | -------- | ------- |
-| 16 x 1024 | 40.9 us | 59.9 us  | **1.5x** | 74.1 KB |
-| 64 x 1024 | 157 us  | 114 us   | 0.7x     | 271 KB  |
-| 256 x 256 | 155 us  | 191 us   | **1.2x** | 266 KB  |
+| 16 x 1024 | 61.3 us | 59.9 us  | ~1x      | 66.6 KB |
+| 64 x 1024 | 118 us  | 114 us   | ~1x      | 266 KB  |
+| 256 x 256 | 149 us  | 191 us   | **1.3x** | 278 KB  |
 
 ### 1D irfft (inverse)
 
 | Size    | Now     | Apr 2026 | Change   | Mem     |
 | ------- | ------- | -------- | -------- | ------- |
-| n=256   | 1.15 us | 1.32 us  | **1.2x** | 1.88 KB |
-| n=1024  | 3.45 us | 4.01 us  | **1.2x** | 16.5 KB |
-| n=4096  | 12.9 us | 15.6 us  | **1.2x** | 65.7 KB |
-| n=16384 | 52.8 us | 63.2 us  | **1.2x** | 262 KB  |
-| n=65536 | 260 us  | 278 us   | ~1x      | 1.05 MB |
+| n=256   | 1.25 us | 1.32 us  | ~1x      | 4.22 KB |
+| n=1024  | 3.50 us | 4.01 us  | **1.1x** | 16.5 KB |
+| n=4096  | 13.4 us | 15.6 us  | **1.2x** | 65.7 KB |
+| n=16384 | 54.6 us | 63.2 us  | **1.2x** | 262 KB  |
+| n=65536 | 268 us  | 278 us   | ~1x      | 1.05 MB |
 
 Flex implementation: Cooley-Tukey with mixed radix-4/radix-2, complex packing (forward) / inverse
 packing (inverse), compile-time twiddle tables via const fn, SIMD vectorization via macerator,
@@ -1143,5 +1144,5 @@ cargo bench -p burn-backend-tests --features flex --bench reduce_ops
 cargo bench -p burn-backend-tests --features flex --bench slice_ops
 cargo bench -p burn-backend-tests --features flex --bench softmax_ops
 cargo bench -p burn-backend-tests --features flex --bench unary_ops
-cargo bench -p burn-signal --no-default-features --features std,flex --bench fft_ops
+cargo bench -p burn-signal --no-default-features --features std,flex,burn-flex/default --bench fft_ops
 ```
