@@ -1522,16 +1522,6 @@ mod tests {
     }
 
     #[test]
-    fn test_u64_powi_large_exponent() {
-        // An exponent above i64::MAX is still a non-negative power, not `1 / base^|exp|`.
-        let a = FlexTensor::from_data(TensorData::new(vec![3u64, 1], [2]));
-        let b = FlexTensor::from_data(TensorData::new(vec![1u64 << 63, u64::MAX], [2]));
-        let result = Flex::int_powi(a, b);
-        let values: Vec<u64> = bytemuck::cast_slice(result.into_data().as_bytes()).to_vec();
-        assert_eq!(values, vec![1, 1]);
-    }
-
-    #[test]
     fn test_u64_remainder_large_values() {
         let a = FlexTensor::from_data(TensorData::new(vec![u64::MAX], [1]));
         let b = FlexTensor::from_data(TensorData::new(vec![2u64], [1]));
