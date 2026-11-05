@@ -114,17 +114,23 @@ pub(crate) fn handle_command(
                     args.exclude.extend(vec!["burn-wgpu".to_string()]);
                 };
             }
-            // Build workspace
+            // Apply the package selection to the additional feature build too.
+            // A focused --only build must not compile an unrelated dataset stack.
+            let dataset_selected = args.target != Target::Examples
+                && !args.exclude.iter().any(|name| name == "burn-dataset")
+                && (args.target == Target::Workspace
+                    || args.only.is_empty()
+                    || args.only.iter().any(|name| name == "burn-dataset"));
             base_commands::build::handle_command(args.try_into().unwrap(), env, context)?;
-            // Specific additional commands to test specific features
-            // burn-dataset
-            build_helpers::custom_crates_build(
-                vec!["burn-dataset"],
-                vec!["--all-features"],
-                None,
-                None,
-                "std with all features",
-            )?;
+            if dataset_selected {
+                build_helpers::custom_crates_build(
+                    vec!["burn-dataset"],
+                    vec!["--all-features"],
+                    None,
+                    None,
+                    "std with all features",
+                )?;
+            }
             Ok(())
         }
         Context::All => Context::value_variants()

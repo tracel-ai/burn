@@ -1,6 +1,6 @@
 use tracel_xtask::{
     prelude::{clap::ValueEnum, *},
-    utils::process::run_process,
+    utils::build::run_cargo,
 };
 
 use crate::NO_STD_CRATES;
@@ -27,6 +27,8 @@ impl std::convert::TryInto<CompileCmdArgs> for BurnTestCmdArgs {
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum CiTestType {
+    /// Run only the explicitly selected base test scope, without CI shard additions.
+    Selected,
     // Github runner shards
     Backends,
     Crates,
@@ -307,9 +309,9 @@ fn run_test_group(
     }
 
     // custom_crates_tests loops over packages and invokes Cargo once per package.
-    // One invocation is required here for Cargo to unify their dependency features.
+    // One backend invocation preserves Cargo's existing dependency feature unification.
     group!("Tests: {}", description);
-    let result = run_process("cargo", &args, None, None, description);
+    let result = run_cargo(&args, None, None, description);
     endgroup!();
     result
 }
@@ -391,6 +393,9 @@ pub(crate) fn handle_command(
     env: Environment,
     context: Context,
 ) -> anyhow::Result<()> {
+    if args.ci == CiTestType::Selected {
+        return base_commands::test::handle_command(args.try_into()?, env, context);
+    }
     if cfg!(target_os = "linux")
         && matches!(
             args.ci,
@@ -441,6 +446,7 @@ pub(crate) fn handle_command(
             // 1) Tests with default features
             // ------------------------------
             match args.ci {
+                CiTestType::Selected => unreachable!("selected tests return before CI dispatch"),
                 CiTestType::Backends | CiTestType::GithubRunner => {
                     // Backend ops
                     handle_backend_tests(
@@ -566,6 +572,7 @@ pub(crate) fn handle_command(
             // 2) Specific additional commands to test specific features
             // ---------------------------------------------------------
             match args.ci {
+                CiTestType::Selected => unreachable!("selected tests return before CI dispatch"),
                 CiTestType::Backends | CiTestType::GithubRunner => (),
                 CiTestType::Examples => (),
                 CiTestType::Crates => {

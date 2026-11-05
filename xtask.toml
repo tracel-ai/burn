@@ -1,0 +1,6 @@
+# Package-root assets embedded by the web examples during native compilation.
+[bazel.packages.mnist-inference-web]
+data = ["model.bpk"]
+
+[bazel.packages.remote-inference-web]
+data = ["model.bpk"]
