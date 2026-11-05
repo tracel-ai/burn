@@ -71,15 +71,8 @@ impl<I> FixBatchStrategy<I> {
 
     /// Sets whether to drop the last batch when it is smaller than the batch size.
     ///
-    /// By default, the last incomplete batch is kept.
-    ///
-    /// # Arguments
-    ///
-    /// * `drop_last` - Whether to drop the last incomplete batch.
-    ///
-    /// # Returns
-    ///
-    /// The strategy.
+    /// By default, the last incomplete batch is kept. Dropped items are excluded from
+    /// [`BatchStrategy::expected_num_items`].
     pub fn with_drop_last(mut self, drop_last: bool) -> Self {
         self.drop_last = drop_last;
         self
@@ -88,7 +81,11 @@ impl<I> FixBatchStrategy<I> {
 
 impl<I: Send + Sync + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
     fn expected_num_items(&self, input_items: usize) -> Option<usize> {
-        Some(input_items)
+        Some(if self.drop_last {
+            input_items - input_items % self.batch_size
+        } else {
+            input_items
+        })
     }
 
     fn add(&mut self, item: I) {
@@ -148,13 +145,17 @@ mod tests {
 
     #[test]
     fn keeps_the_last_incomplete_batch_by_default() {
-        assert_eq!(batch_sizes(FixBatchStrategy::new(4), 10), vec![4, 4, 2]);
+        let strategy = FixBatchStrategy::new(4);
+
+        assert_eq!(strategy.expected_num_items(10), Some(10));
+        assert_eq!(batch_sizes(strategy, 10), vec![4, 4, 2]);
     }
 
     #[test]
     fn drops_the_last_incomplete_batch() {
         let strategy = FixBatchStrategy::new(4).with_drop_last(true);
 
+        assert_eq!(strategy.expected_num_items(10), Some(8));
         assert_eq!(batch_sizes(strategy, 10), vec![4, 4]);
     }
 
@@ -162,6 +163,7 @@ mod tests {
     fn drop_last_keeps_a_complete_last_batch() {
         let strategy = FixBatchStrategy::new(4).with_drop_last(true);
 
+        assert_eq!(strategy.expected_num_items(8), Some(8));
         assert_eq!(batch_sizes(strategy, 8), vec![4, 4]);
     }
 
@@ -169,6 +171,7 @@ mod tests {
     fn drop_last_yields_nothing_when_the_dataset_is_smaller_than_a_batch() {
         let strategy = FixBatchStrategy::new(4).with_drop_last(true);
 
+        assert_eq!(strategy.expected_num_items(3), Some(0));
         assert!(batch_sizes(strategy, 3).is_empty());
     }
 

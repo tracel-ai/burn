@@ -58,23 +58,23 @@ where
     /// # Returns
     ///
     /// The data loader builder.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `batch_size` is zero.
     pub fn batch_size(mut self, batch_size: usize) -> Self {
+        assert!(batch_size > 0, "Batch size must be greater than zero.");
         self.batch_size = Some(batch_size);
         self
     }
 
     /// Sets whether to drop the last batch when it is smaller than the batch size.
     ///
-    /// This happens when the number of items is not a multiple of the batch size. By default,
-    /// the last incomplete batch is kept.
+    /// By default, the last incomplete batch is kept. With multiple workers, only the
+    /// dataset's final incomplete batch is dropped, rather than a partial batch per worker.
     ///
-    /// # Arguments
-    ///
-    /// * `drop_last` - Whether to drop the last incomplete batch.
-    ///
-    /// # Returns
-    ///
-    /// The data loader builder.
+    /// Dropped items are excluded from [`DataLoader::expected_num_items`] and iterator progress,
+    /// while [`DataLoader::num_items`] still reports the input dataset size.
     pub fn drop_last(mut self, drop_last: bool) -> Self {
         self.drop_last = drop_last;
         self
@@ -241,21 +241,55 @@ mod tests {
 
     #[test]
     fn test_dataloader_drop_last() {
-        for num_workers in [0, 1, 2] {
+        for num_workers in [0, 1, 2, 3] {
             let dataloader = DataLoaderBuilder::new(TestBatcherLen)
                 .batch_size(4)
                 .drop_last(true)
                 .num_workers(num_workers)
                 .build(FakeDataset::<String>::new(10));
 
-            let lengths: Vec<usize> = dataloader.iter().map(Result::unwrap).collect();
-
-            assert_eq!(lengths.iter().sum::<usize>(), 8, "workers: {num_workers}");
-            assert!(
-                lengths.iter().all(|len| *len == 4),
+            assert_eq!(dataloader.num_items(), 10, "workers: {num_workers}");
+            assert_eq!(
+                dataloader.expected_num_items(),
+                Some(8),
                 "workers: {num_workers}"
             );
+
+            let mut iterator = dataloader.iter();
+            assert_eq!(
+                iterator.progress().items_processed,
+                0,
+                "workers: {num_workers}"
+            );
+            assert_eq!(iterator.progress().total, Some(8), "workers: {num_workers}");
+
+            let mut processed = 0;
+            while let Some(batch) = iterator.next() {
+                let len = batch.unwrap();
+                assert_eq!(len, 4, "workers: {num_workers}");
+                processed += len;
+                assert_eq!(
+                    iterator.progress().items_processed,
+                    processed,
+                    "workers: {num_workers}"
+                );
+                assert_eq!(iterator.progress().total, Some(8), "workers: {num_workers}");
+            }
+
+            assert_eq!(processed, 8, "workers: {num_workers}");
+            assert_eq!(
+                iterator.progress().items_processed,
+                8,
+                "workers: {num_workers}"
+            );
+            assert_eq!(iterator.progress().total, Some(8), "workers: {num_workers}");
         }
+    }
+
+    #[test]
+    #[should_panic(expected = "Batch size must be greater than zero.")]
+    fn test_dataloader_rejects_zero_batch_size() {
+        DataLoaderBuilder::<String, _>::new(TestBatcherLen).batch_size(0);
     }
 
     #[test]
