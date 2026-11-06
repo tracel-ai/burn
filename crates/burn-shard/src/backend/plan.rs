@@ -1,10 +1,8 @@
-use std::collections::HashMap;
-
 use burn_backend::{DType, ops::attention::AttentionShapes};
 use burn_ir::{CustomOpIr, OperationIr, TensorId, TensorIr};
 use burn_std::Slice;
 
-use super::{CustomOpPlan, classify::OpClass, custom_ops::CustomOpRuleMap};
+use super::{CustomOpPlan, classify::OpClass, custom_ops::CustomOpRuleMap, shardings::Shardings};
 use crate::{
     AlongDimRule, AttentionRule, ElementwiseRule, LayoutRule, Linearity, MatmulRule, OpInputs,
     OpKind, OpOutputs, OpSharding, ReduceRule, ReducedDims, ReductionKind, ReshapeRule, Resharding,
@@ -23,13 +21,14 @@ pub struct OpPlan {
 /// When the members run one op.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Execution {
-    /// Now, each member on its own shards.
-    Eager,
-    /// When its output is first needed: split if that use splits it, else on member 0 and copied.
-    Deferred,
-    /// Now, once over every member's shards together, by a custom op's collective handler.
+    /// Each member on its own shards.
+    EveryMember,
+    /// The first member alone, its output copied to every other. A random draw runs so: its values
+    /// depend on the launch, which can differ between members.
+    FirstMemberCopied,
+    /// Once over every member's shards together, by a custom op's collective handler.
     Collective,
-    /// Never: its outputs fail on every member, since its inputs cannot take the shardings its
+    /// Not at all: its outputs fail on every member, since its inputs cannot take the shardings its
     /// rule asks for.
     Refused(ShardingError),
 }
@@ -39,7 +38,7 @@ impl OpPlan {
     /// input and runs whole on every member.
     pub fn new(
         op: &OperationIr,
-        shardings: &HashMap<TensorId, Sharding>,
+        shardings: &Shardings,
         rules: &CustomOpRuleMap,
         num_members: usize,
     ) -> Self {
@@ -69,8 +68,7 @@ impl OpPlan {
     }
 
     /// The plan a rule's `sharding` asks for, or `None` when one tensor, read as two inputs, is
-    /// asked for two shardings, or when a quantized tensor would not be replicated: its shards
-    /// cannot be sliced, concatenated or summed.
+    /// asked for two shardings.
     fn from_rule(
         inputs: &[&TensorIr],
         out: &TensorIr,
@@ -92,20 +90,10 @@ impl OpPlan {
     /// The plan of each tensor's target sharding, or `None` as for
     /// [`from_rule`](Self::from_rule).
     fn from_shardings<'a>(
-        inputs: impl IntoIterator<Item = (&'a TensorIr, Sharding)> + Clone,
-        outputs: impl IntoIterator<Item = (&'a TensorIr, Sharding)> + Clone,
+        inputs: impl IntoIterator<Item = (&'a TensorIr, Sharding)>,
+        outputs: impl IntoIterator<Item = (&'a TensorIr, Sharding)>,
         execution: Execution,
     ) -> Option<Self> {
-        if inputs
-            .clone()
-            .into_iter()
-            .chain(outputs.clone())
-            .any(|(tensor, target)| {
-                matches!(tensor.dtype, DType::QFloat(_)) && target != Sharding::Replicated
-            })
-        {
-            return None;
-        }
         let mut input_shardings = OpInputs::new();
         for (tensor, target) in inputs {
             match input_shardings.iter().find(|(id, _)| *id == tensor.id) {
@@ -138,14 +126,14 @@ impl OpPlan {
         Self {
             input_shardings: op.inputs().map(replicated).collect(),
             output_shardings: op.outputs().map(replicated).collect(),
-            execution: Execution::Eager,
+            execution: Execution::EveryMember,
         }
     }
 }
 
 /// The shardings of a sharded compute device's tensors, which pick the rule each op runs by.
 struct TensorShardings<'a> {
-    shardings: &'a HashMap<TensorId, Sharding>,
+    shardings: &'a Shardings,
     rules: &'a CustomOpRuleMap,
     num_members: usize,
 }
@@ -160,8 +148,28 @@ impl TensorShardings<'_> {
     }
 
     /// The plan an op of `kind` runs by, or `None` when its inputs are not the ones the kind
-    /// reads.
+    /// reads, or when it would move a quantized tensor to anything but whole or the split it
+    /// already has: cutting one goes through the host, and a quantized output is never split.
     fn apply(&self, kind: OpKind, inputs: &[&TensorIr], out: &TensorIr) -> Option<OpPlan> {
+        self.rule_plan(kind, inputs, out)
+            .filter(|plan| self.keeps_quantized(plan, inputs, out))
+    }
+
+    fn keeps_quantized(&self, plan: &OpPlan, inputs: &[&TensorIr], out: &TensorIr) -> bool {
+        let quantized = |tensor: &TensorIr| matches!(tensor.dtype, DType::QFloat(_));
+        let inputs_kept = inputs.iter().filter(|input| quantized(input)).all(|input| {
+            let target = plan.input_sharding(&input.id);
+            target == Sharding::Replicated || target == self.sharding(input)
+        });
+        let output_whole = !quantized(out)
+            || plan
+                .output_shardings()
+                .iter()
+                .all(|(_, sharding)| *sharding == Sharding::Replicated);
+        inputs_kept && output_whole
+    }
+
+    fn rule_plan(&self, kind: OpKind, inputs: &[&TensorIr], out: &TensorIr) -> Option<OpPlan> {
         match (kind, inputs) {
             (OpKind::Elementwise(linearity), _) => self.elementwise(linearity, inputs, out),
             (OpKind::AlongDim { dim }, [input, broadcast @ ..]) => {
@@ -206,7 +214,12 @@ impl TensorShardings<'_> {
                 let shardings: OpInputs<_> =
                     inputs.iter().map(|input| self.sharding(input)).collect();
                 let rule = LayoutRule::concat(&shardings, dim);
-                OpPlan::from_rule(inputs, out, rule.sharding(inputs.len()), Execution::Eager)
+                OpPlan::from_rule(
+                    inputs,
+                    out,
+                    rule.sharding(inputs.len()),
+                    Execution::EveryMember,
+                )
             }
             (OpKind::Attention, _) => self.attention(inputs, out),
             _ => None,
@@ -231,7 +244,7 @@ impl TensorShardings<'_> {
         let shardings: OpInputs<_> = inputs.iter().map(|input| self.sharding(input)).collect();
         let shapes: OpInputs<_> = inputs.iter().map(|input| &input.shape).collect();
         let sharding = ElementwiseRule::new(linearity).sharding(&shardings, &shapes, num_dims);
-        OpPlan::from_rule(inputs, out, sharding, Execution::Eager)
+        OpPlan::from_rule(inputs, out, sharding, Execution::EveryMember)
     }
 
     /// The inputs after the first broadcast against it, like a norm's weight.
@@ -259,7 +272,7 @@ impl TensorShardings<'_> {
             .into_iter()
             .chain(broadcast.iter().copied())
             .collect();
-        OpPlan::from_rule(&inputs, out, sharding, Execution::Eager)
+        OpPlan::from_rule(&inputs, out, sharding, Execution::EveryMember)
     }
 
     fn reduction(
@@ -270,14 +283,14 @@ impl TensorShardings<'_> {
         reduction: ReductionKind,
     ) -> Option<OpPlan> {
         let sharding = ReduceRule::new(self.sharding(input), dims, reduction).sharding();
-        OpPlan::from_rule(&[input], out, sharding, Execution::Eager)
+        OpPlan::from_rule(&[input], out, sharding, Execution::EveryMember)
     }
 
     fn matmul(&self, lhs: &TensorIr, rhs: &TensorIr, out: &TensorIr) -> Option<OpPlan> {
         let sharding =
             MatmulRule::new(self.sharding(lhs), self.sharding(rhs), lhs.shape.num_dims())
                 .sharding();
-        OpPlan::from_rule(&[lhs, rhs], out, sharding, Execution::Eager)
+        OpPlan::from_rule(&[lhs, rhs], out, sharding, Execution::EveryMember)
     }
 
     /// The query, key and value come first, then the mask and bias the op has.
@@ -291,7 +304,7 @@ impl TensorShardings<'_> {
             self.num_members,
         );
         let shapes: OpInputs<_> = inputs.iter().map(|input| &input.shape).collect();
-        OpPlan::from_rule(inputs, out, rule.sharding(&shapes), Execution::Eager)
+        OpPlan::from_rule(inputs, out, rule.sharding(&shapes), Execution::EveryMember)
     }
 
     fn reshape(&self, input: &TensorIr, out: &TensorIr) -> Option<OpPlan> {
@@ -302,11 +315,11 @@ impl TensorShardings<'_> {
             self.num_members,
         )
         .sharding();
-        OpPlan::from_rule(&[input], out, sharding, Execution::Eager)
+        OpPlan::from_rule(&[input], out, sharding, Execution::EveryMember)
     }
 
     fn layout(&self, input: &TensorIr, out: &TensorIr, rule: LayoutRule) -> Option<OpPlan> {
-        OpPlan::from_rule(&[input], out, rule.sharding(1), Execution::Eager)
+        OpPlan::from_rule(&[input], out, rule.sharding(1), Execution::EveryMember)
     }
 
     fn slice_assign(
@@ -322,7 +335,12 @@ impl TensorShardings<'_> {
             ranges,
             &tensor.shape,
         );
-        OpPlan::from_rule(&[tensor, value], out, rule.sharding(2), Execution::Eager)
+        OpPlan::from_rule(
+            &[tensor, value],
+            out,
+            rule.sharding(2),
+            Execution::EveryMember,
+        )
     }
 
     fn random(&self, out: &TensorIr) -> Option<OpPlan> {
@@ -330,7 +348,7 @@ impl TensorShardings<'_> {
             inputs: OpInputs::new(),
             output: Sharding::Replicated,
         };
-        OpPlan::from_rule(&[], out, sharding, Execution::Deferred)
+        OpPlan::from_rule(&[], out, sharding, Execution::FirstMemberCopied)
     }
 
     /// The plan its rule gives a custom op, or `None` to gather it: without a rule, or for a
@@ -344,12 +362,12 @@ impl TensorShardings<'_> {
                 Some(self.explicit(op, &inputs, &outputs, Execution::Collective))
             }
             CustomOpPlan::Sharded { inputs, outputs } => {
-                Some(self.explicit(op, &inputs, &outputs, Execution::Eager))
+                Some(self.explicit(op, &inputs, &outputs, Execution::EveryMember))
             }
         }
     }
 
-    /// A kind plans one output. A random op is deferred and a slice cut to each member's ranges
+    /// A kind plans one output. A random op is drawn once and a slice cut to each member's ranges
     /// only as their built-in IR, and a reshape or expand carries its target shape in its own
     /// scalars, which every member reads whole, so a custom op of those kinds gathers.
     fn custom_kind(&self, kind: OpKind, op: &CustomOpIr) -> Option<OpPlan> {
@@ -414,33 +432,25 @@ impl TensorShardings<'_> {
         inputs: &[Sharding],
         outputs: &[Sharding],
     ) -> Option<ShardingError> {
-        let quantized_split = |tensor: &TensorIr, target: Sharding| {
-            matches!(tensor.dtype, DType::QFloat(_)) && target != Sharding::Replicated
-        };
         let input_refusal = op.inputs.iter().zip(inputs).find_map(|(input, &target)| {
-            if quantized_split(input, target) {
-                return Some(ShardingError::Quantized);
-            }
-            Resharding::new(self.sharding(input), target, &input.shape, self.num_members).err()
+            Resharding::of_tensor(self.sharding(input), target, input, self.num_members).err()
         });
         let output_refusal = || {
-            op.outputs.iter().zip(outputs).find_map(|(out, &target)| {
-                if quantized_split(out, target) {
-                    return Some(ShardingError::Quantized);
-                }
-                match target {
+            op.outputs
+                .iter()
+                .zip(outputs)
+                .find_map(|(out, &target)| match target {
                     Sharding::Split { .. } => {
-                        Resharding::new(Sharding::Replicated, target, &out.shape, self.num_members)
+                        Resharding::of_tensor(Sharding::Replicated, target, out, self.num_members)
                             .err()
                     }
                     _ => None,
-                }
-            })
+                })
         };
         input_refusal.or_else(output_refusal)
     }
 
     fn sharding(&self, tensor: &TensorIr) -> Sharding {
-        self.shardings[&tensor.id]
+        self.shardings.get(&tensor.id)
     }
 }

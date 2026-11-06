@@ -1,5 +1,6 @@
 use crate::bridge::{BasicOps, Ordered};
-use crate::{Bool, DType, Device, Shape, Slice, Tensor};
+use crate::ops::{AttentionModuleOptions, CausalAlignment};
+use crate::{Bool, DType, Device, Int, Shape, Slice, Tensor};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -1724,6 +1725,91 @@ impl TensorCheck {
                 ops,
                 TensorError::new("The sliding window must span at least one key.")
                     .details("Got sliding_window = Some(0); use None to disable the window."),
+            );
+        }
+
+        check
+    }
+
+    /// Checks the cache of an attention over a key/value cache, contiguous or paged, beyond
+    /// [`attention`](Self::attention)'s checks of its operands.
+    pub(crate) fn attention_cache(
+        query: &Tensor<4>,
+        key: &Tensor<4>,
+        value: &Tensor<4>,
+        pages: Option<&Tensor<2, Int>>,
+        lengths: &Tensor<1, Int>,
+        options: &AttentionModuleOptions,
+    ) -> Self {
+        let ops = "attention";
+        let mut check = Self::Ok.binary_ops_device(ops, &query.device(), &lengths.device());
+        let [batch, q_heads, _, head_dim] = query.dims();
+        let [cache_rows, kv_heads, page_size, k_dim] = key.dims();
+        let [v_rows, v_heads, v_size, _] = value.dims();
+
+        if kv_heads == 0 || !q_heads.is_multiple_of(kv_heads) {
+            check = check.register(
+                ops,
+                TensorError::new("The query heads must be a multiple of the key/value heads.")
+                    .details(format!(
+                        "Got {q_heads} query heads, {kv_heads} key/value heads."
+                    )),
+            );
+        }
+        if k_dim != head_dim {
+            check = check.register(
+                ops,
+                TensorError::new("The key's head dim must be the query's.").details(format!(
+                    "Got {k_dim} for the key, {head_dim} for the query."
+                )),
+            );
+        }
+        if [v_rows, v_heads, v_size] != [cache_rows, kv_heads, page_size] {
+            check = check.register(
+                ops,
+                TensorError::new("The value must hold the key's positions.").details(format!(
+                    "Got key {:?}, value {:?}.",
+                    key.dims(),
+                    value.dims()
+                )),
+            );
+        }
+        match pages {
+            Some(pages) => {
+                check = check.binary_ops_device(ops, &query.device(), &pages.device());
+                if pages.dims()[0] != batch {
+                    check = check.register(
+                        ops,
+                        TensorError::new("The page table must have one row per sequence.").details(
+                            format!("Got {} rows for a batch of {batch}.", pages.dims()[0]),
+                        ),
+                    );
+                }
+            }
+            None if cache_rows != batch => {
+                check = check.register(
+                    ops,
+                    TensorError::new("A cache without pages must hold one sequence per query.")
+                        .details(format!(
+                            "Got {cache_rows} sequences for a batch of {batch}."
+                        )),
+                );
+            }
+            None => {}
+        }
+        if lengths.dims()[0] != batch {
+            check = check.register(
+                ops,
+                TensorError::new("The lengths must hold one length per sequence.").details(
+                    format!("Got {} lengths for a batch of {batch}.", lengths.dims()[0]),
+                ),
+            );
+        }
+        if options.causal_alignment != CausalAlignment::BottomRight {
+            check = check.register(
+                ops,
+                TensorError::new("The queries over a cache are its last attended positions.")
+                    .details("Got a top-left causal alignment; use CausalAlignment::BottomRight."),
             );
         }
 

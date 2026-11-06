@@ -1,10 +1,12 @@
 use burn_tensor::{
     Bool, Device, Distribution, Int, Sharding,
     Sharding::{PartialSum, Replicated, Split},
-    ShardingError, Tensor, TensorData, Tolerance, activation, module,
-    quantization::QuantScheme,
+    Shards, ShardsError, Tensor, TensorData, Tolerance, activation,
+    kind::Autodiff,
+    module,
+    quantization::{QuantScheme, ScaleDtype},
     s,
-    shard::ShardError,
+    shard::{DimSplit, ShardError},
 };
 
 use std::sync::{Mutex, PoisonError};
@@ -117,6 +119,7 @@ fn attention_split_on_the_heads_stays_split() {
         Tensor::from_data(value.clone(), &flex),
         None,
         None,
+        None,
         Default::default(),
     )
     .into_data();
@@ -127,6 +130,7 @@ fn attention_split_on_the_heads_stays_split() {
         sharded::<4>(query, &device, heads),
         sharded(key, &device, heads),
         sharded(value, &device, heads),
+        None,
         None,
         None,
         Default::default(),
@@ -141,7 +145,11 @@ fn attention_split_on_the_heads_stays_split() {
 #[test]
 fn a_split_reshaped_onto_an_empty_dim_adds_a_replicated_tensor() {
     let device = sharded_compute(2);
-    let split = Tensor::<2>::zeros([4, 0], &device).with_sharding(Split { dim: 0 });
+    let split = sharded::<2>(
+        TensorData::new(Vec::<f32>::new(), [4, 0]),
+        &device,
+        Split { dim: 0 },
+    );
 
     let sum = split.reshape([-1, 4]) + Tensor::zeros([0, 4], &device);
 
@@ -154,10 +162,8 @@ fn int_and_bool_tensors_split_and_move_back_whole() {
     let ints = TensorData::from([[1i64, 2, 3, 4], [5, 6, 7, 8]]);
     let bools = TensorData::from([[true, false, true, true], [false, false, true, false]]);
 
-    let split_ints = Tensor::<2, Int>::from_data(ints.clone(), &sharded_compute(2))
-        .with_sharding(Split { dim: 1 });
-    let split_bools = Tensor::<2, Bool>::from_data(bools.clone(), &sharded_compute(2))
-        .with_sharding(Split { dim: 0 });
+    let split_ints = on_members::<2, Int>(ints.clone(), &sharded_compute(2), Split { dim: 1 });
+    let split_bools = on_members::<2, Bool>(bools.clone(), &sharded_compute(2), Split { dim: 0 });
 
     assert_eq!(split_ints.sharding(), Some(Split { dim: 1 }));
     assert_eq!(split_bools.sharding(), Some(Split { dim: 0 }));
@@ -166,24 +172,123 @@ fn int_and_bool_tensors_split_and_move_back_whole() {
 }
 
 #[test]
-fn a_quantized_tensor_on_a_sharded_compute_device_reads_back_but_does_not_split() {
-    // CUDA packs four quantized values per u32, so the last dim is a multiple of four.
-    let data = values([4, 8], 1);
-    let scheme = QuantScheme::default();
-    let expected = Tensor::<2>::from_data(data.clone(), &Device::flex())
-        .quantize_dynamic(&scheme)
-        .dequantize()
+fn a_quantized_weight_split_by_columns_keeps_every_value() {
+    let device = sharded_compute(2);
+    let weight = block_quantized(values([4, 8], 2));
+    let x = values([3, 4], 1);
+    let expected = Tensor::<2>::from_data(x.clone(), &Device::flex())
+        .matmul(Tensor::from_data(weight.clone(), &Device::flex()))
         .into_data();
-    let quantized = Tensor::<2>::from_data(data, &sharded_compute(2)).quantize_dynamic(&scheme);
 
-    assert!(matches!(
-        quantized.try_with_sharding(Split { dim: 0 }),
-        Err(ShardingError::Quantized)
-    ));
-    Tensor::<2>::from_data(quantized.into_data(), &Device::flex())
-        .dequantize()
+    let split = sharded::<2>(weight.clone(), &device, Split { dim: 1 });
+    let product = Tensor::<2>::from_data(x, &device).matmul(split.clone());
+
+    assert_eq!(split.into_data(), weight);
+    assert_eq!(product.sharding(), Some(Split { dim: 1 }));
+    product
         .into_data()
         .assert_approx_eq::<f32>(&expected, tolerance());
+}
+
+#[test]
+fn a_quantized_weight_split_by_rows_gives_a_partial_sum() {
+    let device = sharded_compute(2);
+    let weight = block_quantized(values([8, 8], 2));
+    let x = values([3, 8], 1);
+    let expected = Tensor::<2>::from_data(x.clone(), &Device::flex())
+        .matmul(Tensor::from_data(weight.clone(), &Device::flex()))
+        .into_data();
+
+    let split = sharded::<2>(weight, &device, Split { dim: 0 });
+    let product = sharded::<2>(x, &device, Split { dim: 1 }).matmul(split);
+
+    assert_eq!(product.sharding(), Some(PartialSum));
+    product
+        .into_data()
+        .assert_approx_eq::<f32>(&expected, tolerance());
+}
+
+#[test]
+fn a_split_quantized_weight_dequantizes_on_each_member() {
+    let weight = block_quantized(values([4, 8], 2));
+    let expected = Tensor::<2>::from_data(weight.clone(), &Device::flex())
+        .dequantize()
+        .into_data();
+
+    let dequantized = sharded::<2>(weight, &sharded_compute(2), Split { dim: 1 }).dequantize();
+
+    assert_eq!(dequantized.sharding(), Some(Split { dim: 1 }));
+    dequantized
+        .into_data()
+        .assert_approx_eq::<f32>(&expected, tolerance());
+}
+
+#[test]
+fn shards_join_into_one_tensor_and_come_back_as_they_were() {
+    let device = sharded_compute(2);
+    let members = device
+        .shard_members()
+        .expect("A sharded compute device has members");
+    // Five rows over two members: the first holds three.
+    let shards: Vec<Tensor<2>> = [values([3, 2], 1), values([2, 2], 2)]
+        .into_iter()
+        .zip(&members)
+        .map(|(data, member)| Tensor::from_data(data, member))
+        .collect();
+    let expected: Vec<TensorData> = shards.iter().map(|shard| shard.to_data()).collect();
+
+    let sharding = Split { dim: 0 };
+    let joined = Tensor::from_shards(Shards { shards, sharding }, &device).unwrap();
+    assert_eq!(joined.dims(), [5, 2]);
+    let Shards { shards, sharding } = joined.into_shards();
+
+    assert_eq!(sharding, Split { dim: 0 });
+    for ((shard, expected), member) in shards.into_iter().zip(expected).zip(&members) {
+        assert_eq!(shard.device(), *member);
+        shard.into_data().assert_eq(&expected, true);
+    }
+}
+
+#[test]
+fn shards_that_are_not_the_balanced_split_are_refused() {
+    let device = sharded_compute(2);
+    let members = device.shard_members().unwrap();
+    let shards = [values([2, 2], 1), values([3, 2], 2)]
+        .into_iter()
+        .zip(&members)
+        .map(|(data, member)| Tensor::<2>::from_data(data, member))
+        .collect();
+
+    assert_eq!(
+        Tensor::from_shards(
+            Shards {
+                shards,
+                sharding: Split { dim: 0 },
+            },
+            &device
+        )
+        .err(),
+        Some(ShardsError::Shape {
+            shard: 0,
+            expected: [3, 2].into(),
+            found: [2, 2].into(),
+        })
+    );
+}
+
+#[test]
+fn a_quantized_tensor_split_either_way_reads_back_unchanged() {
+    let scheme = QuantScheme::default().per_block([4], ScaleDtype::F32);
+    let whole = Tensor::<2>::from_data(values([4, 8], 1), &Device::flex())
+        .quantize_dynamic(&scheme)
+        .into_data();
+
+    for sharding in [Split { dim: 0 }, Split { dim: 1 }] {
+        let tensor = sharded::<2>(whole.clone(), &sharded_compute(2), sharding);
+
+        assert_eq!(tensor.sharding(), Some(sharding));
+        assert_eq!(tensor.into_data(), whole, "{sharding:?}");
+    }
 }
 
 #[test]
@@ -209,63 +314,56 @@ fn a_quantized_replicated_rhs_matmuls_with_a_split_lhs() {
 
     let product = sharded::<2>(x, &device, Split { dim: 1 }).matmul(weight);
 
+    // Splitting the weight here would cut it on the host on every call, so the lhs gathers.
+    assert_eq!(product.sharding(), Some(Replicated));
     product
         .into_data()
         .assert_approx_eq::<f32>(&expected, tolerance());
 }
 
 #[test]
-fn a_refused_sharding_leaves_the_tensor_as_it_was() {
-    let data = values([2, 6], 1);
-    let tensor = Tensor::<2>::from_data(data.clone(), &sharded_compute(3));
-
-    let refused = tensor.try_with_sharding(Split { dim: 0 });
-
-    assert!(matches!(
-        refused,
-        Err(ShardingError::DimShorterThanMembers { dim: 0, .. })
-    ));
+fn a_tensor_moves_onto_a_sharded_compute_device_replicated_and_back_whole() {
+    let data = values([4, 6], 1);
+    let tensor =
+        Tensor::<2>::from_data(data.clone(), &Device::flex()).to_device(&sharded_compute(2));
     assert_eq!(tensor.sharding(), Some(Replicated));
+
+    let back = tensor.to_device(&Device::flex());
+    assert_eq!(back.sharding(), None);
+    back.into_data().assert_approx_eq::<f32>(&data, tolerance());
+}
+
+#[test]
+fn a_split_tensor_moves_back_whole() {
+    let data = values([4, 6], 1);
+
+    let back = sharded::<2>(data.clone(), &sharded_compute(2), Split { dim: 1 })
+        .to_device(&Device::flex());
+
+    assert_eq!(back.sharding(), None);
+    back.into_data().assert_approx_eq::<f32>(&data, tolerance());
+}
+
+#[test]
+fn shards_taken_from_a_clone_leave_the_tensor_whole() {
+    let data = values([4, 6], 1);
+    let tensor = sharded::<2>(data.clone(), &sharded_compute(2), Split { dim: 1 });
+
+    let Shards { shards, sharding } = tensor.clone().into_shards();
+
+    assert_eq!(sharding, Split { dim: 1 });
+    assert_eq!(shards.len(), 2);
+    assert_eq!(tensor.sharding(), Some(Split { dim: 1 }));
     tensor
         .into_data()
         .assert_approx_eq::<f32>(&data, tolerance());
 }
 
 #[test]
-fn a_tensor_split_while_still_shared_keeps_its_whole_value() {
-    let data = values([4, 6], 1);
-    let tensor = Tensor::<2>::from_data(data.clone(), &sharded_compute(2));
-
-    let split = tensor.try_with_sharding(Split { dim: 1 }).unwrap();
-
-    assert_eq!(split.sharding(), Some(Split { dim: 1 }));
-    let doubled = Tensor::<2>::from_data(data, &Device::flex())
-        .mul_scalar(2.0)
-        .into_data();
-    (tensor + split)
-        .into_data()
-        .assert_approx_eq::<f32>(&doubled, tolerance());
-}
-
-#[test]
-fn a_tensor_moved_onto_a_sharded_compute_device_is_replicated_and_moves_back_whole() {
-    let data = values([4, 6], 1);
-    let tensor =
-        Tensor::<2>::from_data(data.clone(), &Device::flex()).to_device(&sharded_compute(2));
-    assert_eq!(tensor.sharding(), Some(Replicated));
-
-    let back = tensor
-        .with_sharding(Split { dim: 1 })
-        .to_device(&Device::flex());
-    assert_eq!(back.sharding(), None);
-    back.into_data().assert_approx_eq::<f32>(&data, tolerance());
-}
-
-#[test]
-fn a_tensor_resharded_mid_graph_passes_its_gradient_through() {
+fn a_split_leaf_made_of_shards_takes_its_gradient() {
     let device = sharded_compute(2).autodiff();
-    let x = Tensor::<1>::from_data(values([4], 1), &device).require_grad();
-    let y = x.clone().mul_scalar(2.0).with_sharding(Split { dim: 0 }) + x.clone();
+    let x = sharded::<1>(values([4], 1), &device, Split { dim: 0 }).require_grad();
+    let y = x.clone().mul_scalar(2.0) + x.clone();
     let grads = y.sum().backward();
 
     let grad = x.grad(&grads).expect("x has a gradient");
@@ -274,68 +372,17 @@ fn a_tensor_resharded_mid_graph_passes_its_gradient_through() {
 }
 
 #[test]
-fn a_random_tensor_is_the_same_on_every_member() {
+fn a_random_tensor_is_one_draw_replicated_on_every_member() {
     let _rng = RNG.lock().unwrap_or_else(PoisonError::into_inner);
-    let device = sharded_compute(2);
-    let random = Tensor::<2>::random([4, 6], Distribution::Default, &device);
-    // Force a replicated use before selecting a slice from every member.
-    let copies = random.clone() + Tensor::zeros([4, 6], &device);
-    let expected = random.into_data();
-    copies
-        .with_sharding(Split { dim: 1 })
-        .into_data()
-        .assert_eq(&expected, false);
-}
+    let random = Tensor::<2>::random([4, 6], Distribution::Default, &sharded_compute(2));
 
-#[test]
-fn a_random_mask_over_a_split_tensor_is_generated_split() {
-    let _rng = RNG.lock().unwrap_or_else(PoisonError::into_inner);
-    let device = sharded_compute(2);
-    let mask = Tensor::<2>::random([4, 6], Distribution::Bernoulli(0.5), &device);
-    let x = Tensor::<2>::ones([4, 6], &device).with_sharding(Split { dim: 1 });
+    let Shards { shards, sharding } = random.into_shards();
 
-    let _masked = x * mask.clone();
-
-    // Generated whole and copied from member 0, it would still be replicated.
-    assert_eq!(mask.sharding(), Some(Split { dim: 1 }));
-}
-
-#[test]
-fn deferred_random_keys_survive_reordering_and_reseeding() {
-    let _rng = RNG.lock().unwrap_or_else(PoisonError::into_inner);
-    let device = sharded_compute(2);
-    let float = || Tensor::<2>::random([4, 6], Distribution::Default, &device);
-    let int = || Tensor::<2, Int>::random([4, 6], Distribution::Uniform(0., 1000.), &device);
-
-    device.seed(7);
-    let expected_float = float().with_sharding(Split { dim: 1 }).into_data();
-    let expected_int = int().with_sharding(Split { dim: 1 }).into_data();
-
-    device.seed(7);
-    let pending_float = float();
-    let pending_int = int();
-    // Reseeding must not execute deferred draws or let first use choose their keys.
-    device.seed(19);
-    let split_int = pending_int.clone().with_sharding(Split { dim: 1 });
-    let split_float = pending_float.clone().with_sharding(Split { dim: 1 });
-    assert_eq!(pending_float.sharding(), Some(Split { dim: 1 }));
-    assert_eq!(pending_int.sharding(), Some(Split { dim: 1 }));
-
-    // Member fusion queues may still hold the draws after sharding.
-    device.seed(23);
-    split_int.into_data().assert_eq(&expected_int, false);
-    split_float.into_data().assert_eq(&expected_float, false);
-
-    // A key accidentally reused for every shard must not pass the replay check above.
-    let values: Vec<f32> = expected_float.iter().collect();
-    let (rows, _) = values.as_chunks::<6>();
-    assert!(rows.iter().any(|row| row[..3] != row[3..]));
-}
-
-#[test]
-#[should_panic(expected = "is not a partial sum and cannot become one")]
-fn a_whole_tensor_is_not_sharded_as_a_partial_sum() {
-    Tensor::<2>::zeros([4, 6], &sharded_compute(2)).with_sharding(PartialSum);
+    assert_eq!(sharding, Replicated);
+    let first = shards[0].to_data();
+    for shard in shards {
+        shard.into_data().assert_eq(&first, true);
+    }
 }
 
 #[test]
@@ -353,7 +400,7 @@ fn an_autodiff_member_after_the_first_is_refused_as_one() {
 }
 
 #[test]
-fn ops_without_a_rule_gather_a_split_and_a_partial_sum() {
+fn ops_that_do_not_distribute_over_a_sum_reduce_a_partial_sum_first() {
     let (lhs, rhs) = (values([4, 6], 1), values([6, 3], 2));
     let flex = Device::flex();
     let whole =
@@ -368,9 +415,9 @@ fn ops_without_a_rule_gather_a_split_and_a_partial_sum() {
         Split { dim: 0 },
     ));
     assert_eq!(partial.sharding(), Some(PartialSum));
-    let split = partial.clone().with_sharding(Split { dim: 0 });
 
-    split
+    partial
+        .clone()
         .exp()
         .into_data()
         .assert_approx_eq::<f32>(&expected_exp, tolerance());
@@ -386,7 +433,7 @@ fn sharded_compute_devices_of_the_same_devices_are_apart() {
     assert_ne!(first, second);
 
     let data = values([4], 1);
-    let tensor = Tensor::<1>::from_data(data.clone(), &first).with_sharding(Split { dim: 0 });
+    let tensor = sharded::<1>(data.clone(), &first, Split { dim: 0 });
     let moved = tensor.clone().to_device(&second);
     assert_eq!(tensor.sharding(), Some(Split { dim: 0 }));
     assert_eq!(moved.sharding(), Some(Replicated));
@@ -484,11 +531,45 @@ fn member_devices() -> Vec<Device> {
 }
 
 fn sharded<const D: usize>(data: TensorData, device: &Device, sharding: Sharding) -> Tensor<D> {
-    let tensor = Tensor::from_data(data, device);
-    match tensor.sharding() {
-        Some(_) => tensor.with_sharding(sharding),
-        None => tensor,
-    }
+    on_members(data, device, sharding)
+}
+
+/// `data` as `sharding` lays it over `device`, each member's shard made on it, or whole on a
+/// device that is not a sharded compute device.
+fn on_members<const D: usize, K: Autodiff>(
+    data: TensorData,
+    device: &Device,
+    sharding: Sharding,
+) -> Tensor<D, K> {
+    let Some(members) = device.shard_members() else {
+        return Tensor::from_data(data, device);
+    };
+    let chunks: Vec<TensorData> = match sharding {
+        Split { dim } => DimSplit {
+            dim,
+            len: data.shape()[dim],
+            members: members.len(),
+        }
+        .data_chunks(&data)
+        .collect(),
+        Replicated => vec![data; members.len()],
+        PartialSum => unreachable!("The tests make a partial sum with an op"),
+    };
+    let shards = chunks
+        .into_iter()
+        .zip(&members)
+        .map(|(chunk, member)| Tensor::from_data(chunk, member))
+        .collect();
+    Tensor::from_shards(Shards { shards, sharding }, device)
+        .expect("The test's shards make up one tensor")
+}
+
+/// `data` quantized on the host with a scale per block of four along its last dim.
+fn block_quantized(data: TensorData) -> TensorData {
+    let scheme = QuantScheme::default().per_block([4], ScaleDtype::F32);
+    Tensor::<2>::from_data(data, &Device::flex())
+        .quantize_dynamic(&scheme)
+        .into_data()
 }
 
 fn values<const D: usize>(shape: [usize; D], seed: usize) -> TensorData {

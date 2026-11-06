@@ -258,9 +258,14 @@ impl<'a> OpClass<'a> {
             FloatOperationIr::IntoInt(desc) => Self::cast(desc),
             FloatOperationIr::Matmul(desc) => Self::matmul(desc),
             FloatOperationIr::Random(desc) => Self::of_kind(OpKind::Random, [], &desc.out),
+            // A member's shard holds whole quantization blocks, so it dequantizes to its own chunk.
+            FloatOperationIr::Dequantize(desc) => Self::of_kind(
+                OpKind::Elementwise(Linearity::Nonlinear),
+                [&desc.input],
+                &desc.out,
+            ),
             FloatOperationIr::Cross(_)
             | FloatOperationIr::Quantize(_)
-            | FloatOperationIr::Dequantize(_)
             | FloatOperationIr::GridSample2d(_) => Self::Gathered,
         }
     }
@@ -328,6 +333,9 @@ impl<'a> OpClass<'a> {
     /// A module op has no rule unless it is given one here: new ones gather.
     fn module(op: &'a ModuleOperationIr) -> Self {
         match op {
+            // An attention over a key/value cache has no rule yet: its pools and page table are
+            // not laid out by sequence, so it gathers, as it did as an op of its own.
+            ModuleOperationIr::Attention(desc) if desc.lengths.is_some() => Self::Gathered,
             ModuleOperationIr::Attention(desc) => Self::attention(desc),
             _ => Self::Gathered,
         }

@@ -207,7 +207,7 @@ mod tests {
         metric.clear();
         metric
             .update(
-                &RegressionInput::new(outputs.slice([0..2]), targets.slice([0..2])),
+                &RegressionInput::new(outputs.slice(0..2), targets.slice(0..2)),
                 &MetricMetadata::fake(),
             )
             .unwrap();

@@ -10,7 +10,7 @@ use alloc::format;
 
 use alloc::boxed::Box;
 use burn_std::sync::{Arc, RwLock};
-use burn_tensor::{Device, Shape, Sharding};
+use burn_tensor::{Device, Shape};
 use core::ops::Deref;
 
 #[cfg(target_has_atomic = "ptr")]
@@ -29,45 +29,12 @@ fn new_mapper<T, F: Fn(T) -> T + Send + Sync + 'static>(func: F) -> Mapper<T> {
     Arc::new(Box::new(func))
 }
 
-type InitFn<P> = Box<dyn FnOnce(InitRequest<'_>) -> P + Send + Sync>;
+type InitFn<P> = Box<dyn FnOnce(&Device, bool) -> P + Send + Sync>;
 
 fn new_init_fn<P: ParameterValue, F: FnOnce(&Device, bool) -> P + Send + Sync + 'static>(
     func: F,
 ) -> InitFn<P> {
-    Box::new(move |request: InitRequest<'_>| request.build(func))
-}
-
-/// What a lazy parameter's initialization is asked to make.
-struct InitRequest<'a> {
-    device: &'a Device,
-    /// The effective gradient requirement, false on a device without autodiff.
-    require_grad: bool,
-    /// The split of the value the initializer makes, before any init mapper changes its layout.
-    sharding: Option<Sharding>,
-}
-
-impl InitRequest<'_> {
-    /// The value `init` makes on the requested device, split and tracked as requested.
-    fn build<P: ParameterValue>(self, init: impl FnOnce(&Device, bool) -> P) -> P {
-        if let Some(sharding) = self.sharding {
-            return init(self.device, false).into_sharded_leaf(sharding, self.require_grad);
-        }
-        init(self.device, self.require_grad)
-    }
-}
-
-/// Why a lazy parameter shared with a clone and wrapped by an init mapper is not split.
-const SHARED_INIT_MAPPED_REFUSAL: &str = "A lazy parameter with an init mapper is split before it \
-    is cloned: initializing it here would pass the mapper, which may change its layout";
-
-/// Where a loaded value takes its parameter's split.
-#[derive(Clone, Copy)]
-enum LoadSplit {
-    /// A parameter not initialized yet is split in the record's layout, so before the load
-    /// mapper runs any op and each member uploads only its chunk.
-    BeforeMapper(Sharding),
-    /// An initialized parameter's split is of its value, which the load mapper produces.
-    AfterMapper(Sharding),
+    Box::new(func)
 }
 
 /// Coordinates lazy initialization across all clones of a [`Param`].
@@ -237,7 +204,6 @@ impl<T: ParameterValue> core::fmt::Debug for Param<T> {
 
 pub(crate) mod sealed {
     use super::DynReparameterization;
-    use burn_tensor::Sharding;
 
     pub trait Sealed: Sized {
         /// Whether this value currently participates in the module's training behavior.
@@ -250,13 +216,6 @@ pub(crate) mod sealed {
         /// public `ParameterValue` trait.
         fn apply_reparameterization(self, reparameterization: &dyn DynReparameterization) -> Self {
             let _ = reparameterization;
-            self
-        }
-
-        /// The value as a new leaf split as `sharding` says, tracked as `require_grad` says. A
-        /// quantized value cannot be split, so it stays replicated.
-        fn into_sharded_leaf(self, sharding: Sharding, require_grad: bool) -> Self {
-            let _ = (sharding, require_grad);
             self
         }
     }
@@ -292,9 +251,6 @@ pub trait Parameter: ParameterValue {
     /// Fetch the shape of the parameter.
     fn shape(&self) -> Shape;
 
-    /// How the value is split over its sharded compute device, or `None` when it is not on one.
-    fn sharding(&self) -> Option<Sharding>;
-
     /// Moves the parameter to the target device if it is not already on it,
     /// applying any kind-specific preparation required for the loading lifecycle (e.g. detach).
     fn load_to_device(self, device: &Device) -> Self;
@@ -314,10 +270,6 @@ pub(crate) struct Uninitialized<P: ParameterValue> {
     /// The shape of the tensor parameter.
     /// Used by `lazy_shape()` to provide shape information without triggering initialization.
     pub(crate) shape: Shape,
-    /// The split of the initializer's output, before any init mapper; `None` leaves it replicated.
-    pub(crate) sharding: Option<Sharding>,
-    /// Whether an init mapper wraps the initializer, so the value may not be in `shape`'s layout.
-    pub(crate) init_mapped: bool,
 }
 
 impl<P: ParameterValue> Uninitialized<P> {
@@ -327,11 +279,10 @@ impl<P: ParameterValue> Uninitialized<P> {
     /// The function receives the stored device and effective gradient requirement. On a plain
     /// device the requirement is false; the configured training state is preserved for `train()`.
     fn initialize(self) -> P {
-        (self.init)(InitRequest {
-            device: &self.device,
-            require_grad: self.is_require_grad && self.device.is_autodiff(),
-            sharding: self.sharding,
-        })
+        (self.init)(
+            &self.device,
+            self.is_require_grad && self.device.is_autodiff(),
+        )
     }
 }
 
@@ -452,8 +403,6 @@ impl<T: Parameter> Param<T> {
                 device,
                 is_require_grad,
                 shape,
-                sharding: None,
-                init_mapped: false,
             }),
             param_mapper: Default::default(),
             is_active: is_require_grad,
@@ -532,7 +481,6 @@ impl<T: Parameter> Param<T> {
                 let device = value.device.clone();
                 let is_require_grad = value.is_require_grad;
                 let shape = value.shape.clone();
-                let sharding = value.sharding;
                 core::mem::drop(init);
 
                 let mut base = self;
@@ -545,24 +493,21 @@ impl<T: Parameter> Param<T> {
                         // A clone sharing `base` still initializes it where it was built. `func`
                         // maps an untracked value: mapped from a tracked leaf, it would be a
                         // non-leaf that can't require grad.
-                        init: Box::new(move |request: InitRequest<'_>| {
-                            let device = request.device;
+                        init: new_init_fn(move |device, require_grad| {
                             // Move the base and attached state together before materializing.
                             // Detaching here prevents the map_to_device fallback from dropping it.
                             let reparameterization = base.reparameterization.take();
                             let base = base
-                                .placed_for_init(device, request.sharding)
+                                .map_to_device(device, |value| value.load_to_device(device))
                                 .with_dyn_reparameterization(
                                     reparameterization.map(|state| state.to_device_dyn(device)),
                                 );
                             let value = base.val().set_require_grad(false);
-                            func(value).set_require_grad(request.require_grad)
+                            func(value).set_require_grad(require_grad)
                         }),
                         device,
                         is_require_grad,
                         shape,
-                        sharding,
-                        init_mapped: true,
                     }),
                 }
             }
@@ -595,99 +540,6 @@ impl<T: Parameter> Param<T> {
         }
     }
 
-    /// The parameter split over its sharded compute device as `sharding` says, of the shape
-    /// [`lazy_shape`](Self::lazy_shape) gives.
-    ///
-    /// One not initialized yet, and not shared with a clone, stays so, and is split as it
-    /// initializes or loads, before any init or load mapper changes its layout: a
-    /// [record](crate::module::Module::load_record) applied to it then uploads each member only
-    /// its chunk of every weight. Moved before then to a device the sharding does not fit, it is
-    /// left replicated. Any other parameter, a lazy one shared with a clone included, is
-    /// initialized and its value resharded at once, as a new leaf, and a later load splits the
-    /// loaded value after its load mapper. A quantized value stays replicated.
-    ///
-    /// # Panics
-    ///
-    /// When the parameter is not on a sharded compute device, when
-    /// [`Device::check_sharding`] refuses the sharding for its shape, or when it is not
-    /// initialized yet, shares its state with a clone and has an init mapper: initializing it
-    /// would pass the mapper, so split it before cloning it.
-    pub fn with_sharding(mut self, sharding: Sharding) -> Self {
-        let deferred = self.update_uninitialized(|uninitialized| {
-            uninitialized
-                .device
-                .check_sharding(&uninitialized.shape, sharding)
-                .map(|()| uninitialized.sharding = Some(sharding))
-        });
-        match deferred {
-            Some(Ok(())) => return self,
-            Some(Err(error)) if cfg!(feature = "shard") => panic!("{error}"),
-            Some(Err(error)) => panic!("{error} (the `shard` feature is not enabled)"),
-            None => {}
-        }
-        if self.lazy_init_mapped() {
-            panic!("{SHARED_INIT_MAPPED_REFUSAL}");
-        }
-        let reparameterization = self.reparameterization.take();
-        self.map(|value| {
-            let require_grad = value.is_require_grad();
-            value.into_sharded_leaf(sharding, require_grad)
-        })
-        .with_dyn_reparameterization(reparameterization)
-    }
-
-    /// How the parameter is or will be split over its sharded compute device, **without
-    /// triggering initialization**.
-    ///
-    /// Of the shape [`lazy_shape`](Self::lazy_shape) gives, and `None` when it is not on one.
-    pub fn lazy_sharding(&self) -> Option<Sharding> {
-        let initialization = match &self.state.initialization {
-            Some(init) => init,
-            None => return self.sharding(),
-        };
-
-        let init = initialization.read();
-
-        match init.as_ref() {
-            Some(value) => value.sharding.or_else(|| {
-                value
-                    .device
-                    .check_sharding(&value.shape, Sharding::Replicated)
-                    .ok()
-                    .map(|()| Sharding::Replicated)
-            }),
-            None => self.sharding(),
-        }
-    }
-
-    /// Whether the parameter is not initialized yet and an init mapper wraps its initializer.
-    fn lazy_init_mapped(&self) -> bool {
-        self.state
-            .initialization
-            .as_ref()
-            .is_some_and(|initialization| {
-                initialization
-                    .read()
-                    .as_ref()
-                    .is_some_and(|uninitialized| uninitialized.init_mapped)
-            })
-    }
-
-    /// Where a value loaded into this parameter takes its split, if it takes one.
-    fn load_split(&self) -> Option<LoadSplit> {
-        let declared = self
-            .state
-            .initialization
-            .as_ref()
-            .and_then(|initialization| initialization.read().as_ref().map(|value| value.sharding));
-        // A loaded value is replicated already, and never a partial sum.
-        let split = |sharding| matches!(sharding, Sharding::Split { .. }).then_some(sharding);
-        match declared {
-            Some(sharding) => sharding.and_then(split).map(LoadSplit::BeforeMapper),
-            None => self.sharding().and_then(split).map(LoadSplit::AfterMapper),
-        }
-    }
-
     /// Put the parameter on `device`: one not initialized yet initializes there, unless a clone
     /// shares it, and any other is initialized if needed and moved with `move_value`. Either way it
     /// keeps the autodiff context it was built with, as moving a value does.
@@ -696,54 +548,23 @@ impl<T: Parameter> Param<T> {
         device: &Device,
         move_value: impl FnOnce(T) -> T,
     ) -> Self {
-        let retargeted = self.update_uninitialized(|uninitialized| {
-            uninitialized.device = device
-                .clone()
-                .with_autodiff_context_from(&uninitialized.device);
-            uninitialized.sharding = uninitialized.sharding.filter(|sharding| {
-                device
-                    .check_sharding(&uninitialized.shape, *sharding)
-                    .is_ok()
+        let retargeted = Arc::get_mut(&mut self.state)
+            .and_then(|state| state.initialization.as_ref())
+            .is_some_and(|initialization| match initialization.write().as_mut() {
+                Some(uninitialized) => {
+                    uninitialized.device = device
+                        .clone()
+                        .with_autodiff_context_from(&uninitialized.device);
+                    true
+                }
+                None => false,
             });
-        });
 
-        match retargeted {
-            Some(()) => self,
-            None => self.map(move_value),
+        if retargeted {
+            self
+        } else {
+            self.map(move_value)
         }
-    }
-
-    /// The parameter on `device`, split as `sharding` says in its layout before its own init
-    /// mapper, as the base an init mapper wrapping it initializes.
-    fn placed_for_init(mut self, device: &Device, sharding: Option<Sharding>) -> Self {
-        let deferred = self.update_uninitialized(|uninitialized| {
-            uninitialized.device = device
-                .clone()
-                .with_autodiff_context_from(&uninitialized.device);
-            uninitialized.sharding = sharding;
-        });
-        if deferred.is_some() {
-            return self;
-        }
-        if sharding.is_some() && self.lazy_init_mapped() {
-            panic!("{SHARED_INIT_MAPPED_REFUSAL}");
-        }
-        let placed = self.map_to_device(device, |value| value.load_to_device(device));
-        match sharding {
-            Some(sharding) => placed.with_sharding(sharding),
-            None => placed,
-        }
-    }
-
-    /// Runs `update` on the parameter's deferred initialization, or returns `None` when it is
-    /// initialized or shares its state with a clone, which `update` would then change too.
-    fn update_uninitialized<R>(
-        &mut self,
-        update: impl FnOnce(&mut Uninitialized<T>) -> R,
-    ) -> Option<R> {
-        let initialization = Arc::get_mut(&mut self.state)?.initialization.as_ref()?;
-        let mut uninitialized = initialization.write();
-        uninitialized.as_mut().map(update)
     }
 
     /// The gradient requirement on which the parameter is or will be initialized, **without triggering initialization**.
@@ -839,20 +660,11 @@ impl<T: Parameter> Param<T> {
 
         let expected_device = self.lazy_device();
         let expected_require_grad = self.lazy_is_require_grad();
-        let split = self.load_split();
 
         // Make sure we load the tensor into the same module device.
         new_tensor = new_tensor.load_to_device(&expected_device);
 
-        if let Some(LoadSplit::BeforeMapper(sharding)) = split {
-            new_tensor = new_tensor.into_sharded_leaf(sharding, false);
-        }
-
         new_tensor = mapper.on_load(new_tensor);
-
-        if let Some(LoadSplit::AfterMapper(sharding)) = split {
-            new_tensor = new_tensor.into_sharded_leaf(sharding, false);
-        }
 
         // Make sure we load the tensor with the same autodiff setting.
         new_tensor = new_tensor.set_require_grad(expected_require_grad);
@@ -902,8 +714,6 @@ impl<T: ParameterValue> Deref for Param<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "shard")]
-    use crate::{module::Module, test_sharded_device};
     use burn_tensor::Tensor;
 
     // Param<T> should be Sync so that models can be shared across threads
@@ -1022,119 +832,5 @@ mod tests {
             .val()
             .into_data()
             .assert_eq(&param2.val().into_data(), true);
-    }
-
-    fn lazy_ones(device: Device, require_grad: bool) -> Param<Tensor<2>> {
-        Param::uninitialized(
-            ParamId::new(),
-            |device, require_grad| Tensor::ones([2, 4], device).set_require_grad(require_grad),
-            device,
-            require_grad,
-            [2, 4].into(),
-        )
-    }
-
-    #[cfg(all(feature = "shard", feature = "autodiff"))]
-    #[test]
-    fn a_lazy_param_given_a_sharding_initializes_split_as_a_leaf() {
-        let param = lazy_ones(test_sharded_device().autodiff(), true)
-            .with_sharding(Sharding::Split { dim: 1 });
-        assert!(!param.is_initialized());
-        assert_eq!(param.lazy_sharding(), Some(Sharding::Split { dim: 1 }));
-
-        let value = param.val();
-
-        assert_eq!(value.sharding(), Some(Sharding::Split { dim: 1 }));
-        assert!(value.is_require_grad());
-        value.into_data().assert_eq(
-            &Tensor::<2>::ones([2, 4], &Device::flex()).into_data(),
-            true,
-        );
-    }
-
-    #[cfg(feature = "shard")]
-    #[test]
-    fn a_lazy_param_is_split_before_its_init_mapper() {
-        let param = lazy_ones(test_sharded_device(), false)
-            .init_mapper(|value: Tensor<2>| value.transpose())
-            .with_sharding(Sharding::Split { dim: 1 });
-
-        let value = param.val();
-
-        assert_eq!(value.dims(), [4, 2]);
-        assert_eq!(value.sharding(), Some(Sharding::Split { dim: 0 }));
-    }
-
-    #[cfg(feature = "shard")]
-    #[test]
-    #[should_panic(expected = "split before it is cloned")]
-    fn a_lazy_param_with_an_init_mapper_shared_with_a_clone_is_refused() {
-        let param = lazy_ones(test_sharded_device(), false)
-            .init_mapper(|value: Tensor<2>| value.transpose());
-        let _clone = param.clone();
-
-        let _ = param.with_sharding(Sharding::Split { dim: 0 });
-    }
-
-    #[cfg(feature = "shard")]
-    #[test]
-    #[should_panic(expected = "split before it is cloned")]
-    fn a_shared_init_mapped_base_under_another_init_mapper_is_refused() {
-        let base = lazy_ones(test_sharded_device(), false)
-            .init_mapper(|value: Tensor<2>| value.transpose());
-        let _clone = base.clone();
-        let param = base
-            .init_mapper(|value: Tensor<2>| value)
-            .with_sharding(Sharding::Split { dim: 1 });
-
-        let _ = param.val();
-    }
-
-    #[cfg(feature = "shard")]
-    #[test]
-    fn a_lazy_param_on_a_sharded_compute_device_is_replicated_until_split() {
-        let param = lazy_ones(test_sharded_device(), false);
-
-        assert_eq!(param.lazy_sharding(), Some(Sharding::Replicated));
-        assert!(!param.is_initialized());
-    }
-
-    #[cfg(not(feature = "shard"))]
-    #[test]
-    #[should_panic(expected = "the `shard` feature is not enabled")]
-    fn splitting_a_param_without_the_shard_feature_says_so() {
-        let _ = lazy_ones(Device::default(), false).with_sharding(Sharding::Split { dim: 0 });
-    }
-
-    #[cfg(all(feature = "shard", feature = "autodiff"))]
-    #[test]
-    fn an_initialized_tracked_param_is_resharded_as_a_leaf() {
-        let device = test_sharded_device().autodiff();
-        let param = Param::from_tensor(Tensor::<2>::ones([2, 4], &device))
-            .with_sharding(Sharding::Split { dim: 1 });
-
-        let value = param.val();
-
-        assert_eq!(value.sharding(), Some(Sharding::Split { dim: 1 }));
-        assert!(value.is_require_grad());
-    }
-
-    #[cfg(feature = "shard")]
-    #[test]
-    fn a_lazy_param_moved_off_its_sharded_compute_device_drops_its_sharding() {
-        let param =
-            lazy_ones(test_sharded_device(), false).with_sharding(Sharding::Split { dim: 1 });
-
-        let moved = param.to_device(&Device::flex());
-
-        assert_eq!(moved.lazy_sharding(), None);
-        assert_eq!(moved.val().sharding(), None);
-    }
-
-    #[cfg(feature = "shard")]
-    #[test]
-    #[should_panic(expected = "no dim 2")]
-    fn a_sharding_on_a_dim_the_param_lacks_is_refused_before_it_initializes() {
-        let _ = lazy_ones(test_sharded_device(), false).with_sharding(Sharding::Split { dim: 2 });
     }
 }

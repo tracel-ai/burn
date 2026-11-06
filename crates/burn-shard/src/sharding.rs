@@ -1,6 +1,6 @@
 use burn_backend::ops::DimSplit;
 use burn_ir::TensorIr;
-use burn_std::distributed::Sharding;
+use burn_std::{Shape, distributed::Sharding};
 use smallvec::SmallVec;
 
 /// Attention's query, key, value, mask and bias are the most inputs a built-in op with a rule
@@ -28,7 +28,15 @@ pub struct ShardMember {
 impl ShardMember {
     /// The shard this member holds of `tensor`, as its own interpreter knows it.
     pub fn local_tensor(&self, tensor: &TensorIr, sharding: Sharding) -> TensorIr {
-        let mut shape = tensor.shape.clone();
+        TensorIr {
+            shape: self.local_shape(&tensor.shape, sharding),
+            ..tensor.clone()
+        }
+    }
+
+    /// The shape of the shard this member holds of a tensor of `shape`.
+    pub fn local_shape(&self, shape: &Shape, sharding: Sharding) -> Shape {
+        let mut shape = shape.clone();
         if let Sharding::Split { dim } = sharding {
             let split = DimSplit {
                 dim,
@@ -37,9 +45,6 @@ impl ShardMember {
             };
             shape[dim] = split.range(self.index).len();
         }
-        TensorIr {
-            shape,
-            ..tensor.clone()
-        }
+        shape
     }
 }

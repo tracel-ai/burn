@@ -4,7 +4,7 @@ use crate::module::{
     Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper, ModuleVisitor,
 };
 use alloc::{boxed::Box, format, string::ToString, vec::Vec};
-use burn_tensor::{Bool, Device, Float, Int, Sharding, ShardingError, Tensor, TensorData};
+use burn_tensor::{Bool, Device, Float, Int, Tensor, TensorData};
 
 impl<const D: usize> super::sealed::Sealed for Tensor<D, Float> {
     fn is_active(&self) -> bool {
@@ -17,35 +17,15 @@ impl<const D: usize> super::sealed::Sealed for Tensor<D, Float> {
             .downcast::<Tensor<D>>()
             .expect("Reparameterization should preserve tensor rank")
     }
-
-    fn into_sharded_leaf(self, sharding: Sharding, require_grad: bool) -> Self {
-        // Resharding a tracked leaf would record an op, leaving a non-leaf that can't require grad.
-        let value = Parameter::set_require_grad(self, false);
-        let sharded = match value.try_with_sharding(sharding) {
-            Ok(sharded) => sharded,
-            Err(ShardingError::Quantized) => value,
-            // Panics with the tensor's own reason.
-            Err(_) => value.with_sharding(sharding),
-        };
-        Parameter::set_require_grad(sharded, require_grad)
-    }
 }
 impl<const D: usize> super::sealed::Sealed for Tensor<D, Int> {
     fn is_active(&self) -> bool {
         false
     }
-
-    fn into_sharded_leaf(self, sharding: Sharding, _require_grad: bool) -> Self {
-        self.with_sharding(sharding)
-    }
 }
 impl<const D: usize> super::sealed::Sealed for Tensor<D, Bool> {
     fn is_active(&self) -> bool {
         false
-    }
-
-    fn into_sharded_leaf(self, sharding: Sharding, _require_grad: bool) -> Self {
-        self.with_sharding(sharding)
     }
 }
 
@@ -71,10 +51,6 @@ impl<const D: usize> Parameter for Tensor<D, Float> {
 
     fn shape(&self) -> burn_std::Shape {
         Tensor::shape(self)
-    }
-
-    fn sharding(&self) -> Option<Sharding> {
-        Tensor::sharding(self)
     }
 
     fn load_to_device(self, device: &Device) -> Self {
@@ -105,10 +81,6 @@ impl<const D: usize> Parameter for Tensor<D, Int> {
         Tensor::shape(self)
     }
 
-    fn sharding(&self) -> Option<Sharding> {
-        Tensor::sharding(self)
-    }
-
     fn load_to_device(self, device: &Device) -> Self {
         if self.device() != *device {
             Tensor::to_device(self, device)
@@ -135,10 +107,6 @@ impl<const D: usize> Parameter for Tensor<D, Bool> {
 
     fn shape(&self) -> burn_std::Shape {
         Tensor::shape(self)
-    }
-
-    fn sharding(&self) -> Option<Sharding> {
-        Tensor::sharding(self)
     }
 
     fn load_to_device(self, device: &Device) -> Self {

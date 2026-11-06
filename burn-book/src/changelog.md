@@ -5,6 +5,25 @@ Changes for the next release. For published releases, see
 
 ## Unreleased
 
+### Attention over a key/value cache
+
+`burn::tensor::module::attention` takes an optional `AttentionCache`: the key and value are then a
+cache held at a fixed capacity, each sequence attending its first `lengths[b]` positions, with the
+queries as the last attended ones. The cache is contiguous, `[batch, kv_heads, capacity, dim]`
+(`AttentionCache::new(lengths)`), or paged: pools of pages and a `[batch, pages_per_sequence]`
+table naming each sequence's pages (`AttentionCache::paged(lengths, pages)`). Since the lengths are
+read on the device, a decode keeps the same shapes at every step. Causal masking and the sliding
+window apply at each query's own position, and a mask or an additive bias spans the capacity.
+
+On CubeCL backends it runs cubek's tile routines, the same ones as an attention without a cache
+(with a softcap, a bias, or a mask over a cache, it composes from tensor operations, as other
+backends do). Autodiff composes it from tensor operations.
+
+**Breaking:** `attention` and `ModuleOps::attention` take the cache as a new argument before
+`options`; pass `None` for an attention over the key and value as given. `AttentionOpIr` gains
+`lengths` and `pages`, so remote clients and servers must be upgraded together (protocol
+version 12).
+
 ### Random operation keys
 
 Random operations now reserve a `RandomKey` when requested, before shard, fusion, or remote queues
@@ -132,13 +151,14 @@ positions when sequence lengths differ.
   bit. F32 `sin` and `cos` run with SIMD within 2 ulp of libm, and `tan` within 4; `atan`, `asin`,
   and `acos` within 3, 2, and 1 ulp. F32 `atan2` (within 3 ulp) and `hypot` (within 1 ulp) run with
   SIMD on same-shape contiguous operands, and the GELU and log-sigmoid backward passes run in one
-  pass.
+  pass. F32 `sinh` and `cosh` run with SIMD within 2 ulp of libm.
   ([#6313](https://github.com/tracel-ai/burn/pull/6313),
   [#6341](https://github.com/tracel-ai/burn/pull/6341),
   [#6345](https://github.com/tracel-ai/burn/pull/6345),
   [#6347](https://github.com/tracel-ai/burn/pull/6347),
   [#6352](https://github.com/tracel-ai/burn/pull/6352),
-  [#6353](https://github.com/tracel-ai/burn/pull/6353)) [@antimora](https://github.com/antimora)
+  [#6353](https://github.com/tracel-ai/burn/pull/6353),
+  [#6354](https://github.com/tracel-ai/burn/pull/6354)) [@antimora](https://github.com/antimora)
 - Add F32 unit-convolution and im2col autotuning candidates on CubeCL backends, including
   split depthwise weight gradients. Forward im2col limits its column workspace to 128 MiB.
   ([#6048](https://github.com/tracel-ai/burn/pull/6048)) [@znicelya](https://github.com/znicelya)
@@ -253,20 +273,30 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
 - Drain every device's pending fusion work at once before a collective, speeding up
   tensor-parallel decode. ([#6293](https://github.com/tracel-ai/burn/pull/6293))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- Under fusion, a collective the backend runs natively (NCCL on CUDA) is queued as one part on
+  each member's own stream instead of waiting for every member first, so the caller keeps queueing
+  work while the devices run it. Tensor-parallel decode over four L4 GPUs runs about 1.8x faster.
+  A member whose input carries a failure still joins the others, which receive NaN (zeros for
+  integers and booleans) in its place. Backend implementors provide
+  `FusionBackend::collective_parts`, returning `None` to keep a collective on the caller.
+  ([#6421](https://github.com/tracel-ai/burn/pull/6421))
 
 #### Sharded compute devices
 
 Experimental: with the `shard` feature, `Device::shard_options(&devices).init()` makes one device
 whose tensors are split over `devices` (crate `burn-shard`).
 
-- A tensor made from data on a sharded compute device stays on the host until it is used, so `from_data`
-  followed by `with_sharding` uploads each member only its chunk, and a model that fits only once
-  split can be loaded. ([#6232](https://github.com/tracel-ai/burn/pull/6232))
-  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
-- A random tensor on a sharded compute device waits until it is first used, and a split use, such as a
-  dropout mask over a split activation, has each member generate only its shard instead of copying
-  the whole tensor from the first member. Its seed is captured on creation, and each shard derives its own
-  seed, so its values can differ from one device's with the same seed. ([#6272](https://github.com/tracel-ai/burn/pull/6272))
+- Each member's shard is made by the caller, where it lives: `Tensor::from_shards(Shards { shards,
+  sharding }, &device)` joins one tensor per member, each already on its member's device
+  (`Device::shard_members`), and refuses shards that do not make up one tensor with a
+  `ShardsError`. `into_shards` gives the `Shards` back. A split's chunks are balanced in member
+  order, and `shard::DimSplit` gives each member's range and cuts a `TensorData` to it, so a
+  member reading a checkpoint reads only its chunk. The tensor's sharding is read with
+  `Tensor::sharding`, and ops move shards between members themselves where their inputs need it. A
+  random tensor on a sharded compute device is drawn once and replicated.
+  ([#6232](https://github.com/tracel-ai/burn/pull/6232),
+  [#6272](https://github.com/tracel-ai/burn/pull/6272),
+  [#6397](https://github.com/tracel-ai/burn/pull/6397))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - Attention split on its batch or heads, and `swap_dims`, `permute`, `expand`, `slice` and
   `slice_assign` on a sharded compute device keep their input's split instead of gathering it, so a
@@ -294,12 +324,20 @@ whose tensors are split over `devices` (crate `burn-shard`).
   `DispatchDevice::shard` take the device's custom ops: pass `ShardCustomOps::default()` for none.
   `ShardError` has a new `CustomOpsBackend` variant.
   ([#6395](https://github.com/tracel-ai/burn/pull/6395))
-- `Param::with_sharding` splits a parameter, and a record loaded into a module keeps each
-  parameter's split. A parameter split before it initializes stays lazy, and a record loaded into
-  it uploads each member only its chunk, before any load mapper runs. `Device::check_sharding`
-  checks a sharding against a shape without making a tensor. The sharding methods exist without
-  the `shard` feature and refuse with `ShardingError::NotSharded`.
-  ([#6397](https://github.com/tracel-ai/burn/pull/6397))
+- A quantized tensor splits over a sharded compute device, its codes and scales cut as they are,
+  so a quantized model's weights split for tensor parallelism. A split must give every member whole
+  quantization blocks, and whole packed words along the packed axis, which `from_shards` checks. **Breaking:**
+  `ShardingError::Quantized` is replaced by `ShardingError::QuantizedSplit`, returned for a split
+  that would cut either. Split shards quantized each on their own must share a per-tensor or global
+  scale: a read or an op that gathers them otherwise fails with `ShardingError::QuantizedScales`,
+  and `DimSplit::whole_data` returns a `Result`. Reading a failed sharded operation returns its
+  recorded execution error instead of panicking.
+  ([#6396](https://github.com/tracel-ai/burn/pull/6396),
+  [#6408](https://github.com/tracel-ai/burn/pull/6408))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- Fix a router tensor read that could find its tensor already dropped when another thread gave up
+  the tensor's last other handle at the same moment, failing a sharded compute device's read with
+  `no entry found for key`. ([#6405](https://github.com/tracel-ai/burn/pull/6405))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution
@@ -415,6 +453,11 @@ For example, update custom progress logger implementations:
 + fn end_test(&mut self, progress: &Progress);
 ```
 
+- Add `DataLoaderBuilder::drop_last(bool)` and `FixBatchStrategy::with_drop_last(bool)` to discard
+  the final incomplete batch, including with multiple workers. The default keeps it. Expected
+  output counts and progress exclude dropped samples; `num_items()` keeps reporting the input
+  dataset size. ([#5911](https://github.com/tracel-ai/burn/pull/5911))
+  [@ProgrammerProfi](https://github.com/ProgrammerProfi)
 - Flush partial gradient accumulation only after normal dataloader exhaustion. An interruption or
   error observed before that update discards the pending window.
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
@@ -581,7 +624,8 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   [#6047](https://github.com/tracel-ai/burn/pull/6047))
 - Allow `gather` and `scatter` indices smaller than the tensor on dimensions other than `dim`
   (`indices.shape[d] <= tensor.shape[d]`), like PyTorch; `scatter` updates only the covered
-  positions. Larger indices are still rejected. Third-party backends must accept these shapes in
+  positions. CubeCL also fuses these gathers with compatible element-wise operations.
+  Larger indices are still rejected. Third-party backends must accept these shapes in
   `*_gather` and `*_scatter`. ([#6381](https://github.com/tracel-ai/burn/pull/6381))
 - Report the runtime-stated capacity in bytes for workload sizing, now
   `Device::description()`'s `max_memory`. The value is distinct from currently free memory;
@@ -599,11 +643,20 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
 
 #### Fusion and correctness fixes
 
+- Fix f16 min/max and top-k operations with indices failing during autotuning, and incorrect
+  `max_pool3d` gradients on CubeCL backends.
+  ([#6428](https://github.com/tracel-ai/burn/pull/6428)) [@laggui](https://github.com/laggui)
+- Fix incorrect Vulkan results on NVIDIA GPUs caused by shared-memory atomic operations returning
+  zero. ([CubeCL #2059](https://github.com/tracel-ai/cubecl/pull/2059)) [@laggui](https://github.com/laggui)
 - Fix `chunk` panicking when the requested number of chunks cannot all be filled. It now returns
   fewer chunks, as documented; for example, 6 elements in 4 chunks give 3 chunks of 2.
   ([#6263](https://github.com/tracel-ai/burn/pull/6263), [@b84330808](https://github.com/b84330808))
 - Fix CubeCL `max_pool3d`, which did not compile on WebGPU or any other WGSL target.
   [@vboussot](https://github.com/vboussot)
+- Fix integer `powi` and `powi_scalar` returning wrapped values for negative exponents on Flex and
+  CubeCL backends. They now give `1 / base^|exponent|` truncated toward zero: 0 unless the base is
+  1 or -1. ([#6355](https://github.com/tracel-ai/burn/pull/6355),
+  [@b84330808](https://github.com/b84330808))
 - Return NaN for variance reductions over empty axes instead of panicking or returning zero.
   ([issue #6236](https://github.com/tracel-ai/burn/issues/6236))
 - **Breaking:** `Tensor::reshape` now treats zeros in arrays as literal zero-length dimensions,

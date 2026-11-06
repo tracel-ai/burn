@@ -388,15 +388,6 @@ impl TraceOperationFuser {
                 if !self.output_is_compatible(&desc.out) {
                     return false;
                 }
-                // The fused gather reads the input at the output's coordinates wrapped by the
-                // input's shape, which is only right when indices and input share that shape
-                // outside `dim`. Smaller indices use the unfused kernel.
-                let same_shape_outside_dim = (0..desc.tensor.shape.num_dims())
-                    .filter(|&i| i != desc.dim)
-                    .all(|i| desc.tensor.shape[i] == desc.indices.shape[i]);
-                if !same_shape_outside_dim {
-                    return false;
-                }
 
                 self.fuser.fuse(|build| {
                     let input = build.input_indexed(&desc.tensor)?;
