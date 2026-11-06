@@ -121,11 +121,16 @@ For CubeCL and CubeK updates, record significant user-visible benefits that Burn
 exposes, rather than the version bump itself. Omit upstream refactors and capabilities not yet used
 by Burn.
 
-Keep `Unreleased` in this single file, with narrowly scoped `###` feature sections in alphabetical
-order. Add changes to the most specific existing section, or create a new section for an independent
+Keep `Unreleased` in this single file, organized into stable `###` subject groups with narrowly scoped
+feature subsections alphabetized within each group. Under `Extensions`, group changes by extension
+(linear algebra, signal processing, vision), then by feature. Place changes according to the API users
+interact with: a module's `linalg` feature requirement belongs under `Modules`, while a new Cholesky
+operation belongs under `Extensions`.
+
+Add changes to the most specific existing feature subsection, or create one for an independent
 feature, even for a single bullet. Group related API changes, additions, fixes, and performance
-improvements together. Avoid catch-all sections such as "Kernels" or "Correctness fixes" so unrelated
-PRs are less likely to edit the same location.
+improvements together. Keep entries in feature subsections rather than directly under subject groups
+or catch-all lists such as "Other fixes", so unrelated PRs are less likely to edit the same location.
 
 Keep entries concise and describe the impact on users. Major features can use paragraphs and short
 API examples; smaller changes can remain bullets. Mark breaking changes explicitly and state what

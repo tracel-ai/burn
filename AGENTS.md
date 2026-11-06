@@ -53,9 +53,10 @@ such as fusion keeping `linear` decomposed to preserve downstream fusion.
 - Avoid host synchronization (`into_data`, `into_scalar`) in forward passes, losses, and metrics.
 - Update documentation and examples in the same change when behavior or APIs change.
 - Record user-visible changes in [burn-book/src/changelog.md](burn-book/src/changelog.md), following
-  the [changelog policy](CONTRIBUTING.md#changelog). Use narrow feature sections in alphabetical
-  order; keep entries concise and include migration steps for API changes. Update existing entries
-  when follow-up work changes them, without reorganizing unrelated entries.
+  the [changelog policy](CONTRIBUTING.md#changelog). Keep subject groups stable, alphabetize narrow
+  feature subsections within each group, and group extension-specific changes under `Extensions`.
+  Keep entries concise and include migration steps for API changes. Update existing entries when
+  follow-up work changes them, without reorganizing unrelated entries.
 
 ### Backends and Kernels
 
