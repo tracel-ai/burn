@@ -85,6 +85,14 @@ pub struct Breakdown {
     /// every component where they share none — so a component whose work all
     /// fused reads zero, and the kernel that did it is listed elsewhere.
     pub unfused: bool,
+    /// What each member of a sharded compute device did over the run, where its members fuse,
+    /// so each launches from a fusion worker of its own. `None` for a device of one, whose figures
+    /// are the rest of the breakdown's, and for a sharded compute device whose members do not
+    /// fuse, which is timed as one device.
+    ///
+    /// Its members run at once, so the components' times sum every member's kernels and are no
+    /// one device's time: the slowest member's is what the run's wall holds.
+    pub per_member: Option<PerMember>,
 }
 
 impl Breakdown {
@@ -402,6 +410,31 @@ impl Component {
     }
 }
 
+/// What each member of a sharded compute device did over an instrumented run.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PerMember {
+    /// Each member, in member order.
+    pub members: Vec<MemberTime>,
+    /// The device time of kernels launched from a thread that is no member's fusion worker, such
+    /// as a collective's per-member kernels on the model thread: credited to their components,
+    /// on no member.
+    #[serde(with = "super::nanoseconds")]
+    pub off_members: Duration,
+}
+
+/// What one member of a sharded compute device did over an instrumented run.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MemberTime {
+    /// The device time of the kernels its fusion worker launched.
+    #[serde(with = "super::nanoseconds")]
+    pub on_device: Duration,
+    /// How long its device sat idle between them: waiting on the host, or on a collective.
+    #[serde(with = "super::nanoseconds")]
+    pub idle: Duration,
+}
+
 /// Kernel time that could not be credited to a component — a timing that reached the
 /// recorder under a different attribution from the launch it measured, or a
 /// window that came back with no timing in it.
@@ -518,6 +551,7 @@ mod tests {
             timed_alone: false,
             unplaced: Unplaced::default(),
             unfused: false,
+            per_member: None,
         };
 
         let fused_elsewhere = breakdown.fused_elsewhere();
@@ -580,6 +614,7 @@ mod tests {
             timed_alone: false,
             unplaced: Unplaced::default(),
             unfused: false,
+            per_member: None,
         };
 
         let fused_elsewhere = breakdown.fused_elsewhere();

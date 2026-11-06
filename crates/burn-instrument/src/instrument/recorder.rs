@@ -43,7 +43,7 @@ use super::origins::{BlockOrigin, OperationId, OperationOrigins};
 use super::pricing::Floors;
 use super::timing::{Kept, Timed, Timeline, Timings};
 use super::watching::Watching;
-use crate::breakdown::Breakdown;
+use crate::breakdown::{Breakdown, PerMember};
 use crate::{ComponentObserver, Declaration};
 
 /// Records a run's events into its component tree.
@@ -90,6 +90,8 @@ struct State {
     origins: OperationOrigins,
     /// The floors of a pricing run, taken by the entries in the order they arrive.
     floors: Floors,
+    /// What each member did, on a sharded compute device: see [`Breakdown::per_member`].
+    per_member: Option<PerMember>,
 }
 
 impl RunRecorder {
@@ -162,7 +164,7 @@ impl RunRecorder {
         let mut state = self.locked();
         #[cfg(feature = "fusion")]
         state.origins.clear();
-        state.settle(timed, self.epoch);
+        state.settle(timed, self.epoch, self.cursor.members());
     }
 
     /// What the run left behind.
@@ -173,9 +175,11 @@ impl RunRecorder {
     /// kernels its open components have yet to launch.
     fn breakdown(&self) -> Breakdown {
         let state = self.locked();
-        state
-            .tree
-            .breakdown(state.timings.quality(), self.cursor.fusion())
+        state.tree.breakdown(
+            state.timings.quality(),
+            self.cursor.fusion(),
+            state.per_member.clone(),
+        )
     }
 
     /// The shared state, recovering a lock a panicking run poisoned: a tree
@@ -239,7 +243,10 @@ impl LaunchObserver for RunRecorder {
     /// thread's attribution is still the launch's.
     fn profiled(&self, kernel: &'static str, profile: ProfileDuration) {
         let attribution = LaunchCursor::current();
-        self.locked().timings.keep(attribution, kernel, profile);
+        let member = LaunchCursor::member();
+        self.locked()
+            .timings
+            .keep(attribution, member, kernel, profile);
     }
 
     /// Only while the runtime's profiling logger reads timings too, which
@@ -288,21 +295,24 @@ impl FusionObserver for RunRecorder {
 
 impl State {
     /// File every timing read back under the component that counted its
-    /// launch, and charge the device's idle stretches between them.
-    fn settle(&mut self, timed: Vec<Timed>, epoch: Instant) {
-        let mut timeline = Timeline::new(epoch);
+    /// launch, charge each device's idle stretches between them, and, over several `members`,
+    /// keep what each did.
+    fn settle(&mut self, timed: Vec<Timed>, epoch: Instant, members: usize) {
+        let mut timeline = Timeline::new(epoch, members);
         for timed in timed {
             match timed.ticks {
                 Some(ticks) => {
                     self.credit(timed.attribution, timed.kernel, ticks.duration());
-                    timeline.push(timed.attribution, &ticks);
+                    timeline.push(timed.attribution, timed.member, &ticks);
                 }
                 None => self.timings.unplace(Duration::ZERO),
             }
         }
-        for (attribution, idle) in timeline.idle() {
+        let settled = timeline.settle();
+        for (attribution, idle) in settled.idle {
             self.tree.charge_idle(attribution, idle);
         }
+        self.per_member = settled.per_member;
     }
 
     /// Add `duration` to the component that counted `kernel`'s launch under

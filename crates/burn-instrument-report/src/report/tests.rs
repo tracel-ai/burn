@@ -46,6 +46,7 @@ fn measurement() -> Measurement {
             timed_alone: true,
             unplaced: Unplaced::default(),
             unfused: false,
+            per_member: None,
         },
     }
 }
