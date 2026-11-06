@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use burn_instrument::{
     Bounds, Breakdown, Component, ComponentPath, ComputePeak, FusedShare, Kernel, Measurement,
-    Peaks, Unplaced, Variant,
+    MemberTime, Peaks, PerMember, Unplaced, Variant,
 };
 use burn_tensor::FloatDType;
 
@@ -735,6 +735,56 @@ fn a_run_timed_in_place_splits_the_clean_run_into_device_and_host() {
     assert!(host.contains("35.5%"), "{host}");
     assert!(table.contains("on device"), "{table}");
     assert!(table.contains("timed in place"), "{table}");
+}
+
+/// Several members ran at once, so their summed kernels are no device's time: the host is not
+/// split, and each member's own time is printed, the slowest against the wall.
+#[test]
+fn a_run_on_several_members_reads_each_member_apart() {
+    let mut measurement = measurement();
+    measurement.breakdown.timed_alone = false;
+    let micros = Duration::from_micros;
+    measurement.breakdown.per_member = Some(PerMember {
+        members: vec![
+            MemberTime {
+                on_device: micros(600),
+                idle: micros(1_300),
+            },
+            MemberTime {
+                on_device: micros(500),
+                idle: micros(1_450),
+            },
+        ],
+        off_members: micros(30),
+    });
+
+    let rendered = Report::new(&measurement);
+    assert_eq!(rendered.host_split(), HostSplit::SeveralMembers);
+
+    let table = rendered.to_string();
+    let line = |label: &str| {
+        table
+            .lines()
+            .find(|line| line.trim_start().starts_with(label))
+            .unwrap_or_else(|| panic!("no `{label}` line in\n{table}"))
+            .to_string()
+    };
+    assert!(line("member 0").contains("0.6 ms"), "{table}");
+    assert!(line("member 1").contains("1.4 ms idle"), "{table}");
+    assert!(line("not computing").contains("1.4 ms"), "{table}");
+    assert!(line("host").contains("not separable"), "{table}");
+    assert!(line("off members").contains("0.0 ms"), "{table}");
+
+    // Timed alone, no window was kept, so the member lines would read zeros.
+    measurement.breakdown.timed_alone = true;
+    let table = Report::new(&measurement).to_string();
+    assert!(!table.contains("member 0"), "{table}");
+    assert!(
+        table.lines().any(
+            |line| line.trim_start().starts_with("members") && line.contains("not timed apart")
+        ),
+        "{table}"
+    );
 }
 
 /// The clean run's host time is split by how long the device waited
