@@ -115,10 +115,10 @@ p_new = decayed - delta * F(lr)
 
 vector width 不照搬其他框架常量，按 runtime 实测选择。输出复用若已存在，仍须先通过既有 COW 规则；本 PR 不放宽 alias 条件。
 
-本次未保留的实验使用 runtime 的 `io_optimized_vector_sizes`。全部参与 view 连续时按总元素数处理，
+当前CPU实现使用 runtime 的 `io_optimized_vector_sizes`，GPU保持scalar。全部参与 view 连续时按总元素数处理，
 无需限制最内维整除；其他布局使用已有 `max_vector_size` 并取共同宽度。每个 handle 的 offset
 进一步限制宽度。若余数非零且向量主体不足一个硬件允许的完整 workgroup，则使用一次标量提交，
-避免小不规则张量的额外尾部 launch。较大余数场景最多两次提交，两次均保留所有输入，写入区间不相交。
+避免小不规则张量的额外尾部 launch。较大余数场景最多两次提交，第二次只用一个unit串行处理短尾部；两次均保留所有输入，写入区间不相交。
 offset 为运行时索引，不把张量长度放入 JIT key；宽度、布局、alias及已有variant仍属于编译参数。
 
 ### 4.2 地址计算或 launch 配置

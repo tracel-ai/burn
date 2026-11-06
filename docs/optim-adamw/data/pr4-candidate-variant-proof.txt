@@ -1,0 +1,867 @@
+| 9.683209ms | burn_cubecl::ops::numeric::fill_device_dtype::full_kernel::FullKernel: FullKernelInfo {
+    n: 1,
+    dtype: Float (
+        F32,
+    ),
+    tensor: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    value: InputScalarCompilationArg {
+        ty: Float (
+            F32,
+        ),
+    },
+} CubeCount (1, 1, 1)
+| 8.675084ms | burn_cubecl::ops::numeric::fill_device_dtype::full_kernel::FullKernel: FullKernelInfo {
+    n: 1,
+    dtype: Float (
+        F32,
+    ),
+    tensor: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    value: InputScalarCompilationArg {
+        ty: Float (
+            F32,
+        ),
+    },
+} CubeCount (104858, 1, 1)
+| 641.708µs  | burn_cubecl::ops::numeric::fill_device_dtype::full_kernel::FullKernel: FullKernelInfo {
+    n: 1,
+    dtype: Float (
+        F32,
+    ),
+    tensor: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    value: InputScalarCompilationArg {
+        ty: Float (
+            F32,
+        ),
+    },
+} CubeCount (104858, 1, 1)
+| 10.670833ms | burn_cubecl::kernel::optim::adamw::eager::adamw::Adamw: AdamwInfo {
+    n: 16,
+    has_offset: false,
+    decay: Standard,
+    dtype: Float (
+        F32,
+    ),
+    param: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    grad: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    old_moment_1: None,
+    old_moment_2: None,
+    old_max_moment_2: None,
+    out_param: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: Some (
+                0,
+            ),
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_moment_1: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_moment_2: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_max_moment_2: None,
+    scalars: AdamWLaunchScalars {
+        lr: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        beta_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        beta_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        factor_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        factor_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        bias_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        bias_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        epsilon: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        decay_rate: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        one_minus_decay_rate: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        negative_zero: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+    },
+    offset: (),
+    units: (),
+} CubeCount (6554, 1, 1)
+| 9.920917ms | burn_cubecl::kernel::optim::adamw::eager::adamw::Adamw: AdamwInfo {
+    n: 1,
+    has_offset: true,
+    decay: Standard,
+    dtype: Float (
+        F32,
+    ),
+    param: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    grad: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    old_moment_1: None,
+    old_moment_2: None,
+    old_max_moment_2: None,
+    out_param: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: Some (
+                0,
+            ),
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_moment_1: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_moment_2: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_max_moment_2: None,
+    scalars: AdamWLaunchScalars {
+        lr: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        beta_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        beta_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        factor_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        factor_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        bias_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        bias_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        epsilon: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        decay_rate: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        one_minus_decay_rate: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        negative_zero: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+    },
+    offset: (),
+    units: (),
+} CubeCount (1, 1, 1)
+| 10.336417ms | burn_cubecl::kernel::optim::adamw::eager::adamw::Adamw: AdamwInfo {
+    n: 16,
+    has_offset: false,
+    decay: Standard,
+    dtype: Float (
+        F32,
+    ),
+    param: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    grad: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    old_moment_1: Some (
+        ArrayView {
+            buffer: BufferCompilationArg {
+                inplace: None,
+            },
+            layout: VirtualLayout {
+                type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+                value: Plain,
+            },
+        },
+    ),
+    old_moment_2: Some (
+        ArrayView {
+            buffer: BufferCompilationArg {
+                inplace: None,
+            },
+            layout: VirtualLayout {
+                type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+                value: Plain,
+            },
+        },
+    ),
+    old_max_moment_2: None,
+    out_param: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: Some (
+                0,
+            ),
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_moment_1: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: Some (
+                2,
+            ),
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_moment_2: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: Some (
+                3,
+            ),
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_max_moment_2: None,
+    scalars: AdamWLaunchScalars {
+        lr: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        beta_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        beta_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        factor_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        factor_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        bias_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        bias_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        epsilon: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        decay_rate: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        one_minus_decay_rate: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        negative_zero: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+    },
+    offset: (),
+    units: (),
+} CubeCount (6554, 1, 1)
+| 10.299291ms | burn_cubecl::kernel::optim::adamw::eager::adamw::Adamw: AdamwInfo {
+    n: 1,
+    has_offset: true,
+    decay: Standard,
+    dtype: Float (
+        F32,
+    ),
+    param: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    grad: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    old_moment_1: Some (
+        ArrayView {
+            buffer: BufferCompilationArg {
+                inplace: None,
+            },
+            layout: VirtualLayout {
+                type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+                value: Plain,
+            },
+        },
+    ),
+    old_moment_2: Some (
+        ArrayView {
+            buffer: BufferCompilationArg {
+                inplace: None,
+            },
+            layout: VirtualLayout {
+                type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+                value: Plain,
+            },
+        },
+    ),
+    old_max_moment_2: None,
+    out_param: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: Some (
+                0,
+            ),
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_moment_1: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: Some (
+                2,
+            ),
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_moment_2: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: Some (
+                3,
+            ),
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_max_moment_2: None,
+    scalars: AdamWLaunchScalars {
+        lr: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        beta_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        beta_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        factor_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        factor_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        bias_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        bias_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        epsilon: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        decay_rate: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        one_minus_decay_rate: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        negative_zero: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+    },
+    offset: (),
+    units: (),
+} CubeCount (1, 1, 1)
+| 653.125µs  | burn_cubecl::kernel::optim::adamw::eager::adamw::Adamw: AdamwInfo {
+    n: 16,
+    has_offset: false,
+    decay: Standard,
+    dtype: Float (
+        F32,
+    ),
+    param: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    grad: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    old_moment_1: Some (
+        ArrayView {
+            buffer: BufferCompilationArg {
+                inplace: None,
+            },
+            layout: VirtualLayout {
+                type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+                value: Plain,
+            },
+        },
+    ),
+    old_moment_2: Some (
+        ArrayView {
+            buffer: BufferCompilationArg {
+                inplace: None,
+            },
+            layout: VirtualLayout {
+                type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+                value: Plain,
+            },
+        },
+    ),
+    old_max_moment_2: None,
+    out_param: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: Some (
+                0,
+            ),
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_moment_1: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: Some (
+                2,
+            ),
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_moment_2: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: Some (
+                3,
+            ),
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_max_moment_2: None,
+    scalars: AdamWLaunchScalars {
+        lr: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        beta_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        beta_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        factor_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        factor_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        bias_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        bias_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        epsilon: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        decay_rate: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        one_minus_decay_rate: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        negative_zero: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+    },
+    offset: (),
+    units: (),
+} CubeCount (6554, 1, 1)
+memory workload=tail_minus mode=fused allocs=4 in_use=16777216 reserved=29360128 peak=29360128
+| 13µs       | burn_cubecl::kernel::optim::adamw::eager::adamw::Adamw: AdamwInfo {
+    n: 1,
+    has_offset: true,
+    decay: Standard,
+    dtype: Float (
+        F32,
+    ),
+    param: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    grad: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: None,
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    old_moment_1: Some (
+        ArrayView {
+            buffer: BufferCompilationArg {
+                inplace: None,
+            },
+            layout: VirtualLayout {
+                type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+                value: Plain,
+            },
+        },
+    ),
+    old_moment_2: Some (
+        ArrayView {
+            buffer: BufferCompilationArg {
+                inplace: None,
+            },
+            layout: VirtualLayout {
+                type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+                value: Plain,
+            },
+        },
+    ),
+    old_max_moment_2: None,
+    out_param: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: Some (
+                0,
+            ),
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_moment_1: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: Some (
+                2,
+            ),
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_moment_2: ArrayView {
+        buffer: BufferCompilationArg {
+            inplace: Some (
+                3,
+            ),
+        },
+        layout: VirtualLayout {
+            type: cubecl_std: : tensor: : layout: : linear: : LinearLayoutCompilationArg,
+            value: Plain,
+        },
+    },
+    out_max_moment_2: None,
+    scalars: AdamWLaunchScalars {
+        lr: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        beta_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        beta_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        factor_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        factor_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        bias_1: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        bias_2: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        epsilon: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        decay_rate: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        one_minus_decay_rate: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+        negative_zero: InputScalarCompilationArg {
+            ty: Float (
+                F32,
+            ),
+        },
+    },
+    offset: (),
+    units: (),
+} CubeCount (1, 1, 1)
+|⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺| 
+| Name                                                                

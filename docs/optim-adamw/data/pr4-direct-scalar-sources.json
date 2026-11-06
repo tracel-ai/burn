@@ -13,6 +13,6 @@
   "binary_sha256": "f9bf42b7d274b423db24d03a3cf836e955360740dcb9c69cf2732916c826c93a",
   "artifact_path": "target/adamw-direct-scalar/release/build/burn-optim/c002f287e574a91c/out/adamw-c002f287e574a91c",
   "features": "std,cpu,metal,wgpu-msl,webgpu",
-  "valid_for_acceptance": false,
-  "invalid_reason": "Direct uncached historical experiment, superseded by CPU-only serial-tail final candidate. Not a cached-provenance failure."
+  "valid_for_acceptance": true,
+  "role": "Current scalar COW baseline for PR4 serial-tail comparison"
 }

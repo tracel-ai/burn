@@ -26,5 +26,6 @@ no_std与burn-cubecl raw单测的既有编译失败如实记录在[报告](pr1-f
 
 - PR2：实现及报告已完成，Hypatia初审PASS后补充capture回归；最终含该回归版本由Faraday、Hypatia连续两轮PASS。CPU/MSL/WGSL/Fusion各35项测试、Metal34项加capture1项通过，clippy通过。峰值内存改善成立；共享CPU tiny的速度不确定性明确列于[报告](pr2-cow-report.md)，未声称所有场景无回退。
 - PR3：Kant、Euler连续两轮PASS确认当前pin缺少合格的有效stream查询API；[停止报告](pr3-foreach-report.md)已完成，Foreach实现仍阻塞，不能记为优化完成。
-- PR4：早期cached binary/source归属冲突导致错误停止结论，旧测量已作废。禁用wrapper并用绝对toolchain直接重建后，CPU大参数有明确收益；当前实现CPU-only vector和单线程scalar tail，GPU保留scalar。新版本review进行中，尚无最终连续两轮通过。
-- 最终三轮整体review：尚未开始。
+- PR4：旧cached binary/source冲突已隔离；禁用wrapper的直接构建证实CPU-only向量化和serial tail收益。修复报告基线标记及首步/变体/体积证据后，Darwin、Sagan对完整最终版本连续两轮PASS。kernel `da4cb826519f`、optimizer `442ec4a483f2`、bench `b5c972335bb1`。CPU/Metal/MSL/WGSL/Fusion各36项测试通过，CPU专项JIT通过，直接构建raw CPU all-targets clippy通过。
+- 阶段提交：用户已将生产代码提交于`ba84da059`；本阶段报告及验证证据随后单独提交并推送。
+- 最终三轮整体review：准备开始；计数0/3。

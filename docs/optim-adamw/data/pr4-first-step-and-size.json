@@ -1,0 +1,1017 @@
+{
+  "date": "2026-11-06T18:01:48+0800",
+  "binaries": {
+    "scalar": {
+      "sources": {
+        "Cargo.lock": "9cca6cc04cc7408767d7befb7b549dce2ac0c68492c3b0a1544f7a6ca44712ee",
+        "crates/burn-cubecl/src/kernel/optim/adamw.rs": "0730c7e8dd335cff43b177ac36efb10385324215ce53915f1f3c343fe1df0c8f",
+        "crates/burn-optim/src/optim/adamw.rs": "7e6b076ebb733753fd983d94bca8058407ea9f0d5e7e485eb9385fef1c1599dc",
+        "crates/burn-optim/src/optim/adamw/cube.rs": "a985edb26cf27c9d4579bde902db905955b536f71dda8f4bad586c069081aab3",
+        "crates/burn-optim/benches/adamw.rs": "9bbf07b94694bdb8ca4ac3baaf14589973b42199e7caa66e56d802731915357c",
+        "crates/burn-optim/Cargo.toml": "d8bf468df81203bd62c378f04fc94b6683f5119ad6cd1ed4cc90911e86e2add4",
+        "crates/burn-optim/build.rs": "04fc478a00f2a8ee59f08f3af1197760741b38557d7326c8baf17dec2c285f2c"
+      },
+      "build_wrapper": "disabled",
+      "cargo": "/Users/fdasdfdaf/.rustup/toolchains/beta-aarch64-apple-darwin/bin/cargo",
+      "binary_sha256": "f9bf42b7d274b423db24d03a3cf836e955360740dcb9c69cf2732916c826c93a",
+      "artifact_path": "target/adamw-direct-scalar/release/build/burn-optim/c002f287e574a91c/out/adamw-c002f287e574a91c",
+      "features": "std,cpu,metal,wgpu-msl,webgpu",
+      "file_bytes": 145871864,
+      "macho_size": "Segment __PAGEZERO: 4294967296 (zero fill) \nSegment __TEXT: 97337344\nSegment __DATA_CONST: 4227072\nSegment __DATA: 737280\nSegment __LINKEDIT: 44138496\n",
+      "macho_size_raw_sha256": "21f018d3f3c1249481cc01a62745bade4a8a5f387ebf173012f49ba96304d356",
+      "macho_size_note": "Segment totals retained; generated per-section linker identifiers omitted. Raw output SHA-256 recorded."
+    },
+    "candidate": {
+      "binary_sha256": "e24b0fb99644de1e0940e11ed77f0e0340de7d371e9f28bf404cc27daa32c48a",
+      "sources": {
+        "Cargo.lock": "9cca6cc04cc7408767d7befb7b549dce2ac0c68492c3b0a1544f7a6ca44712ee",
+        "crates/burn-cubecl/src/kernel/optim/adamw.rs": "da4cb826519ff3d3f84044caa743a20ffe3e2245a3c8e941b272834a703c722f",
+        "crates/burn-optim/src/optim/adamw.rs": "442ec4a483f22cc4e232fe86a73e754110b2cecf451a6c54eca2f1d9cea50a1b",
+        "crates/burn-optim/src/optim/adamw/cube.rs": "a985edb26cf27c9d4579bde902db905955b536f71dda8f4bad586c069081aab3",
+        "crates/burn-optim/benches/adamw.rs": "b5c972335bb1d45e37c1490bfb943f39ed6ecb251504d0996098bde9082a8928",
+        "crates/burn-optim/Cargo.toml": "d8bf468df81203bd62c378f04fc94b6683f5119ad6cd1ed4cc90911e86e2add4",
+        "crates/burn-optim/build.rs": "04fc478a00f2a8ee59f08f3af1197760741b38557d7326c8baf17dec2c285f2c"
+      },
+      "wrapper": "disabled",
+      "artifact_path": "target/adamw-direct-final/release/build/burn-optim/c002f287e574a91c/out/adamw-c002f287e574a91c",
+      "file_bytes": 145815896,
+      "macho_size": "Segment __PAGEZERO: 4294967296 (zero fill) \nSegment __TEXT: 97370112\nSegment __DATA_CONST: 4227072\nSegment __DATA: 737280\nSegment __LINKEDIT: 44040192\n",
+      "macho_size_raw_sha256": "366e4c39f0a1cb9d3574d336989bf7cc9f51ac5f85297738d737ddc1019db5e3",
+      "macho_size_note": "Segment totals retained; generated per-section linker identifiers omitted. Raw output SHA-256 recorded."
+    }
+  },
+  "runs": [
+    {
+      "backend": "cpu",
+      "workload": "tiny",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=56.488\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tiny",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=17.408\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tiny",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=81.597\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tiny",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=12.939\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tiny",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=58.958\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tiny",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=80.171\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "mixed_rank",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=11.930\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "mixed_rank",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=23.465\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "mixed_rank",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=17.116\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "mixed_rank",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=18.266\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "mixed_rank",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=9.943\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "mixed_rank",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=16.718\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "large_1",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=11.836\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "large_1",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=10.824\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "large_1",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=10.300\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "large_1",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=13.980\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "large_1",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=11.093\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "large_1",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=10.343\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "large_16",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=77.867\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "large_16",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=53.233\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "large_16",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=59.915\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "large_16",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=126.671\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "large_16",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=54.844\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "large_16",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=84.587\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tail_minus",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=11.894\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tail_minus",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=22.356\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tail_minus",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=20.273\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tail_minus",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=11.571\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tail_minus",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=11.258\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tail_minus",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=21.066\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tail_plus",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=11.354\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tail_plus",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=21.171\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tail_plus",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=23.484\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tail_plus",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=11.023\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tail_plus",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=11.255\n",
+      "stderr": ""
+    },
+    {
+      "backend": "cpu",
+      "workload": "tail_plus",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=20.277\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tiny",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=9.926\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tiny",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=6.505\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tiny",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=6.485\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tiny",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=7.449\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tiny",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=9.231\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tiny",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=7.270\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "mixed_rank",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=15.335\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "mixed_rank",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=11.320\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "mixed_rank",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=11.652\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "mixed_rank",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=11.159\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "mixed_rank",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=11.565\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "mixed_rank",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=11.581\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "large_1",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=6.902\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "large_1",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=6.260\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "large_1",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=6.317\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "large_1",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=6.852\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "large_1",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=6.384\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "large_1",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=6.582\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "large_16",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=28.975\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "large_16",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=15.123\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "large_16",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=13.663\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "large_16",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=16.717\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "large_16",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=13.531\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "large_16",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=14.730\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tail_minus",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=6.238\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tail_minus",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=6.688\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tail_minus",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=6.335\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tail_minus",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=6.495\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tail_minus",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=7.092\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tail_minus",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=6.894\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tail_plus",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=6.156\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tail_plus",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=6.301\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tail_plus",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=6.374\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tail_plus",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=7.514\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tail_plus",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=6.962\n",
+      "stderr": ""
+    },
+    {
+      "backend": "metal",
+      "workload": "tail_plus",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=6.330\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tiny",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=7.121\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tiny",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=6.512\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tiny",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=6.715\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tiny",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=6.778\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tiny",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=6.587\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tiny",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tiny mode=fused first_step_ms=6.645\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "mixed_rank",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=10.178\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "mixed_rank",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=81.988\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "mixed_rank",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=10.959\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "mixed_rank",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=10.795\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "mixed_rank",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=11.182\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "mixed_rank",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=mixed_rank mode=fused first_step_ms=11.450\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "large_1",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=7.209\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "large_1",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=6.738\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "large_1",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=6.913\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "large_1",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=6.516\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "large_1",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=8.333\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "large_1",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_1 mode=fused first_step_ms=6.742\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "large_16",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=43.211\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "large_16",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=11.806\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "large_16",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=15.340\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "large_16",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=15.144\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "large_16",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=16.960\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "large_16",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=large_16 mode=fused first_step_ms=15.146\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tail_minus",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=6.481\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tail_minus",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=6.905\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tail_minus",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=8.340\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tail_minus",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=6.514\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tail_minus",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=7.173\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tail_minus",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_minus mode=fused first_step_ms=6.294\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tail_plus",
+      "repeat": 0,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=6.811\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tail_plus",
+      "repeat": 0,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=6.486\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tail_plus",
+      "repeat": 1,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=7.624\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tail_plus",
+      "repeat": 1,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=6.269\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tail_plus",
+      "repeat": 2,
+      "stage": "scalar",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=7.933\n",
+      "stderr": ""
+    },
+    {
+      "backend": "wgpu-msl",
+      "workload": "tail_plus",
+      "repeat": 2,
+      "stage": "candidate",
+      "exit_code": 0,
+      "stdout": "jit workload=tail_plus mode=fused first_step_ms=6.687\n",
+      "stderr": ""
+    }
+  ]
+}
