@@ -440,6 +440,7 @@ mod reduce_with_indices_ops {
     #![allow(missing_docs)]
 
     use super::*;
+    use crate::ops::numeric::empty_device_contiguous_dtype;
 
     pub(crate) fn reduce_with_indices_input_gen(
         _key: &ReduceDimAutotuneKey,
@@ -459,10 +460,22 @@ mod reduce_with_indices_ops {
         ReduceOperationConfig,
         ReduceWithIndicesDtypes,
     ) {
+        // The fused kernel shares output offsets between values and indices, so their
+        // layouts must match even when their dtypes have different row alignment.
         (
             input.clone(),
-            values.copy(),
-            indices.copy(),
+            empty_device_contiguous_dtype(
+                values.client.clone(),
+                values.device.clone(),
+                values.meta.shape.clone(),
+                values.dtype,
+            ),
+            empty_device_contiguous_dtype(
+                indices.client.clone(),
+                indices.device.clone(),
+                indices.meta.shape.clone(),
+                indices.dtype,
+            ),
             *dim,
             *config,
             *dtypes,
