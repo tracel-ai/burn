@@ -13,6 +13,8 @@
 | 分支最终三轮 review | **3/3 PASS** | Hegel、Noether、Turing；G0文档finding修复后重新计数 |
 
 PR3 的阻塞来自锁定 CubeCL revision：`Client::stream_id()` 私有，`service_stream()` 和 `ServiceStream` 为 `pub(crate)`。公开的 profile、memory report、empty 和 stream-mode API 都会阻塞、分配或改变运行模式；`Handle.stream` 只是 allocation 创建 stream。最小前置是上游增加无副作用 `Client::execution_stream()` getter，随后才可实现安全 Foreach。
+目前已在仓库内副本实现并通过两个CPU回归的[最小前置补丁](prerequisites/README.md)；官方新head仍无此接口，
+且CubeK和Burn的CubeCL pin需要一致更新。生产依赖未改，Foreach仍未实现。
 
 PR4实现共同vector width、serial scalar tail、布局/offset fallback、JIT key与U32 tail防回绕。禁用kache并独立target重建后，CPU large_1/4/16约2.63×/2.16×/1.89×，tail约2.12×/2.47×；Metal/MSL没有稳定收益，当前GPU强制scalar。旧缓存停止结论无效；最终CPU版本已连续两轮review通过。
 

@@ -1,0 +1,4 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.37s
+test unpinned_client_follows_nested_scopes_without_changing_them ... ok
+test pinned_client_and_its_clone_keep_the_pin_in_other_scopes ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s

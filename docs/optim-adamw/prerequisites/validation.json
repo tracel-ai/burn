@@ -1,0 +1,38 @@
+{
+  "cubecl_base_revision": "d88b0febb50e7b83a8548125f6a701c12f11a2ba",
+  "patch_sha256": "31a1fe174701e95d4c38a8423e8f6027c5d103a1cf8e4830f0200c8de7bf0e88",
+  "upstream_rechecked": {
+    "repository": "tracel-ai/cubecl",
+    "revision": "565108e077557f634aa7f5bf19b34ed655600ba7",
+    "ahead_of_pin": 16,
+    "getter_present": false,
+    "client_source_sha256": "0eee07debcdc188cdc0bb6da60454e1d4cf920736c462514a63f5a59acbbe72e"
+  },
+  "changed_files": {
+    "crates/cubecl-runtime/src/client.rs": "dfa75d5a8d3b19b42852747d423b7f65082712e41148de46c861e0a9858b2fc3",
+    "crates/cubecl-cpu/tests/execution_stream.rs": "4606392fa15f679f3c041c7a58fcb35da9b5b68cfae4f8d1561401f94f9b3755"
+  },
+  "command": "RUSTC_WRAPPER= RUSTC_WORKSPACE_WRAPPER= RUSTC=<beta>/bin/rustc RUSTDOC=<beta>/bin/rustdoc CARGO_TARGET_DIR=target/adamw-stream-prerequisite-build <beta>/bin/cargo test --manifest-path target/adamw-cubecl-stream-prerequisite/Cargo.toml -p cubecl-cpu --no-default-features --features std --test execution_stream",
+  "runner": "unset CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER",
+  "rustc": "rustc 1.100.0-beta.7 (fd8e211ae 2026-10-17)",
+  "test_exit_code": 0,
+  "test_summary": [
+    "    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.37s",
+    "test unpinned_client_follows_nested_scopes_without_changing_them ... ok",
+    "test pinned_client_and_its_clone_keep_the_pin_in_other_scopes ... ok",
+    "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s"
+  ],
+  "test_log_sha256": "a64ca7b2a80fea9421ca172b78fcbc06dd036ecfacd5d743b966f2b84d90ee84",
+  "production_dependency_changed": false,
+  "foreach_implemented": false,
+  "clippy": {
+    "command": "cargo clippy -p cubecl-cpu --no-default-features --features std --test execution_stream --no-deps -- -D warnings",
+    "exit_code": 101,
+    "failure": "clippy::needless_range_loop at crates/cubecl-cpu/src/compute/threadpool/scheduler/dispatcher.rs:69",
+    "unchanged_upstream_file_sha256": "f28d34b17946d79cc27bb8110997dbe41a99ffd597f7b801f1610a448538c88f",
+    "log_sha256": "73c337e14ab0d1745d68640d2c8343c5aed24dc9eae1cc341173f98d13beb682",
+    "passed": false
+  },
+  "patch_apply_check": "passed against clean pinned client.rs via git apply --check",
+  "rustfmt_check": "passed for both changed files"
+}

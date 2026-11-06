@@ -54,3 +54,14 @@ pub fn execution_stream(&self) -> StreamId {
 但总目标中的 Foreach 实现仍缺失，不能把该停止报告当作“全部 PR 已实现”的证明。
 本判断由编码 agent 生成；Kant、Euler 连续两轮独立源码审查均确认停止条件成立。
 这两次 PASS 不算 Foreach 实现或性能验收，记录见 [review-log.md](review-log.md)。
+
+## 前置补丁验证
+
+重新检查官方 head `565108e077557f634aa7f5bf19b34ed655600ba7`（比pin新16个提交），
+查询入口仍未公开，直接升级到该版本不能解除门禁。已在当前Burn仓库的`target/`副本中实现
+最小`execution_stream()` getter，并在CPU上通过两个integration tests，覆盖pinned/unpinned、
+clone、嵌套scope及随后allocation实际stream。生产pin和Cargo缓存均未修改。
+
+可复现补丁、哈希和验证命令见[前置补丁](prerequisites/README.md)。这是上游能力准备，
+不算完成Foreach，也不替代本PR的数值、分组、stream恢复或端到端性能验收。
+此外，当前CubeK也固定相同CubeCL revision；引入getter后需要同步依赖图，不能只更新Burn的pin。

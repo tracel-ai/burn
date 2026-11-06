@@ -48,3 +48,11 @@ no_std与burn-cubecl raw单测的既有编译失败如实记录在[报告](pr1-f
 阶段报告和证据已提交并推送为`a5e263564`；本最终记录与WebGPU文档修正将再提交推送。
 该三轮通过仅说明当前分支实现及材料通过agent review；PR3 Foreach仍受上游getter阻塞，
 不能据此将“全部PR实现”的用户目标标记为完成。
+
+## PR3 前置补丁增量
+
+生产代码及依赖pin未变。重新检查官方head后确认仍缺getter，在本仓库target副本准备
+[execution stream最小补丁](prerequisites/README.md)，两个CPU integration tests通过。
+James、Ptolemy分别完成一轮独立只读review，连续2/2 PASS；James同次调用中的额外复核不另计一轮。
+格式、干净pin apply检查通过；clippy失败于未改动的CubeCL dispatcher第69行，已记录。
+此增量只是可接入上游的前置补丁和证据，不能计为PR3优化完成，也不改变此前生产实现3/3审查结论。
