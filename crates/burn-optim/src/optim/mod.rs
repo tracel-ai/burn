@@ -49,6 +49,16 @@ mod test_utils {
     /// Check that a byte round-trip preserves the optimizer's next parameter update.
     pub(super) fn assert_optimizer_resume(
         create_optimizer: impl Fn() -> ModuleOptimizer,
+        model: Linear,
+        lr: LearningRate,
+    ) {
+        assert_optimizer_resume_between(&create_optimizer, &create_optimizer, model, lr)
+    }
+
+    /// Resume a checkpoint saved by one optimizer constructor under another.
+    pub(super) fn assert_optimizer_resume_between(
+        create_original: impl Fn() -> ModuleOptimizer,
+        create_restored: impl Fn() -> ModuleOptimizer,
         mut model: Linear,
         lr: LearningRate,
     ) {
@@ -62,7 +72,7 @@ mod test_utils {
             )
         };
 
-        let mut original = create_optimizer();
+        let mut original = create_original();
         // Different gradients populate Adan's gradient-difference buffer; decreasing their
         // magnitude also makes AMSGrad's historical maximum differ from its current moment.
         for scale in [1.0, 0.01] {
@@ -71,7 +81,7 @@ mod test_utils {
         }
         assert!(!original.to_record().is_empty());
         let bytes = original.into_bytes().unwrap();
-        let mut restored = create_optimizer().from_bytes(bytes).unwrap();
+        let mut restored = create_restored().from_bytes(bytes).unwrap();
 
         // A small opposing gradient exercises stored momentum, including Lion's.
         let expected = original.step(lr, model.clone(), grads(&model, -0.01));

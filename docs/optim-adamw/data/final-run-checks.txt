@@ -1,0 +1,455 @@
+warning: unused workspace dependency `burn-tensor-testgen`
+   --> Cargo.toml:221:1
+    |
+221 | burn-tensor-testgen = { path = "crates/burn-tensor-testgen", version = "0.23.0-pre.1", default-features = false }
+    | ^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `cargo::unused_workspace_dependencies` is set to `warn` by default
+help: consider removing the workspace dependency `burn-tensor-testgen`
+warning: unused workspace dependency `cfg-if`
+   --> Cargo.toml:146:1
+    |
+146 | cfg-if = "1.0.5"
+    | ^^^^^^
+    |
+help: consider removing the workspace dependency `cfg-if`
+warning: unused workspace dependency `dashmap`
+  --> Cargo.toml:44:1
+   |
+44 | dashmap = "6.2.1"
+   | ^^^^^^^
+   |
+help: consider removing the workspace dependency `dashmap`
+warning: unused workspace dependency `float-cmp`
+  --> Cargo.toml:53:1
+   |
+53 | float-cmp = "0.10.0"
+   | ^^^^^^^^^
+   |
+help: consider removing the workspace dependency `float-cmp`
+warning: unused workspace dependency `insta`
+  --> Cargo.toml:63:1
+   |
+63 | insta = "1.48.0"
+   | ^^^^^
+   |
+help: consider removing the workspace dependency `insta`
+warning: unused workspace dependency `js-sys`
+  --> Cargo.toml:66:1
+   |
+66 | js-sys = "0.3.106"
+   | ^^^^^^
+   |
+help: consider removing the workspace dependency `js-sys`
+warning: unused workspace dependency `libc`
+   --> Cargo.toml:172:1
+    |
+172 | libc = "0.2.189"
+    | ^^^^
+    |
+help: consider removing the workspace dependency `libc`
+warning: unused workspace dependency `lzma-rust2`
+  --> Cargo.toml:69:1
+   |
+69 | lzma-rust2 = "0.21.0"
+   | ^^^^^^^^^^
+   |
+help: consider removing the workspace dependency `lzma-rust2`
+warning: unused workspace dependency `opentelemetry`
+  --> Cargo.toml:70:1
+   |
+70 | opentelemetry = "0.33.0"
+   | ^^^^^^^^^^^^^
+   |
+help: consider removing the workspace dependency `opentelemetry`
+warning: unused workspace dependency `opentelemetry-aws`
+  --> Cargo.toml:71:1
+   |
+71 | opentelemetry-aws = "0.21.0"
+   | ^^^^^^^^^^^^^^^^^
+   |
+help: consider removing the workspace dependency `opentelemetry-aws`
+warning: unused workspace dependency `opentelemetry-otlp`
+  --> Cargo.toml:72:1
+   |
+72 | opentelemetry-otlp = "0.33.0"
+   | ^^^^^^^^^^^^^^^^^^
+   |
+help: consider removing the workspace dependency `opentelemetry-otlp`
+warning: unused workspace dependency `opentelemetry_sdk`
+  --> Cargo.toml:73:1
+   |
+73 | opentelemetry_sdk = "0.33.0"
+   | ^^^^^^^^^^^^^^^^^
+   |
+help: consider removing the workspace dependency `opentelemetry_sdk`
+warning: unused workspace dependency `portable-atomic-util`
+   --> Cargo.toml:181:1
+    |
+181 | portable-atomic-util = { version = "0.2.8", features = ["alloc"] }
+    | ^^^^^^^^^^^^^^^^^^^^
+    |
+help: consider removing the workspace dependency `portable-atomic-util`
+warning: unused workspace dependency `pretty_assertions`
+  --> Cargo.toml:80:1
+   |
+80 | pretty_assertions = "1.4.1"
+   | ^^^^^^^^^^^^^^^^^
+   |
+help: consider removing the workspace dependency `pretty_assertions`
+warning: unused workspace dependency `tracing-opentelemetry`
+   --> Cargo.toml:116:1
+    |
+116 | tracing-opentelemetry = "0.34.0"
+    | ^^^^^^^^^^^^^^^^^^^^^
+    |
+help: consider removing the workspace dependency `tracing-opentelemetry`
+warning: workspace (manifest) generated 15 warnings
+warning: missing `[lints]` to inherit `[workspace.lints]`
+  --> crates/burn-store/pytorch-tests/Cargo.toml
+   = note: `cargo::missing_lints_inheritance` is set to `warn` by default
+help: to inherit `workspace.lints, add:
+   |
+10 ~ serde = { workspace = true }
+11 + [lints]
+12 + workspace = true
+   |
+help: to clarify your intent to not inherit, add:
+   |
+10 ~ serde = { workspace = true }
+11 + [lints]
+   |
+warning: `pytorch-tests` (manifest) generated 1 warning
+warning: missing `[lints]` to inherit `[workspace.lints]`
+  --> crates/burn-store/safetensors-tests/Cargo.toml
+   = note: `cargo::missing_lints_inheritance` is set to `warn` by default
+help: to inherit `workspace.lints, add:
+   |
+12 ~ serde = { workspace = true }
+13 + [lints]
+14 + workspace = true
+   |
+help: to clarify your intent to not inherit, add:
+   |
+12 ~ serde = { workspace = true }
+13 + [lints]
+   |
+warning: `safetensors-tests` (manifest) generated 1 warning
+    Finished ]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles\`dev` profile [unoptimized + debuginfo]]8;;\ target(s) in 0.58s
+     Running `kache test-runner target/xtask/debug/xtask validate`
+[2026-11-06T05:23:17Z INFO  tracel_xtask] Environment: development
+[2026-11-06T05:23:17Z INFO  tracel_xtask] Context: std
+[2026-11-06T05:23:17Z INFO  tracel_xtask::commands::check] Format Workspace
+[2026-11-06T05:23:17Z INFO  tracel_xtask_utils::process] Command line: cargo fmt --check
+[2026-11-06T05:23:19Z INFO  tracel_xtask::commands::check] Typos
+[2026-11-06T05:23:19Z INFO  tracel_xtask_utils::process] Command line: typos 
+[2026-11-06T05:23:19Z INFO  tracel_xtask::commands::check] Audit Rust Dependencies
+[2026-11-06T05:23:19Z INFO  tracel_xtask_utils::process] Command line: cargo audit -q --color always
+[2026-11-06T05:23:24Z INFO  tracel_xtask::commands::check] Lint Workspace
+[2026-11-06T05:23:24Z INFO  tracel_xtask_utils::process] Command line: cargo clippy --no-deps --color=always -- --deny warnings
+warning: unused workspace dependency `burn-tensor-testgen`
+   --> Cargo.toml:221:1
+    |
+221 | burn-tensor-testgen = { path = "crates/burn-tensor-testgen", version = "0.23.0-pre.1", default-features = false }
+    | ^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `cargo::unused_workspace_dependencies` is set to `warn` by default
+help: consider removing the workspace dependency `burn-tensor-testgen`
+warning: unused workspace dependency `cfg-if`
+   --> Cargo.toml:146:1
+    |
+146 | cfg-if = "1.0.5"
+    | ^^^^^^
+    |
+help: consider removing the workspace dependency `cfg-if`
+warning: unused workspace dependency `dashmap`
+  --> Cargo.toml:44:1
+   |
+44 | dashmap = "6.2.1"
+   | ^^^^^^^
+   |
+help: consider removing the workspace dependency `dashmap`
+warning: unused workspace dependency `float-cmp`
+  --> Cargo.toml:53:1
+   |
+53 | float-cmp = "0.10.0"
+   | ^^^^^^^^^
+   |
+help: consider removing the workspace dependency `float-cmp`
+warning: unused workspace dependency `insta`
+  --> Cargo.toml:63:1
+   |
+63 | insta = "1.48.0"
+   | ^^^^^
+   |
+help: consider removing the workspace dependency `insta`
+warning: unused workspace dependency `js-sys`
+  --> Cargo.toml:66:1
+   |
+66 | js-sys = "0.3.106"
+   | ^^^^^^
+   |
+help: consider removing the workspace dependency `js-sys`
+warning: unused workspace dependency `libc`
+   --> Cargo.toml:172:1
+    |
+172 | libc = "0.2.189"
+    | ^^^^
+    |
+help: consider removing the workspace dependency `libc`
+warning: unused workspace dependency `lzma-rust2`
+  --> Cargo.toml:69:1
+   |
+69 | lzma-rust2 = "0.21.0"
+   | ^^^^^^^^^^
+   |
+help: consider removing the workspace dependency `lzma-rust2`
+warning: unused workspace dependency `opentelemetry`
+  --> Cargo.toml:70:1
+   |
+70 | opentelemetry = "0.33.0"
+   | ^^^^^^^^^^^^^
+   |
+help: consider removing the workspace dependency `opentelemetry`
+warning: unused workspace dependency `opentelemetry-aws`
+  --> Cargo.toml:71:1
+   |
+71 | opentelemetry-aws = "0.21.0"
+   | ^^^^^^^^^^^^^^^^^
+   |
+help: consider removing the workspace dependency `opentelemetry-aws`
+warning: unused workspace dependency `opentelemetry-otlp`
+  --> Cargo.toml:72:1
+   |
+72 | opentelemetry-otlp = "0.33.0"
+   | ^^^^^^^^^^^^^^^^^^
+   |
+help: consider removing the workspace dependency `opentelemetry-otlp`
+warning: unused workspace dependency `opentelemetry_sdk`
+  --> Cargo.toml:73:1
+   |
+73 | opentelemetry_sdk = "0.33.0"
+   | ^^^^^^^^^^^^^^^^^
+   |
+help: consider removing the workspace dependency `opentelemetry_sdk`
+warning: unused workspace dependency `portable-atomic-util`
+   --> Cargo.toml:181:1
+    |
+181 | portable-atomic-util = { version = "0.2.8", features = ["alloc"] }
+    | ^^^^^^^^^^^^^^^^^^^^
+    |
+help: consider removing the workspace dependency `portable-atomic-util`
+warning: unused workspace dependency `pretty_assertions`
+  --> Cargo.toml:80:1
+   |
+80 | pretty_assertions = "1.4.1"
+   | ^^^^^^^^^^^^^^^^^
+   |
+help: consider removing the workspace dependency `pretty_assertions`
+warning: unused workspace dependency `tracing-opentelemetry`
+   --> Cargo.toml:116:1
+    |
+116 | tracing-opentelemetry = "0.34.0"
+    | ^^^^^^^^^^^^^^^^^^^^^
+    |
+help: consider removing the workspace dependency `tracing-opentelemetry`
+warning: workspace (manifest) generated 15 warnings
+warning: missing `[lints]` to inherit `[workspace.lints]`
+  --> crates/burn-store/pytorch-tests/Cargo.toml
+   = note: `cargo::missing_lints_inheritance` is set to `warn` by default
+help: to inherit `workspace.lints, add:
+   |
+10 ~ serde = { workspace = true }
+11 + [lints]
+12 + workspace = true
+   |
+help: to clarify your intent to not inherit, add:
+   |
+10 ~ serde = { workspace = true }
+11 + [lints]
+   |
+warning: `pytorch-tests` (manifest) generated 1 warning
+warning: missing `[lints]` to inherit `[workspace.lints]`
+  --> crates/burn-store/safetensors-tests/Cargo.toml
+   = note: `cargo::missing_lints_inheritance` is set to `warn` by default
+help: to inherit `workspace.lints, add:
+   |
+12 ~ serde = { workspace = true }
+13 + [lints]
+14 + workspace = true
+   |
+help: to clarify your intent to not inherit, add:
+   |
+12 ~ serde = { workspace = true }
+13 + [lints]
+   |
+warning: `safetensors-tests` (manifest) generated 1 warning
+   Compiling ring v0.17.14
+   Compiling burn-einsum v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-einsum)
+   Compiling burn-optim v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-optim)
+   Compiling burn-derive v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-derive)
+   Compiling rustls v0.23.46
+   Compiling rustls-webpki v0.103.16
+   Compiling ureq v3.4.2
+   Compiling tracel-llvm-bundler v23.1.0-4
+   Compiling cubecl-llvm v0.12.0-pre.2 (https://github.com/tracel-ai/cubecl?rev=d88b0febb50e7b83a8548125f6a701c12f11a2ba#d88b0feb)
+    Checking tokio-rustls v0.26.6
+    Checking rustls-platform-verifier v0.7.1
+    Checking noq-proto v1.3.0
+    Checking ureq v2.12.1
+    Checking hyper-rustls v0.27.10
+    Checking tokio-websockets v0.13.3
+    Checking tracel-xtask v5.0.0
+    Checking hf-hub v0.4.3
+    Checking noq v1.3.0
+    Checking tokenizers v0.23.2
+    Checking reqwest v0.13.5
+    Checking reqwest v0.12.28
+    Checking xtask v4.10.0 (/Volumes/HIKSEMI/code/burn/xtask)
+    Checking burn-std v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-std)
+    Checking n0-dns-resolver v0.1.0
+    Checking object_store v0.13.2
+    Checking polars-error v0.55.2
+    Checking iroh-dns v1.3.0
+    Checking iroh-relay v1.3.0
+    Checking burn-pack v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-pack)
+    Checking burn-dataset v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-dataset)
+    Checking polars-config v0.55.2
+    Checking polars-utils v0.55.2
+    Checking cubecl-hip v0.12.0-pre.2 (https://github.com/tracel-ai/cubecl?rev=d88b0febb50e7b83a8548125f6a701c12f11a2ba#d88b0feb)
+    Checking cubecl-cuda v0.12.0-pre.2 (https://github.com/tracel-ai/cubecl?rev=d88b0febb50e7b83a8548125f6a701c12f11a2ba#d88b0feb)
+    Checking cubecl-cpu v0.12.0-pre.2 (https://github.com/tracel-ai/cubecl?rev=d88b0febb50e7b83a8548125f6a701c12f11a2ba#d88b0feb)
+    Checking polars-buffer v0.55.2
+    Checking polars-schema v0.55.2
+    Checking polars-async v0.55.2
+    Checking iroh v1.3.0
+    Checking polars-arrow v0.55.2
+    Checking cubecl v0.12.0-pre.2 (https://github.com/tracel-ai/cubecl?rev=d88b0febb50e7b83a8548125f6a701c12f11a2ba#d88b0feb)
+    Checking cubek-std v0.4.0-pre.1 (https://github.com/tracel-ai/cubek?rev=3d3ab9680931c5903286bb30eb2b8ff156e1618b#3d3ab968)
+    Checking burn-backend v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-backend)
+    Checking cubek-pool v0.4.0-pre.1 (https://github.com/tracel-ai/cubek?rev=3d3ab9680931c5903286bb30eb2b8ff156e1618b#3d3ab968)
+    Checking polars-compute v0.55.2
+    Checking polars-dtype v0.55.2
+    Checking cubek-microkernel v0.4.0-pre.1 (https://github.com/tracel-ai/cubek?rev=3d3ab9680931c5903286bb30eb2b8ff156e1618b#3d3ab968)
+    Checking cubek-quant v0.4.0-pre.1 (https://github.com/tracel-ai/cubek?rev=3d3ab9680931c5903286bb30eb2b8ff156e1618b#3d3ab968)
+    Checking cubek-reduce v0.4.0-pre.1 (https://github.com/tracel-ai/cubek?rev=3d3ab9680931c5903286bb30eb2b8ff156e1618b#3d3ab968)
+    Checking cubek-interpolate v0.4.0-pre.1 (https://github.com/tracel-ai/cubek?rev=3d3ab9680931c5903286bb30eb2b8ff156e1618b#3d3ab968)
+    Checking cubek-random v0.4.0-pre.1 (https://github.com/tracel-ai/cubek?rev=3d3ab9680931c5903286bb30eb2b8ff156e1618b#3d3ab968)
+    Checking cubek-matmul v0.4.0-pre.1 (https://github.com/tracel-ai/cubek?rev=3d3ab9680931c5903286bb30eb2b8ff156e1618b#3d3ab968)
+    Checking burn-ir v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-ir)
+    Checking burn-communication v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-communication)
+    Checking burn-autodiff v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-autodiff)
+    Checking polars-row v0.55.2
+    Checking polars-parquet v0.55.2
+    Checking cubek-attention-backward v0.4.0-pre.1 (https://github.com/tracel-ai/cubek?rev=3d3ab9680931c5903286bb30eb2b8ff156e1618b#3d3ab968)
+    Checking cubek-convolution v0.4.0-pre.1 (https://github.com/tracel-ai/cubek?rev=3d3ab9680931c5903286bb30eb2b8ff156e1618b#3d3ab968)
+    Checking cubek-attention v0.4.0-pre.1 (https://github.com/tracel-ai/cubek?rev=3d3ab9680931c5903286bb30eb2b8ff156e1618b#3d3ab968)
+    Checking burn-fusion v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-fusion)
+    Checking burn-flex v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-flex)
+    Checking polars-core v0.55.2
+    Checking polars-ops v0.55.2
+    Checking polars-time v0.55.2
+    Checking burn-router v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-router)
+    Checking polars-io v0.55.2
+    Checking cubek v0.4.0-pre.1 (https://github.com/tracel-ai/cubek?rev=3d3ab9680931c5903286bb30eb2b8ff156e1618b#3d3ab968)
+    Checking polars-plan v0.55.2
+    Checking polars-ooc v0.55.2
+    Checking burn-remote v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-remote)
+    Checking burn-capture v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-capture)
+    Checking burn-group v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-group)
+    Checking polars-expr v0.55.2
+    Checking burn-cubecl-fusion v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-cubecl-fusion)
+    Checking polars-mem-engine v0.55.2
+    Checking polars-stream v0.55.2
+    Checking polars-lazy v0.55.2
+    Checking polars v0.55.2
+    Checking burn-cubecl v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-cubecl)
+    Checking burn-dispatch v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-dispatch)
+    Checking burn-cpu v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-cpu)
+    Checking burn-wgpu v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-wgpu)
+    Checking burn-cuda v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-cuda)
+    Checking burn-rocm v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-rocm)
+    Checking burn-tensor v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-tensor)
+    Checking burn-instrument v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-instrument)
+    Checking burn-core v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-core)
+    Checking burn-instrument-report v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-instrument-report)
+    Checking burn-nn v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-nn)
+    Checking burn-store v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-store)
+    Checking burn-vision v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-vision)
+    Checking burn-rl v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-rl)
+    Checking burn-signal v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-signal)
+    Checking burn-linalg v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-linalg)
+    Checking burn-train v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-train)
+error: the loop variable `i` is only used to index `self.points`
+   --> crates/burn-train/src/renderer/tui/recent_history.rs:206:18
+    |
+206 |         for i in self.cursor..self.points.len() {
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+note: for this index operation
+   --> crates/burn-train/src/renderer/tui/recent_history.rs:207:25
+    |
+207 |             points.push(self.points[i]);
+    |                         ^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/beta/index.html#needless_range_loop
+    = note: `-D clippy::needless-range-loop` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_range_loop)]`
+help: consider using an iterator
+    |
+206 -         for i in self.cursor..self.points.len() {
+206 +         for <item> in self.points.iter().take(self.points.len()).skip(self.cursor) {
+    |
+
+error: could not compile `burn-train` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: this `if` guard returns a bool literal and is followed by another
+   --> crates/burn-store/src/filter.rs:178:9
+    |
+178 | /         if self
+179 | |             .predicates
+180 | |             .iter()
+181 | |             .any(|pred| pred(path, container_path))
+...   |
+186 | |         false
+    | |_____________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/beta/index.html#needless_bool
+    = note: `-D clippy::needless-bool` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_bool)]`
+help: you can reduce it to
+    |
+178 ~         self
+179 +             .predicates
+180 +             .iter()
+181 +             .any(|pred| pred(path, container_path))
+    |
+
+error: could not compile `burn-store` (lib) due to 1 previous error
+warning: unused dependency `strum`
+  --> crates/burn-dataset/Cargo.toml:80:1
+   |
+80 | strum = { workspace = true }
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `strum`
+warning: `burn-dataset` (manifest) generated 1 warning
+warning: unused dependency `hashbrown`
+  --> crates/burn-std/Cargo.toml:32:1
+   |
+32 | hashbrown = { workspace = true }
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `hashbrown`
+warning: `burn-std` (manifest) generated 1 warning
+warning: unused dependency `rstest`
+  --> crates/burn-train/Cargo.toml:64:1
+   |
+64 | rstest.workspace = true
+   | ^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `rstest`
+warning: `burn-train` (manifest) generated 1 warning
+Error: Workspace lint failed (exit status: 101)

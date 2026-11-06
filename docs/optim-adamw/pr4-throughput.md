@@ -1,6 +1,6 @@
 # PR 4：AdamW 大参数吞吐优化
 
-> 文档状态：独立 PR 设计稿，尚未实现或测量
+> 文档状态：CPU 向量化已实现并通过性能验收；GPU runtime 保留 scalar；完整数据见 [pr4-throughput-report.md](pr4-throughput-report.md)。
 >
 > 性能类型：提高大参数 Fused 内核的有效吞吐，并在有收益时扩大快路径范围
 >
@@ -107,13 +107,19 @@ p_new = decayed - delta * F(lr)
 适用于标量内存访问限制大参数吞吐的情况：
 
 1. Host 根据所有输入/输出的地址对齐、layout 和 dtype 选择 vector width；
-2. 不对齐或 layout 不合格时使用标量 variant；
-3. 主体按 vector width 处理，尾部使用标量循环；
+2. 不对齐或 layout 不合格时使用合法的较小宽度或标量 variant；
+3. 大连续输入的主体按 vector width 处理，余下元素使用同一 kernel 的 width=1 variant，offset 为主体元素数；不额外分配输出；
 4. 所有 param/grad/state read 和 output write 使用同一逻辑 index；
 5. JIT key 区分 vector width 和 variant；
 6. 不改变 optional max 的读取和写入条件。
 
 vector width 不照搬其他框架常量，按 runtime 实测选择。输出复用若已存在，仍须先通过既有 COW 规则；本 PR 不放宽 alias 条件。
+
+本次未保留的实验使用 runtime 的 `io_optimized_vector_sizes`。全部参与 view 连续时按总元素数处理，
+无需限制最内维整除；其他布局使用已有 `max_vector_size` 并取共同宽度。每个 handle 的 offset
+进一步限制宽度。若余数非零且向量主体不足一个硬件允许的完整 workgroup，则使用一次标量提交，
+避免小不规则张量的额外尾部 launch。较大余数场景最多两次提交，两次均保留所有输入，写入区间不相交。
+offset 为运行时索引，不把张量长度放入 JIT key；宽度、布局、alias及已有variant仍属于编译参数。
 
 ### 4.2 地址计算或 launch 配置
 
@@ -193,14 +199,14 @@ cargo test -p burn-optim --features burn-core/flex
 cargo run-checks
 
 cargo test -p burn-optim --no-default-features --features std,cpu
-cargo test -p burn-optim --no-default-features --features std,cpu,adamw-bench-observability
-cargo test -p burn-optim --no-default-features --features std,cpu,fusion,adamw-bench-observability
+cargo test -p burn-optim --no-default-features --features std,cpu
+cargo test -p burn-optim --no-default-features --features std,cpu,burn-core/fusion
 
-cargo bench -p burn-optim --bench adamw --no-default-features --features std,cpu,adamw-bench-observability -- --verify-path
+cargo bench -p burn-optim --bench adamw --no-default-features --features std,cpu -- --verify-path
 cargo bench -p burn-optim --bench adamw --no-default-features --features std,cpu
 
 # 大参数结论应尽量在实际目标 GPU 上验证；无硬件时明确 skipped
-cargo test -p burn-optim --no-default-features --features std,cuda,adamw-bench-observability
+cargo test -p burn-optim --no-default-features --features std,cuda
 cargo run-checks --backend cuda
 ```
 
@@ -216,6 +222,6 @@ PR 描述至少包含：
 - variant/尾部/layout/JIT 测试；
 - 大参数与小参数直接 A/B，明确各对照组的实际路径；
 - JIT、吞吐、总时间、准入变化和限制；
-- 实测/跳过平台、changelog 和 AI Usage。
+- 实测/跳过平台和 AI Usage。
 
-如果没有独立大参数瓶颈、优化没有端到端收益，或扩大准入后的回退抵消总体价值，停止本 PR，不影响其他优化。
+如果没有独立大参数瓶颈、CPU/目标 runtime 没有端到端收益，或扩大准入后的回退抵消总体价值，停止对应 runtime 的向量化，不影响其他优化。

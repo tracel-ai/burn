@@ -1,10 +1,10 @@
 # PR 2：AdamW 参数与 state 的 COW 输出复用
 
-> 文档状态：独立 PR 设计稿，尚未实现或测量
+> 文档状态：已实现并连续两轮通过 review；测量及共享CPU限制见 [pr2-cow-report.md](pr2-cow-report.md)。
 >
 > 性能类型：减少稳态分配、回收和峰值内存
 >
-> 代码依赖：PR 1 的单参数 out-of-place Fused 已合并；不依赖 Foreach 或大参数向量化
+> 代码依赖：PR1 的 out-of-place Fused 已完成连续两轮 review；不依赖 Foreach 或向量化。
 >
 > 直接性能对照：合入前的 out-of-place Fused，不是 Reference
 
@@ -88,10 +88,10 @@ p_new = decayed - delta * F(lr)
 
 每个输出独立判断，不能因为 param 可复用就推断 state 也可复用：
 
-1. 输入 `can_mut()` 且 `is_nonoverlapping()`，不是 tiled；
+1. 输入 `can_mut()` 且 `is_nonoverlapping()`、`is_contiguous()`，不是 tiled；
 2. 输入 allocation id 不与任何其他角色的 allocation id 相同；
 3. 输入与输出的 shape、dtype、layout 相容；
-4. primitive 转换时为回退保留的临时句柄 clone 已全部 drop；
+4. 所有 primitive 转换成功后，原高层 tensor/state wrapper 已 drop；primitive 拒绝时从原 inputs 恢复 state/time/max；
 5. alias 参数的 input position 与实际 launch 签名一致。
 
 任一条件失败就分配新输出。`as_linear_view_alias` 只在全部条件满足时使用。
@@ -112,7 +112,7 @@ Fused 内核会读取 param、grad、old m1、old m2、可选 old max，再写 n
 
 ## 5. 正确性测试
 
-先通过路径观测确认测试实际进入专用 Fused，并区分复用与分配两种结果。所有会读取共享观测计数器的测试使用测试锁，执行后 `Device::sync` 再取差值。
+通过 CubeCL 现有 LaunchObserver 证明生产路径，allocation ID 断言区分复用与分配；观测测试使用测试锁。每个输出单独判定，其他角色的共享不会阻止独立输出复用。部分 runtime 的 narrow 会生成连续副本，测试按真实 metadata 验证。
 
 至少覆盖：
 
@@ -180,17 +180,17 @@ cargo run-checks
 
 # raw CubeCL CPU 路径与观测
 cargo test -p burn-optim --no-default-features --features std,cpu
-cargo test -p burn-optim --no-default-features --features std,cpu,adamw-bench-observability
+cargo test -p burn-optim --no-default-features --features std,cpu
 
 # Fusion 应继续回退 Reference，不触发专用路径
-cargo test -p burn-optim --no-default-features --features std,cpu,fusion,adamw-bench-observability
+cargo test -p burn-optim --no-default-features --features std,cpu,burn-core/fusion
 
 # 先验证 benchmark 路径，再采集无观测开销的性能
-cargo bench -p burn-optim --bench adamw --no-default-features --features std,cpu,adamw-bench-observability -- --verify-path
+cargo bench -p burn-optim --bench adamw --no-default-features --features std,cpu -- --verify-path
 cargo bench -p burn-optim --bench adamw --no-default-features --features std,cpu
 
 # GPU runtime 按硬件可用性替换 cpu，并运行对应 raw/Fusion 测试
-cargo test -p burn-optim --no-default-features --features std,cuda,adamw-bench-observability
+cargo test -p burn-optim --no-default-features --features std,cuda
 cargo run-checks --backend cuda
 ```
 
@@ -205,7 +205,7 @@ PR 描述至少包含：
 - 复用规则和失败时 out-of-place 行为；
 - alias、AMSGrad、checkpoint 测试结果；
 - 与 out-of-place Fused 的直接性能表；
-- 实测平台、跳过平台和 changelog；
+- 实测平台和跳过平台；
 - 按仓库政策填写 AI Usage。
 
 出现以下任一情况停止本 PR：共享输入必须被修改才能复用、alias 无法证明、COW 检查持续抵消收益，或只有分配次数改善而总时间和峰值内存均无实质收益。停止本 PR 不阻塞其他优化。

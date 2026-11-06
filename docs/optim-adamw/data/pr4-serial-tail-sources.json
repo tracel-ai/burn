@@ -1,0 +1,15 @@
+{
+  "binary_sha256": "e24b0fb99644de1e0940e11ed77f0e0340de7d371e9f28bf404cc27daa32c48a",
+  "sources": {
+    "Cargo.lock": "9cca6cc04cc7408767d7befb7b549dce2ac0c68492c3b0a1544f7a6ca44712ee",
+    "crates/burn-cubecl/src/kernel/optim/adamw.rs": "da4cb826519ff3d3f84044caa743a20ffe3e2245a3c8e941b272834a703c722f",
+    "crates/burn-optim/src/optim/adamw.rs": "442ec4a483f22cc4e232fe86a73e754110b2cecf451a6c54eca2f1d9cea50a1b",
+    "crates/burn-optim/src/optim/adamw/cube.rs": "a985edb26cf27c9d4579bde902db905955b536f71dda8f4bad586c069081aab3",
+    "crates/burn-optim/benches/adamw.rs": "b5c972335bb1d45e37c1490bfb943f39ed6ecb251504d0996098bde9082a8928",
+    "crates/burn-optim/Cargo.toml": "d8bf468df81203bd62c378f04fc94b6683f5119ad6cd1ed4cc90911e86e2add4",
+    "crates/burn-optim/build.rs": "04fc478a00f2a8ee59f08f3af1197760741b38557d7326c8baf17dec2c285f2c"
+  },
+  "wrapper": "disabled",
+  "artifact_path": "target/adamw-direct-final/release/build/burn-optim/c002f287e574a91c/out/adamw-c002f287e574a91c",
+  "valid_for_acceptance": true
+}

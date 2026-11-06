@@ -1,0 +1,38 @@
+[
+  {
+    "backend": "cpu",
+    "shared": false,
+    "stdout": "reuse workload=large_16 shared=false outputs=48 reused=48 new_output_ids=0\n",
+    "stderr": ""
+  },
+  {
+    "backend": "cpu",
+    "shared": true,
+    "stdout": "reuse workload=large_16 shared=true outputs=48 reused=0 new_output_ids=48\n",
+    "stderr": ""
+  },
+  {
+    "backend": "metal",
+    "shared": false,
+    "stdout": "reuse workload=large_16 shared=false outputs=48 reused=48 new_output_ids=0\n",
+    "stderr": ""
+  },
+  {
+    "backend": "metal",
+    "shared": true,
+    "stdout": "reuse workload=large_16 shared=true outputs=48 reused=0 new_output_ids=48\n",
+    "stderr": ""
+  },
+  {
+    "backend": "wgpu-msl",
+    "shared": false,
+    "stdout": "reuse workload=large_16 shared=false outputs=48 reused=48 new_output_ids=0\n",
+    "stderr": ""
+  },
+  {
+    "backend": "wgpu-msl",
+    "shared": true,
+    "stdout": "reuse workload=large_16 shared=true outputs=48 reused=0 new_output_ids=48\n",
+    "stderr": ""
+  }
+]

@@ -1,0 +1,14 @@
+{
+  "crates/burn-cubecl/src/kernel/optim/adamw.rs": {
+    "retained_scalar": "0730c7e8dd335cff43b177ac36efb10385324215ce53915f1f3c343fe1df0c8f",
+    "production_vector": "da4cb826519ff3d3f84044caa743a20ffe3e2245a3c8e941b272834a703c722f"
+  },
+  "crates/burn-optim/src/optim/adamw.rs": {
+    "retained_scalar": "177171f1cc4eb5069ec55ad02257df335ff46d28b1424fc2322090487befdae9",
+    "production_vector": "442ec4a483f22cc4e232fe86a73e754110b2cecf451a6c54eca2f1d9cea50a1b"
+  },
+  "crates/burn-optim/benches/adamw.rs": {
+    "retained_scalar": "9bbf07b94694bdb8ca4ac3baaf14589973b42199e7caa66e56d802731915357c",
+    "production_vector": "b5c972335bb1d45e37c1490bfb943f39ed6ecb251504d0996098bde9082a8928"
+  }
+}

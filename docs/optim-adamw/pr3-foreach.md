@@ -1,6 +1,6 @@
 # PR 3：AdamW 模块级多参数 Foreach
 
-> 文档状态：独立 PR 设计稿，尚未实现或测量
+> 文档状态：上游 API 前置阻塞，未实现；停止判断已通过两轮独立审查，见 [pr3-foreach-report.md](pr3-foreach-report.md)。
 >
 > 性能类型：减少多参数模型的物理 launch 与 host enqueue 开销
 >
@@ -211,7 +211,7 @@ ApplyBatchMapper 再次 Param::consume，按 ParamId 取输出，调用 Paramete
 
 Pending 的 stream 是收集时原 step_dyn 本应使用的**有效执行 stream**，不是 tensor allocation 的创建 stream。unpinned client 来自当时的 `StreamId::current()`，显式 pinned client 来自固定 stream；`Handle.stream` 不能用于这个判断。
 
-当前锁定 CubeCL 的 `ComputeClient::stream_id()` 已实现 `Some(pinned)->pinned / None->StreamId::current()`，但方法私有。本 PR 实施前必须在指定 CubeCL revision 提供等价只读 API，例如：
+当前锁定 CubeCL 的 `Client::stream_id()` 已实现 `Some(pinned)->pinned / None->StreamId::current()`，但方法私有。本 PR 实施前必须在指定 CubeCL revision 提供等价只读 API，例如：
 
 ```rust
 pub fn execution_stream(&self) -> StreamId {
@@ -410,16 +410,16 @@ cargo run-checks
 
 # CubeCL CPU raw、Fusion 与路径/chunk 观测
 cargo test -p burn-optim --no-default-features --features std,cpu
-cargo test -p burn-optim --no-default-features --features std,cpu,adamw-bench-observability
-cargo test -p burn-optim --no-default-features --features std,cpu,fusion,adamw-bench-observability
+cargo test -p burn-optim --no-default-features --features std,cpu
+cargo test -p burn-optim --no-default-features --features std,cpu,burn-core/fusion
 
 # benchmark 先验证路径，再无观测开销计时
-cargo bench -p burn-optim --bench adamw --no-default-features --features std,cpu,adamw-bench-observability -- --verify-path
+cargo bench -p burn-optim --bench adamw --no-default-features --features std,cpu -- --verify-path
 cargo bench -p burn-optim --bench adamw --no-default-features --features std,cpu
 
 # CUDA 示例；ROCm/Metal/WGPU 按实际硬件执行对应 raw/Fusion 测试
-cargo test -p burn-optim --no-default-features --features std,cuda,adamw-bench-observability
-cargo test -p burn-optim --no-default-features --features std,cuda,fusion,adamw-bench-observability
+cargo test -p burn-optim --no-default-features --features std,cuda
+cargo test -p burn-optim --no-default-features --features std,cuda,burn-core/fusion
 cargo run-checks --backend cuda
 ```
 
@@ -436,7 +436,7 @@ PR 描述至少包含：
 - chunk/上限/JIT 方案及 prototype 结论；
 - 数值、rank、stream、checkpoint、decorator 和路径观测结果；
 - enqueue/device/drop/metadata/JIT 数据；
-- 实测平台、跳过平台、changelog 和 AI Usage。
+- 实测平台、跳过平台和 AI Usage。
 
 出现以下情况停止本 PR：Sequence 参数形式不可行、无法查询并恢复有效 stream、必须引入 D2H sync、分组无法保留逐参数 lr/time，或端到端净收益不成立。某 runtime 不支持时保留 Reference，不用未验证代码兜底。
 

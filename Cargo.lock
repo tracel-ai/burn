@@ -1344,10 +1344,12 @@ name = "burn-optim"
 version = "0.23.0-pre.1"
 dependencies = [
  "burn-core",
+ "burn-cubecl",
  "burn-derive",
  "burn-nn",
  "burn-pack",
  "derive-new",
+ "divan",
  "hashbrown 0.16.1",
  "log",
  "num-traits",

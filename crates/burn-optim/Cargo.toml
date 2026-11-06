@@ -21,8 +21,27 @@ doc = [
     # Doc features
     "burn-core/doc",
 ]
-std = ["burn-core/std", "burn-pack/std", "num-traits/std", "serde/std", "log"]
+std = [
+    "burn-core/std",
+    "burn-pack/std",
+    "num-traits/std",
+    "serde/std",
+    "log",
+    "burn-cubecl?/std",
+]
 tracing = ["burn-core/tracing"]
+
+# CubeCL runtimes. Each compiles the fused AdamW bridge and enables the runtime's dispatch
+# backend. Without one of these features the bridge is not built and every step falls back to
+# the reference implementation.
+cpu = ["std", "dep:burn-cubecl", "burn-core/cpu", "burn-cubecl/cpu"]
+cuda = ["std", "dep:burn-cubecl", "burn-core/cuda", "burn-cubecl/cuda"]
+rocm = ["std", "dep:burn-cubecl", "burn-core/rocm", "burn-cubecl/hip"]
+wgpu = ["std", "dep:burn-cubecl", "burn-core/wgpu", "burn-cubecl/wgpu"]
+wgpu-msl = ["std", "dep:burn-cubecl", "burn-core/wgpu-msl", "burn-cubecl/wgpu-msl"]
+vulkan = ["std", "dep:burn-cubecl", "burn-core/vulkan", "burn-cubecl/vulkan"]
+webgpu = ["std", "dep:burn-cubecl", "burn-core/webgpu", "burn-cubecl/webgpu"]
+metal = ["std", "dep:burn-cubecl", "burn-core/metal", "burn-cubecl/metal"]
 
 # collective = ["burn-collective"]
 
@@ -32,6 +51,8 @@ tracing = ["burn-core/tracing"]
 burn-core = { workspace = true, features = ["autodiff", "extension"] }
 burn-derive = { workspace = true }
 burn-pack = { workspace = true, default-features = false }
+# Default features off: they turn on kernel fusion, which would hide the raw eager fast path.
+burn-cubecl = { workspace = true, optional = true, default-features = false }
 
 num-traits = { workspace = true }
 derive-new = { workspace = true }
@@ -43,7 +64,14 @@ hashbrown = { workspace = true, features = ["serde"] } # no_std compatible
 
 [dev-dependencies]
 # Use path instead of workspace dep (which specifies a version, creating a circular publish dependency chain)
-burn-nn = { path = "../burn-nn", features = ["default"] }
+# Default features off so `burn-core/default` does not re-enable fusion through the dev-dependency.
+burn-nn = { path = "../burn-nn", default-features = false, features = ["std"] }
+divan = "0.1"
+
+[[bench]]
+name = "adamw"
+path = "benches/adamw.rs"
+harness = false
 
 [package.metadata.docs.rs]
 features = ["doc"]
