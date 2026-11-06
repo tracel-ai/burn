@@ -106,8 +106,8 @@ pub enum ShardingError {
         dim: usize,
         /// The tensor's shape.
         shape: Shape,
-        /// The sharded compute device's number of members.
-        num_members: usize,
+        /// The chunks the split cuts: the members, or a replicated split's groups.
+        chunks: usize,
     },
     /// The split dim is not one of the tensor's.
     MissingDim {
@@ -117,13 +117,13 @@ pub enum ShardingError {
         shape: Shape,
     },
     /// Fewer indices than chunks along the split dim would leave a member empty.
-    DimShorterThanMembers {
+    DimShorterThanChunks {
         /// The dim asked for.
         dim: usize,
         /// The tensor's shape.
         shape: Shape,
         /// The chunks the split cuts: the members, or a replicated split's groups.
-        num_members: usize,
+        chunks: usize,
     },
     /// A replicated split's groups must divide the members, and be neither one nor every member.
     Groups {
@@ -148,25 +148,17 @@ pub enum ShardingError {
 impl core::fmt::Display for ShardingError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::QuantizedSplit {
-                dim,
-                shape,
-                num_members,
-            } => write!(
+            Self::QuantizedSplit { dim, shape, chunks } => write!(
                 f,
-                "Splitting dim {dim} of a quantized tensor of shape {shape:?} over \
-                 {num_members} members would cut its quantization blocks or packed words"
+                "Splitting dim {dim} of a quantized tensor of shape {shape:?} into {chunks} \
+                 chunks would cut its quantization blocks or packed words"
             ),
             Self::MissingDim { dim, shape } => {
                 write!(f, "A tensor of shape {shape:?} has no dim {dim} to split")
             }
-            Self::DimShorterThanMembers {
-                dim,
-                shape,
-                num_members,
-            } => write!(
+            Self::DimShorterThanChunks { dim, shape, chunks } => write!(
                 f,
-                "Dim {dim} of a tensor of shape {shape:?} is shorter than the {num_members} chunks \
+                "Dim {dim} of a tensor of shape {shape:?} is shorter than the {chunks} chunks \
                  a split cuts it into, so a member would be left empty"
             ),
             Self::Groups {

@@ -158,6 +158,7 @@ fn query_heads_split_over_four_attend_the_key_head_their_pair_shares() {
         Tensor::from_data(value.clone(), &flex),
         None,
         None,
+        None,
         Default::default(),
     )
     .into_data();
@@ -170,6 +171,7 @@ fn query_heads_split_over_four_attend_the_key_head_their_pair_shares() {
         sharded::<4>(query, &device, heads),
         key.clone(),
         value,
+        None,
         None,
         None,
         Default::default(),

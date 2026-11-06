@@ -28,9 +28,9 @@ impl<const D: usize, K: Autodiff> Tensor<D, K> {
     ///
     /// When `device` is not a sharded compute device, which needs the `shard` feature, when there
     /// is not one shard per member, when shard `i` is not on member `i`'s device, when the shards
-    /// differ in dtype or quantization scheme, when a partial sum is not of floats or ints, or
-    /// when a shard's shape is not its member's part, a quantized chunk holding whole
-    /// quantization blocks and packed words.
+    /// differ in dtype or quantization scheme, when a partial sum is not of floats or ints, when a
+    /// replicated split's groups do not divide the members, or when a shard's shape is not its
+    /// member's part, a quantized chunk holding whole quantization blocks and packed words.
     pub fn from_shards(shards: Shards<Self>, device: &Device) -> Result<Self, ShardsError> {
         #[cfg(feature = "shard")]
         {

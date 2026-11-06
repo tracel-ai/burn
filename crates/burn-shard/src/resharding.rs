@@ -65,7 +65,7 @@ impl Resharding {
             false => Err(ShardingError::QuantizedSplit {
                 dim,
                 shape: shape.clone(),
-                num_members,
+                chunks,
             }),
         }
     }
@@ -136,10 +136,10 @@ impl Resharding {
             });
         }
         if shape[dim] < chunks {
-            return Err(ShardingError::DimShorterThanMembers {
+            return Err(ShardingError::DimShorterThanChunks {
                 dim,
                 shape: shape.clone(),
-                num_members: chunks,
+                chunks,
             });
         }
         Ok(())
@@ -178,7 +178,7 @@ mod tests {
 
         assert!(matches!(
             resharding,
-            Err(ShardingError::DimShorterThanMembers { dim: 0, .. })
+            Err(ShardingError::DimShorterThanChunks { dim: 0, .. })
         ));
     }
 

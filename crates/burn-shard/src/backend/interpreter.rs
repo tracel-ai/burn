@@ -757,19 +757,22 @@ mod tests {
 
     #[test]
     fn every_sharding_reshards_to_every_other_and_keeps_its_value() {
-        let data = TensorData::new((0..24).map(|i| i as f32).collect::<Vec<_>>(), [4, 6]);
-        for num_members in 1..=4 {
+        let data = TensorData::new((0..72).map(|i| i as f32).collect::<Vec<_>>(), [12, 6]);
+        let tensor = |id, status| TensorIr {
+            id,
+            shape: [12, 6].into(),
+            status,
+            dtype: DType::F32,
+        };
+        for num_members in [1usize, 2, 3, 4, 6] {
             let mut shardings = vec![
                 Sharding::Replicated,
                 Sharding::PartialSum,
                 Sharding::Split { dim: 0 },
                 Sharding::Split { dim: 1 },
             ];
-            if num_members == 4 {
-                shardings.extend([
-                    Sharding::ReplicatedSplit { dim: 0, groups: 2 },
-                    Sharding::ReplicatedSplit { dim: 1, groups: 2 },
-                ]);
+            for groups in (2..num_members).filter(|groups| num_members.is_multiple_of(*groups)) {
+                shardings.extend([0, 1].map(|dim| Sharding::ReplicatedSplit { dim, groups }));
             }
             let mut interpreter = ShardInterpreter::<Flex>::new(
                 vec![FlexDevice; num_members],
@@ -784,16 +787,100 @@ mod tests {
                     let (id, value) = joined(&mut interpreter, &data, from);
 
                     let moved = interpreter
-                        .resharded(&whole(id, TensorStatus::ReadWrite), from, to)
+                        .resharded(&tensor(id, TensorStatus::ReadWrite), from, to)
                         .unwrap();
 
                     let case = format!("{num_members} members, {from:?} to {to:?}");
                     assert_eq!(interpreter.sharding(&moved), to, "{case}");
-                    let read = block_on(interpreter.read(whole(moved, TensorStatus::ReadWrite)));
+                    if to != Sharding::PartialSum {
+                        let held = interpreter
+                            .sharded_tensor(&tensor(moved, TensorStatus::ReadOnly), to)
+                            .into_handles();
+                        for (member, handle) in held.into_iter().enumerate() {
+                            let HandleKind::Float(shard) = handle else {
+                                unreachable!("A float tensor's shards are float")
+                            };
+                            let shard = block_on(Flex::float_into_data(shard)).unwrap();
+                            let expected = member_part(&value, to, member, num_members);
+                            assert_eq!(shard, expected, "{case}, member {member}");
+                        }
+                    }
+                    let read = block_on(interpreter.read(tensor(moved, TensorStatus::ReadWrite)));
                     assert_eq!(read.unwrap(), value, "{case}");
                 }
             }
         }
+    }
+
+    /// What `member` of `num_members` holds of `data` as `sharding` lays it, worked out from the
+    /// rows of the whole so it does not share the interpreter's own mapping.
+    fn member_part(
+        data: &TensorData,
+        sharding: Sharding,
+        member: usize,
+        num_members: usize,
+    ) -> TensorData {
+        let (Some(dim), Some(chunks)) = (sharding.split_dim(), sharding.num_chunks(num_members))
+        else {
+            return data.clone();
+        };
+        // Contiguous groups: member `m` of `n` is in group `m * chunks / n`.
+        let chunk = member * chunks / num_members;
+        DimSplit {
+            dim,
+            len: data.shape()[dim],
+            members: chunks,
+        }
+        .data_chunks(data)
+        .nth(chunk)
+        .expect("A member's group is one of the chunks")
+    }
+
+    /// Codes and scales cut by group stay as they are, read back from one member per group, and
+    /// the copies of a group are its chunk.
+    #[test]
+    fn a_quantized_replicated_split_reads_back_unchanged() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native)
+            .per_block([2], ScaleDtype::F32);
+        let codes: Vec<i8> = (0..32).collect();
+        let scales: Vec<f32> = (1..=16).map(|i| i as f32 * 0.1).collect();
+        let data = TensorData::quantized(codes, [4, 8], scheme, &scales, None);
+        let pairs = Sharding::ReplicatedSplit { dim: 0, groups: 2 };
+        let tensor = |id| TensorIr {
+            id,
+            shape: [4, 8].into(),
+            status: TensorStatus::ReadOnly,
+            dtype: data.dtype(),
+        };
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice; 4], ShardCustomOps::default()).unwrap();
+        let replicated = interpreter.register_tensor_data(data.clone());
+
+        let split = interpreter
+            .resharded(&tensor(replicated), Sharding::Replicated, pairs)
+            .unwrap();
+        let held = interpreter
+            .sharded_tensor(&tensor(split), pairs)
+            .into_handles();
+        let gathered = interpreter
+            .resharded(&tensor(split), pairs, Sharding::Replicated)
+            .unwrap();
+
+        for (member, handle) in held.into_iter().enumerate() {
+            let HandleKind::Quantized(shard) = handle else {
+                unreachable!("A quantized tensor's shards are quantized")
+            };
+            let shard = block_on(Flex::q_into_data(shard)).unwrap();
+            assert_eq!(
+                shard,
+                member_part(&data, pairs, member, 4),
+                "member {member}"
+            );
+        }
+        assert_eq!(block_on(interpreter.read(tensor(split))).unwrap(), data);
+        assert_eq!(block_on(interpreter.read(tensor(gathered))).unwrap(), data);
     }
 
     /// Its codes and scales are cut and joined as they are, so the value reads back exactly.
