@@ -54,16 +54,13 @@ Linux and Windows standard tests use four shards:
 Run a shard from the repository root, for example:
 
 ```sh
-cargo xtask test --release --ci crates
-cargo xtask test --release --ci crates-extra
+cargo xtask test --ci crates
+cargo xtask test --ci crates-extra
 ```
 
-The CI jobs override the release profile with
-`CARGO_PROFILE_RELEASE_OPT_LEVEL=0`, `CARGO_PROFILE_RELEASE_CODEGEN_UNITS=256`,
-`CARGO_PROFILE_RELEASE_LTO=off`, and `CARGO_INCREMENTAL=0`. These settings reduce compilation time
-at the cost of slower test execution. They do not change normal local release builds, and the jobs
-retain release-mode assertion and overflow-check settings. Use the same environment variables to
-reproduce the CI profile locally.
+The Linux and Windows test shards and stable Linux no-std tests use Cargo's normal test profile,
+without `--release` or CI-specific profile overrides. This keeps compilation unoptimized and enables
+debug assertions and overflow checks. The examples shard runs `cargo check`.
 
 The previous-Rust Linux job checks workspace and opt-in feature compatibility, then builds the
 no-std target configurations. Stable Rust runs the no-std builds and execution tests separately.
