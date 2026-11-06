@@ -14,13 +14,17 @@
 //!
 //! * The model thread's is set directly on every enter and exit. An unfused
 //!   launch is issued there, synchronously, under exactly that component.
-//! * The fusion worker's is set by a task sent into **the queue the ops travel
-//!   through**. A device's worker runs every service of its stage from one
+//! * Each fusion worker's is set by a task sent into **the queue the ops travel
+//!   through**: one worker on a fused device, one per member on a sharded
+//!   compute device. A device's worker runs every service of its stage from one
 //!   FIFO, so the task is processed after every op registered before the
 //!   boundary and before every op registered after it. An op the worker
 //!   processes is then known to come from the component that registered it,
 //!   and a kernel launched outside any block lands under the component whose
 //!   op sealed its segment — with nothing draining the stream to make it so.
+//!
+//! A sharded compute device defers a random op until its output is first used,
+//! so the op's kernel is charged to the component of that first use.
 //!
 //! The task touches no fusion state, so an instrumented run executes the graph a
 //! clean run executes.
@@ -96,32 +100,38 @@ thread_local! {
 
 /// Moves every launching thread's [`Attribution`] in step with the ops it runs.
 pub struct LaunchCursor {
-    /// The fusion worker of the profiled device, where its ops go through one.
-    worker: Option<DeviceHandle<WorkerCursor>>,
+    /// The fusion workers of the profiled device, in member order, where its ops go through them.
+    workers: Vec<DeviceHandle<WorkerCursor>>,
 }
 
 impl LaunchCursor {
-    /// A cursor for work running on `device`, moving its fusion worker's
-    /// attribution too where its ops go through one
-    /// (`DispatchDevice::fusion_worker`).
+    /// A cursor for work running on `device`, moving its fusion workers' attribution too where
+    /// its ops go through them (`DispatchDevice::fusion_workers`).
     pub fn new(device: &Device) -> Self {
-        let worker = device.as_dispatch().fusion_worker().map(|worker| {
-            // Opening the handle waits on the worker while holding cubecl's channel
-            // registry, which a block still running there can need too: open it idle.
+        let ids = device.as_dispatch().fusion_workers();
+        if !ids.is_empty() {
+            // Opening a handle waits on the worker while holding cubecl's channel registry, which
+            // a block still running there can need too: open them idle.
             device
                 .sync()
-                .expect("the device answers before the worker is reached");
-            DeviceHandle::new(worker)
-        });
-        Self { worker }
+                .expect("the device answers before the workers are reached");
+        }
+        Self::over(ids)
+    }
+
+    /// A cursor moving the workers `ids`.
+    fn over(ids: Vec<DeviceId>) -> Self {
+        Self {
+            workers: ids.into_iter().map(DeviceHandle::new).collect(),
+        }
     }
 
     /// Whether the profiled device's ops go through a fusion worker — whether,
     /// that is, the run being instrumented is the fused graph.
     pub fn fusion(&self) -> Fusion {
-        match self.worker {
-            Some(_) => Fusion::Fused,
-            None => Fusion::Unfused,
+        match self.workers.is_empty() {
+            false => Fusion::Fused,
+            true => Fusion::Unfused,
         }
     }
 
@@ -134,7 +144,7 @@ impl LaunchCursor {
     /// a full queue waits for the worker to make room.
     pub fn point_at(&self, attribution: Attribution) {
         Self::point_thread_at(attribution);
-        if let Some(worker) = &self.worker {
+        for worker in &self.workers {
             worker.submit(move |_: &mut WorkerCursor| Self::point_thread_at(attribution));
         }
     }
@@ -235,7 +245,7 @@ mod tests {
             index_id: u16::MAX,
         };
         let cursor = LaunchCursor {
-            worker: Some(DeviceHandle::new(device)),
+            workers: vec![DeviceHandle::new(device)],
         };
         let ops = DeviceHandle::<Ops>::new(device);
         let [block] = components();
@@ -258,13 +268,35 @@ mod tests {
         );
     }
 
+    /// On a sharded compute device every member's worker takes each boundary.
+    #[test]
+    fn every_members_worker_follows_the_boundaries() {
+        let devices = [u16::MAX - 1, u16::MAX - 2].map(|index_id| DeviceId {
+            type_id: u16::MAX,
+            index_id,
+        });
+        let cursor = LaunchCursor::over(devices.to_vec());
+        let [block] = components();
+
+        cursor.point_at(block);
+
+        for (index, device) in devices.into_iter().enumerate() {
+            let seen = DeviceHandle::<Ops>::new(device)
+                .submit_blocking(|_: &mut Ops| LaunchCursor::current())
+                .expect("the worker answers");
+            assert_eq!(seen, block, "member {index}");
+        }
+    }
+
     /// A block overrides the thread's attribution for as long as it runs and
     /// gives back exactly what it found — nested blocks included, since a
     /// fused kernel can run an unfused fallback inside itself.
     #[cfg(feature = "fusion")]
     #[test]
     fn a_block_overrides_the_thread_until_it_has_run() {
-        let cursor = LaunchCursor { worker: None };
+        let cursor = LaunchCursor {
+            workers: Vec::new(),
+        };
         let [outer, fused, first, second, fallback] = components();
         cursor.point_at(outer);
 
@@ -290,7 +322,9 @@ mod tests {
     /// cursor moves at once.
     #[test]
     fn without_a_worker_the_calling_thread_moves_at_once() {
-        let cursor = LaunchCursor { worker: None };
+        let cursor = LaunchCursor {
+            workers: Vec::new(),
+        };
         let [norm] = components();
         cursor.point_at(norm);
         assert_eq!(LaunchCursor::current(), norm);

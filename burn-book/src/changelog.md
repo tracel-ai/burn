@@ -98,6 +98,9 @@ Reports also include the measured cost of a kernel launch.
   no time or share, as the table prints `fused ↓`. The table is printed from the same readings.
   ([#6260](https://github.com/tracel-ai/burn/pull/6260))
   [@nathanielsimard](https://github.com/nathanielsimard)
+- A sharded compute device whose members fuse is instrumented on every member: each kernel is
+  recorded under its component and the run reads fused. `DispatchDevice::fusion_worker` is replaced
+  by `fusion_workers`, one id per member.
 
 ### Execution performance
 
