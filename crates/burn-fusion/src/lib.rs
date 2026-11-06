@@ -56,7 +56,7 @@ pub use burn_backend::ExecutionError;
 pub(crate) use server::*;
 
 pub use backend::*;
-pub use ops::NoOp;
+pub use ops::{Collective, CollectivePart, NoOp};
 pub use tensor::*;
 
 /// Types used to define and register custom Fusion operations.

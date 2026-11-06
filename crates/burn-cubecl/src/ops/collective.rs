@@ -11,7 +11,7 @@ use burn_backend::{
 };
 use core::cmp::Ordering;
 use cubecl::{
-    client::{Client, ClientGroup, MemberBuffers},
+    client::{Client, ClientGroup, GroupMember, MemberBuffers},
     ir::ElemType,
 };
 
@@ -299,6 +299,20 @@ impl Exchange {
             Self::AllToAll { .. } => clients.all_to_all(buffers),
         }
     }
+
+    /// Queues `member`'s own part.
+    fn run_member(self, member: &GroupMember, elem: ElemType, buffers: MemberBuffers) {
+        match self {
+            Self::AllReduce { op } => {
+                member.all_reduce(buffers, elem, reduce_operation_to_cubecl(op))
+            }
+            Self::AllGather { .. } => member.all_gather(buffers),
+            Self::ReduceScatter { op, .. } => {
+                member.reduce_scatter(buffers, elem, reduce_operation_to_cubecl(op))
+            }
+            Self::AllToAll { .. } => member.all_to_all(buffers),
+        }
+    }
 }
 
 /// A collective the members' group runs natively, with each member's tensor.
@@ -431,6 +445,140 @@ impl DeviceOrder {
     }
 }
 
+#[cfg(feature = "fusion")]
+mod parts {
+    //! Each member's part of a native collective, run by its own device inside Fusion: see
+    //! [`FusionBackend::collective_parts`](burn_fusion::FusionBackend::collective_parts).
+
+    use super::*;
+    use crate::{CubeDevice, fusion::CubeFusionHandle, ops::numeric::full_device_dtype};
+    use burn_backend::cubecl::dtype_to_storage_type;
+    use burn_fusion::{Collective, CollectivePart};
+    use burn_ir::{BackendIr, TensorHandle};
+    use cubecl::prelude::InputScalar;
+
+    impl Exchange {
+        fn from_fusion(collective: Collective) -> Self {
+            match collective {
+                Collective::AllReduce { op } => Self::AllReduce { op },
+                Collective::AllGather { dim } => Self::AllGather { dim },
+                Collective::ReduceScatter { dim, op } => Self::ReduceScatter { dim, op },
+                Collective::AllToAll {
+                    split_dim,
+                    concat_dim,
+                } => Self::all_to_all(split_dim, concat_dim),
+            }
+        }
+    }
+
+    /// Each member's part of `collective` over members of `shape` and `dtype` on `devices`, when
+    /// their group runs it natively. An all-reduce runs in device order whatever the members'
+    /// order; the other collectives place chunks by rank, so their members come in it.
+    pub(crate) fn collective_parts(
+        devices: &[CubeDevice],
+        shape: &Shape,
+        dtype: DType,
+        collective: Collective,
+    ) -> Option<Vec<Box<dyn CollectivePart<CubeBackend>>>> {
+        let exchange = Exchange::from_fusion(collective);
+        let mut ranked: Vec<CubeDevice> = devices.to_vec();
+        let order = match exchange {
+            Exchange::AllReduce { .. } => {
+                let mut positions: Vec<usize> = (0..devices.len()).collect();
+                positions.sort_by_key(|&position| devices[position].id());
+                ranked.sort_by_key(|device| device.id());
+                DeviceOrder { positions }
+            }
+            _ => DeviceOrder {
+                positions: (0..devices.len()).collect(),
+            },
+        };
+        let clients = ranked.iter().map(|device| device.client()).collect();
+        let group = NativeGroup::new(clients, shape.clone(), dtype)
+            .filter(|group| exchange.runs_natively(group))?;
+        let (members, elem) = (group.members(), group.elem());
+        let parts = group
+            .clients
+            .members()
+            .into_iter()
+            .zip(ranked)
+            .map(|(member, device)| {
+                Box::new(MemberPart {
+                    member,
+                    exchange,
+                    members,
+                    elem,
+                    stand_in: StandIn {
+                        device,
+                        shape: shape.clone(),
+                        dtype,
+                    },
+                }) as Box<dyn CollectivePart<CubeBackend>>
+            })
+            .collect();
+        Some(order.restored(parts))
+    }
+
+    /// One member's part, run by its own device.
+    struct MemberPart {
+        member: GroupMember,
+        exchange: Exchange,
+        members: usize,
+        elem: ElemType,
+        stand_in: StandIn,
+    }
+
+    /// What a member contributes in place of a tensor that carries a failure: as large as the
+    /// tensor, so the others' parts complete, and NaN where a float can hold it, so that what
+    /// they receive shows it rather than passing for a result. Integers and booleans contribute
+    /// zeros, which the others cannot tell from a member's values.
+    struct StandIn {
+        device: CubeDevice,
+        shape: Shape,
+        dtype: DType,
+    }
+
+    impl MemberPart {
+        fn exchange(&self, tensor: CubeTensor) -> CubeTensor {
+            let source = self.exchange.source(tensor);
+            let output = self.exchange.output(&source, self.members);
+            self.exchange
+                .run_member(&self.member, self.elem, member_buffers(&source, &output));
+            self.exchange.restored(output)
+        }
+    }
+
+    impl CollectivePart<CubeBackend> for MemberPart {
+        fn run(&self, tensor: TensorHandle<CubeFusionHandle>) -> CubeFusionHandle {
+            let output = self.exchange(CubeBackend::float_tensor(tensor));
+            CubeBackend::float_tensor_handle(output)
+        }
+
+        fn stand_in(&self) {
+            let StandIn {
+                device,
+                shape,
+                dtype,
+            } = &self.stand_in;
+            let fill = match dtype.is_float() {
+                true => f32::NAN,
+                false => 0.0,
+            };
+            let tensor = full_device_dtype(
+                device.client(),
+                shape.clone(),
+                device.clone(),
+                InputScalar::new(fill, dtype_to_storage_type(*dtype)),
+                *dtype,
+            );
+            self.exchange(tensor);
+        }
+    }
+}
+
+#[cfg(feature = "fusion")]
+pub(crate) use parts::collective_parts;
+
 #[cfg(all(test, feature = "cuda"))]
 mod tests {
     use super::*;
@@ -528,5 +676,51 @@ mod tests {
             members([0, 1], [2, 3], DType::F32),
             gather
         )));
+    }
+
+    /// A member whose tensor carries a failure still joins its peers, so none of them waits
+    /// forever, and what they receive shows the failure as NaN rather than passing for a sum.
+    #[cfg(feature = "fusion")]
+    #[test]
+    #[ignore = "needs two CUDA devices and NCCL"]
+    fn a_member_standing_in_for_a_failed_tensor_lets_its_peers_finish() {
+        use crate::fusion::CubeFusionHandle;
+        use burn_fusion::Collective;
+        use burn_ir::TensorHandle;
+
+        let devices = [0, 1].map(|index| CubeDevice::Cuda(CudaDevice { index }));
+        let shape = Shape::new([4, 2]);
+        let parts = super::collective_parts(
+            &devices,
+            &shape,
+            DType::F32,
+            Collective::AllReduce {
+                op: ReduceOperation::Sum,
+            },
+        )
+        .expect("two CUDA devices run an all-reduce natively");
+        let mut parts = parts.into_iter();
+        let (failed, peer) = (parts.next().unwrap(), parts.next().unwrap());
+        let device = devices[1].clone();
+        let tensor =
+            empty_device_contiguous_dtype(device.client(), device, shape.clone(), DType::F32);
+
+        // Each part from a thread of its own, as each member's stream runs it; a read on the
+        // thread that queued the part waits for it.
+        let peer = std::thread::spawn(move || {
+            let handle: CubeFusionHandle = tensor.into();
+            let received = peer.run(TensorHandle { handle, shape });
+            received.client.read_one(received.handle).unwrap()
+        });
+        failed.stand_in();
+        let bytes = peer.join().unwrap();
+
+        let values: Vec<f32> = bytes
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|word| f32::from_ne_bytes(*word))
+            .collect();
+        assert!(values.iter().all(|value| value.is_nan()), "{values:?}");
     }
 }
