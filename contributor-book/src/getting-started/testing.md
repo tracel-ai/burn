@@ -48,14 +48,14 @@ Linux and Windows standard tests use four shards:
 | --- | --- |
 | `backends` | Flex backend and extension tests, CPU transfer integration tests, dispatch unit tests, and Flex FFT kernels |
 | `crates` | Workspace tests with Flex, backend-free feature checks, and graph capture tests |
-| `crates-extra` | Dataset features, vision and training features, and remote FFT tests on Linux |
+| `crates-features` | Dataset features, vision and training features, and remote FFT tests on Linux |
 | `examples` | Compilation checks for the example packages |
 
 Run a shard from the repository root, for example:
 
 ```sh
 cargo xtask test --ci crates
-cargo xtask test --ci crates-extra
+cargo xtask test --ci crates-features
 ```
 
 The Linux and Windows test shards and stable Linux no-std tests use Cargo's normal test profile,

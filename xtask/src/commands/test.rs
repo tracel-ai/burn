@@ -32,7 +32,7 @@ pub enum CiTestType {
     /// Workspace defaults and graph capture.
     Crates,
     /// Dataset, remote, vision, and training feature configurations.
-    CratesExtra,
+    CratesFeatures,
     Examples,
     // Other runners
     GithubRunner,
@@ -551,7 +551,7 @@ pub(crate) fn handle_command(
                         "Flex backend with FFT kernels",
                     )?;
                 }
-                CiTestType::Crates | CiTestType::CratesExtra => {
+                CiTestType::Crates | CiTestType::CratesFeatures => {
                     handle_crate_tests(args.clone(), env.clone(), context.clone())?;
                 }
                 CiTestType::Examples => {

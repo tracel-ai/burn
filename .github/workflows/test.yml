@@ -121,7 +121,7 @@ jobs:
       COLLECT_COVERAGE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.ci_type != 'examples' }}
     strategy:
       matrix:
-        ci_type: [backends, crates, crates-extra, examples]
+        ci_type: [backends, crates, crates-features, examples]
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -247,7 +247,7 @@ jobs:
       CARGO_TERM_COLOR: always
     strategy:
       matrix:
-        ci_type: [backends, crates, crates-extra, examples]
+        ci_type: [backends, crates, crates-features, examples]
     steps:
       - name: checkout
         uses: actions/checkout@v7
