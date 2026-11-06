@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.16s
+     Running unittests src/lib.rs (target/adamw-foreach-build/debug/build/burn-optim/901d72ee54ce75e7/out/burn_optim-901d72ee54ce75e7)
+
+running 1 test
+test optim::adamw::foreach_tests::foreach_jit_reuses_stable_layout_and_distinguishes_descriptors ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 179 filtered out; finished in 0.14s
+

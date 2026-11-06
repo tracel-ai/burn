@@ -1,6 +1,6 @@
 # PR3：Foreach 前置能力审查与停止报告
 
-状态：**受上游 API 前置阻塞，尚未实现 Foreach，不计作完成的优化。**
+状态：**生产依赖前置仍阻塞；已有未接入的CPU Foreach本地候选，不计作完成的优化。**
 当前 Burn 锁定 CubeCL `d88b0febb50e7b83a8548125f6a701c12f11a2ba`。
 本文依据 [PR3 设计第6节](pr3-foreach.md#6-有效执行-stream-是启用门禁) 的明确启用门禁，记录可核实结论。
 
@@ -43,15 +43,17 @@ pub fn execution_stream(&self) -> StreamId {
 
 ## 性能结论
 
+下表描述已接入生产分支的行为；后文另列本地候选，二者不能混用。
+
 | 项目 | 当前行为 | PR3 后行为 |
 |---|---|---|
 | 执行配置 | Reference / 单参数 Fused | 未增加 Foreach variant |
 | 单参数 Fused launch | 每参数1次 | 未改变 |
 | 多参数 batching | 未实现 | 未启用 |
-| 性能数据 | PR1/PR2报告 | 没有 Foreach 实测，不提供虚构加速比 |
+| 性能数据 | PR1/PR2报告 | 没有生产 Foreach 实测；本地候选数据见后文 |
 
 设计第13节明确要求“无法查询并恢复有效 stream”时停止该 PR。因此后续独立吞吐优化可以继续，
-但总目标中的 Foreach 实现仍缺失，不能把该停止报告当作“全部 PR 已实现”的证明。
+但总目标中的生产 Foreach 交付仍缺失，不能把该停止报告当作“全部 PR 已实现”的证明。
 本判断由编码 agent 生成；Kant、Euler 连续两轮独立源码审查均确认停止条件成立。
 这两次 PASS 不算 Foreach 实现或性能验收，记录见 [review-log.md](review-log.md)。
 
@@ -71,4 +73,16 @@ clone、嵌套scope及随后allocation实际stream。生产pin和Cargo缓存均�
 设计第8.2节的参数组合已在CPU上编译并实际执行：三种rank、转置stride、七个chunk、
 optional history及部分输出alias均在一次launch内得到正确结果，并验证variant key与重用。
 源码与记录见[Sequence原型](prototypes/README.md)。这不是AdamW算法或ModuleOptimizer接入，
-不算一个独立优化PR，不改变Foreach仍未实现的状态。
+不算一个独立优化PR，不改变生产Foreach尚未接入的状态。
+
+## CPU Foreach 本地候选
+
+在本仓库target内的getter补丁依赖上，已实现模块收集/写回、完整分组、stream恢复、
+chunk预算、共同COW planner、checkpoint与fallback，并实际编译测试。
+候选最终限定CPU batching，GPU沿用Fused。可复现补丁、详细实测和验证材料见
+[本地候选报告](experiments/pr3-local/README.md)。
+
+CPU tiny与80参数模型三轮同进程配对均有收益；大参数和mixed-rank有明显波动，
+near-limit pool峰值由24增加到28MiB。首步JIT、模块遍历下界、实际launch和局限均单列。
+这些结果只证明本地候选行为，不能绕过可获取CubeCL revision、CubeK/Burn一致pin、
+下游依赖图与正式性能门禁。额外fork发布仍等待此前申请的确认。

@@ -1,6 +1,6 @@
 # PR 3：AdamW 模块级多参数 Foreach
 
-> 文档状态：上游 API 前置阻塞，未实现；停止判断已通过两轮独立审查，见 [pr3-foreach-report.md](pr3-foreach-report.md)。
+> 文档状态：生产依赖前置阻塞；已有未接入的[CPU本地候选](experiments/pr3-local/README.md)，不计优化完成。停止判断与后续证据见 [pr3-foreach-report.md](pr3-foreach-report.md)。
 >
 > 性能类型：减少多参数模型的物理 launch 与 host enqueue 开销
 >
@@ -347,7 +347,7 @@ raw 测试先断言 `!burn_cubecl::FUSED`，路径计数只在实际提交专用
 | 参数组 | 不同 AdamW 配置/lr，验证“最后匹配组”不变 |
 | 缺梯度 | 参数和 time 不变，其他参数正常更新 |
 | 分组 | 同 shape 不同 lr/time 不合并；同超参数但 state 初始化状态不同 |
-| rank | 0 和 8 正常；9 在原 step_dyn 边界失败，launch=0、无 pending/state |
+| rank | 0 保留当前Reference拒绝行为；8 正常；9 在原 step_dyn 边界失败，launch=0、无 pending/state |
 | stream | 同 service 不同有效 stream 不合并；A 收集、外层切 B 后仍在 A 分配和 launch |
 | pinned | 显式 pinned client 正确；无法查询有效 stream 时 Foreach→Reference |
 | 空/单项 | 空 batch 无 launch，单 item 走单参数 Fused 且 stream 正确 |

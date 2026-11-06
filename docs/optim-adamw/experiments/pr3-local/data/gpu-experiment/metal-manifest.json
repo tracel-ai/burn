@@ -1,0 +1,16 @@
+{
+  "binary": "target/adamw-foreach-release/release/build/burn-optim/4dccb6521f60b3e6/out/adamw-4dccb6521f60b3e6",
+  "binary_sha256": "eea23118dd4f5325f6eb4ff5fecca3f220abc3ac8b3675793cc04807715cc83d",
+  "sources": {
+    "crates/burn-cubecl/src/kernel/optim/adamw.rs": "83be9458bcf36efb1803f3a7c6c2184d4a29ba762fd3323e23b81b40d2ba275b",
+    "crates/burn-optim/benches/adamw.rs": "d2af14d3f1a7757e9ac1f4d8197ba75e05d9305bc6b029f70da7e3ce26a56b3e",
+    "crates/burn-optim/src/optim/adamw.rs": "66715e0f7ce21d8cc576760ef8790e22351a1525b4b88e6df138932b4ebb5d0d",
+    "crates/burn-optim/src/optim/adamw/cube.rs": "04750fd734fa30a1e9ec96f04f1fba6cee8e150ccaa4f26ad2a550368a1aa3f1",
+    "crates/burn-optim/src/optim/module/base.rs": "2dc878f3831f64ea2fda97faaee5486ea97398b9f44ad179a6a9c43f526f3d2b",
+    "crates/burn-optim/src/optim/module/module_optimizer.rs": "94046d3fa7e10bdb75d5080fe8f713f7a688d458b881d3081ff2396ea9e17bd2",
+    "crates/burn-cubecl/src/kernel/optim/adamw/foreach.rs": "803e00da06271b75d9598ab89f067b62b0999f56f753ab05eccd9eca6347c672",
+    "crates/burn-optim/benches/adamw/foreach.rs": "d599fa1c436dcf38b5041df463f2e2aa6a6b6e60e5c932332e31eebb2cb42cf8",
+    "crates/burn-optim/src/optim/adamw/foreach_tests.rs": "b2de1666a3d35e456ed0dfd4b674b105edf94403eb8bc971d98791f6564868e1"
+  },
+  "local_dependency": true
+}

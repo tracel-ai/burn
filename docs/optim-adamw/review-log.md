@@ -74,3 +74,21 @@ Sequence参数形式，记录见[原型材料](prototypes/README.md)。
 正确版本1个integration test通过，含8次launch、24个输出张量；故障注入退出101并在数值断言失败。
 两轮review均为只读，没有将核验已有运行记录描述为再次运行。此增量不是AdamW算法实现、性能优化
 或PR3验收；Foreach的生产依赖前置与完整实现仍未完成。
+
+## PR3 本地实现候选增量
+
+依赖发布确认尚未到达期间，在当前仓库target中的getter补丁依赖上完成CPU Foreach本地实现、
+测试和测量，以[可复现候选补丁与报告](experiments/pr3-local/README.md)归档。
+本增量恢复生产源码及原pin，只提交归档材料，不把root path patch当作可发布依赖方案。
+
+| 审查 | reviewer | 结论 | 范围 |
+|---|---|---|---|
+| 中间模块审查 | Dalton | PASS | 动态分派、两次遍历、state/context和回退；指出parameter COW额外成本并纳入报告 |
+| 中间kernel审查 | Meitner | PASS | candidate2；建议补非恒定索引值、chunk累计超限、AMSGrad迁移、跨项alias和第三stream恢复，已补 |
+| 正式候选第1轮 | Meitner | PASS | candidate4代码、bench和tests；CPU-only、共同COW、stream、分组和回填，未发现确认缺陷 |
+| 正式候选第2轮 | Feynman | PASS | candidate4完整代码及归档；内存重放patch、源码/样本/日志hash、复现脚本产物和报告数值核对通过 |
+
+正式本地候选连续 **2/2 PASS**，主补丁SHA-256
+`cb6e03726063d1534976d404d32c209cd95f77e23ec0c6d3a4739bb81ecfbd11`。
+两轮均只读，不把核验既有测试记录描述为额外执行。代码测试、性能限制、GPU未启用的依据和
+完整源码hash见候选报告及validation。此通过仅许可归档候选，不是PR3生产交付或最终全分支验收。

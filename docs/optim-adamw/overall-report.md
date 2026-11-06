@@ -1,6 +1,6 @@
 # AdamW 优化总报告
 
-状态：PR1、PR2 已完成并通过各自连续两轮 review；PR3 按设计门禁停止；PR4 CPU 向量化与serial scalar tail已完成直接source-matched A/B，GPU runtime保留scalar。PR4已连续两轮review通过，当前分支也已连续三轮整体review通过；PR3尚未实现，全部实现总目标尚未完成。
+状态：PR1、PR2 已完成并通过各自连续两轮 review；PR3 生产接入按依赖门禁停止，另有本地候选；PR4 CPU 向量化与serial scalar tail已完成直接source-matched A/B，GPU runtime保留scalar。PR4已连续两轮review通过，此前生产状态已连续三轮整体review通过；PR3尚未交付，全部实现总目标尚未完成。
 
 ## 交付状态
 
@@ -14,7 +14,7 @@
 
 PR3 的阻塞来自锁定 CubeCL revision：`Client::stream_id()` 私有，`service_stream()` 和 `ServiceStream` 为 `pub(crate)`。公开的 profile、memory report、empty 和 stream-mode API 都会阻塞、分配或改变运行模式；`Handle.stream` 只是 allocation 创建 stream。最小前置是上游增加无副作用 `Client::execution_stream()` getter，随后才可实现安全 Foreach。
 目前已在仓库内副本实现并通过两个CPU回归的[最小前置补丁](prerequisites/README.md)；官方新head仍无此接口，
-且CubeK和Burn的CubeCL pin需要一致更新。生产依赖未改，Foreach仍未实现。
+且CubeK和Burn的CubeCL pin需要一致更新。生产依赖未改，本地Foreach候选尚未接入。
 
 PR4实现共同vector width、serial scalar tail、布局/offset fallback、JIT key与U32 tail防回绕。禁用kache并独立target重建后，CPU large_1/4/16约2.63×/2.16×/1.89×，tail约2.12×/2.47×；Metal/MSL没有稳定收益，当前GPU强制scalar。旧缓存停止结论无效；最终CPU版本已连续两轮review通过。
 
@@ -72,4 +72,12 @@ PR4早期paired及verified数据均标记`valid_for_acceptance=false`，原因�
 
 实现、测试、测量脚本、报告和review由编码agent完成，没有声称人工review。用户自行创建并推送的
 [用户的生产实现提交](https://github.com/onenewcode/burn/commit/ba84da059c08bd905a5c89acc863778e8e928b1b)保存了此前状态；后续每个通过门禁的阶段将按明确授权提交并推送到同一fork分支。
-PR3仍未实现，因此本报告不能作为“全部PR优化已完成”的证明。
+PR3尚未接入生产，因此本报告不能作为“全部PR优化已完成”的证明。
+
+## PR3 后续本地候选
+
+[CPU Foreach本地候选](experiments/pr3-local/README.md)已在本仓库target的getter补丁依赖上
+编译、测试并测量，代码以可复现patch归档。它包含模块两次遍历、分组、chunk、state/context恢复和回退。
+该候选没有改动生产pin或上述累计效果数据，仍需可获取的CubeCL getter revision及CubeK/Burn同步接入。
+其CPU收益、GPU未启用的依据、JIT成本及内存/性能回退均在独立报告中；不计作已完成PR3，
+也不把此前生产分支三轮review当作该候选或未来依赖升级的审查。
