@@ -87,12 +87,27 @@ impl<B: BackendIr> MemberShards<B> {
                 true => Ok(first.clone()),
                 false => Err(ShardsError::PartialSumOf { dtype }),
             },
-            Sharding::Split { dim } => {
+            Sharding::Split { dim } | Sharding::ReplicatedSplit { dim, .. } => {
+                // Each group's first member holds its chunk; the shape check covers the others. Groups
+                // that do not divide the members are refused below, so every shard counts meanwhile.
+                let num_members = shards.len();
+                let chunks = sharding
+                    .num_chunks(num_members)
+                    .filter(|chunks| *chunks > 0 && num_members.is_multiple_of(*chunks))
+                    .unwrap_or(num_members);
                 let mut whole = first.clone();
                 if dim < whole.num_dims() {
                     whole[dim] = shards
                         .iter()
-                        .map(|shard| shard.shape.get(dim).copied().unwrap_or(0))
+                        .enumerate()
+                        .filter(|(index, _)| {
+                            ShardMember {
+                                index: *index,
+                                num_members,
+                            }
+                            .is_first_of_chunk(chunks)
+                        })
+                        .map(|(_, shard)| shard.shape.get(dim).copied().unwrap_or(0))
                         .sum();
                 }
                 let tensor = TensorIr {
@@ -166,6 +181,66 @@ mod tests {
             shards.whole_shape(Sharding::Split { dim: 0 }, &MEMBERS),
             Ok([5, 4].into())
         );
+    }
+
+    fn four_floats(shapes: [[usize; 2]; 4]) -> MemberShards<Flex> {
+        MemberShards::new(
+            shapes
+                .map(|shape| {
+                    let data = TensorData::new(vec![0f32; shape.iter().product()], shape);
+                    HandleKind::Float(Flex::float_from_data(data, &FlexDevice))
+                })
+                .into(),
+        )
+    }
+
+    #[test]
+    fn a_replicated_split_takes_its_whole_shape_from_one_member_per_group() {
+        let shards = four_floats([[2, 4], [2, 4], [1, 4], [1, 4]]);
+
+        assert_eq!(
+            shards.whole_shape(
+                Sharding::ReplicatedSplit { dim: 0, groups: 2 },
+                &[FlexDevice; 4]
+            ),
+            Ok([3, 4].into())
+        );
+    }
+
+    #[test]
+    fn a_copy_of_another_shape_in_a_group_is_refused() {
+        let shards = four_floats([[2, 4], [1, 4], [1, 4], [1, 4]]);
+
+        assert_eq!(
+            shards.whole_shape(
+                Sharding::ReplicatedSplit { dim: 0, groups: 2 },
+                &[FlexDevice; 4]
+            ),
+            Err(ShardsError::Shape {
+                shard: 1,
+                expected: [2, 4].into(),
+                found: [1, 4].into(),
+            })
+        );
+    }
+
+    #[test]
+    fn groups_that_do_not_divide_the_members_or_are_one_or_every_member_are_refused() {
+        for groups in [1, 3, 4] {
+            let shards = four_floats([[2, 4]; 4]);
+
+            assert_eq!(
+                shards.whole_shape(
+                    Sharding::ReplicatedSplit { dim: 0, groups },
+                    &[FlexDevice; 4]
+                ),
+                Err(ShardsError::Sharding(ShardingError::Groups {
+                    groups,
+                    num_members: 4,
+                })),
+                "{groups} groups"
+            );
+        }
     }
 
     #[test]

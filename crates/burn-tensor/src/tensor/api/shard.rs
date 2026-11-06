@@ -11,9 +11,10 @@ impl<const D: usize, K: Autodiff> Tensor<D, K> {
     /// The tensor `shards` make up over the sharded compute device `device`.
     ///
     /// Shard `i` is member `i`'s part, already on that member's device (see
-    /// [`Device::shard_members`]): the whole value when replicated or a partial sum, and its chunk
-    /// of the split dim when split. Chunks are balanced in member order, the first members holding
-    /// one more index when the dim does not divide. Nothing moves between members, so a caller
+    /// [`Device::shard_members`]): the whole value when replicated or a partial sum, its chunk
+    /// of the split dim when split, and its group's chunk when a replicated split. Chunks are
+    /// balanced in member order, the first members (or, for a replicated split, every member of
+    /// the first groups) holding one more index when the dim does not divide. Nothing moves between members, so a caller
     /// that makes each shard on its member never holds the whole tensor anywhere.
     ///
     /// Quantized shards of a split must share a per-tensor or two-level global scale, which the
@@ -27,9 +28,10 @@ impl<const D: usize, K: Autodiff> Tensor<D, K> {
     ///
     /// When `device` is not a sharded compute device, which needs the `shard` feature, when there
     /// is not one shard per member, when shard `i` is not on member `i`'s device, when the shards
-    /// differ in dtype or quantization scheme, when a partial sum is not of floats or ints, or
-    /// when a shard's shape is not its member's part, a quantized chunk holding whole
-    /// quantization blocks and packed words.
+    /// differ in dtype or quantization scheme, when a partial sum is not of floats or ints, when a
+    /// replicated split's groups do not divide the members or are one or every member, or when a
+    /// shard's shape is not its
+    /// member's part, a quantized chunk holding whole quantization blocks and packed words.
     pub fn from_shards(shards: Shards<Self>, device: &Device) -> Result<Self, ShardsError> {
         #[cfg(feature = "shard")]
         {

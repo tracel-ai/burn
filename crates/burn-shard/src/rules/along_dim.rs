@@ -11,8 +11,8 @@ pub struct AlongDimRule {
 
 impl AlongDimRule {
     pub fn new(input: Sharding, dim: usize) -> Self {
-        let sharding = match input {
-            Sharding::Split { dim: split } if split != dim => input,
+        let sharding = match input.split_dim() {
+            Some(split) if split != dim => input,
             _ => Sharding::Replicated,
         };
         Self { sharding }
@@ -29,7 +29,7 @@ impl AlongDimRule {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use Sharding::{PartialSum, Replicated, Split};
+    use Sharding::{PartialSum, Replicated, ReplicatedSplit, Split};
 
     #[test]
     fn a_split_of_another_dim_stays() {
@@ -49,5 +49,12 @@ mod tests {
             AlongDimRule::new(PartialSum, 1).sharding().inputs[..],
             [Replicated]
         );
+    }
+
+    #[test]
+    fn a_norm_over_each_head_keeps_heads_shared_by_pairs() {
+        let kv = ReplicatedSplit { dim: 1, groups: 2 };
+
+        assert_eq!(AlongDimRule::new(kv, 3).sharding().output, kv);
     }
 }
