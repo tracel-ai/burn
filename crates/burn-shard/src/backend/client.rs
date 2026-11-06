@@ -6,8 +6,7 @@ use burn_backend::{
     EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken, TensorData,
 };
 use burn_ir::{
-    BackendIr, CapturedGraphId, GraphBindings, GraphId, HandleKind, OperationIr, TensorId,
-    TensorIr,
+    BackendIr, CapturedGraphId, GraphBindings, GraphId, HandleKind, OperationIr, TensorId, TensorIr,
 };
 use burn_router::{RouterClient, RouterTensor};
 use burn_std::{future::DynFut, sync::Mutex};

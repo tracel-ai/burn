@@ -26,7 +26,9 @@ impl<B: BackendIr> Default for MemberGraphs<B> {
 impl<B: BackendIr> MemberGraphs<B> {
     /// Prepares every member for a capture, and returns the first member's error.
     pub fn prepare(&self, members: &[TensorInterpreter<B>]) -> Result<(), ExecutionError> {
-        members.iter().try_for_each(TensorInterpreter::graph_prepare)
+        members
+            .iter()
+            .try_for_each(TensorInterpreter::graph_prepare)
     }
 
     /// Opens a window on every member, or none: a member that refuses closes the windows its
