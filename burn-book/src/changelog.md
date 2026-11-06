@@ -326,6 +326,9 @@ whose tensors are split over `devices` (crate `burn-shard`).
   the tensor's last other handle at the same moment, failing a sharded compute device's read with
   `no entry found for key`. ([#6405](https://github.com/tracel-ai/burn/pull/6405))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- `capture` works on a sharded compute device: each member records its own graph, collectives
+  included, and a replay runs every member's. ([#6429](https://github.com/tracel-ai/burn/pull/6429))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution
 
