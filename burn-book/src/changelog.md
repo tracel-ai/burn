@@ -625,6 +625,8 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
 
 #### Fusion and correctness fixes
 
+- Fix f16 min/max and top-k operations with indices failing during autotuning, and incorrect
+  `max_pool3d` gradients on CubeCL backends.
 - Fix incorrect Vulkan results on NVIDIA GPUs caused by shared-memory atomic operations returning
   zero. ([CubeCL #2059](https://github.com/tracel-ai/cubecl/pull/2059)) [@laggui](https://github.com/laggui)
 - Fix `chunk` panicking when the requested number of chunks cannot all be filled. It now returns
