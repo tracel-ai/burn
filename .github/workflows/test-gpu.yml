@@ -106,13 +106,6 @@ jobs:
       LD_LIBRARY_PATH: "/usr/local/cuda/lib64"
       # disable incremental compilation (reduces artifact size)
       CARGO_PROFILE_TEST_INCREMENTAL: "false"
-    # Keep the stragegy to be able to easily add new rust versions if required
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -120,7 +113,7 @@ jobs:
       - name: Install Rust
         uses: tracel-ai/github-actions/install-rust@v12
         with:
-          rust-toolchain: ${{ matrix.toolchain }}
+          rust-toolchain: stable
           enable-cache: false
       # --------------------------------------------------------------------------------
       - name: Tests (burn-cuda)
@@ -149,13 +142,6 @@ jobs:
     env:
       # disable incremental compilation (reduces artifact size)
       CARGO_PROFILE_TEST_INCREMENTAL: "false"
-    # Keep the stragegy to be able to easily add new rust versions if required
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -163,7 +149,7 @@ jobs:
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v12
         with:
-          rust-toolchain: ${{ matrix.toolchain }}
+          rust-toolchain: stable
           enable-cache: false
       # --------------------------------------------------------------------------------
       - name: Tests (burn-vulkan)
@@ -192,13 +178,6 @@ jobs:
     env:
       # disable incremental compilation (reduces artifact size)
       CARGO_PROFILE_TEST_INCREMENTAL: "false"
-    # Keep the stragegy to be able to easily add new rust versions if required
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -206,7 +185,7 @@ jobs:
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v12
         with:
-          rust-toolchain: ${{ matrix.toolchain }}
+          rust-toolchain: stable
           enable-cache: false
       # --------------------------------------------------------------------------------
       - name: Tests (burn-wgpu)
