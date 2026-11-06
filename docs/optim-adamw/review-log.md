@@ -111,3 +111,21 @@ refinement补丁SHA-256为`66da8d1421756123d1ee1aeb9db097c725ccb949322cf2a2d0b7c
 最终记录CPU49pass/2ignored、Fusion13pass/1ignored、clippy通过，以及实际Group/Capture2pass；
 CPU专用用例在Fusion提前返回，Capture验证IR录制，不扩大覆盖声明。本增量继续以patch归档，
 生产依赖发布、正式接入和全分支最终审查仍未完成。
+
+## PR3 Remote 与独立下游补充
+
+[Remote验证包](experiments/pr3-local/checks/README.md)新增真实loopback WebSocket CPU服务端测试；
+[独立下游](prerequisites/downstream/README.md)验证本地git依赖不依赖根patch即可编译和实际batch执行。
+本轮不修改已审查的生产候选，只扩充验证材料。
+
+| 轮次 | reviewer | 结论 | 范围与处理 |
+|---|---|---|---|
+| 中间Remote审查 | Archimedes | FAIL | 阻塞read/sync无整体超时；按既有Remote测试加入30秒worker watchdog并重跑 |
+| 中间修复复核 | Archimedes | PASS | 关闭watchdog问题；脚本默认Bash空数组问题已实际修复、默认入口复测通过，不计正式连续轮次 |
+| 正式第1轮 | Archimedes | PASS | Remote、localgit依赖图与runtime、证据hash、脚本边界和报告范围整体审查 |
+| 正式第2轮 | Schrodinger | PASS | 独立核对Remote、17项checks与246项downstream hash、实际fetch源码、无根覆盖和数值证据；指出一处旧探针描述，已改为本轮重跑事实 |
+
+首次下游consumer因模块参数未启用autodiff而runtime失败，修正consumer后通过，原始失败仍保留。
+未修改候选算法来迎合测试，也未把compile-only或失败轮次计为实际执行通过。
+正式连续 **2/2 PASS**；两轮均只读，未重跑构建或测试。此增量验证本地方案和回退边界，
+不能替代额外仓库发布、生产pin同步或最终整体验收。

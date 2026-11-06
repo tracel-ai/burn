@@ -1,6 +1,6 @@
 # Foreach decorator 验证包
 
-本目录是独立 Cargo workspace，只通过公开 API 验证 PR3 本地候选的 Group 与 Capture
+本目录是独立 Cargo workspace，只通过公开 API 验证 PR3 本地候选的 Group、Capture 与可选 Remote
 回退。`Cargo.toml` 的 `[workspace]` 隔离主仓库；保留本目录的 `Cargo.lock`，以
 `cargo test --locked` 固定独立依赖解析。没有新增生产 feature 或测试入口，没有修改主仓库
 `Cargo.lock`、生产代码、bench 或 Cargo 缓存源码。测试与说明由 Codex 实现，不计最终 review。
@@ -30,6 +30,16 @@ bash docs/optim-adamw/experiments/pr3-local/checks/run.sh
 全部用例串行运行，没有 ignore、过滤或硬件 early-return。profile 关闭 strip，避免本机 beta
 `rust-objcopy` 缺失 `libLLVM.dylib` 的 strip 警告。
 
+启用本机loopback WebSocket Remote验证（服务只监听`127.0.0.1`随机端口，不联系外部服务）：
+
+```sh
+ADAMW_CHECKS_FEATURES=remote ADAMW_CHECKS_LOG_NAME=remote \
+  bash docs/optim-adamw/experiments/pr3-local/checks/run.sh
+```
+
+默认运行Group/Capture两项；`remote` feature追加第三项，并带入仅此harness使用的可选tokio依赖。
+脚本构造始终非空的参数数组，兼容macOS Bash 3.2的`set -u`；features作为一个参数传递。
+
 ## 测试范围
 
 - **Group 实际数值执行**：两个成员均为本机 CPU device 的真实 Group；模块含两个 `[2,2]`
@@ -50,7 +60,15 @@ bash docs/optim-adamw/experiments/pr3-local/checks/run.sh
   AdamW launch。Group 允许 Reference 张量算子的实际 launch，但 AdamW batch/single 必须为
   零；Capture 的所有 raw kernel launch 必须为零。
 
-Remote 未实现、未验证；特殊值、rank 8 checkpoint 迁移、预算边界和性能分项由主线程负责。
+- **Remote 实际数值执行**：启动本机WebSocket server，实际服务CPU后端，明确断言远端dispatch。
+  比较远端Reference/Foreach模块、远端Foreach direct与本地Reference的两步更新。
+  检查参数、六个state值、time、rank、path、ParamId、dtype，direct输出/state保留Remote device，
+  module输出保留原autodiff与非Disabled的初始checkpointing策略；两步间重新加载checkpoint。
+  moments另用手算值核对，不能仅凭两种模式相同判定正确。专用batch/single launch为零。
+  整个Remote用例包含30秒watchdog，初始化/read/sync卡住时测试进程失败退出；不能将server的Drop
+  当作打断阻塞读的手段。仅覆盖同机CPU服务端，不外推真实跨机网络、其他传输或服务端GPU。
+
+特殊值、rank 8 checkpoint 迁移、预算边界和性能分项由主线程负责，见refinement报告。
 
 ## 实际结果与证据
 
@@ -58,16 +76,26 @@ Remote 未实现、未验证；特殊值、rank 8 checkpoint 迁移、预算边�
 补充 checkpointing 独立断言后重跑，**2 passed，0 failed，0 ignored，0 filtered**，
 测试执行 0.23 秒。
 
+新增Remote后的最终运行：默认入口 **2 passed，0 failed，0 ignored，0 filtered（0.26秒）**；
+启用Remote并加入watchdog后 **3 passed，0 failed，0 ignored，0 filtered（0.27秒）**。
+早期默认入口曾因空array与Bash 3.2 nounset不兼容退出1，修复后实际复测通过，保留失败摘要。
+
 | 检查 | 观测 |
 |---|---|
 | Group | 两步 time 为 1、2；参数及六个 state tensor 检查通过；Reference/Foreach 各自保留初始 `Balanced` checkpointing 策略；448 次 Reference 算子 launch；AdamW batch=0、single=0 |
 | Capture | 62 个完全一致的规范化 IR operation，8 个输出，time=`[[1,1],[2,2]]`；所有 raw launch=0 |
+| Remote | 两参数两步、远端/本地数值与六个state一致，time为1/2，context为Balanced；batch=0、single=0；含本地参考的raw算子总计224 |
 | observer 正向对照 | 每个用例开始前 batch=0、single=1 |
-| 退出状态 | 本次真实用例运行脚本=0；未变化的脚本已有失败探针证据：Cargo=101、tee=0、脚本=101，本次未重复探针 |
+| 退出状态 | 本次默认/Remote真实用例脚本均=0；新增feature参数后重跑无效target探针，Cargo=101、tee=0、脚本=101 |
 | 静态检查 | `bash -n run.sh` 与 beta `rustfmt --check` 通过 |
 | 主仓库 lock | 本次重跑前后 SHA-256 一致 |
 
-- [decorators.log](logs/decorators.log)：最终运行的工具链、实际测试输出、退出状态与原始日志 hash。
+- [decorators.log](logs/decorators.log)：此前Group/Capture两项运行的工具链、实际输出、退出状态与原始日志 hash。
+- [remote.log](logs/remote.log)：新增Remote及watchdog后的三项最终实跑结果。
+- [default-after-remote.log](logs/default-after-remote.log)：保持默认feature时两项实际通过。
+- [default-empty-args-failure.log](logs/default-empty-args-failure.log)：已修复的Bash空array失败证据。
+- [remote-exit-status-probe.log](logs/remote-exit-status-probe.log)：新增feature参数后再次验证错误退出101。
+- [remote-validation.json](remote-validation.json)：当前Remote增量的源码、日志hash、原始失败与修复记录；生产源码hash保持候选版本。
 - [capture-reference-ir.json](logs/capture-reference-ir.json) 与
   [capture-foreach-ir.json](logs/capture-foreach-ir.json)：完整规范化 IR、初始化值、输出名称和 time。
 - [exit-status-probe.log](logs/exit-status-probe.log)：故意失败的 Cargo 调用，专门证明状态传播，

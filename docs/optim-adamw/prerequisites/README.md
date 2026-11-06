@@ -55,8 +55,16 @@ Burn workspace 的四项 CubeCL dependency 与 pinned CubeK workspace 的四项 
 预期的一套类型。该升级不包含在本补丁中。
 
 临时 root `[patch]` 或修改本机缓存只能让当前 checkout 编译，不能证明 Burn 作为下游依赖时可用。
-本仓库未发布其他仓库的分支或修改上游 pin；PR3 当前仍受此前置阻塞。前置可用后才继续完整的
-Sequence原型、模块两次遍历、分组/chunk、fallback、checkpoint、两轮review和性能对照。
+本仓库未发布其他仓库的分支或修改上游 pin；PR3生产接入仍受此前置阻塞。本地Sequence原型、
+模块候选及验证材料已单独推进；可获取的远程revision就绪后仍需正式接入、完整门禁和最终审查。
 
 本补丁及验证材料经James、Ptolemy两轮独立agent review通过。审查范围仅为getter前置，
 不是Foreach或总体目标验收；记录见[review-log.md](../review-log.md)。
+
+## 独立下游的本地 git 验证
+
+[下游验证](downstream/README.md)已将CubeCL getter、同步CubeK和Burn候选放入本仓库target下
+的独立本地git revision。消费者只依赖`burn` facade，不含root `[patch]`或源码覆盖配置；
+依赖图确认22个CubeCL包来源唯一，CPU编译与两步真实Foreach执行通过。
+这排除了“仅根工作区patch可用”的结构性疑问，但本地`file://` revision不代表远程可获取，
+也不授权发布额外fork。生产远程revision、CubeK/Burn pin接入及后续验收仍未完成。

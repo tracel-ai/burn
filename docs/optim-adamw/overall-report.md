@@ -84,3 +84,7 @@ PR3尚未接入生产，因此本报告不能作为“全部PR优化已完成”
 
 后续[本地修复及分项验证](experiments/pr3-local/refinement/README.md)消除了满chunk预算singleton
 造成的额外参数分配，并补足AMSGrad特殊值、rank8 checkpoint迁移及host分项计时。生产状态不变。
+
+另已补齐[本机Remote回退](experiments/pr3-local/checks/README.md)，并通过
+[无root patch的本地git下游验证](prerequisites/downstream/README.md)。消费者通过普通git依赖
+实际执行Foreach；这不证明远程revision可获取，全部PR正式交付目标仍未完成。

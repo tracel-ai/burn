@@ -90,3 +90,8 @@ near-limit pool峰值由24增加到28MiB。首步JIT、模块遍历下界、实�
 后续[候选修复](experiments/pr3-local/refinement/README.md)已将占满chunk预算的项提前回退，
 near-limit pool峰值从28MiB降回24MiB；补充AMSGrad特殊值、递减梯度跨checkpoint迁移和host阶段测量。
 原始候选数据保留，本地修复仍不代表生产PR3完成。
+
+后续已完成[Remote回退实测](experiments/pr3-local/checks/README.md)：本机WebSocket CPU服务端
+上的两步模块/direct更新、state、checkpoint和context与独立本地Reference一致，未提交专用kernel。
+[独立git下游验证](prerequisites/downstream/README.md)也通过无root patch的唯一依赖图、CPU编译
+和真实Foreach数值/路径检查。上述均为本地证据，远程依赖发布仍待确认。

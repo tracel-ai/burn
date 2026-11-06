@@ -109,11 +109,12 @@
   "apply_check": "Base and refinement patches apply cleanly in sequence to HEAD code; all nine final source hashes match.",
   "profile_patch_apply_check": "Applies to refined candidate. All instrumented production and benchmark source hashes match profile binary manifest; only later unit-test additions differ.",
   "decorator_checks": {
-    "sha256sums_sha256": "4ee9557da73c4a184b901fcc12883eb373ad1ba3aebc956ad39a93a6d57f62a7",
+    "sha256sums_sha256": "5cfbdc39de635b5af7f7988f2b7cc7ab9ce489c81c599d186f59bf59c1f83014",
     "runtime_result": "2 passed; 0 failed; 0 ignored; 0 filtered",
     "scope": "Group numeric module/direct updates and checkpoint; Capture direct IR recording, not numerical execution; no Remote coverage",
     "record": "../checks/README.md",
-    "checkpoint_oracle": "Both execution modes separately preserve the initial non-Disabled Balanced strategy; corrected review finding and reran both tests."
+    "checkpoint_oracle": "Both execution modes separately preserve the initial non-Disabled Balanced strategy; corrected review finding and reran both tests.",
+    "extended_harness": "Remote feature added after this refinement. Default Group/Capture reran 2 passed; Remote build ran all 3 passed. Details: ../checks/remote-validation.json. Production candidate hashes unchanged."
   },
   "archive_whitespace_check": {
     "patch_blank_context_lines": 7,

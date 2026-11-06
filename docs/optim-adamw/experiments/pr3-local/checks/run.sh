@@ -6,6 +6,12 @@ repo_dir="$(cd "$checks_dir/../../../../.." && pwd)"
 checks_toolchain="${ADAMW_CHECKS_TOOLCHAIN:-beta}"
 checks_cargo="$(rustup which --toolchain "$checks_toolchain" cargo)"
 checks_name="${ADAMW_CHECKS_LOG_NAME:-decorators}"
+checks_features="${ADAMW_CHECKS_FEATURES:-}"
+checks_args=(test --locked --manifest-path "$checks_dir/Cargo.toml"
+    --config "$repo_dir/target/adamw-foreach-local.toml" --test decorators)
+if [[ -n "$checks_features" ]]; then
+    checks_args+=(--features "$checks_features")
+fi
 checks_raw_log="$checks_dir/logs/$checks_name.raw.log"
 checks_summary="$checks_dir/logs/$checks_name.log"
 mkdir -p "$checks_dir/logs"
@@ -28,14 +34,12 @@ unset CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER
     printf 'toolchain=%s\ncargo=%s\nrustc=%s\nrustdoc=%s\n' "$checks_toolchain" "$checks_cargo" "$RUSTC" "$RUSTDOC"
     printf 'target=%s\noverride=%s\nwrappers=empty\nBURN_DEVICE=%s\n' "$CARGO_TARGET_DIR" "$repo_dir/target/adamw-foreach-local.toml" "$BURN_DEVICE"
     printf 'harness_lock_sha256=%s\n' "$(shasum -a 256 Cargo.lock | awk '{print $1}')"
+    printf 'features=%s\n' "$checks_features"
 } > "$checks_raw_log"
 
 # Capture cargo's status immediately; tee's status must not turn a failed test into success.
 set +e
-"$checks_cargo" test --locked \
-    --manifest-path "$checks_dir/Cargo.toml" \
-    --config "$repo_dir/target/adamw-foreach-local.toml" \
-    --test decorators -- --nocapture --test-threads=1 \
+"$checks_cargo" "${checks_args[@]}" -- --nocapture --test-threads=1 \
     2>&1 | tee -a "$checks_raw_log"
 checks_pipeline_status=("${PIPESTATUS[@]}")
 set -e

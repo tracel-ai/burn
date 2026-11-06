@@ -49,8 +49,10 @@ pool峰值之和仍是上界。这里直接修复了可确认的多余参数分�
 另用公开API的[独立decorator验证包](../checks/README.md)实际通过2项测试，均无early-return：
 Group两参数两步及checkpoint恢复的数值、全部state、device和context一致，AdamW专用launch为零；
 `Device::capture()`对两参数两步录制出62个相同的规范化IR操作与8个输出，所有raw launch为零。
-observer先以raw CPU single launch作正向校准。Capture只证明IR录制语义，不是数值执行；
-Remote仍未验证。测试包独立锁文件、完整IR和运行摘要均已归档，不改变生产feature。
+observer先以raw CPU single launch作正向校准。Capture只证明IR录制语义，不是数值执行。
+后续[Remote验证](../checks/README.md)已追加真实loopback WebSocket CPU服务端测试，
+三项合计通过，默认Group/Capture两项也再次通过；不扩展此前两项证据的范围。
+测试包独立锁文件、完整IR和运行摘要均已归档，不改变生产feature。
 
 ## 修复后的配对性能
 

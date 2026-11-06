@@ -1,0 +1,17 @@
+UTC 2026-11-06T15:18:31Z
+Darwin arm64
+cargo 1.100.0-beta.7 (72b77b8d9 2026-10-17)
+rustc 1.100.0-beta.7 (fd8e211ae 2026-10-17)
+rustdoc 1.100.0-beta.7 (fd8e211ae 2026-10-17)
+toolchain=beta
+cargo=/Users/fdasdfdaf/.rustup/toolchains/beta-aarch64-apple-darwin/bin/cargo
+rustc=/Users/fdasdfdaf/.rustup/toolchains/beta-aarch64-apple-darwin/bin/rustc
+rustdoc=/Users/fdasdfdaf/.rustup/toolchains/beta-aarch64-apple-darwin/bin/rustdoc
+target=/Volumes/HIKSEMI/code/burn/target/adamw-foreach-decorators
+override=/Volumes/HIKSEMI/code/burn/target/adamw-foreach-local.toml
+wrappers=empty
+BURN_DEVICE=cpu
+features=
+cargo_test_exit_status=1
+tee_exit_status=0
+raw_log_sha256=6df1e151b1db98c8a4f4153ff893e64f853545f26c9cd4c55a9f19e8b4bb0600
