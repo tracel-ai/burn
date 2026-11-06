@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use cubecl::profile::{ProfileDuration, ProfileTicks, TimingMethod};
 
-use super::cursor::{Attribution, Member};
+use super::cursor::{Attribution, Member, MemberCount};
 use crate::breakdown::{MemberTime, PerMember, Unplaced};
 
 /// The timings a run kept, and how far they are to be trusted.
@@ -128,9 +128,7 @@ pub struct Timeline {
     /// Before the run, so every window can be placed after it and the gaps
     /// between them read off.
     epoch: Instant,
-    /// How many members the device has: one, unless it is a sharded compute device whose
-    /// members fuse.
-    members: usize,
+    members: MemberCount,
     windows: Vec<Window>,
 }
 
@@ -163,7 +161,7 @@ pub struct Settled {
 }
 
 impl Timeline {
-    pub fn new(epoch: Instant, members: usize) -> Self {
+    pub fn new(epoch: Instant, members: MemberCount) -> Self {
         Self {
             epoch,
             members,
@@ -174,10 +172,10 @@ impl Timeline {
     /// Place the window `ticks` measured for a kernel launched for `member` on the component
     /// under `attribution`.
     pub fn push(&mut self, attribution: Attribution, member: Option<Member>, ticks: &ProfileTicks) {
-        let ran_on = match (self.members, member) {
-            (0 | 1, _) => RanOn::Device,
-            (_, Some(member)) => RanOn::Member(member),
-            (_, None) => RanOn::UnknownMember,
+        let ran_on = match (self.members.several(), member) {
+            (false, _) => RanOn::Device,
+            (true, Some(member)) => RanOn::Member(member),
+            (true, None) => RanOn::UnknownMember,
         };
         self.windows.push(Window {
             attribution,
@@ -200,8 +198,8 @@ impl Timeline {
         self.windows
             .sort_by_key(|window| (window.ran_on, window.start));
         let mut idle = Vec::with_capacity(self.windows.len());
-        let mut per_member = (self.members > 1).then(|| PerMember {
-            members: vec![MemberTime::default(); self.members],
+        let mut per_member = self.members.several().then(|| PerMember {
+            members: vec![MemberTime::default(); self.members.0],
             off_members: Duration::ZERO,
         });
         let mut busy_until: Option<(RanOn, Duration)> = None;
@@ -245,7 +243,7 @@ mod tests {
     #[test]
     fn idle_time_is_charged_to_the_kernel_that_ended_it() {
         let epoch = Instant::now();
-        let mut timeline = Timeline::new(epoch, 1);
+        let mut timeline = Timeline::new(epoch, MemberCount(1));
         let mut tree = super::super::component_tree::ComponentTree::default();
         let mut component = |label| {
             let component = tree.enter(crate::Declaration {
@@ -287,7 +285,7 @@ mod tests {
     #[test]
     fn each_member_is_idle_on_its_own() {
         let epoch = Instant::now();
-        let mut timeline = Timeline::new(epoch, 2);
+        let mut timeline = Timeline::new(epoch, MemberCount(2));
         let micros = Duration::from_micros;
         let window = |start: u64, end: u64| {
             ProfileTicks::from_start_end(epoch + micros(start), epoch + micros(end))

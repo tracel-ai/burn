@@ -23,9 +23,6 @@
 //!   and a kernel launched outside any block lands under the component whose
 //!   op sealed its segment — with nothing draining the stream to make it so.
 //!
-//! A sharded compute device defers a random op until its output is first used,
-//! so the op's kernel is charged to the component of that first use.
-//!
 //! The task touches no fusion state, so an instrumented run executes the graph a
 //! clean run executes.
 //!
@@ -105,6 +102,18 @@ thread_local! {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Member(pub usize);
 
+/// How many members a device launches for: one, unless it is a sharded compute device whose
+/// members fuse on workers of their own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MemberCount(pub usize);
+
+impl MemberCount {
+    /// Whether the device has more than one member, so each is timed apart.
+    pub fn several(self) -> bool {
+        self.0 > 1
+    }
+}
+
 /// Moves every launching thread's [`Attribution`] in step with the ops it runs.
 pub struct LaunchCursor {
     /// The fusion workers of the profiled device, in member order, where its ops go through them.
@@ -129,9 +138,18 @@ impl LaunchCursor {
 
     /// A cursor moving the workers `ids`, the member at each index told it launches for that
     /// member.
+    ///
+    /// A worker named twice, as by a sharded compute device whose members are one device, is
+    /// kept once: its members share one thread, which cannot launch for two of them.
     fn over(ids: Vec<DeviceId>) -> Self {
-        let workers: Vec<DeviceHandle<WorkerCursor>> =
-            ids.into_iter().map(DeviceHandle::new).collect();
+        let mut workers: Vec<DeviceHandle<WorkerCursor>> = Vec::with_capacity(ids.len());
+        let mut seen: Vec<DeviceId> = Vec::with_capacity(ids.len());
+        for id in ids {
+            if !seen.contains(&id) {
+                seen.push(id);
+                workers.push(DeviceHandle::new(id));
+            }
+        }
         for (index, worker) in workers.iter().enumerate() {
             worker
                 .submit(move |_: &mut WorkerCursor| MEMBER.with(|it| it.set(Some(Member(index)))));
@@ -150,8 +168,8 @@ impl LaunchCursor {
 
     /// How many members the profiled device launches for, one unless it is a sharded compute
     /// device whose members fuse.
-    pub fn members(&self) -> usize {
-        self.workers.len().max(1)
+    pub fn members(&self) -> MemberCount {
+        MemberCount(self.workers.len().max(1))
     }
 
     /// Point every launching thread at `attribution`: this one now, and the
@@ -312,7 +330,24 @@ mod tests {
                 .expect("the worker answers");
             assert_eq!(seen, (block, Some(Member(index))), "member {index}");
         }
-        assert_eq!(cursor.members(), 2);
+        assert_eq!(cursor.members(), MemberCount(2));
+    }
+
+    /// A sharded compute device whose members are one device names its worker twice: both are
+    /// one worker, so the device launches for one member and is timed as one.
+    #[test]
+    fn a_worker_named_twice_is_one_member() {
+        let device = DeviceId {
+            type_id: u16::MAX,
+            index_id: u16::MAX - 5,
+        };
+        let cursor = LaunchCursor::over(vec![device, device]);
+
+        assert_eq!(cursor.members(), MemberCount(1));
+        let member = DeviceHandle::<Ops>::new(device)
+            .submit_blocking(|_: &mut Ops| LaunchCursor::member())
+            .expect("the worker answers");
+        assert_eq!(member, Some(Member(0)));
     }
 
     /// A launch from any thread but a member's worker, as a collective's per-member kernels are

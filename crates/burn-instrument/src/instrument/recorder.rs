@@ -37,7 +37,7 @@ use cubecl::logging::{LaunchObserver, TimingRequest};
 use cubecl::profile::{ProfileDuration, TimingMethod};
 
 use super::component_tree::ComponentTree;
-use super::cursor::{Attribution, LaunchCursor};
+use super::cursor::{Attribution, LaunchCursor, MemberCount};
 #[cfg(feature = "fusion")]
 use super::origins::{BlockOrigin, OperationId, OperationOrigins};
 use super::pricing::Floors;
@@ -297,7 +297,7 @@ impl State {
     /// File every timing read back under the component that counted its
     /// launch, charge each device's idle stretches between them, and, over several `members`,
     /// keep what each did.
-    fn settle(&mut self, timed: Vec<Timed>, epoch: Instant, members: usize) {
+    fn settle(&mut self, timed: Vec<Timed>, epoch: Instant, members: MemberCount) {
         let mut timeline = Timeline::new(epoch, members);
         for timed in timed {
             match timed.ticks {
