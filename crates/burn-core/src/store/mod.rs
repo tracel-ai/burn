@@ -17,6 +17,7 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
+use burn_std::allocation_label::AllocationLabel;
 use hashbrown::HashMap;
 
 use crate::module::{Module, ModuleMapper, ModuleVisitor, Param, ParamGroup, ParamId};
@@ -323,6 +324,10 @@ impl ModuleVisitor for Collector {
 /// save/load cycles.
 struct ModuleRecordMapper {
     path: Vec<String>,
+    /// One allocation label per module entered, so the memory a parameter's
+    /// load allocates — the tensor and whatever its load transform builds —
+    /// is labelled with its path (see `burn_std::allocation_label`).
+    labels: Vec<AllocationLabel>,
     /// Map from module path to (persisted ParamId, tensor data).
     tensors: HashMap<String, (ParamId, TensorData)>,
     dtype_policy: DTypePolicy,
@@ -339,6 +344,7 @@ impl ModuleRecordMapper {
             .collect();
         Self {
             path: Vec::new(),
+            labels: Vec::new(),
             tensors,
             dtype_policy: record.dtype_policy,
             missing: Vec::new(),
@@ -417,9 +423,11 @@ macro_rules! map_kind {
 impl ModuleMapper for ModuleRecordMapper {
     fn enter_module(&mut self, name: &str, _container_type: &str) {
         self.path.push(name.to_string());
+        self.labels.push(AllocationLabel::enter(name));
     }
 
     fn exit_module(&mut self, _name: &str, _container_type: &str) {
+        self.labels.pop();
         self.path.pop();
     }
 
