@@ -341,7 +341,7 @@ impl TensorShardings<'_> {
                 .zip(heads.inputs.iter().copied())
                 .chain(whole),
             [(&desc.out, heads.output)],
-            Execution::Eager,
+            Execution::EveryMember,
         )
     }
 
