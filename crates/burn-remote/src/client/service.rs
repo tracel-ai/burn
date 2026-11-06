@@ -466,8 +466,14 @@ impl RemoteService {
         stream_id: StreamId,
         tensor: TensorRemote,
         new_id: TensorId,
+        dtype: DType,
     ) {
-        self.submit_task(Task::RegisterTensorRemote(stream_id, tensor, new_id));
+        self.submit_task(Task::RegisterTensorRemote {
+            stream_id,
+            tensor,
+            new_id,
+            dtype,
+        });
         self.send_batch();
     }
 
@@ -521,11 +527,13 @@ impl RemoteService {
         stream_id: StreamId,
         transfer_id: LocalTransferId,
         new_id: TensorId,
+        dtype: DType,
     ) {
         self.submit_task(Task::RegisterTensorLocal {
             stream_id,
             transfer_id,
             new_id,
+            dtype,
         });
         self.send_batch();
     }
