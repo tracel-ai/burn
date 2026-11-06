@@ -391,6 +391,7 @@ impl Group {
         self.broadcast();
     }
 
+    #[cfg(feature = "distributed")]
     fn moved_right_after_a_collective(&self) {
         let sum = Grid::sum(&self.every_value()).float();
         let last = self.devices.len() - 1;
