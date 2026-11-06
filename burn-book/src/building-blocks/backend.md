@@ -101,10 +101,6 @@ multiple tensors require compatible devices, so move them explicitly before comb
 Boolean transfers preserve values and storage dtype when the destination supports that storage.
 Otherwise, they use the destination device's configured bool storage.
 
-`Device::supports_dtype` describes support for the exact dtype, including boolean storage.
-Float and integer transfers preserve their dtype. Use an explicit cast when the destination does not
-support the numeric dtype.
-
 ```rust, ignore
 let cpu = Device::flex();
 let gpu = Device::cuda(0);

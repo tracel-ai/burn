@@ -6,21 +6,14 @@
 // Without a native shader compiler, wgpu uses WGSL even on a Vulkan adapter.
 #![cfg(not(any(feature = "vulkan", feature = "wgpu-msl")))]
 
-use burn_tensor::{Bool, BoolStore, DType, Device, DeviceConfig, Tensor, TensorData};
+use burn_tensor::{Bool, BoolStore, Bytes, DType, Device, DeviceConfig, Tensor, TensorData};
 
 #[test]
 fn bool_move_preserves_supported_storage_despite_destination_default() {
     let cpu = Device::cpu();
     let wgpu = Device::wgpu(Default::default());
     let dtype = DType::Bool(BoolStore::U32);
-    let data = TensorData::from_bytes_vec(
-        [2u32, 0, 255]
-            .into_iter()
-            .flat_map(u32::to_ne_bytes)
-            .collect(),
-        [3],
-        dtype,
-    );
+    let data = TensorData::from_bytes(Bytes::from_elems(vec![2u32, 0, 255]), [3], dtype);
     assert!(cpu.supports_dtype(dtype));
     assert_eq!(cpu.settings().bool_dtype, BoolStore::U8);
     let tensor = Tensor::<1, Bool>::from_data(data.clone(), &wgpu);
@@ -28,11 +21,7 @@ fn bool_move_preserves_supported_storage_despite_destination_default() {
     let moved = tensor.to_device(&cpu);
 
     assert_eq!(moved.dtype(), dtype);
-    let moved = moved.into_data();
-    assert_eq!(
-        moved.as_slice::<u32>().unwrap(),
-        data.as_slice::<u32>().unwrap()
-    );
+    moved.into_data().assert_eq(&data, true);
 }
 
 #[test]
@@ -63,11 +52,8 @@ fn bool_move_to_another_backend_uses_configured_fallback_for_unsupported_storage
     flex.configure(DeviceConfig::default().bool_dtype(BoolStore::U8))
         .unwrap();
     assert!(!flex.supports_dtype(DType::Bool(BoolStore::U32)));
-    let data = TensorData::from_bytes_vec(
-        [2u32, 0, 255]
-            .into_iter()
-            .flat_map(u32::to_ne_bytes)
-            .collect(),
+    let data = TensorData::from_bytes(
+        Bytes::from_elems(vec![2u32, 0, 255]),
         [3],
         DType::Bool(BoolStore::U32),
     );
@@ -89,11 +75,8 @@ fn bool_move_can_convert_to_explicitly_requested_storage_on_destination() {
 
     let cpu = Device::cpu();
     let wgpu = Device::wgpu(Default::default());
-    let data = TensorData::from_bytes_vec(
-        [2u32, 0, 255, 1]
-            .into_iter()
-            .flat_map(u32::to_ne_bytes)
-            .collect(),
+    let data = TensorData::from_bytes(
+        Bytes::from_elems(vec![2u32, 0, 255, 1]),
         [4],
         DType::Bool(BoolStore::U32),
     );
@@ -114,16 +97,11 @@ fn empty_bool_move_adapts_unsupported_storage_and_preserves_supported_storage() 
     let tensor = Tensor::<2, Bool>::empty([0, 3], &cpu);
 
     let moved = tensor.to_device(&wgpu);
-    let expected = TensorData::new(Vec::<bool>::new(), [0, 3]);
-
     let dtype = DType::Bool(BoolStore::U32);
+    let expected = TensorData::from_bytes_vec(vec![], [0, 3], dtype);
     assert_eq!(moved.dtype(), dtype);
-    moved
-        .to_data()
-        .assert_eq(&expected.clone().convert_dtype(dtype), true);
+    moved.to_data().assert_eq(&expected, true);
     let returned = moved.to_device(&cpu);
     assert_eq!(returned.dtype(), dtype);
-    returned
-        .into_data()
-        .assert_eq(&expected.convert_dtype(dtype), true);
+    returned.into_data().assert_eq(&expected, true);
 }

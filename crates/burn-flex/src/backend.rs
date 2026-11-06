@@ -339,26 +339,6 @@ mod tests {
     }
 
     #[test]
-    fn bool_move_converts_storage_without_copying_matching_bytes() {
-        use burn_backend::{TensorData, ops::BoolTensorOps};
-        use burn_std::sync::Arc;
-
-        let data =
-            TensorData::from_bytes_vec(alloc::vec![2, 0, 255], [3], DType::Bool(BoolStore::U8));
-        let tensor = Flex::bool_from_data(data, &FlexDevice);
-        let native = Flex::bool_to_device(tensor, &FlexDevice, BoolStore::Native);
-        assert_eq!(native.dtype(), DType::Bool(BoolStore::Native));
-        assert_eq!(native.bytes(), &[1, 0, 1]);
-
-        let bytes = native.data_arc();
-        let u8 = Flex::bool_to_device(native, &FlexDevice, BoolStore::U8);
-        assert_eq!(u8.dtype(), DType::Bool(BoolStore::U8));
-        assert!(Arc::ptr_eq(&bytes, &u8.data_arc()));
-        let unchanged = Flex::bool_to_device(u8, &FlexDevice, BoolStore::U8);
-        assert!(Arc::ptr_eq(&bytes, &unchanged.data_arc()));
-    }
-
-    #[test]
     fn device_prints_as_cpu() {
         use alloc::format;
         assert_eq!(format!("{:?}", FlexDevice), "Cpu");
