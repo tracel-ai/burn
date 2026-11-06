@@ -132,14 +132,18 @@ jobs:
     needs: [prepare-checks, code-quality]
     env:
       DISABLE_WGPU_SPIRV: "1"
-      # disable incremental compilation (reduces artifact size)
-      CARGO_PROFILE_TEST_INCREMENTAL: "false"
+      # Correctness tests spend more time optimizing than executing. Keep these
+      # overrides local to CI so normal release builds remain optimized.
+      CARGO_PROFILE_RELEASE_OPT_LEVEL: "0"
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "256"
+      CARGO_PROFILE_RELEASE_LTO: "off"
+      CARGO_INCREMENTAL: "0"
       CARGO_TERM_COLOR: always
+      COLLECT_COVERAGE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.ci_type != 'examples' }}
     strategy:
       matrix:
         rust: [stable]
-        # Tests are split across 3 shards: backend tests, workspace crates, examples/*
-        ci_type: [backends, crates, examples]
+        ci_type: [backends, crates, crates-extra, examples]
         include:
           - rust: stable
             toolchain: stable
@@ -152,13 +156,13 @@ jobs:
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           # Keep caches isolated per shard to prevent race conditions or bloated sizes
-          cache-key: ${{ matrix.rust }}-${{ matrix.ci_type }}-linux
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-          # Coverage builds can exhaust disk space; examples only run cargo check.
-          enable-cache: ${{ matrix.rust != 'stable' || matrix.ci_type == 'examples' }}
+          cache-key: ${{ matrix.rust }}-${{ matrix.ci_type }}-linux-unoptimized
+          save-if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
+          # Instrumented main builds can exhaust disk space; cache ordinary PR builds.
+          enable-cache: ${{ env.COLLECT_COVERAGE != 'true' }}
       # # --------------------------------------------------------------------------------
       - name: Install grcov
-        if: matrix.rust == 'stable' && matrix.ci_type != 'examples'
+        if: env.COLLECT_COVERAGE == 'true'
         shell: bash
         run: |
           curl -L "$GRCOV_LINK/v$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
@@ -166,20 +170,29 @@ jobs:
           cargo xtask coverage install
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask ${{ matrix.rust == 'stable' && matrix.ci_type != 'examples' && '--enable-coverage' || '' }} test ${{ env.TEST_RELEASE_FLAG }} --ci ${{ matrix.ci_type }}
+        run: cargo xtask ${{ env.COLLECT_COVERAGE == 'true' && '--enable-coverage' || '' }} test ${{ env.TEST_RELEASE_FLAG }} --ci ${{ matrix.ci_type }}
       # --------------------------------------------------------------------------------
       - name: Generate lcov.info
-        if: matrix.rust == 'stable' && matrix.ci_type != 'examples'
-        # /* is to exclude std library code coverage from analysis
-        run: cargo xtask coverage generate --ignore "/*,xtask/*,examples/*" --profile release
+        if: env.COLLECT_COVERAGE == 'true'
+        shell: bash
+        run: |
+          # Killed remote-test children leave empty profiles that llvm-profdata cannot merge.
+          find . -type f -name 'burn-*.profraw' -empty -delete
+          cargo xtask coverage generate --ignore "/*,xtask/*,examples/*" --profile release
+          # grcov can exit successfully even when profile merging fails.
+          if ! grep -q '^SF:crates/' lcov.info; then
+            echo '::error::Coverage report contains no workspace crate sources.'
+            exit 1
+          fi
       # --------------------------------------------------------------------------------
       - name: Upload Codecov Shard Artifact
-        if: matrix.rust == 'stable' && matrix.ci_type != 'examples'
+        if: env.COLLECT_COVERAGE == 'true'
         uses: actions/upload-artifact@v7
         with:
           # Names must be unique so they don't overwrite each other in the storage backend
           name: coverage-linux-${{ matrix.ci_type }}
           path: lcov.info
+          if-no-files-found: error
 
   linux-prev-checks:
     runs-on: ubuntu-22.04
@@ -194,7 +207,7 @@ jobs:
         uses: tracel-ai/github-actions/install-rust@v12
         with:
           rust-toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
-          cache-key: prev-compile-linux
+          cache-key: prev-compatibility-linux
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Check workspace crates and examples
         # Match the portable workspace build's exclusions for CUDA and ROCm SDKs.
@@ -206,9 +219,12 @@ jobs:
         run: cargo check -p burn --features flex,capture,train,linalg,signal,vision,rl
       - name: Check dataset all features
         run: cargo check -p burn-dataset --all-features
+      - name: Build no-std crates
+        run: cargo xtask --context no-std build --ci
 
 # --- Dedicated coverage upload job ---
   upload-coverage:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     needs: linux-std-tests
     steps:
@@ -234,12 +250,10 @@ jobs:
     needs: [prepare-checks, code-quality]
     strategy:
       matrix:
-        rust: [stable, prev]
+        rust: [stable]
         include:
           - rust: stable
             toolchain: stable
-          - rust: prev
-            toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -255,20 +269,21 @@ jobs:
         run: cargo xtask --context no-std build --ci
       # --------------------------------------------------------------------------------
       - name: Crates Tests
-        if: matrix.rust == 'stable'
         run: cargo xtask --context no-std test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
 
   windows-std-tests:
     runs-on: windows-2022
     needs: [prepare-checks, code-quality]
     env:
-      CARGO_PROFILE_TEST_INCREMENTAL: "false"
+      CARGO_PROFILE_RELEASE_OPT_LEVEL: "0"
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "256"
+      CARGO_PROFILE_RELEASE_LTO: "off"
+      CARGO_INCREMENTAL: "0"
       CARGO_TERM_COLOR: always
     strategy:
       matrix:
         rust: [stable]
-        # Tests are split across 3 shards: backend tests, workspace crates, examples/*
-        ci_type: [backends, crates, examples]
+        ci_type: [backends, crates, crates-extra, examples]
         include:
           - rust: stable
             toolchain: stable
@@ -280,7 +295,7 @@ jobs:
         uses: tracel-ai/github-actions/install-rust@v12
         with:
           rust-toolchain: ${{ matrix.toolchain }}
-          cache-key: ${{ matrix.rust }}-${{ matrix.ci_type }}-windows
+          cache-key: ${{ matrix.rust }}-${{ matrix.ci_type }}-windows-unoptimized
           save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Tests
