@@ -28,8 +28,8 @@
 //!   of these the fused step is not built and every configuration falls back to the reference
 //!   update. Default features enable kernel fusion with a `burn` runtime, where the fused step
 //!   also falls back; build without default features to run it. Numerical parity is covered by
-//!   tests on CPU, Metal, wgpu, wgpu-msl and webgpu; CUDA, ROCm and Vulkan require hardware or
-//!   toolchains not available in this checkout's validation environment.
+//!   tests on CPU, Metal and native wgpu with WGSL or MSL. Browser WebGPU, CUDA, ROCm and
+//!   Vulkan have not been validated in this checkout's environment.
 
 #[macro_use]
 extern crate derive_new;

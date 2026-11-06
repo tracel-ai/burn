@@ -32,7 +32,7 @@
          fma(lhs, rhs, negative_zero)
      }
  
-@@ -184,101 +190,138 @@
+@@ -184,101 +190,142 @@
      ///
      /// `v` is the second moment used for the update: the moment itself, or the AMSGrad maximum.
      #[cube]
@@ -178,7 +178,11 @@
 -        out_moment_2.write(pos, Vector::new(m2));
 +        // The CPU tail has fewer than one vector's elements. One unit handles them
 +        // serially, avoiding a separate worker for each of a handful of scalar values.
-+        let count = if comptime![has_offset] { units } else { 1usize.runtime() };
++        let count = if comptime![has_offset] {
++            units
++        } else {
++            1usize.runtime()
++        };
 +        for lane in 0..count {
 +            let pos = if comptime![has_offset] {
 +                offset + lane
@@ -231,7 +235,7 @@
      }
  
      /// Whether the tensor's metadata fits the buffer it binds.
-@@ -295,6 +338,9 @@
+@@ -295,6 +342,9 @@
          let handle = &tensor.handle;
          let start = handle.offset_start.unwrap_or(0);
          let end = handle.offset_end.unwrap_or(0);
@@ -241,7 +245,7 @@
          let Some(available) = handle
              .size()
              .checked_sub(start)
-@@ -476,16 +522,48 @@
+@@ -476,16 +526,48 @@
                  tensor.clone().into_linear_view()
              }
          };
@@ -299,7 +303,7 @@
          let address = address_type!(
              param,
              grad,
-@@ -498,24 +576,81 @@
+@@ -498,24 +580,81 @@
              out_max
          );
  

@@ -33,6 +33,9 @@ COW planner未放宽，alias位置仍为param=0、m1=2、m2=3、max=4。主体�
 
 实验/最终差异见 [pr4-vectorized.patch](experiments/pr4-vectorized.patch)，source hash见 [pr4-source-hashes.json](experiments/pr4-source-hashes.json)。当前 patch 可在 `target/adamw-pr2-source` scalar snapshot 中通过 `git apply --check`；当前工作树已包含该实现，不能直接重复应用。
 
+最终提交前仅由rustfmt将kernel一个if表达式换行；测量源码hash与最终格式化hash的映射记录在
+[final-formatting.json](data/final-formatting.json)，去除空白后的源码一致。原始binary/source manifest保持原值。
+
 ## 验证
 
 当前CPU/Metal/WGPU-MSL/WGPU-WGSL/CPU-Fusion AdamW测试各36项通过，CPU JIT key测试单独通过；CPU odd lengths、offset、WGPU storage alignment、transpose/narrow、AMSGrad、cautious、overflow、COW、capture和checkpoint覆盖。当前测试及raw CPU all-targets clippy使用禁用wrapper的独立target并通过，验证记录见[pr4-current-validation.json](data/pr4-current-validation.json)。Vulkan缺SDK，CUDA/ROCm无硬件，浏览器WebGPU不可用。

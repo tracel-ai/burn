@@ -1,6 +1,6 @@
 # AdamW 优化总报告
 
-状态：PR1、PR2 已完成并通过各自连续两轮 review；PR3 按设计门禁停止；PR4 CPU 向量化与serial scalar tail已完成直接source-matched A/B，GPU runtime保留scalar。CPU large参数与tail均有收益；PR4最新实现已连续两轮review通过；PR3尚未实现，全部实现总目标尚未完成。
+状态：PR1、PR2 已完成并通过各自连续两轮 review；PR3 按设计门禁停止；PR4 CPU 向量化与serial scalar tail已完成直接source-matched A/B，GPU runtime保留scalar。PR4已连续两轮review通过，当前分支也已连续三轮整体review通过；PR3尚未实现，全部实现总目标尚未完成。
 
 ## 交付状态
 
@@ -10,7 +10,7 @@
 | PR2 COW 输出复用 | 已完成 | [PR2报告](pr2-cow-report.md)；两轮最终 PASS |
 | PR3 Foreach | 停止/阻塞 | [PR3停止报告](pr3-foreach-report.md)；两轮确认当前 CubeCL缺少合格 stream getter |
 | PR4 大参数吞吐 | CPU实现及两轮review完成 | [PR4报告](pr4-throughput-report.md)；CPU大参数及serial tail均有收益，GPU保留scalar |
-| 分支最终三轮 review | 准备开始，0/3 | 按当前分支完整审查 |
+| 分支最终三轮 review | **3/3 PASS** | Hegel、Noether、Turing；G0文档finding修复后重新计数 |
 
 PR3 的阻塞来自锁定 CubeCL revision：`Client::stream_id()` 私有，`service_stream()` 和 `ServiceStream` 为 `pub(crate)`。公开的 profile、memory report、empty 和 stream-mode API 都会阻塞、分配或改变运行模式；`Handle.stream` 只是 allocation 创建 stream。最小前置是上游增加无副作用 `Client::execution_stream()` getter，随后才可实现安全 Foreach。
 
@@ -32,6 +32,7 @@ PR4早期paired及verified数据均标记`valid_for_acceptance=false`，原因�
 
 已通过或完成：
 
+- 默认Flex的整个burn-optim单元测试集140项通过；验证共享checkpoint辅助对其他优化器的影响。
 - 当前CPU、Metal、WGPU/MSL、WGPU/WGSL各36项测试通过（1项进程级JIT测试默认忽略，CPU单独串行执行通过）。这些测试使用禁用wrapper的直接toolchain构建。
 - 当前CPU Fusion直接构建36项通过；CPU raw all-targets clippy直接构建通过，原始摘要见[pr4-current-validation.json](data/pr4-current-validation.json)。
 - PR1/PR2 的四 runtime `--verify-path`、内存、稳态、JIT 和 allocation ID 原始数据。
@@ -43,7 +44,8 @@ PR4早期paired及verified数据均标记`valid_for_acceptance=false`，原因�
 - `cargo check -p burn-optim --no-default-features` 仍被未改动的 ModuleOptimizer 对 std gated `lr_scheduler` 的无条件引用和 alloc 导入问题阻断，PR1报告中已有记录。
 - Vulkan 缺少 macOS Vulkan SDK；CUDA/ROCm 无本机硬件；浏览器 WebGPU API 不可用；Flex 没有 CubeCL Fused路径。
 
-最终三轮分支 review 将审查当前生产状态、所有停止报告、性能证据和文档一致性；每轮若发现问题会先修复再重新计数。
+最终三轮分支review已连续通过：Hegel、Noether、Turing分别核查当前生产状态、停止报告、性能证据与文档一致性。G0曾发现WebGPU验证范围错误，修复后重新计数，见[完整审查记录](review-log.md)。
+提交前最后一处rustfmt换行不改变token或行为，原始测量与最终源码hash映射见[final-formatting.json](data/final-formatting.json)。
 
 ## 当前累计效果（直接构建）
 
@@ -67,5 +69,5 @@ PR4早期paired及verified数据均标记`valid_for_acceptance=false`，原因�
 | metal | long_short | 4.1014 | 1.1005 | 3.73× |
 
 实现、测试、测量脚本、报告和review由编码agent完成，没有声称人工review。用户自行创建并推送的
-`ba84da059`保存了此前状态；后续每个通过门禁的阶段将按明确授权提交并推送到同一fork分支。
+[用户的生产实现提交](https://github.com/onenewcode/burn/commit/ba84da059c08bd905a5c89acc863778e8e928b1b)保存了此前状态；后续每个通过门禁的阶段将按明确授权提交并推送到同一fork分支。
 PR3仍未实现，因此本报告不能作为“全部PR优化已完成”的证明。

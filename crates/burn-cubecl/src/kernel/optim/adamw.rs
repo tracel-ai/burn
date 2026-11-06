@@ -272,7 +272,11 @@ mod eager {
         }
         // The CPU tail has fewer than one vector's elements. One unit handles them
         // serially, avoiding a separate worker for each of a handful of scalar values.
-        let count = if comptime![has_offset] { units } else { 1usize.runtime() };
+        let count = if comptime![has_offset] {
+            units
+        } else {
+            1usize.runtime()
+        };
         for lane in 0..count {
             let pos = if comptime![has_offset] {
                 offset + lane

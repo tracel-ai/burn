@@ -47,6 +47,15 @@
         "test result: ok. 36 passed; 0 failed; 1 ignored; 0 measured; 131 filtered out; finished in 13.23s"
       ],
       "log_sha256": "d52f407d873791840f522e76eb09a61a79c139865312de281349371003424e28"
+    },
+    {
+      "backend": "default-flex-all-optimizers",
+      "command": "cargo test -p burn-optim --features burn-core/flex --lib",
+      "wrapper": "disabled",
+      "summary": [
+        "test result: ok. 140 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s"
+      ],
+      "log_sha256": "d6f728c1c356f57098e642bc2b8bbb7ea9813b015c9d658c2119d33be3bcf7ff"
     }
   ],
   "clippy": {
