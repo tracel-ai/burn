@@ -123,6 +123,12 @@ positions when sequence lengths differ.
 
 #### Kernels
 
+- Reduce CPU stalls in kernels with cube-wide synchronization by parking delayed units while
+  retaining a bounded atomic fast path for short waits.
+  ([CubeCL #2082](https://github.com/tracel-ai/cubecl/pull/2082),
+  [CubeK #1098](https://github.com/tracel-ai/cubek/pull/1098))
+  [@onenewcode](https://github.com/onenewcode)
+
 - Autotune CubeCL `sum_dims` between folded reductions and a copy followed by one reduction,
   including the copy cost. Tuning anchors shapes and strides to reuse plan choices across nearby
   workloads; Full autotuning keeps exact shapes and strides.
