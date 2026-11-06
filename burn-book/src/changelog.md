@@ -132,6 +132,10 @@ positions when sequence lengths differ.
   single-pass accumulation for FP16/BF16 to avoid intermediate overflow.
   ([#6173](https://github.com/tracel-ai/burn/pull/6173))
   [@EthanAlmloff](https://github.com/EthanAlmloff)
+- Use multi-axis sum autotuning for CubeCL FP32 `conv1d`, `conv3d`, and transposed-convolution
+  bias gradients, including with fusion, while retaining single-pass accumulation for other dtypes.
+  ([#6394](https://github.com/tracel-ai/burn/pull/6394))
+  [@EthanAlmloff](https://github.com/EthanAlmloff)
 - Enable CUDA tensor-core acceleration on Blackwell and Blackwell Ultra GPUs, including B300.
   ([#6161](https://github.com/tracel-ai/burn/pull/6161))
 - Improve CubeCL CPU matrix multiplication by selecting tile sizes that fit the vector width

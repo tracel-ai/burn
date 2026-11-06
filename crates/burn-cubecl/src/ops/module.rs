@@ -59,6 +59,14 @@ impl ModuleOps<Self> for CubeBackend {
         .unwrap()
     }
 
+    fn conv1d_bias_backward(
+        _x: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        conv_bias_backward::<false>(bias, output_grad)
+    }
+
     fn conv2d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
@@ -109,19 +117,7 @@ impl ModuleOps<Self> for CubeBackend {
         bias: FloatTensor<Self>,
         output_grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        if output_grad.dtype == DType::F32 {
-            let grad = Self::float_sum_dims(output_grad, &[0, 2, 3]);
-            return Self::float_reshape(grad, bias.shape());
-        }
-
-        // Keep low-precision gradients on one pass until reduce_dims preserves
-        // accumulator precision between passes instead of narrowing partial sums.
-        // Dense NHWC storage needs only a metadata reshape.
-        let [batch, channels, height, width] = output_grad.shape().dims();
-        let grad = super::permute_nchw_to_nhwc(output_grad);
-        let grad = Self::float_reshape(grad, [batch * height * width, channels].into());
-        let grad = Self::float_sum_dim(grad, 0);
-        Self::float_reshape(grad, bias.shape())
+        conv_bias_backward::<true>(bias, output_grad)
     }
 
     fn deform_conv2d(
@@ -196,6 +192,38 @@ impl ModuleOps<Self> for CubeBackend {
             Default::default(),
         )
         .unwrap()
+    }
+
+    fn conv3d_bias_backward(
+        _x: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        conv_bias_backward::<false>(bias, output_grad)
+    }
+
+    fn conv_transpose1d_bias_backward(
+        _x: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        conv_bias_backward::<false>(bias, output_grad)
+    }
+
+    fn conv_transpose2d_bias_backward(
+        _x: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        conv_bias_backward::<false>(bias, output_grad)
+    }
+
+    fn conv_transpose3d_bias_backward(
+        _x: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        conv_bias_backward::<false>(bias, output_grad)
     }
 
     fn conv_transpose2d(
@@ -573,4 +601,34 @@ impl ModuleOps<Self> for CubeBackend {
 
         Self::float_cast(grad, dtype)
     }
+}
+
+/// Sums rank-3 to rank-5 gradients `[batch, channels, ...spatial]` into `[channels]`.
+/// Preserves the gradient dtype and device. The bias has shape `[channels]`.
+/// `CHANNELS_LAST` retains the 2D operation's column layout for non-F32 sums.
+fn conv_bias_backward<const CHANNELS_LAST: bool>(
+    bias: FloatTensor<CubeBackend>,
+    output_grad: FloatTensor<CubeBackend>,
+) -> FloatTensor<CubeBackend> {
+    if output_grad.dtype == DType::F32 {
+        let dims = &[0, 2, 3, 4][..output_grad.shape().num_dims() - 1];
+        let grad = CubeBackend::float_sum_dims(output_grad, dims);
+        return CubeBackend::float_reshape(grad, bias.shape());
+    }
+
+    // One reduction keeps low-precision partial sums from overflowing before cancellation.
+    let shape = output_grad.shape();
+    let channels = shape[1];
+    let samples = shape[0] * shape[2..].iter().product::<usize>();
+    let grad = if const { CHANNELS_LAST } {
+        // Preserve the 2D path's metadata-only reshape for dense NHWC storage.
+        let grad = super::permute_nchw_to_nhwc(output_grad);
+        let grad = CubeBackend::float_reshape(grad, [samples, channels].into());
+        CubeBackend::float_sum_dim(grad, 0)
+    } else {
+        let grad = CubeBackend::float_swap_dims(output_grad, 0, 1);
+        let grad = CubeBackend::float_reshape(grad, [channels, samples].into());
+        CubeBackend::float_sum_dim(grad, 1)
+    };
+    CubeBackend::float_reshape(grad, bias.shape())
 }
