@@ -73,14 +73,6 @@ pub fn test_device() -> burn_tensor::Device {
     burn_tensor::Device::flex()
 }
 
-#[cfg(all(test, feature = "shard"))]
-#[allow(missing_docs)]
-pub fn test_sharded_device() -> burn_tensor::Device {
-    burn_tensor::Device::shard_options(&[test_device(), test_device()])
-        .init()
-        .unwrap()
-}
-
 #[cfg(test)]
 mod test_utils {
     use crate as burn;

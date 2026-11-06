@@ -1,59 +1,72 @@
-#[cfg(feature = "autodiff")]
-use alloc::boxed::Box;
+#[cfg(any(cube_backend, feature = "flex"))]
+use alloc::vec::Vec;
+#[cfg(any(cube_backend, feature = "flex"))]
+use burn_backend::{DType, TensorMetadata};
+#[cfg(any(cube_backend, feature = "flex"))]
+use burn_ir::{BackendIr, HandleKind};
+use burn_shard::{Sharding, Shards, ShardsError};
 
-#[cfg(feature = "autodiff")]
-use burn_autodiff::{
-    checkpoint::{
-        base::Checkpointer,
-        strategy::{BalancedCheckpointing, CheckpointStrategy, NoCheckpointing},
-    },
-    grads::Gradients,
-    ops::{Backward, Ops, unary},
+use crate::{
+    BackendTensor, DispatchDevice, DispatchKindConversion, DispatchTensor, DispatchTensorKind,
+    backends::ShardedCompute,
 };
-#[cfg(feature = "autodiff")]
-use burn_backend::{Backend, tensor::FloatTensor};
-use burn_shard::{Sharding, ShardingError};
-
-use crate::{BackendTensor, DispatchTensor, DispatchTensorKind, backends::ShardedCompute};
-#[cfg(feature = "autodiff")]
-use crate::{DispatchAutodiffContext, GradientCheckpointingStrategy, backends::Autodiff};
 
 impl DispatchTensor {
-    /// The same value with another sharding over its sharded compute device, or why it cannot take it.
+    /// The tensor `shards` make up over the sharded compute device `device`: one shard per
+    /// member, each already on its member. Nothing moves between members.
     ///
-    /// A tracked autodiff tensor records the move: its gradient flows back through it unchanged,
-    /// since a gradient may have any sharding.
-    pub fn try_with_sharding(self, sharding: Sharding) -> Result<Self, ShardingError> {
-        let DispatchTensor { kind, autodiff } = self;
-        let kind = match kind {
-            DispatchTensorKind::ShardedCompute(tensor) => {
-                DispatchTensorKind::ShardedCompute(tensor.reshard(sharding)?)
-            }
-            #[cfg(feature = "autodiff")]
-            DispatchTensorKind::Autodiff(inner) => {
-                let DispatchAutodiffContext::Enabled(checkpointing) = autodiff else {
-                    unreachable!("An autodiff tensor has an enabled autodiff context")
-                };
-                let DispatchTensorKind::ShardedCompute(BackendTensor::Autodiff(tensor)) = *inner
-                else {
-                    return Err(ShardingError::NotSharded);
-                };
-                let resharded = match checkpointing {
-                    GradientCheckpointingStrategy::Balanced => {
-                        WithSharding::record::<BalancedCheckpointing>(tensor, sharding)
-                    }
-                    GradientCheckpointingStrategy::Disabled => {
-                        WithSharding::record::<NoCheckpointing>(tensor, sharding)
-                    }
-                }?;
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::ShardedCompute(
-                    BackendTensor::Autodiff(resharded),
-                )))
-            }
+    /// # Errors
+    ///
+    /// When `device` is not a plain sharded compute device, or as
+    /// [`ShardedComputeDevice::join_shards`](burn_shard::ShardedComputeDevice::join_shards).
+    pub fn from_shards(
+        shards: Shards<DispatchTensor>,
+        device: &DispatchDevice,
+    ) -> Result<Self, ShardsError> {
+        let device = match device {
+            DispatchDevice::ShardedCompute(device) => device,
             #[allow(unreachable_patterns)]
-            _ => return Err(ShardingError::NotSharded),
+            _ => return Err(ShardsError::NotSharded),
         };
-        Ok(DispatchTensor { kind, autodiff })
+        let tensor = match shards.shards.first().map(|shard| &shard.kind) {
+            #[cfg(cube_backend)]
+            Some(DispatchTensorKind::Cube(_)) => {
+                BackendTensor::from_member_shards::<crate::backends::Cube>(shards, device)
+            }
+            #[cfg(feature = "flex")]
+            Some(DispatchTensorKind::Flex(_)) => {
+                BackendTensor::from_member_shards::<crate::backends::Flex>(shards, device)
+            }
+            Some(_) => Err(ShardsError::Device { shard: 0 }),
+            None => Err(ShardsError::Count {
+                shards: 0,
+                num_members: device.num_members(),
+            }),
+        }?;
+        Ok(<Self as DispatchKindConversion<ShardedCompute>>::from_backend(tensor))
+    }
+
+    /// Each member's shard of the tensor, in member order, and how they make up its value.
+    ///
+    /// # Panics
+    ///
+    /// When the tensor is not on a plain sharded compute device.
+    #[cfg_attr(not(any(cube_backend, feature = "flex")), allow(unused_variables))]
+    pub fn into_shards(self) -> Shards<DispatchTensor> {
+        let tensor = match self.kind {
+            DispatchTensorKind::ShardedCompute(tensor) => tensor,
+            #[allow(unreachable_patterns)]
+            _ => panic!("{}", ShardsError::NotSharded),
+        };
+        #[cfg(cube_backend)]
+        if tensor.device().members::<crate::backends::Cube>().is_some() {
+            return tensor.into_member_shards::<crate::backends::Cube>();
+        }
+        #[cfg(feature = "flex")]
+        if tensor.device().members::<crate::backends::Flex>().is_some() {
+            return tensor.into_member_shards::<crate::backends::Flex>();
+        }
+        unreachable!("A sharded compute device's members are Cube or Flex devices")
     }
 
     /// Where the tensor's shards sit, or `None` when it is not on a sharded compute device.
@@ -79,56 +92,86 @@ impl DispatchTensor {
     }
 }
 
-/// [`DispatchTensor::try_with_sharding`] on a tracked tensor, recorded so its gradient flows back.
-#[cfg(feature = "autodiff")]
-#[derive(Debug)]
-struct WithSharding;
-
-#[cfg(feature = "autodiff")]
-impl WithSharding {
-    fn record<C: CheckpointStrategy>(
-        tensor: FloatTensor<Autodiff<ShardedCompute>>,
-        sharding: Sharding,
-    ) -> Result<FloatTensor<Autodiff<ShardedCompute>>, ShardingError> {
-        let node = tensor.node();
-        let inner = tensor.into_primitive();
-        let resharded = inner.client.clone().reshard(inner, sharding)?;
-        Ok(
-            <WithSharding as Backward<ShardedCompute, 1>>::prepare::<C>(WithSharding, [node])
-                .compute_bound()
-                .stateless(resharded),
-        )
-    }
-}
-
-#[cfg(feature = "autodiff")]
-impl<B: Backend> Backward<B, 1> for WithSharding {
-    type State = ();
-
-    fn backward(self, ops: Ops<(), 1>, grads: &mut Gradients, _: &mut Checkpointer) {
-        unary::<B, _>(ops.parents, ops.node, grads, |grad| grad);
-    }
-}
-
+#[cfg(any(cube_backend, feature = "flex"))]
 impl BackendTensor<ShardedCompute> {
-    fn reshard(self, sharding: Sharding) -> Result<Self, ShardingError> {
-        Ok(match self {
-            BackendTensor::Float(tensor) => {
-                BackendTensor::Float(tensor.client.clone().reshard(tensor, sharding)?)
-            }
-            BackendTensor::Int(tensor) => {
-                BackendTensor::Int(tensor.client.clone().reshard(tensor, sharding)?)
-            }
-            BackendTensor::Bool(tensor) => {
-                BackendTensor::Bool(tensor.client.clone().reshard(tensor, sharding)?)
-            }
-            BackendTensor::Quantized(tensor) => {
-                BackendTensor::Quantized(tensor.client.clone().reshard(tensor, sharding)?)
-            }
-            #[cfg(feature = "autodiff")]
-            BackendTensor::Autodiff(_) => {
-                unreachable!("An autodiff tensor is wrapped in its own kind")
-            }
+    /// The tensor of the sharded compute device `shards` of the members' backend `B` make up.
+    fn from_member_shards<B: BackendIr>(
+        Shards { shards, sharding }: Shards<DispatchTensor>,
+        device: &burn_shard::ShardedComputeDevice,
+    ) -> Result<Self, ShardsError>
+    where
+        DispatchTensor: DispatchKindConversion<B>,
+    {
+        let handles = shards
+            .into_iter()
+            .enumerate()
+            .map(|(shard, tensor)| {
+                <DispatchTensor as DispatchKindConversion<B>>::try_into_backend(tensor)
+                    .ok()
+                    .and_then(BackendTensor::into_member_handle)
+                    .ok_or(ShardsError::Device { shard })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let tensor = device.join_shards::<B>(Shards {
+            shards: handles,
+            sharding,
+        })?;
+        Ok(match tensor.dtype() {
+            DType::QFloat(_) => Self::Quantized(tensor),
+            DType::Bool(_) => Self::Bool(tensor),
+            dtype if dtype.is_float() => Self::Float(tensor),
+            _ => Self::Int(tensor),
         })
+    }
+
+    /// Each member's shard of the tensor, whose members run `B`.
+    fn into_member_shards<B: BackendIr>(self) -> Shards<DispatchTensor>
+    where
+        DispatchTensor: DispatchKindConversion<B>,
+    {
+        let tensor = match self {
+            Self::Float(tensor)
+            | Self::Int(tensor)
+            | Self::Bool(tensor)
+            | Self::Quantized(tensor) => tensor,
+            #[cfg(feature = "autodiff")]
+            Self::Autodiff(_) => unreachable!("An autodiff tensor is wrapped in its own kind"),
+        };
+        tensor
+            .client
+            .clone()
+            .take_shards::<B>(tensor)
+            .map(|handle| {
+                <DispatchTensor as DispatchKindConversion<B>>::from_backend(BackendTensor::from(
+                    handle,
+                ))
+            })
+    }
+}
+
+#[cfg(any(cube_backend, feature = "flex"))]
+impl<B: BackendIr> BackendTensor<B> {
+    /// The tensor as its member's handle, or `None` for a tracked one, which no member holds.
+    fn into_member_handle(self) -> Option<HandleKind<B>> {
+        Some(match self {
+            Self::Float(tensor) => HandleKind::Float(tensor),
+            Self::Int(tensor) => HandleKind::Int(tensor),
+            Self::Bool(tensor) => HandleKind::Bool(tensor),
+            Self::Quantized(tensor) => HandleKind::Quantized(tensor),
+            #[cfg(feature = "autodiff")]
+            Self::Autodiff(_) => return None,
+        })
+    }
+}
+
+#[cfg(any(cube_backend, feature = "flex"))]
+impl<B: BackendIr> From<HandleKind<B>> for BackendTensor<B> {
+    fn from(handle: HandleKind<B>) -> Self {
+        match handle {
+            HandleKind::Float(tensor) => Self::Float(tensor),
+            HandleKind::Int(tensor) => Self::Int(tensor),
+            HandleKind::Bool(tensor) => Self::Bool(tensor),
+            HandleKind::Quantized(tensor) => Self::Quantized(tensor),
+        }
     }
 }

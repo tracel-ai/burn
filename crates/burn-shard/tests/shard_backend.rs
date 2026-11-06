@@ -1,12 +1,14 @@
 use burn_backend::{
     Backend, BoolDType, Scalar, Shape, Slice, TensorData,
-    ops::{ActivationOps, AttentionModuleOptions, FloatTensorOps, IntTensorOps},
+    ops::{ActivationOps, AttentionModuleOptions, DimSplit, FloatTensorOps, IntTensorOps},
     tensor::{FloatTensor, IntTensor},
 };
 use burn_flex::{Flex, FlexDevice};
+use burn_ir::HandleKind;
 use burn_shard::{
     ShardBackend, ShardedComputeDevice,
     Sharding::{self, PartialSum, Replicated, Split},
+    Shards,
 };
 use burn_std::future::block_on;
 
@@ -136,18 +138,20 @@ fn reductions_match_one_device_for_every_sharding() {
 #[test]
 fn integer_division_and_mean_sum_a_partial_sum_first() {
     let device = sharded_compute(2);
-    let int = |values: Vec<i64>, shape: [usize; 2]| {
-        Shard::int_from_data(TensorData::new(values, shape), &device)
+    let int = |values: Vec<i64>, shape: [usize; 2], sharding| {
+        made_on_members(&TensorData::new(values, shape), &device, sharding, |data| {
+            HandleKind::Int(Flex::int_from_data(data, &FlexDevice))
+        })
     };
     let partial = || {
         Shard::int_matmul(
-            reshard(int(vec![1, 1, 1, 1, 0, 0], [3, 2]), Split { dim: 1 }),
-            reshard(int(vec![1; 4], [2, 2]), Split { dim: 0 }),
+            int(vec![1, 1, 1, 1, 0, 0], [3, 2], Split { dim: 1 }),
+            int(vec![1; 4], [2, 2], Split { dim: 0 }),
         )
     };
     assert_eq!(sharding_of(&partial()), PartialSum);
 
-    let divided = Shard::int_div(partial(), int(vec![2; 6], [3, 2]));
+    let divided = Shard::int_div(partial(), int(vec![2; 6], [3, 2], Replicated));
     let divided_by_scalar = Shard::int_div_scalar(partial(), Scalar::Int(2));
     let mean = Shard::int_mean_dim(partial(), 0);
 
@@ -226,14 +230,8 @@ fn masked_causal_attention_matches_one_device_for_every_sharding() {
 #[test]
 fn split_tensors_stay_split_where_megatron_keeps_them() {
     let device = sharded_compute(2);
-    let x = reshard(
-        Shard::float_from_data(data([4, 6], 1), &device),
-        Split { dim: 1 },
-    );
-    let w = reshard(
-        Shard::float_from_data(data([6, 6], 2), &device),
-        Split { dim: 0 },
-    );
+    let x = float_on_members(&data([4, 6], 1), &device, Split { dim: 1 });
+    let w = float_on_members(&data([6, 6], 2), &device, Split { dim: 0 });
     let summand = Shard::float_matmul(x.clone(), w);
 
     assert_eq!(sharding_of(&summand), PartialSum);
@@ -245,26 +243,6 @@ fn split_tensors_stay_split_where_megatron_keeps_them() {
     assert_eq!(sharding_of(&Shard::relu(x.clone())), Split { dim: 1 });
     assert_eq!(sharding_of(&Shard::float_exp(x.clone())), Split { dim: 1 });
     assert_eq!(sharding_of(&Shard::softmax(x, 0)), Split { dim: 1 });
-}
-
-#[test]
-fn every_sharding_moves_to_every_other_and_keeps_its_value() {
-    let input = data([4, 6], 1);
-    for num_members in 1..=4 {
-        let device = sharded_compute(num_members);
-        for from in shardings(input.shape(), num_members) {
-            for to in shardings(input.shape(), num_members) {
-                if to == PartialSum && from != PartialSum {
-                    continue;
-                }
-                let (tensor, value) = sharded(&input, &device, from);
-                let moved = reshard(tensor, to);
-                assert_eq!(sharding_of(&moved), to);
-                let case = format!("{num_members} members, {from:?} to {to:?}");
-                assert_close(read::<Shard>(moved), value, &case);
-            }
-        }
-    }
 }
 
 fn assert_unary_matches(
@@ -370,7 +348,7 @@ impl AttentionInputs {
             ),
             None => (None, None),
         };
-        B::attention(query, key, value, mask, bias, options)
+        B::attention(query, key, value, mask, bias, None, options)
     }
 }
 
@@ -381,18 +359,14 @@ fn sharded(
     device: &ShardedComputeDevice,
     sharding: Sharding,
 ) -> (FloatTensor<Shard>, TensorData) {
-    let tensor = Shard::float_from_data(data.clone(), device);
     if sharding != PartialSum {
-        return (reshard(tensor, sharding), data.clone());
+        return (float_on_members(data, device, sharding), data.clone());
     }
     let num_dims = data.shape().num_dims();
     let weights = contraction_weights(data.shape());
     let partial = Shard::float_matmul(
-        reshard(tensor, Split { dim: num_dims - 1 }),
-        reshard(
-            Shard::float_from_data(weights.clone(), device),
-            Split { dim: num_dims - 2 },
-        ),
+        float_on_members(data, device, Split { dim: num_dims - 1 }),
+        float_on_members(&weights, device, Split { dim: num_dims - 2 }),
     );
     assert_eq!(sharding_of(&partial), PartialSum);
     (partial, product_on_one_device(data, &weights))
@@ -436,12 +410,43 @@ fn sharded_compute(num_members: usize) -> ShardedComputeDevice {
         .expect("Flex devices form a sharded compute device")
 }
 
-fn reshard(tensor: FloatTensor<Shard>, sharding: Sharding) -> FloatTensor<Shard> {
-    tensor
-        .client
-        .clone()
-        .reshard(tensor, sharding)
-        .expect("The test asks for a sharding the tensor can take")
+/// `data` replicated or split over `device`, each member's shard made on it.
+fn float_on_members(
+    data: &TensorData,
+    device: &ShardedComputeDevice,
+    sharding: Sharding,
+) -> FloatTensor<Shard> {
+    made_on_members(data, device, sharding, |data| {
+        HandleKind::Float(Flex::float_from_data(data, &FlexDevice))
+    })
+}
+
+/// `data` replicated or split over `device`, each member's shard uploaded by `upload`. A float
+/// and an int tensor of the sharded compute device are one type.
+fn made_on_members(
+    data: &TensorData,
+    device: &ShardedComputeDevice,
+    sharding: Sharding,
+    upload: impl Fn(TensorData) -> HandleKind<Flex>,
+) -> FloatTensor<Shard> {
+    let num_members = device.num_members();
+    let chunks: Vec<TensorData> = match sharding {
+        Split { dim } => DimSplit {
+            dim,
+            len: data.shape()[dim],
+            members: num_members,
+        }
+        .data_chunks(data)
+        .collect(),
+        Replicated => vec![data.clone(); num_members],
+        PartialSum => unreachable!("The tests make a partial sum with a contraction"),
+    };
+    device
+        .join_shards::<Flex>(Shards {
+            shards: chunks.into_iter().map(upload).collect(),
+            sharding,
+        })
+        .expect("The test's shards make up one tensor")
 }
 
 fn sharding_of(tensor: &FloatTensor<Shard>) -> Sharding {

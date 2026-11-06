@@ -28,13 +28,22 @@ burn = { version = "0.23", features = ["shard", "cuda"] }
 
 ```rust,ignore
 use burn::prelude::*;
-use burn::tensor::{Distribution, Sharding::Split, activation};
+use burn::tensor::{Distribution, Sharding::Split, Shards, activation};
 
 let device = Device::shard_options(&[Device::cuda(0), Device::cuda(1)]).init()?;
+let members = device.shard_members().unwrap();
 
+// Each member makes its own shard, so no device ever holds a whole weight.
+let split = |shape: [usize; 2], dim| {
+    let shards = members
+        .iter()
+        .map(|member| Tensor::<2>::random(shape, Distribution::Default, member))
+        .collect();
+    Tensor::from_shards(Shards { shards, sharding: Split { dim } }, &device)
+};
 // Megatron's MLP: the first weight split by column, the second by row.
-let w1 = Tensor::<2>::random([1024, 4096], Distribution::Default, &device).with_sharding(Split { dim: 1 });
-let w2 = Tensor::<2>::random([4096, 1024], Distribution::Default, &device).with_sharding(Split { dim: 0 });
+let w1 = split([1024, 2048], 1)?;
+let w2 = split([2048, 1024], 0)?;
 
 let x = Tensor::<2>::random([8, 1024], Distribution::Default, &device);
 // Split along its last dim, with nothing sent between members.
@@ -43,15 +52,16 @@ let hidden = activation::relu(x.matmul(w1));
 let output = hidden.matmul(w2);
 ```
 
-A sharded compute device's members are Cube devices, of one runtime or of several, or Flex devices. Members on
-different runtimes form a sharded compute device whose every collective is emulated through the host: correct, and
-far slower than members that share a runtime. A tensor made from data stays on the host until it
-is used, and a split of it there, by `with_sharding` or by an op that consumes it, uploads each
-member only its chunk. A random tensor waits the same way until it is first used, and a split use
-has each member generate only its shard. Its random key is reserved when the tensor is created;
-each shard receives a child key from `RandomKey::split`, so first-use order, member scheduling,
-and later reseeding do not change its values. A split draw can differ from one device's with the
-same seed. Any other tensor, `zeros` among them, is created whole on every member before `with_sharding` splits it.
+A sharded compute device's members are Cube devices, of one runtime or of several, or Flex
+devices. Members on different runtimes form a sharded compute device whose every collective is
+emulated through the host: correct, and far slower than members that share a runtime.
+
+The caller makes a split tensor's shards, each on its member, and `Tensor::from_shards` checks
+that they make up one tensor: shard `i` on member `i`, one dtype, and the balanced chunk of the
+split dim for each member, the first members one longer when it does not divide. `DimSplit` gives
+each member's range of that dim and cuts a `TensorData` to it. A tensor made from data or by an op
+on the sharded compute device itself is replicated, and a random one is drawn on the first member
+and copied to the others.
 
 <!-- burn-crate-footer -->
 

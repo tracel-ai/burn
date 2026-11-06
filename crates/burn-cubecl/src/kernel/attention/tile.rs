@@ -3,11 +3,14 @@
 
 use core::num::NonZeroUsize;
 
+use super::kept_arrivals;
 use crate::{
+    CubeBackend,
+    kernel::cast,
     ops::{expand, numeric::full_device_dtype, swap_dims},
     tensor::CubeTensor,
 };
-use burn_backend::ops::{AttentionModuleOptions, CausalAlignment};
+use burn_backend::ops::{AttentionCache, AttentionModuleOptions, CausalAlignment};
 use burn_backend::{DType, Shape, cubecl::dtype_to_storage_type};
 use cubecl::features::TypeUsage;
 use cubecl::prelude::InputScalar;
@@ -85,21 +88,27 @@ pub(crate) fn visibility_serves(
 /// Whether the tile routines serve the forward pass of an attention of `query` against `key` and
 /// `value` with `options`: operands they [take](routines_take), no additive bias and no softcap.
 /// A mask, a custom scale, a causal mask anchored at either corner and a sliding window they read,
-/// except a top-left causal edge combined with a window over different query and key lengths.
+/// except a top-left causal edge combined with a window over different query and key lengths, and
+/// a mask over a key/value cache (`masked_cache`).
 pub fn forward_serves(
     query: &CubeTensor,
     key: &CubeTensor,
     value: &CubeTensor,
     has_bias: bool,
+    masked_cache: bool,
     options: &AttentionModuleOptions,
 ) -> bool {
     routines_take(query, key, value)
         && !has_bias
+        && !masked_cache
         && options.softcap.is_none()
         && visibility_serves(options, query.meta.shape()[2], key.meta.shape()[2])
 }
 
-/// Executes attention through cubek's autotune over its tile-DSL routines.
+/// Executes attention through cubek's autotune over its tile-DSL routines, over a key/value
+/// `cache` when one is given. Without one, every position of `key` and `value` is attended; with
+/// one, each sequence attends its first `lengths[b]` positions, a single query among the routines
+/// that serve one, counting in at counters kept for its device and stream.
 ///
 /// # Panics
 ///
@@ -109,37 +118,67 @@ pub fn attention_autotune(
     key: CubeTensor,
     value: CubeTensor,
     mask: Option<CubeTensor>,
-    attn_bias: Option<CubeTensor>,
+    cache: Option<AttentionCache<CubeBackend>>,
     options: AttentionModuleOptions,
 ) -> CubeTensor {
     assert!(
-        attn_bias.is_none() && options.softcap.is_none(),
-        "the tile-DSL attention takes no additive bias or softcap"
+        options.softcap.is_none(),
+        "the tile-DSL attention takes no softcap"
     );
     let (client, device, dtype) = (query.client.clone(), query.device.clone(), query.dtype);
     let [batch, heads, seq_q, head_dim] = query.meta.shape().dims::<4>();
     let seq_kv = key.meta.shape()[2];
-    let lengths = full_device_dtype(
-        client.clone(),
-        Shape::new([batch]),
-        device.clone(),
-        InputScalar::new(seq_kv as u32, dtype_to_storage_type(DType::U32)),
-        DType::U32,
-    );
-    let inputs = AttentionTuneInputs::new(
-        &client,
-        query.plain(),
-        key.plain(),
-        value.plain(),
-        None,
-        lengths.plain(),
-        None,
-        scoring(&options, head_dim),
-    )
-    .unwrap_or_else(|why| panic!("no tile-DSL attention routine serves these operands: {why:?}"))
-    // burn's key and value are the call's own, every position attended: the autotune key holds
-    // their extent rather than standing for a cache's.
-    .attending_every_position();
+    let positions = QueryPositions::of(seq_q);
+    let scoring = scoring(&options, head_dim);
+    let (query, key, value) = (query.plain(), key.plain(), value.plain());
+    let inputs = match cache {
+        Some(AttentionCache { lengths, pages }) => {
+            assert!(
+                mask.is_none(),
+                "the tile-DSL attention takes no mask over a cache"
+            );
+            let arrivals = matches!(positions, QueryPositions::One)
+                .then(|| kept_arrivals(&client, &device, batch * heads));
+            AttentionTuneInputs::new(
+                &client,
+                query,
+                key,
+                value,
+                pages.map(|pages| cast(pages, DType::U32).plain()),
+                cast(lengths, DType::U32).plain(),
+                arrivals.map(CubeTensor::plain),
+                scoring,
+            )
+            .unwrap_or_else(|why| {
+                panic!("no tile-DSL attention routine serves this cache: {why:?}")
+            })
+        }
+        None => {
+            let lengths = full_device_dtype(
+                client.clone(),
+                Shape::new([batch]),
+                device.clone(),
+                InputScalar::new(seq_kv as u32, dtype_to_storage_type(DType::U32)),
+                DType::U32,
+            );
+            AttentionTuneInputs::new(
+                &client,
+                query,
+                key,
+                value,
+                None,
+                lengths.plain(),
+                None,
+                scoring,
+            )
+            .unwrap_or_else(|why| {
+                panic!("no tile-DSL attention routine serves these operands: {why:?}")
+            })
+            // burn's key and value are the call's own, every position attended: the autotune key
+            // holds their extent rather than standing for a cache's.
+            .attending_every_position()
+        }
+    };
     // A mask broadcast over the batch or the heads is read at stride zero there, never copied.
     let inputs = match mask {
         Some(mask) => {
@@ -148,12 +187,7 @@ pub fn attention_autotune(
         }
         None => inputs,
     };
-    let out = launch_tuned(
-        QueryPositions::of(seq_q),
-        &device,
-        inputs,
-        GroupPriority::DEFAULT,
-    );
+    let out = launch_tuned(positions, &device, inputs, GroupPriority::DEFAULT);
     // The routines write `[b, q, h, dv]`, a token's heads adjacent; burn's attention is
     // `[b, h, q, dv]`, viewed without a copy.
     let out = CubeTensor::new(client, out.handle, *out.metadata, device, dtype);

@@ -16,7 +16,7 @@ pub use backend::{
     MemberDevice, ShardBackend, ShardCustomOps, ShardError, ShardedComputeDevice,
 };
 pub use burn_router::CustomOpRegistry;
-pub use burn_std::distributed::{Sharding, ShardingError};
+pub use burn_std::distributed::{Sharding, ShardingError, Shards, ShardsError};
 pub use kind::{Linearity, OpKind, ReducedDims, ReductionKind};
 
 use resharding::Resharding;

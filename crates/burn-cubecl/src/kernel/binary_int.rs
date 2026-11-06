@@ -7,7 +7,10 @@ use burn_backend::TensorMetadata;
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
     calculate_cube_count_elemwise,
-    prelude::{polyfills::powi_int, *},
+    prelude::{
+        polyfills::{powi_int, powi_unsigned},
+        *,
+    },
     std::tensor::layout::linear::{LinearView, LinearViewMut},
 };
 
@@ -90,8 +93,47 @@ impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseShlOp {
 #[cube]
 impl<T: Int, N: Size> BinaryOpInt<T, N> for PowiOp {
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
-        powi_int(lhs, Vector::<i32, N>::cast_from(rhs))
+        let dtype = elem_type_of::<T>().comptime();
+        if comptime!(dtype.is_signed_int()) {
+            if T::size_bits().comptime() <= 32 {
+                powi_int(lhs, Vector::<i32, N>::cast_from(rhs))
+            } else {
+                powi_wide_signed(lhs, rhs)
+            }
+        } else {
+            // An unsigned exponent is never negative. Reading it as `u32` keeps exponents above
+            // `i32::MAX` as large powers.
+            powi_unsigned(lhs, Vector::<u32, N>::cast_from(rhs))
+        }
     }
+}
+
+/// Preserves the unsigned power for non-negative lanes and the sign and parity of negative lanes.
+#[cube]
+fn powi_wide_signed<T: Int, N: Size>(base: Vector<T, N>, exp: Vector<T, N>) -> Vector<T, N> {
+    let negative = exp.less_than(&Vector::zero());
+    let mut has_negative = false;
+    let mut has_non_negative = false;
+    #[unroll]
+    for lane in 0..exp.vector_size() {
+        has_negative |= negative.extract(lane);
+        has_non_negative |= !negative.extract(lane);
+    }
+
+    // Vectors with one exponent sign only need one power calculation.
+    if !has_negative {
+        return powi_unsigned(base, Vector::<u32, N>::cast_from(exp));
+    }
+
+    // Negative integer powers depend only on parity, including exponents below i32::MIN.
+    let negative_exp = (exp & Vector::one()) | Vector::new(T::new(-2));
+    let truncated = powi_int(base, Vector::<i32, N>::cast_from(negative_exp));
+    if !has_non_negative {
+        return truncated;
+    }
+
+    let power = powi_unsigned(base, Vector::<u32, N>::cast_from(exp));
+    select_many(negative, truncated, power)
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]

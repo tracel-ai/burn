@@ -144,7 +144,6 @@ fn execute_fused(
         lhs,
         rhs,
         out: dtype_to_storage_type(context.tensors[&op.out.id].dtype),
-        routes: None,
         destination: None,
     };
     elected(&call, FusedRun { arg, context }).unwrap_or(Err(TraceError::RunnerError(

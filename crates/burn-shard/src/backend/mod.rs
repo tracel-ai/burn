@@ -4,8 +4,11 @@ mod client;
 mod collective;
 mod custom_ops;
 mod device;
+mod graph;
 mod interpreter;
 mod plan;
+mod shardings;
+mod shards;
 mod tensor;
 
 pub use channel::ShardBackend;

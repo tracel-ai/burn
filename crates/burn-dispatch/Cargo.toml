@@ -59,7 +59,7 @@ remote-server = ["remote", "burn-remote/server"]
 remote-websocket = ["remote", "burn-remote/websocket"]
 capture = ["burn-capture"]
 # Experimental: tensors split over several devices.
-shard = ["std", "burn-shard", "burn-router"]
+shard = ["std", "burn-shard", "burn-router", "burn-ir"]
 
 # Backend features
 persistence = ["burn-cubecl?/persistence"]
@@ -98,6 +98,8 @@ burn-remote = { workspace = true, optional = true, features = ["client"] }
 rmp-serde = { workspace = true, optional = true }
 burn-capture = { workspace = true, optional = true }
 burn-shard = { workspace = true, optional = true }
+# The member handles a sharded compute device takes its shards as.
+burn-ir = { workspace = true, optional = true }
 # The router types the client `#[backend_extension]` generates for remote and shard builds on.
 burn-router = { workspace = true, optional = true, features = ["std"] }
 

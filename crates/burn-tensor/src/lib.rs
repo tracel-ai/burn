@@ -89,7 +89,7 @@ pub use burn_derive::{__assert_shape, __debug_assert_shape, __einsum};
 pub use burn_dispatch::GradientCheckpointingStrategy;
 pub use burn_std::{
     AllocationProperty, Bytes, bf16,
-    distributed::{Sharding, ShardingError},
+    distributed::{Sharding, ShardingError, Shards, ShardsError},
     f16, flex32,
     reader::{read_sync, try_read_sync},
     stream::StreamId,

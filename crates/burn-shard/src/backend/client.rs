@@ -4,14 +4,15 @@ use std::{any::Any, sync::Arc};
 use burn_backend::{
     DType, DTypeUsageSet, DeviceSettings, EnvironmentBundle, EnvironmentError, EnvironmentId,
     EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken, TensorData,
-    TensorMetadata,
 };
-use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
+use burn_ir::{
+    BackendIr, CapturedGraphId, GraphBindings, GraphId, HandleKind, OperationIr, TensorId, TensorIr,
+};
 use burn_router::{RouterClient, RouterTensor};
 use burn_std::{future::DynFut, sync::Mutex};
 
 use super::{ShardedComputeDevice, interpreter::DynShardInterpreter};
-use crate::{Sharding, ShardingError};
+use crate::{Sharding, Shards, ShardsError};
 
 /// The client of one sharded compute device: every tensor of the sharded compute device goes through its interpreter.
 #[derive(Clone)]
@@ -47,18 +48,38 @@ impl ShardClient {
         self.settings
     }
 
-    /// The same value with another sharding, or why no resharding produces it.
-    pub fn reshard(
+    /// The tensor `shards` make up, one shard per member of the members' backend `B`, each
+    /// already on its member.
+    ///
+    /// # Errors
+    ///
+    /// When the members run another backend than `B`, or the shards do not make up one tensor.
+    pub fn join_shards<B: BackendIr>(
         &self,
-        tensor: RouterTensor<Self>,
-        sharding: Sharding,
-    ) -> Result<RouterTensor<Self>, ShardingError> {
-        let (shape, dtype) = (tensor.shape(), tensor.dtype());
+        shards: Shards<HandleKind<B>>,
+    ) -> Result<RouterTensor<Self>, ShardsError> {
+        let joined = self.interpreter.lock().register_shards(Box::new(shards))?;
+        Ok(RouterTensor::new(
+            joined.id,
+            joined.shape,
+            joined.dtype,
+            self.clone(),
+        ))
+    }
+
+    /// Each member's shard of `tensor`, in member order, and how they make up its value.
+    ///
+    /// # Panics
+    ///
+    /// When the members run another backend than `B`.
+    pub fn take_shards<B: BackendIr>(&self, tensor: RouterTensor<Self>) -> Shards<HandleKind<B>> {
         // Giving up the tensor can register a drop through this same interpreter, so its ir is
         // taken before the lock.
         let ir = tensor.into_ir();
-        let id = self.interpreter.lock().reshard(ir, sharding)?;
-        Ok(RouterTensor::new(id, shape, dtype, self.clone()))
+        let shards = self.interpreter.lock().take_shards(ir);
+        *shards
+            .downcast::<Shards<HandleKind<B>>>()
+            .unwrap_or_else(|_| panic!("The members do not run {}", core::any::type_name::<B>()))
     }
 
     /// Where the tensor's shards sit.
@@ -155,6 +176,27 @@ impl RouterClient for ShardClient {
         _origin: EnvironmentOrigin,
     ) -> Result<(), EnvironmentError> {
         Err(shard_environment())
+    }
+
+    fn graph_prepare(&self) -> Result<(), ExecutionError> {
+        self.interpreter.lock().graph_prepare()
+    }
+
+    fn graph_start_capture(&self) -> Result<(), ExecutionError> {
+        self.interpreter.lock().graph_start_capture()
+    }
+
+    fn graph_stop_capture(&self) -> Result<CapturedGraphId, ExecutionError> {
+        self.interpreter.lock().graph_stop_capture()
+    }
+
+    unsafe fn graph_replay(&self, graph: CapturedGraphId) -> Result<(), ExecutionError> {
+        // Safety: forwarded verbatim from this method's own contract.
+        unsafe { self.interpreter.lock().graph_replay(graph) }
+    }
+
+    fn graph_release(&self, graph: CapturedGraphId) {
+        self.interpreter.lock().graph_release(graph);
     }
 
     fn register_and_execute_graph(&self, _: GraphId, _: Vec<OperationIr>, _: GraphBindings) {

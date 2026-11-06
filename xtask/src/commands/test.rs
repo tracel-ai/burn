@@ -29,7 +29,10 @@ impl std::convert::TryInto<CompileCmdArgs> for BurnTestCmdArgs {
 pub enum CiTestType {
     // Github runner shards
     Backends,
+    /// Workspace defaults and graph capture.
     Crates,
+    /// Dataset, remote, vision, and training feature configurations.
+    CratesFeatures,
     Examples,
     // Other runners
     GithubRunner,
@@ -191,10 +194,11 @@ pub(crate) fn handle_backend_tests(
         let features = [
             "burn-backend-tests/flex,burn-backend-tests/cpu,burn-backend-tests/std",
             "burn-core/flex,burn-core/cpu,burn-core/std",
+            "burn-dispatch/flex,burn-dispatch/cpu,burn-dispatch/std,burn-dispatch/autodiff",
             "burn/flex,burn/cpu,burn/std,burn/autodiff,burn/extension,burn/optim",
         ]
         .join(",");
-        // One invocation shares dependency builds across these integration targets.
+        // Dispatch unit tests and transfer integration targets share the same CPU stack.
         // Keep defaults disabled so the transfer tests do not enable fusion.
         group!("Tests: Flex/CPU transfer integration tests");
         let result = run_process(
@@ -208,11 +212,14 @@ pub(crate) fn handle_backend_tests(
                     "-p",
                     "burn-backend-tests",
                     "-p",
+                    "burn-dispatch",
+                    "-p",
                     "burn-core",
                     "-p",
                     "burn",
                     "--features",
                     &features,
+                    "--lib",
                     "--test",
                     "autodiff_transfer",
                     "--test",
@@ -230,27 +237,10 @@ pub(crate) fn handle_backend_tests(
             ),
             None,
             None,
-            "Flex/CPU transfer integration tests",
+            "Flex/CPU transfer tests",
         );
         endgroup!();
         result?;
-
-        build_helpers::custom_crates_tests(
-            vec!["burn-dispatch"],
-            handle_test_args(
-                &[
-                    "--no-default-features",
-                    "--features",
-                    "flex,cpu,std,autodiff",
-                    "--lib",
-                    "ops::transfer",
-                ],
-                args.release,
-            ),
-            None,
-            None,
-            "dispatch backend transfer tests",
-        )?;
     }
 
     if !group_cpu_tests {
@@ -427,6 +417,109 @@ fn feature_test_group(
     )
 }
 
+/// Run the requested workspace configurations without widening their feature sets.
+fn handle_crate_tests(
+    mut args: BurnTestCmdArgs,
+    env: Environment,
+    context: Context,
+) -> anyhow::Result<()> {
+    // Default `Target::Workspace`
+    // Exclude crates that are not supported on CI
+    args.exclude
+        .extend(EXCLUDE_CRATES.iter().map(|&s| s.to_string()));
+    // Exclude examples
+    // workspace feature unification will cause binary bloat with examples default features
+    args.exclude.extend(enumerate_examples()?);
+
+    // Burn remote tests don't work on windows for now
+    #[cfg(target_os = "windows")]
+    {
+        args.exclude.extend(vec!["burn-remote".to_string()]);
+    };
+
+    if matches!(args.ci, CiTestType::Crates) {
+        // Select the execution backend explicitly now that defaults are backend-free.
+        let metadata = cargo_metadata::MetadataCommand::new().no_deps().exec()?;
+        let (_, features) = feature_test_group(&metadata, "flex", &args.exclude);
+        args.features.get_or_insert_with(Vec::new).extend(features);
+        // The linalg-backed layers are opt-in; keep their tests covered.
+        if !args.exclude.iter().any(|name| name == "burn-nn") {
+            args.features
+                .get_or_insert_with(Vec::new)
+                .push("burn-nn/linalg".to_string());
+        }
+        set_burn_device("flex"); // default device for base tests
+        base_commands::test::handle_command(
+            args.clone().try_into().unwrap(),
+            env.clone(),
+            context.clone(),
+        )?;
+        // Capture is intentionally opt-in, so workspace-default tests don't compile
+        // the dispatch, tensor, core, or facade integration tests that exercise it.
+        if !args.exclude.iter().any(|name| name == "burn") {
+            super::validate::check_backend_features()?;
+        }
+        let metadata = cargo_metadata::MetadataCommand::new().no_deps().exec()?;
+        let (packages, features) = feature_test_group(&metadata, "capture", &args.exclude);
+        run_test_group(
+            &packages.iter().map(String::as_str).collect::<Vec<_>>(),
+            &features.iter().map(String::as_str).collect::<Vec<_>>(),
+            args.release,
+            "std with graph capture",
+        )?;
+    } else {
+        // The relocated websocket FFT test requires explicit server features.
+        #[cfg(target_os = "linux")]
+        if !args.exclude.iter().any(|name| name == "burn-signal") {
+            for features in ["flex,std,remote-tests", "flex,std,remote-tests,fusion"] {
+                build_helpers::custom_crates_tests(
+                    vec!["burn-signal"],
+                    handle_test_args(
+                        &[
+                            "--no-default-features",
+                            "--features",
+                            features,
+                            "--test",
+                            "remote",
+                        ],
+                        args.release,
+                    ),
+                    None,
+                    None,
+                    "signal FFT over websocket",
+                )?;
+            }
+        }
+
+        // Keep all-features coverage in this shard to avoid consuming
+        // another runner from the organization's concurrency limit.
+        build_helpers::custom_crates_tests(
+            vec!["burn-dataset"],
+            handle_test_args(&["--all-features"], args.release),
+            None,
+            None,
+            "std dataset all features",
+        )?;
+
+        // Both suites use Flex; share their training and model dependencies.
+        set_burn_device("flex");
+        run_test_group(
+            &["burn-vision", "burn-train"],
+            &[
+                "burn-vision/default",
+                "burn-vision/flex",
+                "burn-vision/loss",
+                "burn-train/default",
+                "burn-train/rl",
+                "burn-train/vision",
+            ],
+            args.release,
+            "std vision and training (flex)",
+        )?;
+    }
+    Ok(())
+}
+
 pub(crate) fn handle_command(
     mut args: BurnTestCmdArgs,
     env: Environment,
@@ -499,37 +592,8 @@ pub(crate) fn handle_command(
                         "Flex backend with FFT kernels",
                     )?;
                 }
-                CiTestType::Crates => {
-                    // Default `Target::Workspace`
-                    // Exclude crates that are not supported on CI
-                    args.exclude
-                        .extend(EXCLUDE_CRATES.iter().map(|&s| s.to_string()));
-                    // Exclude examples
-                    // workspace feature unification will cause binary bloat with examples default features
-                    args.exclude.extend(enumerate_examples()?);
-
-                    // Burn remote tests don't work on windows for now
-                    #[cfg(target_os = "windows")]
-                    {
-                        args.exclude.extend(vec!["burn-remote".to_string()]);
-                    };
-
-                    // Select the execution backend explicitly now that defaults are backend-free.
-                    let metadata = cargo_metadata::MetadataCommand::new().no_deps().exec()?;
-                    let (_, features) = feature_test_group(&metadata, "flex", &args.exclude);
-                    args.features.get_or_insert_with(Vec::new).extend(features);
-                    // The linalg-backed layers are opt-in; keep their tests covered.
-                    if !args.exclude.iter().any(|name| name == "burn-nn") {
-                        args.features
-                            .get_or_insert_with(Vec::new)
-                            .push("burn-nn/linalg".to_string());
-                    }
-                    set_burn_device("flex"); // default device for base tests
-                    base_commands::test::handle_command(
-                        args.clone().try_into().unwrap(),
-                        env.clone(),
-                        context.clone(),
-                    )?;
+                CiTestType::Crates | CiTestType::CratesFeatures => {
+                    handle_crate_tests(args.clone(), env.clone(), context.clone())?;
                 }
                 CiTestType::Examples => {
                     // NOTE: for the examples we simply run `cargo checks` (no tests, faster validation)
@@ -604,79 +668,6 @@ pub(crate) fn handle_command(
                 }
             }
 
-            // 2) Specific additional commands to test specific features
-            // ---------------------------------------------------------
-            match args.ci {
-                CiTestType::Backends | CiTestType::GithubRunner => (),
-                CiTestType::Examples => (),
-                CiTestType::Crates => {
-                    // Capture is intentionally opt-in, so workspace-default tests don't compile
-                    // the dispatch, tensor, core, or facade integration tests that exercise it.
-                    if !args.exclude.iter().any(|name| name == "burn") {
-                        super::validate::check_backend_features()?;
-                    }
-                    let metadata = cargo_metadata::MetadataCommand::new().no_deps().exec()?;
-                    let (packages, features) =
-                        feature_test_group(&metadata, "capture", &args.exclude);
-                    run_test_group(
-                        &packages.iter().map(String::as_str).collect::<Vec<_>>(),
-                        &features.iter().map(String::as_str).collect::<Vec<_>>(),
-                        args.release,
-                        "std with graph capture",
-                    )?;
-
-                    // The relocated websocket FFT test requires explicit server features.
-                    #[cfg(target_os = "linux")]
-                    if !args.exclude.iter().any(|name| name == "burn-signal") {
-                        for features in ["flex,std,remote-tests", "flex,std,remote-tests,fusion"] {
-                            build_helpers::custom_crates_tests(
-                                vec!["burn-signal"],
-                                handle_test_args(
-                                    &[
-                                        "--no-default-features",
-                                        "--features",
-                                        features,
-                                        "--test",
-                                        "remote",
-                                    ],
-                                    args.release,
-                                ),
-                                None,
-                                None,
-                                "signal FFT over websocket",
-                            )?;
-                        }
-                    }
-
-                    // Keep all-features coverage in this shard to avoid consuming
-                    // another runner from the organization's concurrency limit.
-                    build_helpers::custom_crates_tests(
-                        vec!["burn-dataset"],
-                        handle_test_args(&["--all-features"], args.release),
-                        None,
-                        None,
-                        "std dataset all features",
-                    )?;
-
-                    // Both suites use Flex; share their training and model dependencies.
-                    set_burn_device("flex");
-                    run_test_group(
-                        &["burn-vision", "burn-train"],
-                        &[
-                            "burn-vision/default",
-                            "burn-vision/flex",
-                            "burn-vision/loss",
-                            "burn-train/default",
-                            "burn-train/rl",
-                            "burn-train/vision",
-                        ],
-                        args.release,
-                        "std vision and training (flex)",
-                    )?;
-                }
-                CiTestType::GcpCudaRunner | CiTestType::GithubMacRunner => (),
-                CiTestType::GcpVulkanRunner | CiTestType::GcpWgpuRunner => (), // handled in tests above
-            }
             Ok(())
         }
         Context::All => Context::value_variants()
