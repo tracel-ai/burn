@@ -23,8 +23,19 @@ impl AttentionRule {
     /// The shardings of the query, key and value: a split along the heads picks the heads when
     /// their groups split together, else a split along the batch picks the batch.
     pub fn new(inputs: [Sharding; 3], shapes: &AttentionShapes, num_members: usize) -> Self {
+        Self::of_heads(inputs, shapes.q_heads, shapes.kv_heads, num_members)
+    }
+
+    /// As [`new`](Self::new), from the query's and the key's head counts alone: for an attention
+    /// over a key/value cache, whose pools are not laid out as a key.
+    pub fn of_heads(
+        inputs: [Sharding; 3],
+        q_heads: usize,
+        kv_heads: usize,
+        num_members: usize,
+    ) -> Self {
         let split_on = |dim| inputs.contains(&Split { dim });
-        if split_on(1) && Self::heads_split_together(shapes, num_members) {
+        if split_on(1) && Self::heads_split_together(q_heads, kv_heads, num_members) {
             Self::Heads
         } else if split_on(0) {
             Self::Batch
@@ -53,8 +64,8 @@ impl AttentionRule {
     /// Each member's query heads read only its own chunk of the key and value heads when no group
     /// of query heads sharing one is cut: one query head per group, one key and value head kept
     /// whole by every member, or key and value heads that split evenly.
-    fn heads_split_together(shapes: &AttentionShapes, num_members: usize) -> bool {
-        shapes.groups() == 1 || shapes.kv_heads == 1 || shapes.kv_heads.is_multiple_of(num_members)
+    fn heads_split_together(q_heads: usize, kv_heads: usize, num_members: usize) -> bool {
+        q_heads == kv_heads || kv_heads == 1 || kv_heads.is_multiple_of(num_members)
     }
 }
 

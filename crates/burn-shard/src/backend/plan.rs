@@ -1,5 +1,5 @@
 use burn_backend::{DType, ops::attention::AttentionShapes};
-use burn_ir::{CustomOpIr, OperationIr, TensorId, TensorIr};
+use burn_ir::{AttentionOpIr, CustomOpIr, OperationIr, TensorId, TensorIr};
 use burn_std::Slice;
 
 use super::{CustomOpPlan, classify::OpClass, custom_ops::CustomOpRuleMap, shardings::Shardings};
@@ -143,6 +143,7 @@ impl TensorShardings<'_> {
         match class {
             OpClass::Kind { kind, inputs, out } => self.apply(kind, &inputs, out),
             OpClass::Custom(op) => self.custom(op),
+            OpClass::CachedAttention(desc) => self.cached_attention(desc),
             OpClass::Gathered => None,
         }
     }
@@ -305,6 +306,43 @@ impl TensorShardings<'_> {
         );
         let shapes: OpInputs<_> = inputs.iter().map(|input| &input.shape).collect();
         OpPlan::from_rule(inputs, out, rule.sharding(&shapes), Execution::EveryMember)
+    }
+
+    /// An attention over a key/value cache runs on each member's own heads, its lengths and page
+    /// table whole on every member, or gathers: a split by sequence would cut the pools and the
+    /// page table, which are not laid out by sequence.
+    fn cached_attention(&self, desc: &AttentionOpIr) -> Option<OpPlan> {
+        let (query, key, value) = (&desc.query, &desc.key, &desc.value);
+        // Both cache layouts keep the heads on dim 1, as the query does.
+        let rule = AttentionRule::of_heads(
+            [query, key, value].map(|input| self.sharding(input)),
+            query.shape[1],
+            key.shape[1],
+            self.num_members,
+        );
+        if rule != AttentionRule::Heads {
+            return None;
+        }
+        let attended: OpInputs<&TensorIr> = [query, key, value]
+            .into_iter()
+            .chain(desc.mask.as_ref())
+            .chain(desc.attn_bias.as_ref())
+            .collect();
+        let shapes: OpInputs<_> = attended.iter().map(|input| &input.shape).collect();
+        let heads = rule.sharding(&shapes);
+        let whole = [desc.lengths.as_ref(), desc.pages.as_ref()]
+            .into_iter()
+            .flatten()
+            .map(|input| (input, Sharding::Replicated));
+        OpPlan::from_shardings(
+            attended
+                .iter()
+                .copied()
+                .zip(heads.inputs.iter().copied())
+                .chain(whole),
+            [(&desc.out, heads.output)],
+            Execution::Eager,
+        )
     }
 
     fn reshape(&self, input: &TensorIr, out: &TensorIr) -> Option<OpPlan> {

@@ -19,6 +19,9 @@ pub enum OpClass<'a> {
     },
     /// A custom op, which its rule classifies.
     Custom(&'a CustomOpIr),
+    /// An attention over a key/value cache, which splits by heads only: its pools and page
+    /// table are not laid out by sequence.
+    CachedAttention(&'a AttentionOpIr),
     /// No rule: the op gathers its inputs and runs whole on every member.
     Gathered,
 }
@@ -333,9 +336,9 @@ impl<'a> OpClass<'a> {
     /// A module op has no rule unless it is given one here: new ones gather.
     fn module(op: &'a ModuleOperationIr) -> Self {
         match op {
-            // An attention over a key/value cache has no rule yet: its pools and page table are
-            // not laid out by sequence, so it gathers, as it did as an op of its own.
-            ModuleOperationIr::Attention(desc) if desc.lengths.is_some() => Self::Gathered,
+            ModuleOperationIr::Attention(desc) if desc.lengths.is_some() => {
+                Self::CachedAttention(desc)
+            }
             ModuleOperationIr::Attention(desc) => Self::attention(desc),
             _ => Self::Gathered,
         }
