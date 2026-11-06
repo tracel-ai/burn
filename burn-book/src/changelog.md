@@ -328,7 +328,7 @@ whose tensors are split over `devices` (crate `burn-shard`).
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - The `tensor-parallelism-text` example runs the `text-classification` transformer split over
   several GPUs, its attention by heads and its feed-forward by columns then rows, and checks it
-  against one device.
+  against one device. ([#6431](https://github.com/tracel-ai/burn/pull/6431))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution
