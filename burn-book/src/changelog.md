@@ -606,6 +606,9 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   ([#6383](https://github.com/tracel-ai/burn/pull/6383))
 - Add `Tensor::round_to(decimals)` for rounding to a specified number of decimal places.
   ([#5842](https://github.com/tracel-ai/burn/pull/5842))
+- Add `nan_max`, `nan_min`, `nan_max_dim` and `nan_min_dim` for float tensors. They ignore NaN and
+  return NaN only for all-NaN inputs, like NumPy's `nanmax` and `nanmin`.
+  ([#6278](https://github.com/tracel-ai/burn/pull/6278))
 - Add dilation to average pooling with `AvgPoolOptions::with_dilation`, matching max pooling.
   CubeCL backends use CubeK kernels for dilated 1D/2D average pooling, preserving the NHWC layout
   optimization. `count_include_pad` counts the dilated taps that land in padding. **Breaking:** Add
