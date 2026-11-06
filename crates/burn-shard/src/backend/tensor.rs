@@ -105,7 +105,7 @@ impl<B: BackendIr> ShardedTensor<B> {
                     for read in reads {
                         chunks.push(read.await?);
                     }
-                    QuantizedOnHost::<B>::joined(&chunks, dim)
+                    QuantizedOnHost::<B>::joined(&chunks, dim, len)
                         .map_err(|error| ExecutionError::with_context(error.to_string()))
                 })
             }
@@ -257,7 +257,10 @@ impl<B: BackendIr> ShardedTensor<B> {
             Self::Bool(shards) => Self::Bool(gathered_groups(
                 shards,
                 chunks,
-                |t, device| B::bool_to_device(t, device),
+                |t, device| {
+                    let dtype = t.dtype().into();
+                    B::bool_to_device(t, device, dtype)
+                },
                 |ts| B::bool_cat(ts, dim),
             )),
             Self::Quantized(shards) => Self::Quantized(
@@ -335,25 +338,36 @@ impl<B: BackendIr> QuantizedOnHost<B> {
         dim: usize,
         chunks: usize,
     ) -> Result<Self, ShardingError> {
-        let devices = shards.iter().map(TensorMetadata::device).collect();
+        let devices: Vec<_> = shards.iter().map(TensorMetadata::device).collect();
+        let num_members = devices.len();
         let chunks: Vec<_> = one_per_chunk(shards, chunks)
             .into_iter()
             .map(Self::read)
             .collect();
         Ok(Self {
             devices,
-            whole: Self::joined(&chunks, dim)?,
+            whole: Self::joined(&chunks, dim, num_members)?,
         })
     }
 
-    /// The whole value of `chunks`, each member's along `dim`.
-    fn joined(chunks: &[TensorData], dim: usize) -> Result<TensorData, ShardingError> {
+    /// The whole value of `chunks` along `dim`, read from the first member of each group of
+    /// `num_members`. A mismatch names that member, not its group.
+    fn joined(
+        chunks: &[TensorData],
+        dim: usize,
+        num_members: usize,
+    ) -> Result<TensorData, ShardingError> {
         let split = DimSplit {
             dim,
             len: chunks.iter().map(|chunk| chunk.shape()[dim]).sum(),
             members: chunks.len(),
         };
-        split.whole_data(chunks)
+        split.whole_data(chunks).map_err(|error| match error {
+            ShardingError::QuantizedScales { shard: group } => ShardingError::QuantizedScales {
+                shard: group * (num_members / chunks.len()),
+            },
+            error => error,
+        })
     }
 
     /// Each member's chunk along `dim` cut into `chunks`, uploaded to it.

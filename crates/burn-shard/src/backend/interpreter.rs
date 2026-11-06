@@ -757,10 +757,11 @@ mod tests {
 
     #[test]
     fn every_sharding_reshards_to_every_other_and_keeps_its_value() {
-        let data = TensorData::new((0..72).map(|i| i as f32).collect::<Vec<_>>(), [12, 6]);
+        // Ten rows cut unevenly into three groups, so a group's chunk can be one row longer.
+        let data = TensorData::new((0..60).map(|i| i as f32).collect::<Vec<_>>(), [10, 6]);
         let tensor = |id, status| TensorIr {
             id,
-            shape: [12, 6].into(),
+            shape: [10, 6].into(),
             status,
             dtype: DType::F32,
         };
@@ -973,6 +974,37 @@ mod tests {
 
         assert!(read.is_err());
         assert_eq!(gathered, Err(ShardingError::QuantizedScales { shard: 1 }));
+    }
+
+    /// A group's copies are read from its first member, which the error names.
+    #[test]
+    fn a_group_quantized_with_another_scale_is_named_by_its_first_member() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native);
+        let shard = |scale| {
+            let data = TensorData::quantized(vec![0i8, 1, 2, 3], [2, 2], scheme, &[scale], None);
+            HandleKind::<Flex>::Quantized(Flex::q_from_data(data, &FlexDevice))
+        };
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice; 4], ShardCustomOps::default()).unwrap();
+        let pairs = Sharding::ReplicatedSplit { dim: 0, groups: 2 };
+        let joined = interpreter
+            .register_shards(Box::new(Shards {
+                shards: vec![shard(0.5), shard(0.5), shard(0.25), shard(0.25)],
+                sharding: pairs,
+            }))
+            .unwrap();
+        let tensor = TensorIr {
+            id: joined.id,
+            shape: joined.shape,
+            status: TensorStatus::ReadOnly,
+            dtype: joined.dtype,
+        };
+
+        let gathered = interpreter.resharded(&tensor, pairs, Sharding::Replicated);
+
+        assert_eq!(gathered, Err(ShardingError::QuantizedScales { shard: 2 }));
     }
 
     /// A failed gather reports its cause on repeated reads and releases it on the last use.
