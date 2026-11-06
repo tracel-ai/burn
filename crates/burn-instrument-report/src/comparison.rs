@@ -304,6 +304,7 @@ mod tests {
                 timed_alone: false,
                 unplaced: Unplaced::default(),
                 unfused: false,
+                per_member: None,
             },
         }
     }
