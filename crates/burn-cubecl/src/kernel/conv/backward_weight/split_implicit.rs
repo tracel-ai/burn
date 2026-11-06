@@ -1,7 +1,11 @@
 use burn_backend::{cubecl::dtype_to_storage_type, ops::ConvOptions};
 use burn_std::Shape;
 use cubek::{
-    convolution::{AcceleratedTileKind, ConvolutionArgs, components::ConvSetupError},
+    convolution::{
+        AcceleratedTileKind, ConvolutionArgs,
+        backward_weight::split::{AcceleratedSplitStrategy, PartialColumnOrder},
+        components::ConvSetupError,
+    },
     matmul::definition::{MatmulElems, MatmulGlobalElems},
     std::InputBinding,
 };
@@ -10,11 +14,12 @@ use crate::{ops::numeric::empty_device_dtype, tensor::CubeTensor};
 
 /// Computes weights `[out_channels, ...kernel, in_channels]` from NHWC tensors of rank `N + 2`.
 /// CubeK splits the contraction and combines F32 partial sums before casting to the output dtype.
-pub(crate) fn wgrad_split_implicit<const N: usize, const SPATIAL_LAST: bool>(
+pub(crate) fn wgrad_split_implicit<const N: usize>(
     input: CubeTensor,
     out_grad: CubeTensor,
     weight_shape: Shape,
     options: ConvOptions<N>,
+    column_order: PartialColumnOrder,
 ) -> Result<CubeTensor, ConvSetupError> {
     if options.groups != 1 {
         return Err(ConvSetupError::Groups(options.groups));
@@ -36,7 +41,7 @@ pub(crate) fn wgrad_split_implicit<const N: usize, const SPATIAL_LAST: bool>(
     let client = input.client.clone();
     let input_dtype = input.dtype;
     let out_grad_dtype = out_grad.dtype;
-    cubek::convolution::backward_weight::split::launch_accelerated::<N, SPATIAL_LAST>(
+    cubek::convolution::backward_weight::split::launch_accelerated::<N>(
         &client,
         InputBinding::new(input.binding(), dtype_to_storage_type(input_dtype)),
         InputBinding::new(out_grad.binding(), dtype_to_storage_type(out_grad_dtype)),
@@ -46,7 +51,10 @@ pub(crate) fn wgrad_split_implicit<const N: usize, const SPATIAL_LAST: bool>(
             padding: options.padding_begin(),
             dilation: options.dilation,
         },
-        AcceleratedTileKind::Mma,
+        AcceleratedSplitStrategy {
+            tile_kind: AcceleratedTileKind::Mma,
+            column_order,
+        },
         dtypes,
     )?;
     Ok(output)

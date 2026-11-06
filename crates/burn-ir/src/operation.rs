@@ -8,7 +8,7 @@ use alloc::boxed::Box;
 use alloc::{string::String, vec::Vec};
 
 use burn_backend::{
-    DType, Distribution, Slice,
+    DType, Distribution, RandomKey, Slice,
     ops::{
         ConvOptions, ConvTransposeOptions, CoordinateTransformMode, DeformConvOptions,
         GridSampleMode, GridSampleOptions, GridSamplePaddingMode, InterpolateMode,
@@ -336,7 +336,7 @@ pub enum ModuleOperationIr {
     /// Operation corresponding to [interpolate backward](burn_backend::ops::ModuleOps::interpolate_backward).
     InterpolateBackward(InterpolateBackwardOpIr),
     /// Operation corresponding to [attention](burn_backend::ops::ModuleOps::attention).
-    Attention(AttentionOpIr),
+    Attention(Box<AttentionOpIr>),
     /// Operation corresponding to
     /// [attention_with_logsumexp](burn_backend::ops::ModuleOps::attention_with_logsumexp).
     AttentionWithLogsumexp(AttentionWithLogsumexpOpIr),
@@ -987,6 +987,22 @@ impl From<PadModeIr> for PadMode {
 pub struct RandomOpIr {
     pub out: TensorIr,
     pub distribution: Distribution,
+    /// Operation key encoded as an unsigned scalar for graph binding.
+    pub key: ScalarIr,
+}
+
+impl RandomOpIr {
+    /// Returns the operation key after resolving graph scalar bindings.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the key is not encoded as an unsigned integer.
+    pub fn key(&self) -> RandomKey {
+        let ScalarIr::UInt(seed) = self.key else {
+            panic!("Random keys must be encoded as unsigned integers");
+        };
+        RandomKey::new(seed)
+    }
 }
 
 /// Creation operation intermediate representation.
@@ -2092,6 +2108,8 @@ pub struct AttentionOptionsIr {
     /// Missing in IR recorded before the field existed; that IR was bottom-right aligned.
     #[serde(default)]
     pub causal_alignment: CausalAlignment,
+    #[serde(default)]
+    pub sliding_window: Option<u32>,
 }
 
 impl From<AttentionOptionsIr> for AttentionModuleOptions {
@@ -2101,6 +2119,7 @@ impl From<AttentionOptionsIr> for AttentionModuleOptions {
             softcap: ir.softcap.map(|s| s.elem()),
             is_causal: ir.is_causal,
             causal_alignment: ir.causal_alignment,
+            sliding_window: ir.sliding_window,
         }
     }
 }
@@ -2112,6 +2131,7 @@ impl From<AttentionModuleOptions> for AttentionOptionsIr {
             softcap: ir.softcap.map(ScalarIr::Float),
             is_causal: ir.is_causal,
             causal_alignment: ir.causal_alignment,
+            sliding_window: ir.sliding_window,
         }
     }
 }
@@ -2124,6 +2144,10 @@ pub struct AttentionOpIr {
     pub value: TensorIr,
     pub mask: Option<TensorIr>,
     pub attn_bias: Option<TensorIr>,
+    /// The lengths of an attention over a key/value cache, the positions each sequence attends.
+    pub lengths: Option<TensorIr>,
+    /// The page table of an attention over a paged key/value cache.
+    pub pages: Option<TensorIr>,
     pub options: AttentionOptionsIr,
     pub out: TensorIr,
 }
@@ -3310,6 +3334,7 @@ impl NumericOperationIr {
             }
             NumericOperationIr::IntRandom(repr) => {
                 v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.key);
             }
             NumericOperationIr::Powi(repr) => {
                 v.visit_tensor_mut(&mut repr.lhs);
@@ -3594,6 +3619,7 @@ impl FloatOperationIr {
             }
             FloatOperationIr::Random(repr) => {
                 v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.key);
             }
             FloatOperationIr::Exp(repr) => {
                 v.visit_tensor_mut(&mut repr.input);
@@ -4164,19 +4190,14 @@ impl ModuleOperationIr {
             ModuleOperationIr::InterpolateBackward(repr) => {
                 Box::new([&repr.x, &repr.grad].into_iter())
             }
-            ModuleOperationIr::Attention(repr) => {
-                if let Some(mask) = &repr.mask {
-                    if let Some(attn_bias) = &repr.attn_bias {
-                        Box::new([&repr.query, &repr.key, &repr.value, mask, attn_bias].into_iter())
-                    } else {
-                        Box::new([&repr.query, &repr.key, &repr.value, mask].into_iter())
-                    }
-                } else if let Some(attn_bias) = &repr.attn_bias {
-                    Box::new([&repr.query, &repr.key, &repr.value, attn_bias].into_iter())
-                } else {
-                    Box::new([&repr.query, &repr.key, &repr.value].into_iter())
-                }
-            }
+            ModuleOperationIr::Attention(repr) => Box::new(
+                [&repr.query, &repr.key, &repr.value]
+                    .into_iter()
+                    .chain(&repr.mask)
+                    .chain(&repr.attn_bias)
+                    .chain(&repr.lengths)
+                    .chain(&repr.pages),
+            ),
             ModuleOperationIr::AttentionWithLogsumexp(repr) => {
                 Box::new([&repr.query, &repr.key, &repr.value].into_iter())
             }
@@ -4615,6 +4636,12 @@ impl ModuleOperationIr {
                 if let Some(attn_bias) = &mut repr.attn_bias {
                     attn_bias.mark_read_only(nodes, &mut output);
                 }
+                if let Some(lengths) = &mut repr.lengths {
+                    lengths.mark_read_only(nodes, &mut output);
+                }
+                if let Some(pages) = &mut repr.pages {
+                    pages.mark_read_only(nodes, &mut output);
+                }
             }
             ModuleOperationIr::AttentionWithLogsumexp(repr) => {
                 repr.query.mark_read_only(nodes, &mut output);
@@ -4983,6 +5010,12 @@ impl ModuleOperationIr {
                 }
                 if let Some(attn_bias) = &mut repr.attn_bias {
                     v.visit_tensor_mut(attn_bias);
+                }
+                if let Some(lengths) = &mut repr.lengths {
+                    v.visit_tensor_mut(lengths);
+                }
+                if let Some(pages) = &mut repr.pages {
+                    v.visit_tensor_mut(pages);
                 }
                 v.visit_tensor_mut(&mut repr.out);
                 if let Some(scale) = &mut repr.options.scale {

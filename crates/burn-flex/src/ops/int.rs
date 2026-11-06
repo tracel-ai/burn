@@ -1,6 +1,7 @@
 //! Int tensor operations for the Flex backend.
 
 use alloc::vec::Vec;
+use burn_backend::RandomKey;
 use burn_backend::{
     DType, Distribution, ExecutionError, FloatDType, Scalar, TensorData, TensorMetadata,
     ops::IntTensorOps,
@@ -21,6 +22,21 @@ fn remainder_int(a: i64, b: i64) -> i64 {
         r.wrapping_add(b)
     } else {
         r
+    }
+}
+
+/// Integer power. A negative exponent gives `1 / a^|b|` truncated toward zero, which is 0 unless
+/// `|a| == 1` (PyTorch does the same).
+#[inline]
+fn powi_int(a: i64, b: i64) -> i64 {
+    if b >= 0 {
+        return a.wrapping_pow(b as u32);
+    }
+    match a {
+        1 => 1,
+        -1 if b % 2 == 0 => 1,
+        -1 => -1,
+        _ => 0,
     }
 }
 
@@ -830,9 +846,10 @@ impl IntTensorOps<Flex> for Flex {
         distribution: Distribution,
         _device: &Device<Flex>,
         dtype: IntDType,
+        key: RandomKey,
     ) -> IntTensor<Flex> {
-        let mut seed = crate::backend::SEED.lock();
-        let mut rng = seed.take().unwrap_or_else(crate::backend::get_seeded_rng);
+        use burn_std::rand::SeedableRng;
+        let mut rng = crate::backend::FlexRng::seed_from_u64(key.seed());
         let data = match dtype {
             IntDType::I64 => TensorData::random::<i64, _, _>(shape, distribution, &mut rng),
             IntDType::I32 => TensorData::random::<i32, _, _>(shape, distribution, &mut rng),
@@ -843,7 +860,6 @@ impl IntTensorOps<Flex> for Flex {
             IntDType::U16 => TensorData::random::<u16, _, _>(shape, distribution, &mut rng),
             IntDType::U8 => TensorData::random::<u8, _, _>(shape, distribution, &mut rng),
         };
-        *seed = Some(rng);
         FlexTensor::from_data(data)
     }
 
@@ -1293,7 +1309,12 @@ impl IntTensorOps<Flex> for Flex {
     }
 
     fn int_powi(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
-        int_binary_op(lhs, rhs, |a, b| a.wrapping_pow(b as u32))
+        // U64 exponents > i64::MAX would read as negative through the i64 cast
+        if lhs.dtype() == DType::U64 {
+            let (lhs, rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
+            return binary_op_typed(lhs, rhs, |a: u64, b: u64| a.wrapping_pow(b as u32));
+        }
+        int_binary_op(lhs, rhs, powi_int)
     }
 
     fn int_zeros(shape: Shape, _device: &Device<Flex>, dtype: IntDType) -> IntTensor<Flex> {
@@ -1393,11 +1414,19 @@ impl IntTensorOps<Flex> for Flex {
 
     fn int_powi_scalar_impl(lhs: IntTensor<Flex>, rhs: burn_backend::Scalar) -> IntTensor<Flex> {
         use num_traits::ToPrimitive;
-        let exp = rhs.to_i64().unwrap() as u32;
+        let exp = rhs.to_i64().unwrap();
         if lhs.dtype() == DType::U64 {
-            return scalar_op_typed(lhs, exp as u64, move |x: u64, _| x.wrapping_pow(exp));
+            return scalar_op_typed(lhs, exp as u64, move |x: u64, _| {
+                if exp >= 0 {
+                    x.wrapping_pow(exp as u32)
+                } else {
+                    u64::from(x == 1)
+                }
+            });
         }
-        int_scalar_op(lhs, exp as i64, move |x, _| x.wrapping_pow(exp))
+        // The exponent is captured rather than passed as the scalar operand, which
+        // `int_scalar_op` truncates to the tensor's dtype.
+        int_scalar_op(lhs, exp, move |x, _| powi_int(x, exp))
     }
 
     fn int_max_abs(tensor: IntTensor<Flex>) -> IntTensor<Flex> {
@@ -1792,13 +1821,13 @@ mod tests {
 
     #[test]
     fn test_int_random_i32() {
-        use burn_backend::{DType, Distribution, ops::IntTensorOps};
+        use burn_backend::{DType, Distribution, RandomKey, ops::IntTensorOps};
         use burn_std::{IntDType, Shape};
 
         let shape = Shape::from(vec![100]);
         let dist = Distribution::Uniform(0.0, 10.0);
         let device = crate::FlexDevice;
-        let t = Flex::int_random(shape, dist, &device, IntDType::I32);
+        let t = Flex::int_random(shape, dist, &device, IntDType::I32, RandomKey::new(42));
         assert_eq!(t.dtype(), DType::I32);
         let data: Vec<i32> = t.into_data().try_into_vec().unwrap();
         assert!(data.iter().all(|&v| (0..=10).contains(&v)));
@@ -1806,13 +1835,13 @@ mod tests {
 
     #[test]
     fn test_int_random_u8() {
-        use burn_backend::{DType, Distribution, ops::IntTensorOps};
+        use burn_backend::{DType, Distribution, RandomKey, ops::IntTensorOps};
         use burn_std::{IntDType, Shape};
 
         let shape = Shape::from(vec![50]);
         let dist = Distribution::Uniform(0.0, 100.0);
         let device = crate::FlexDevice;
-        let t = Flex::int_random(shape, dist, &device, IntDType::U8);
+        let t = Flex::int_random(shape, dist, &device, IntDType::U8, RandomKey::new(42));
         assert_eq!(t.dtype(), DType::U8);
     }
 

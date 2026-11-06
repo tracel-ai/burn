@@ -46,20 +46,20 @@ flex = ["dep:burn-flex"]
 rocm = ["cubecl", "burn-cubecl/hip"]
 vulkan = ["wgpu", "burn-cubecl/vulkan"]
 webgpu = ["wgpu", "burn-cubecl/webgpu"]
-metal = ["wgpu", "burn-cubecl/metal"]
-metal-native = ["cubecl", "burn-cubecl/metal-native"]
+wgpu-msl = ["wgpu", "burn-cubecl/wgpu-msl"]
+metal = ["cubecl", "burn-cubecl/metal"]
 wgpu = ["cubecl", "burn-cubecl/wgpu"]
 cpu = ["cubecl", "burn-cubecl/cpu"]
 autodiff = ["burn-autodiff"]
 # Remote compute client over Iroh.
-remote = ["std", "burn-remote", "burn-remote/iroh"]
+remote = ["std", "burn-remote", "burn-remote/iroh", "burn-router", "dep:rmp-serde"]
 # Host a remote compute server over Iroh.
 remote-server = ["remote", "burn-remote/server"]
 # Add the legacy WebSocket transport.
 remote-websocket = ["remote", "burn-remote/websocket"]
 capture = ["burn-capture"]
-# Experimental: tensors split over a group of devices.
-group = ["std", "burn-group"]
+# Experimental: tensors split over several devices.
+shard = ["std", "burn-shard", "burn-router", "burn-ir"]
 
 # Backend features
 persistence = ["burn-cubecl?/persistence"]
@@ -68,6 +68,8 @@ autotune-checks = ["burn-cubecl?/autotune-checks"]
 fusion = [
     "burn-cubecl?/fusion",
     "burn-remote?/fusion",
+    # The router client `#[backend_extension]` generates for a sharded compute device needs it.
+    "burn-router?/fusion",
 ]
 
 # CPU backend codegen and threading; these do not select a backend.
@@ -92,8 +94,14 @@ burn-cubecl = { workspace = true, optional = true }
 burn-flex = { workspace = true, optional = true }
 
 burn-remote = { workspace = true, optional = true, features = ["client"] }
+# Encodes a device's cubecl capabilities for the device query a server answers them with.
+rmp-serde = { workspace = true, optional = true }
 burn-capture = { workspace = true, optional = true }
-burn-group = { workspace = true, optional = true }
+burn-shard = { workspace = true, optional = true }
+# The member handles a sharded compute device takes its shards as.
+burn-ir = { workspace = true, optional = true }
+# The router types the client `#[backend_extension]` generates for remote and shard builds on.
+burn-router = { workspace = true, optional = true, features = ["std"] }
 
 # Op macros with `.as_$inner_kind()`
 paste = { workspace = true }

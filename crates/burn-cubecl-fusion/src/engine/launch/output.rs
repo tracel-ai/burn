@@ -789,8 +789,8 @@ impl<'a> OutputPlanner<'a> {
                 // We modify the metadata instead.
                 remove_concrete_write(block, output.tensor_relative.id, output.pos_original);
 
-                // The strides are rewritten, which only a plain input allows; a tiled one
-                // never reaches a fused kernel (its inputs refuse it).
+                // The strides are rewritten, which only rows allow; a tiled input was laid
+                // back in rows as it entered.
                 assert!(
                     original_handle.handle.tiles.is_none(),
                     "fusion: a storage-tiled input cannot be restrided in place"
@@ -862,8 +862,8 @@ impl<'a> OutputPlanner<'a> {
         // We modify the metadata instead.
         remove_concrete_write(block, output.tensor_relative.id, output.pos_original);
 
-        // The strides are swapped as logical dims, which only rows are; a tiled input never
-        // reaches a fused kernel (its inputs refuse it).
+        // The strides are swapped as logical dims, which only rows are; a tiled input was
+        // laid back in rows as it entered.
         assert!(
             original_handle.handle.tiles.is_none(),
             "fusion: a storage-tiled input cannot have its dims swapped in place"

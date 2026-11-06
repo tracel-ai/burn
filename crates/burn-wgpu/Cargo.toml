@@ -35,7 +35,7 @@ exclusive-memory-only = ["cubecl/exclusive-memory-only"]
 template = ["burn-cubecl/template", "cubecl/template"]
 
 # Backends
-metal = ["cubecl/metal", "burn-backend/cubecl-metal"]
+wgpu-msl = ["cubecl/wgpu-msl", "burn-backend/cubecl-wgpu-msl"]
 vulkan = ["cubecl/vulkan", "burn-backend/cubecl-vulkan"]
 webgpu = ["cubecl/webgpu", "burn-backend/cubecl-webgpu"]
 

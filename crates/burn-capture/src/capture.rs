@@ -1,6 +1,7 @@
 //! Non-executing router channel used to capture Burn operation graphs.
 
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec, vec::Vec};
+use burn_backend::RandomKey;
 use burn_backend::{
     BoolStore, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps, DeviceSettings,
     ExecutionError, RouterDeviceType, Shape, TensorData,
@@ -597,7 +598,9 @@ impl RouterClient for CaptureClient {
     fn sync(&self) -> Result<(), ExecutionError> {
         Ok(())
     }
-    fn flush(&self) {}
+    fn flush(&self) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 
     fn create_empty_handle(&self) -> TensorId {
         self.state().lock().assert_open();
@@ -617,6 +620,12 @@ impl RouterClient for CaptureClient {
 
     fn device(&self) -> Self::Device {
         self.device
+    }
+
+    fn next_random_key(&self) -> RandomKey {
+        panic!(
+            "implicit random operations are not supported during graph capture; supply an explicit RandomKey to the backend operation"
+        )
     }
 
     fn seed(&self, _seed: u64) {
@@ -684,6 +693,59 @@ mod tests {
 
     fn tensor(id: u64, shape: impl Into<Shape>) -> TensorIr {
         TensorIr::uninit(TensorId::new(id), shape.into(), DType::F32)
+    }
+
+    #[test]
+    #[should_panic(expected = "implicit random operations are not supported during graph capture")]
+    fn implicit_randomness_is_unsupported() {
+        let device = CaptureDevice::default();
+        let _ = device.capture_scope(|scope| {
+            get_client::<CaptureChannel>(&device).next_random_key();
+            scope.complete([], [])
+        });
+    }
+
+    #[test]
+    fn explicit_random_keys_are_preserved() {
+        use burn_backend::{Distribution, FloatDType, IntDType};
+        use burn_ir::{FloatOperationIr, NumericOperationIr};
+
+        let device = CaptureDevice::default();
+        let key = RandomKey::new(7);
+        let captured = device
+            .capture_scope(|scope| {
+                let float = CaptureBackend::float_random(
+                    [4].into(),
+                    Distribution::Default,
+                    &device,
+                    FloatDType::F32,
+                    key,
+                );
+                let int = CaptureBackend::int_random(
+                    [4].into(),
+                    Distribution::Default,
+                    &device,
+                    IntDType::I32,
+                    key,
+                );
+                scope.complete([], [float.id(), int.id()])
+            })
+            .unwrap();
+
+        let keys: Vec<_> = captured
+            .graph
+            .operations
+            .iter()
+            .filter_map(|op| match op {
+                OperationIr::Float(_, FloatOperationIr::Random(desc))
+                | OperationIr::NumericInt(_, NumericOperationIr::IntRandom(desc)) => {
+                    Some(desc.key())
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(keys, [key, key]);
+        assert!(captured.values.is_empty());
     }
 
     #[test]

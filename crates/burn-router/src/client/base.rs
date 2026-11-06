@@ -1,8 +1,13 @@
 use crate::{RouterChannel, RouterTensor};
 use alloc::boxed::Box;
+use alloc::string::String;
 use alloc::vec::Vec;
+use burn_backend::RandomKey;
 use burn_backend::{
-    DType, ProfileDuration, ProfileOptions, ProfileToken, TensorData,
+    DType, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId,
+    EnvironmentOrigin, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
+    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, TensorData,
+    UnknownExecutionMode,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
@@ -67,7 +72,13 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     /// Unlike [`sync`](Self::sync), this does not block on results — it only ensures the
     /// buffered operations are handed off for execution (and, for the remote backend, sent to
     /// the server) instead of sitting in a local buffer.
-    fn flush(&self);
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`ExecutionError`] when the work can no longer be executed at all, such as a
+    /// remote session that ended. A failure of the work itself is deferred to the tensors it was
+    /// going to write and reported by a read of one of them.
+    fn flush(&self) -> Result<(), ExecutionError>;
     /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).
     fn create_empty_handle(&self) -> TensorId;
     /// Create a new [RouterTensor] from the tensor data.
@@ -76,6 +87,9 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     fn device(&self) -> Self::Device;
     /// Seed the interpreter.
     fn seed(&self, seed: u64);
+
+    /// Reserves randomness before an operation is queued or sent to another device.
+    fn next_random_key(&self) -> RandomKey;
     /// Returns the supported data type usage set
     fn dtype_usage(&self, dtype: DType) -> burn_backend::DTypeUsageSet;
     /// Open a profiling window on the interpreter, where the calling stream
@@ -108,6 +122,108 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     /// the caller is unwinding — does that instead.
     fn profile_abandon(&self, token: ProfileToken) {
         let _ = self.profile_end(token, ProfileOptions::default());
+    }
+
+    /// Open `mode` on the interpreter's backend, after every operation
+    /// registered so far on the calling stream — see
+    /// [`Backend::execution_mode_open`](burn_backend::Backend::execution_mode_open).
+    ///
+    /// `None`, the default, from an interpreter whose backend runs every launch.
+    fn execution_mode_open(
+        &self,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        let _ = mode;
+        Ok(None)
+    }
+
+    /// What the work under the mode `token` opened has triggered so far.
+    fn execution_mode_statistics(
+        &self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let _ = token;
+        Err(UnknownExecutionMode.into())
+    }
+
+    /// Close the mode `token` opened, after every operation registered so far
+    /// on the stream it was opened on, and answer what the work under it
+    /// triggered.
+    fn execution_mode_close(
+        &self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let _ = token;
+        Err(UnknownExecutionMode.into())
+    }
+
+    /// Create a compute environment in the storage the interpreter's backend
+    /// reaches — see
+    /// [`Backend::environment_create`](burn_backend::Backend::environment_create).
+    ///
+    /// The default refuses, as from an interpreter whose backend keeps no
+    /// compute environment.
+    fn environment_create(
+        &self,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        let _ = (name, origin);
+        Err(environment_unsupported())
+    }
+
+    /// Make `id` the compute environment of the interpreter's backend, after
+    /// every operation registered so far on the calling stream — see
+    /// [`Backend::environment_activate`](burn_backend::Backend::environment_activate).
+    fn environment_activate(&self, id: EnvironmentId) -> Result<EnvironmentId, EnvironmentError> {
+        let _ = id;
+        Err(environment_unsupported())
+    }
+
+    /// The compute environment of the interpreter's backend.
+    fn environment_active(&self) -> Result<EnvironmentId, EnvironmentError> {
+        Err(environment_unsupported())
+    }
+
+    /// Serialize the compute environment `id`, after every operation
+    /// registered so far on the calling stream.
+    fn environment_save(&self, id: EnvironmentId) -> Result<EnvironmentBundle, EnvironmentError> {
+        let _ = id;
+        Err(environment_unsupported())
+    }
+
+    /// Bring what `origin` holds into the environment `id` of the
+    /// interpreter's backend — see
+    /// [`Backend::environment_merge`](burn_backend::Backend::environment_merge).
+    fn environment_merge(
+        &self,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        let _ = (id, origin);
+        Err(environment_unsupported())
+    }
+
+    /// What the interpreter's device is, as its driver states it — see
+    /// [`Backend::device_description`](burn_backend::Backend::device_description).
+    fn device_description(&self) -> Option<DeviceDescription> {
+        None
+    }
+
+    /// One reading of the counters of the interpreter's device.
+    fn measure_telemetry(&self) -> DeviceTelemetry {
+        DeviceTelemetry::default()
+    }
+
+    /// What the allocator of the interpreter's device holds, after every
+    /// operation registered so far on the calling stream.
+    fn measure_memory(&self) -> Option<MemoryReport> {
+        None
+    }
+
+    /// The peak throughput of the interpreter's device for each of `keys`.
+    fn measure_peaks(&self, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        keys.iter().map(|_| Err(PeakError::Unsupported)).collect()
     }
 
     /// Prepare the interpreter's backend for a graph capture — see
@@ -182,6 +298,13 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
 }
 
 /// The error of the graph-capture methods of an interpreter that cannot record a graph.
+/// The answer of an interpreter whose backend keeps no compute environment.
+fn environment_unsupported() -> EnvironmentError {
+    EnvironmentError::Unsupported {
+        reason: alloc::string::String::from("the interpreter's backend keeps none"),
+    }
+}
+
 fn graph_unsupported() -> ExecutionError {
     ExecutionError::Generic {
         reason: alloc::string::String::from("graph capture is not supported by this router client"),

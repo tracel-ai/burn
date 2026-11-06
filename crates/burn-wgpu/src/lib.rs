@@ -38,7 +38,7 @@ pub use burn_cubecl::{CubeBackend, tensor::CubeTensor};
 pub use cubecl::CubeDim;
 pub use cubecl::flex32;
 
-#[cfg(feature = "metal")]
+#[cfg(feature = "wgpu-msl")]
 pub use cubecl::wgpu::MslCompiler;
 #[cfg(not(target_family = "wasm"))]
 pub use cubecl::wgpu::try_init_setup;
@@ -69,11 +69,11 @@ type WgpuInner = CubeBackend;
 ///   - [WebGPU](crate::graphics::WebGpu) on supported browsers and `wasm` runtimes.
 ///
 /// Automatic devices use [`AutoCompiler`] to select WGSL, SPIR-V or MSL, with WGSL fallback
-/// when a native compiler is unavailable. Enabling `metal` makes MSL available without changing
+/// when a native compiler is unavailable. Enabling `wgpu-msl` makes MSL available without changing
 /// the compiler used by unrelated devices.
 ///
-/// With `metal` enabled, an explicitly selected Metal device, created with Burn's
-/// `burn::tensor::Device::metal` or [`cubecl::Device::metal_msl`], requires native MSL and panics
+/// With `wgpu-msl` enabled, an explicitly selected Metal device, created with Burn's
+/// `burn::tensor::Device::wgpu_msl` or [`cubecl::Device::metal_msl`], requires native MSL and panics
 /// during initialization if it is unavailable. The same applies to [`init_setup`] or
 /// [`init_setup_async`] with [`graphics::Metal`], and to [`init_device_with_api`] with
 /// [`graphics::Metal`]. Importing through [`init_device`] retains automatic compiler selection
@@ -130,17 +130,17 @@ pub type WebGpu = WgpuInner;
 
 /// Deprecated alias of [`Wgpu`].
 ///
-/// Use Burn's `burn::tensor::Device::metal` or
+/// Use Burn's `burn::tensor::Device::wgpu_msl` or
 /// [`cubecl::Device::metal_msl`] to select Metal explicitly. Both select
-/// [`WgpuBackend::Metal`], which requires native MSL support with `metal` enabled and panics
+/// [`WgpuBackend::Metal`], which requires native MSL support with `wgpu-msl` enabled and panics
 /// during initialization if it is unavailable. Automatic devices retain WGSL fallback.
 ///
 /// To import an existing Metal setup with the same requirement, use
 /// `init_device_with_api::<graphics::Metal>(setup, RuntimeOptions::default())`.
-#[cfg(feature = "metal")]
+#[cfg(feature = "wgpu-msl")]
 #[deprecated(
     since = "0.22.0",
-    note = "Use `Wgpu` with `burn::tensor::Device::metal` to select Metal explicitly. This alias is identical to `Wgpu` and does not select a graphics API."
+    note = "Use `Wgpu` with `burn::tensor::Device::wgpu_msl` to select Metal explicitly. This alias is identical to `Wgpu` and does not select a graphics API."
 )]
 pub type Metal = WgpuInner;
 
@@ -168,7 +168,7 @@ mod tests {
 
     #[cfg(any(
         all(feature = "vulkan", not(target_family = "wasm")),
-        all(feature = "metal", target_vendor = "apple")
+        all(feature = "wgpu-msl", target_vendor = "apple")
     ))]
     fn assert_fp4_dtypes(device: &cubecl::Device) {
         use burn_backend::quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype};
@@ -212,7 +212,7 @@ mod tests {
         assert_fp4_dtypes(&device);
     }
 
-    #[cfg(all(feature = "metal", target_vendor = "apple"))]
+    #[cfg(all(feature = "wgpu-msl", target_vendor = "apple"))]
     #[test]
     fn should_support_metal_dtypes() {
         type B = Wgpu;
@@ -232,7 +232,7 @@ mod tests {
         assert_fp4_dtypes(&device);
     }
 
-    #[cfg(not(any(feature = "vulkan", feature = "metal")))]
+    #[cfg(not(any(feature = "vulkan", feature = "wgpu-msl")))]
     #[test]
     fn should_support_wgsl_dtypes() {
         type B = Wgpu;

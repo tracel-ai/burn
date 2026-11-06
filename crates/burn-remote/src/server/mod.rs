@@ -11,6 +11,7 @@ mod backend;
 mod capture;
 mod device_query;
 mod error;
+mod execution;
 mod logging;
 mod settings;
 mod streams;
@@ -25,6 +26,7 @@ pub use burn_router::{CustomOpHandler, CustomOpRegistry};
 pub(crate) use capture::{DeviceCaptureLock, SessionCaptures};
 pub(crate) use device_query::DeviceQueries;
 pub use error::ServeError;
+pub(crate) use execution::SessionExecutionModes;
 pub use logging::ServerLogging;
 #[doc(hidden)]
 pub use settings::ServerSettings;

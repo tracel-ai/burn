@@ -1,3 +1,5 @@
+#[cfg(feature = "autotune")]
+pub mod depthwise;
 pub mod fallback;
 pub mod implicit_gemm;
 

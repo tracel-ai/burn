@@ -1,23 +1,21 @@
 <div align="center">
-<img src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/logo-burn-neutral.webp" width="350px"/>
+  <img src="assets/burn-symbol-colour.svg" alt="The Burn logo" height="200"/>
+  <br /><br />
 
-[![Discord](https://img.shields.io/discord/1038839012602941528.svg?color=7289da&&logo=discord)](https://discord.gg/uPEBbYYDB6)
-[![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg)](https://crates.io/crates/burn)
-[![Minimum Supported Rust Version](https://img.shields.io/crates/msrv/burn)](https://crates.io/crates/burn)
-[![Documentation](https://img.shields.io/badge/docs-latest-blue)](https://burn.dev/docs/burn)
-[![Test Status](https://github.com/tracel-ai/burn/actions/workflows/test.yml/badge.svg)](https://github.com/tracel-ai/burn/actions/workflows/test.yml)
-[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
-[![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue)](https://deepwiki.com/tracel-ai/burn)
+[![Rust 1.95 or later](https://img.shields.io/badge/Rust-1.95%2B-f15a24?style=flat-square&logo=rust&logoColor=white)](https://crates.io/crates/burn)
+[![License](https://img.shields.io/badge/License-MIT%2FApache--2.0-f15a24?style=flat-square)](#license)
+[![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg?style=flat-square&color=f15a24)](https://crates.io/crates/burn)
+[![Test Status](https://img.shields.io/github/actions/workflow/status/tracel-ai/burn/test.yml?branch=main&label=CI&style=flat-square)](https://github.com/tracel-ai/burn/actions/workflows/test.yml)
+<br />
+[![Discord](https://img.shields.io/discord/1038839012602941528.svg?label=Chat&style=flat-square&color=f15a24&logo=discord&logoColor=white)](https://discord.gg/uPEBbYYDB6)
+[![Documentation](https://img.shields.io/badge/docs-latest-f15a24?style=flat-square)](https://burn.dev/docs/burn)
+[![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-f15a24?style=flat-square)](https://deepwiki.com/tracel-ai/burn)
+[![Blaze: macOS CI](assets/ci-powered-by-blaze.svg)](https://runblaze.dev)
 
-[<img src="https://www.runblaze.dev/ci-blaze-powered.png" width="125px"/>](https://www.runblaze.dev)
+  <p><b>A tensor library and deep learning framework for numerical computing, training and inference.</b></p>
+</div>
 
 ---
-
-**Burn is both a tensor library and a deep learning framework, optimized for <br /> numerical
-computing, training and inference.**
-
-<br/>
-</div>
 
 <div align="left">
 
