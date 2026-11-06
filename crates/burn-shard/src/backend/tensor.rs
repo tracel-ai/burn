@@ -5,7 +5,7 @@ use burn_backend::{
 use burn_ir::{BackendIr, HandleKind};
 use burn_std::future::{DynFut, block_on};
 
-use crate::{Resharding, Sharding, ShardingError};
+use crate::{Resharding, ShardMember, Sharding, ShardingError};
 
 /// One tensor as the backend holds it over the sharded compute device: its shard on every member, in member order.
 pub enum ShardedTensor<B: BackendIr> {
@@ -202,8 +202,8 @@ impl<B: BackendIr> ShardedTensor<B> {
             len: shape[dim],
             members: chunks,
         };
-        let members_per_chunk = self.len() / chunks;
-        let chunk = |member| split.slices(member / members_per_chunk);
+        let num_members = self.len();
+        let chunk = |index| split.slices(ShardMember { index, num_members }.chunk(chunks));
         match self {
             Self::Float(shards) => Self::Float(each_member(shards, |t, m| {
                 owned_float_slice::<B>(t, &chunk(m))
@@ -221,8 +221,8 @@ impl<B: BackendIr> ShardedTensor<B> {
     }
 
     /// The whole of a split cut into `chunks` along `dim` on every member: through the backend's
-    /// all-gather when each member holds its own chunk, and otherwise from the first member of
-    /// each group, so no chunk is sent twice.
+    /// all-gather when each member holds its own chunk, and otherwise each member keeping its own
+    /// and receiving every other group's from that group's first member.
     fn all_gather(self, dim: usize, chunks: usize) -> Result<Self, ShardingError> {
         if chunks < self.len() {
             return self.gathered_groups(dim, chunks);
@@ -360,13 +360,14 @@ impl<B: BackendIr> QuantizedOnHost<B> {
             len: self.whole.shape()[dim],
             members: chunks,
         };
-        let members_per_chunk = self.devices.len() / chunks;
+        let num_members = self.devices.len();
         let data: Vec<_> = split.data_chunks(&self.whole).collect();
         self.devices
             .iter()
             .enumerate()
-            .map(|(member, device)| {
-                B::q_from_data(data[member / members_per_chunk].clone(), device)
+            .map(|(index, device)| {
+                let chunk = ShardMember { index, num_members }.chunk(chunks);
+                B::q_from_data(data[chunk].clone(), device)
             })
             .collect()
     }
@@ -428,26 +429,45 @@ fn whole(shape: &Shape) -> Vec<Slice> {
 
 /// The first member's shard of each of `chunks` contiguous groups.
 fn one_per_chunk<T>(shards: Vec<T>, chunks: usize) -> Vec<T> {
-    let members_per_chunk = shards.len() / chunks;
-    shards.into_iter().step_by(members_per_chunk).collect()
+    let num_members = shards.len();
+    shards
+        .into_iter()
+        .enumerate()
+        .filter(|(index, _)| {
+            ShardMember {
+                index: *index,
+                num_members,
+            }
+            .is_first_of_chunk(chunks)
+        })
+        .map(|(_, shard)| shard)
+        .collect()
 }
 
-/// The whole on every member, joined by `cat` from the first member of each of `chunks` groups
-/// once moved there by `to_device`.
+/// The whole on every member, joined by `cat`: its own group's chunk from its own shard, and
+/// every other group's from that group's first member, moved there by `to_device`.
 fn gathered_groups<T: Clone + TensorMetadata>(
     shards: Vec<T>,
     chunks: usize,
     to_device: impl Fn(T, &T::Device) -> T,
     cat: impl Fn(Vec<T>) -> T,
 ) -> Vec<T> {
-    let devices: Vec<_> = shards.iter().map(TensorMetadata::device).collect();
-    let firsts = one_per_chunk(shards, chunks);
-    devices
-        .iter()
-        .map(|device| {
+    let num_members = shards.len();
+    let firsts = one_per_chunk(shards.clone(), chunks);
+    shards
+        .into_iter()
+        .enumerate()
+        .map(|(index, own)| {
+            let device = own.device();
+            let own_chunk = ShardMember { index, num_members }.chunk(chunks);
+            let mut own = Some(own);
             cat(firsts
                 .iter()
-                .map(|shard| to_device(shard.clone(), device))
+                .enumerate()
+                .map(|(chunk, first)| match chunk == own_chunk {
+                    true => own.take().expect("A member holds one chunk"),
+                    false => to_device(first.clone(), &device),
+                })
                 .collect())
         })
         .collect()

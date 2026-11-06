@@ -17,8 +17,8 @@ pub enum AttentionRule {
     /// Megatron's layout: each member attends its own query heads, with the key and value heads
     /// they read.
     Heads,
-    /// Fewer key and value heads than members: each is held by a group of `groups` contiguous
-    /// members, every one attending its own query heads against it.
+    /// Fewer key and value heads than members: each is held by one of `groups` groups of
+    /// contiguous members, every one attending its own query heads against it.
     SharedHeads { groups: usize },
 }
 
@@ -181,6 +181,17 @@ mod tests {
                 output: Split { dim: 1 },
             }
         );
+    }
+
+    /// Six query heads over four members cut the heads of one pair's key head across the pair's
+    /// boundary, so a member would need both groups' key heads.
+    #[test]
+    fn query_heads_that_do_not_divide_the_members_are_not_shared_by_pairs() {
+        let kv = ReplicatedSplit { dim: 1, groups: 2 };
+
+        let rule = AttentionRule::new([Split { dim: 1 }, kv, kv], &shapes(6, 2), 4);
+
+        assert_eq!(rule, AttentionRule::Unsplit);
     }
 
     /// A member's query heads would read only one of its group's two key heads, so the key and

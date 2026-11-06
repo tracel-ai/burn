@@ -88,17 +88,26 @@ impl<B: BackendIr> MemberShards<B> {
                 false => Err(ShardsError::PartialSumOf { dtype }),
             },
             Sharding::Split { dim } | Sharding::ReplicatedSplit { dim, .. } => {
-                // Each group's first member holds its chunk; the shape check covers the others.
-                let members_per_chunk = sharding
-                    .num_chunks(shards.len())
-                    .filter(|chunks| *chunks > 0 && shards.len().is_multiple_of(*chunks))
-                    .map_or(1, |chunks| shards.len() / chunks);
+                // Each group's first member holds its chunk; the shape check covers the others. Groups
+                // that do not divide the members are refused below, so every shard counts meanwhile.
+                let num_members = shards.len();
+                let chunks = sharding
+                    .num_chunks(num_members)
+                    .filter(|chunks| *chunks > 0 && num_members.is_multiple_of(*chunks))
+                    .unwrap_or(num_members);
                 let mut whole = first.clone();
                 if dim < whole.num_dims() {
                     whole[dim] = shards
                         .iter()
-                        .step_by(members_per_chunk)
-                        .map(|shard| shard.shape.get(dim).copied().unwrap_or(0))
+                        .enumerate()
+                        .filter(|(index, _)| {
+                            ShardMember {
+                                index: *index,
+                                num_members,
+                            }
+                            .is_first_of_chunk(chunks)
+                        })
+                        .map(|(_, shard)| shard.shape.get(dim).copied().unwrap_or(0))
                         .sum();
                 }
                 let tensor = TensorIr {

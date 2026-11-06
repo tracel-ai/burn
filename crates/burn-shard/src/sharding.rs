@@ -53,6 +53,15 @@ impl ShardMember {
     /// The chunk this member holds of a split cut into `chunks`: the members form that many
     /// contiguous groups.
     pub fn chunk(&self, chunks: usize) -> usize {
-        self.index / (self.num_members / chunks)
+        self.index / self.members_per_chunk(chunks)
+    }
+
+    /// Whether this member is the first of its group in a split cut into `chunks`.
+    pub fn is_first_of_chunk(&self, chunks: usize) -> bool {
+        self.index.is_multiple_of(self.members_per_chunk(chunks))
+    }
+
+    fn members_per_chunk(&self, chunks: usize) -> usize {
+        self.num_members / chunks
     }
 }
