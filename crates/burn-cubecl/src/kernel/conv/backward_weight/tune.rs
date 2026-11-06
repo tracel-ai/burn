@@ -5,7 +5,9 @@ use cubecl::{
     ir::ElemType,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
 };
-use cubek::convolution::{AcceleratedTileKind, UnitStrategy, UnitTiling};
+use cubek::convolution::{
+    AcceleratedTileKind, UnitStrategy, UnitTiling, backward_weight::split::PartialColumnOrder,
+};
 use cubek::matmul::multi_level::routines::TileSizeSelection;
 
 use crate::{
@@ -14,6 +16,7 @@ use crate::{
         ConvAutotuneKey,
         backward_weight::{
             depthwise::wgrad_depthwise, fallback::conv_weight_backward_fallback, implicit_gemm::*,
+            split_implicit::wgrad_split_implicit,
         },
         im2col::{wgrad_im2col, wgrad_im2col_1x1, wgrad_im2col_1x1_split},
         unit::wgrad_unit,
@@ -50,6 +53,30 @@ pub fn wgrad_autotune<const N: usize>(
             .with(Tunable::new(
                 "wgrad_im2col_gather",
                 |(input, grad, shape, options)| wgrad_im2col::<N>(input, grad, shape, options),
+            ))
+            .with(Tunable::new(
+                "wgrad_split_implicit",
+                |(input, grad, shape, options)| {
+                    wgrad_split_implicit::<N>(
+                        input,
+                        grad,
+                        shape,
+                        options,
+                        PartialColumnOrder::ChannelsLast,
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "wgrad_split_implicit_spatial_last",
+                |(input, grad, shape, options)| {
+                    wgrad_split_implicit::<N>(
+                        input,
+                        grad,
+                        shape,
+                        options,
+                        PartialColumnOrder::SpatialLast,
+                    )
+                },
             ))
             // The same matmul with its contraction cut into pieces, which is
             // what a weight gradient's shape asks for — see `split_count`.

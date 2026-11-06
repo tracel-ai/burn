@@ -657,6 +657,10 @@ version 12).
   ([#5793](https://github.com/tracel-ai/burn/pull/5793),
   [#6075](https://github.com/tracel-ai/burn/pull/6075))
 
+- Add accelerated split convolution weight-gradient autotuning candidates on CubeCL backends,
+  retaining F32 partial sums for F16 and BF16 inputs. Cached candidates fall back when a shape
+  exceeds the split workspace limit.
+
 - Add F32 unit-convolution and im2col autotuning candidates on CubeCL backends, including
   split depthwise weight gradients. Forward im2col limits its column workspace to 128 MiB.
   ([#6048](https://github.com/tracel-ai/burn/pull/6048)) [@znicelya](https://github.com/znicelya)
