@@ -278,14 +278,17 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
 Experimental: with the `shard` feature, `Device::shard_options(&devices).init()` makes one device
 whose tensors are split over `devices` (crate `burn-shard`).
 
-- A tensor made from data on a sharded compute device stays on the host until it is used, so `from_data`
-  followed by `with_sharding` uploads each member only its chunk, and a model that fits only once
-  split can be loaded. ([#6232](https://github.com/tracel-ai/burn/pull/6232))
-  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
-- A random tensor on a sharded compute device waits until it is first used, and a split use, such as a
-  dropout mask over a split activation, has each member generate only its shard instead of copying
-  the whole tensor from the first member. Its seed is captured on creation, and each shard derives its own
-  seed, so its values can differ from one device's with the same seed. ([#6272](https://github.com/tracel-ai/burn/pull/6272))
+- Each member's shard is made by the caller, where it lives: `Tensor::from_shards(Shards { shards,
+  sharding }, &device)` joins one tensor per member, each already on its member's device
+  (`Device::shard_members`), and refuses shards that do not make up one tensor with a
+  `ShardsError`. `into_shards` gives the `Shards` back. A split's chunks are balanced in member
+  order, and `shard::DimSplit` gives each member's range and cuts a `TensorData` to it, so a
+  member reading a checkpoint reads only its chunk. The tensor's sharding is read with
+  `Tensor::sharding`, and ops move shards between members themselves where their inputs need it. A
+  random tensor on a sharded compute device is drawn once and replicated.
+  ([#6232](https://github.com/tracel-ai/burn/pull/6232),
+  [#6272](https://github.com/tracel-ai/burn/pull/6272),
+  [#6397](https://github.com/tracel-ai/burn/pull/6397))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - Attention split on its batch or heads, and `swap_dims`, `permute`, `expand`, `slice` and
   `slice_assign` on a sharded compute device keep their input's split instead of gathering it, so a
@@ -307,19 +310,16 @@ whose tensors are split over `devices` (crate `burn-shard`).
   `DispatchDevice::shard` take the device's custom ops: pass `ShardCustomOps::default()` for none.
   `ShardError` has a new `CustomOpsBackend` variant.
   ([#6395](https://github.com/tracel-ai/burn/pull/6395))
-- `Param::with_sharding` splits a parameter, and a record loaded into a module keeps each
-  parameter's split. A parameter split before it initializes stays lazy, and a record loaded into
-  it uploads each member only its chunk, before any load mapper runs. `Device::check_sharding`
-  checks a sharding against a shape without making a tensor. The sharding methods exist without
-  the `shard` feature and refuse with `ShardingError::NotSharded`.
-  ([#6397](https://github.com/tracel-ai/burn/pull/6397))
-  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - A quantized tensor splits over a sharded compute device, its codes and scales cut as they are,
   so a quantized model's weights split for tensor parallelism. A split must give every member whole
-  quantization blocks, and whole packed words along the packed axis. **Breaking:**
+  quantization blocks, and whole packed words along the packed axis, which `from_shards` checks. **Breaking:**
   `ShardingError::Quantized` is replaced by `ShardingError::QuantizedSplit`, returned for a split
-  that would cut either.
-  ([#6396](https://github.com/tracel-ai/burn/pull/6396))
+  that would cut either. Split shards quantized each on their own must share a per-tensor or global
+  scale: a read or an op that gathers them otherwise fails with `ShardingError::QuantizedScales`,
+  and `DimSplit::whole_data` returns a `Result`. Reading a failed sharded operation returns its
+  recorded execution error instead of panicking.
+  ([#6396](https://github.com/tracel-ai/burn/pull/6396),
+  [#6408](https://github.com/tracel-ai/burn/pull/6408))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution
