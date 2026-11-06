@@ -121,22 +121,28 @@ For CubeCL and CubeK updates, record significant user-visible benefits that Burn
 exposes, rather than the version bump itself. Omit upstream refactors and capabilities not yet used
 by Burn.
 
-Keep entries concise and describe the impact on users. Give major features and breaking changes
-descriptive subsections, with migration steps and short API examples where useful. Smaller changes
-can remain bullets, grouped by topic when needed. For API changes, state what users need to replace
-or update. Link relevant PRs and credit their authors.
+Keep `Unreleased` in this single file, with narrowly scoped `###` feature sections in alphabetical
+order. Add changes to the most specific existing section, or create a new section for an independent
+feature, even for a single bullet. Group related API changes, additions, fixes, and performance
+improvements together. Avoid catch-all sections such as "Kernels" or "Correctness fixes" so unrelated
+PRs are less likely to edit the same location.
+
+Keep entries concise and describe the impact on users. Major features can use paragraphs and short
+API examples; smaller changes can remain bullets. Mark breaking changes explicitly and state what
+users need to replace or update. Keep each entry's explanation, migration steps, PR links, and author
+credits together, with a blank line between entries.
 
 Update existing entries for follow-up work, describing the resulting behavior and migration from the
 last release. Remove superseded guidance; retain relevant PR links and attribution.
 
-Group related API changes, additions, fixes, and performance improvements under the same topic. Lead
-with standout new capabilities and substantial execution-performance improvements, including kernel
-and fusion work. Within each topic, present major capabilities and breaking changes before focused
-improvements and fixes. Mark breaking changes explicitly. Place specialized features and
-integrations with narrower audiences later, while keeping related entries together.
+Keep ordinary PRs focused on their own entries. Avoid renaming or moving unrelated sections,
+reordering unrelated entries, or rewrapping the whole file. Leave broader consolidation and editorial
+changes for release preparation.
 
-At release time, incorporate the pending entries into the release notes and any migration guide,
-then clear them. Published release history lives in GitHub Releases.
+At release time, consolidate related entries into the release notes and any migration guide. Order
+the published notes by user impact, leading with standout capabilities and substantial performance
+improvements; keep migration guidance with the relevant features. Then clear the pending entries.
+Published release history lives in GitHub Releases.
 
 ### Large Pull Requests
 
