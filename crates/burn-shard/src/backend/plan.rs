@@ -1,10 +1,8 @@
-use std::collections::HashMap;
-
 use burn_backend::{DType, ops::attention::AttentionShapes};
 use burn_ir::{CustomOpIr, OperationIr, TensorId, TensorIr};
 use burn_std::Slice;
 
-use super::{CustomOpPlan, classify::OpClass, custom_ops::CustomOpRuleMap};
+use super::{CustomOpPlan, classify::OpClass, custom_ops::CustomOpRuleMap, shardings::Shardings};
 use crate::{
     AlongDimRule, AttentionRule, ElementwiseRule, LayoutRule, Linearity, MatmulRule, OpInputs,
     OpKind, OpOutputs, OpSharding, ReduceRule, ReducedDims, ReductionKind, ReshapeRule, Resharding,
@@ -23,13 +21,14 @@ pub struct OpPlan {
 /// When the members run one op.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Execution {
-    /// Now, each member on its own shards.
-    Eager,
-    /// When its output is first needed: split if that use splits it, else on member 0 and copied.
-    Deferred,
-    /// Now, once over every member's shards together, by a custom op's collective handler.
+    /// Each member on its own shards.
+    EveryMember,
+    /// The first member alone, its output copied to every other. A random draw runs so: its values
+    /// depend on the launch, which can differ between members.
+    FirstMemberCopied,
+    /// Once over every member's shards together, by a custom op's collective handler.
     Collective,
-    /// Never: its outputs fail on every member, since its inputs cannot take the shardings its
+    /// Not at all: its outputs fail on every member, since its inputs cannot take the shardings its
     /// rule asks for.
     Refused(ShardingError),
 }
@@ -39,7 +38,7 @@ impl OpPlan {
     /// input and runs whole on every member.
     pub fn new(
         op: &OperationIr,
-        shardings: &HashMap<TensorId, Sharding>,
+        shardings: &Shardings,
         rules: &CustomOpRuleMap,
         num_members: usize,
     ) -> Self {
@@ -127,14 +126,14 @@ impl OpPlan {
         Self {
             input_shardings: op.inputs().map(replicated).collect(),
             output_shardings: op.outputs().map(replicated).collect(),
-            execution: Execution::Eager,
+            execution: Execution::EveryMember,
         }
     }
 }
 
 /// The shardings of a sharded compute device's tensors, which pick the rule each op runs by.
 struct TensorShardings<'a> {
-    shardings: &'a HashMap<TensorId, Sharding>,
+    shardings: &'a Shardings,
     rules: &'a CustomOpRuleMap,
     num_members: usize,
 }
@@ -234,7 +233,7 @@ impl TensorShardings<'_> {
         let shardings: OpInputs<_> = inputs.iter().map(|input| self.sharding(input)).collect();
         let shapes: OpInputs<_> = inputs.iter().map(|input| &input.shape).collect();
         let sharding = ElementwiseRule::new(linearity).sharding(&shardings, &shapes, num_dims);
-        OpPlan::from_rule(inputs, out, sharding, Execution::Eager)
+        OpPlan::from_rule(inputs, out, sharding, Execution::EveryMember)
     }
 
     /// The inputs after the first broadcast against it, like a norm's weight.
@@ -262,7 +261,7 @@ impl TensorShardings<'_> {
             .into_iter()
             .chain(broadcast.iter().copied())
             .collect();
-        OpPlan::from_rule(&inputs, out, sharding, Execution::Eager)
+        OpPlan::from_rule(&inputs, out, sharding, Execution::EveryMember)
     }
 
     fn reduction(
@@ -273,14 +272,14 @@ impl TensorShardings<'_> {
         reduction: ReductionKind,
     ) -> Option<OpPlan> {
         let sharding = ReduceRule::new(self.sharding(input), dims, reduction).sharding();
-        OpPlan::from_rule(&[input], out, sharding, Execution::Eager)
+        OpPlan::from_rule(&[input], out, sharding, Execution::EveryMember)
     }
 
     fn matmul(&self, lhs: &TensorIr, rhs: &TensorIr, out: &TensorIr) -> Option<OpPlan> {
         let sharding =
             MatmulRule::new(self.sharding(lhs), self.sharding(rhs), lhs.shape.num_dims())
                 .sharding();
-        OpPlan::from_rule(&[lhs, rhs], out, sharding, Execution::Eager)
+        OpPlan::from_rule(&[lhs, rhs], out, sharding, Execution::EveryMember)
     }
 
     /// The query, key and value come first, then the mask and bias the op has.
@@ -294,7 +293,7 @@ impl TensorShardings<'_> {
             self.num_members,
         );
         let shapes: OpInputs<_> = inputs.iter().map(|input| &input.shape).collect();
-        OpPlan::from_rule(inputs, out, rule.sharding(&shapes), Execution::Eager)
+        OpPlan::from_rule(inputs, out, rule.sharding(&shapes), Execution::EveryMember)
     }
 
     fn reshape(&self, input: &TensorIr, out: &TensorIr) -> Option<OpPlan> {
@@ -305,11 +304,11 @@ impl TensorShardings<'_> {
             self.num_members,
         )
         .sharding();
-        OpPlan::from_rule(&[input], out, sharding, Execution::Eager)
+        OpPlan::from_rule(&[input], out, sharding, Execution::EveryMember)
     }
 
     fn layout(&self, input: &TensorIr, out: &TensorIr, rule: LayoutRule) -> Option<OpPlan> {
-        OpPlan::from_rule(&[input], out, rule.sharding(1), Execution::Eager)
+        OpPlan::from_rule(&[input], out, rule.sharding(1), Execution::EveryMember)
     }
 
     fn slice_assign(
@@ -325,7 +324,12 @@ impl TensorShardings<'_> {
             ranges,
             &tensor.shape,
         );
-        OpPlan::from_rule(&[tensor, value], out, rule.sharding(2), Execution::Eager)
+        OpPlan::from_rule(
+            &[tensor, value],
+            out,
+            rule.sharding(2),
+            Execution::EveryMember,
+        )
     }
 
     fn random(&self, out: &TensorIr) -> Option<OpPlan> {
@@ -333,7 +337,7 @@ impl TensorShardings<'_> {
             inputs: OpInputs::new(),
             output: Sharding::Replicated,
         };
-        OpPlan::from_rule(&[], out, sharding, Execution::Deferred)
+        OpPlan::from_rule(&[], out, sharding, Execution::FirstMemberCopied)
     }
 
     /// The plan its rule gives a custom op, or `None` to gather it: without a rule, or for a
@@ -349,7 +353,7 @@ impl TensorShardings<'_> {
         }
     }
 
-    /// A kind plans one output. A random op is deferred and a slice cut to each member's ranges
+    /// A kind plans one output. A random op is drawn once and a slice cut to each member's ranges
     /// only as their built-in IR, and a reshape or expand carries its target shape in its own
     /// scalars, which every member reads whole, so a custom op of those kinds gathers.
     fn custom_kind(&self, kind: OpKind, op: &CustomOpIr) -> Option<OpPlan> {
@@ -426,6 +430,6 @@ impl TensorShardings<'_> {
     }
 
     fn sharding(&self, tensor: &TensorIr) -> Sharding {
-        self.shardings[&tensor.id]
+        self.shardings.get(&tensor.id)
     }
 }

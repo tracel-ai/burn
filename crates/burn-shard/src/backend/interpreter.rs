@@ -1,25 +1,24 @@
 use burn_backend::RandomKey;
-use std::{
-    collections::{BTreeMap, HashMap},
-    iter,
-};
+use std::{any::Any, collections::HashMap};
 
-use burn_backend::{
-    DType, DTypeUsageSet, DeviceSettings, ExecutionError, TensorData, ops::DimSplit,
-};
+use burn_backend::{DType, DTypeUsageSet, DeviceSettings, ExecutionError, Shape, TensorData};
 use burn_ir::{
-    BackendIr, BaseOperationIr, IrVisitorMut, OperationIr, TensorError, TensorId, TensorIr,
-    TensorStatus,
+    BackendIr, BaseOperationIr, HandleKind, IrVisitorMut, OperationIr, TensorError, TensorId,
+    TensorIr, TensorStatus,
 };
 use burn_router::TensorInterpreter;
-use burn_std::{QuantConfig, Slice, future::DynFut};
+use burn_std::{
+    QuantConfig, Slice,
+    distributed::{Shards, ShardsError},
+    future::DynFut,
+};
 
 use super::{
     CollectiveMember, CollectiveOpRegistry, MemberDevice, ShardCustomOps, ShardError,
     custom_ops::{CustomOpRuleMap, MemberCustomOps},
-};
-use super::{
     plan::{Execution, OpPlan},
+    shardings::Shardings,
+    shards::MemberShards,
     tensor::ShardedTensor,
 };
 use crate::{Resharding, ShardMember, Sharding, ShardingError};
@@ -44,22 +43,27 @@ pub trait DynShardInterpreter: Send {
     /// How many members the tensors are split over.
     fn num_members(&self) -> usize;
 
-    /// A new tensor holding `data`, replicated. It stays on the host until it is used, so a split
-    /// by `with_sharding`, or by an op that consumes it, uploads each member only its chunk.
+    /// A new tensor holding `data`, uploaded whole to every member.
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId;
+
+    /// A new tensor of the shards a caller made, a `Shards<HandleKind<B>>` of the members'
+    /// backend, with its whole shape and dtype.
+    ///
+    /// # Errors
+    ///
+    /// When the shards are of another backend than the members', or do not make up one tensor
+    /// as their sharding says.
+    fn register_shards(&mut self, shards: Box<dyn Any + Send>)
+    -> Result<JoinedTensor, ShardsError>;
+
+    /// The shards of `tensor`, as a `Shards<HandleKind<B>>`.
+    fn take_shards(&mut self, tensor: TensorIr) -> Box<dyn Any + Send>;
 
     /// Runs `op` on every member's shards, after resharding each input as the op's
     /// rule asks for.
-    ///
-    /// An op its plan defers, such as a random one, waits until its output is needed, and runs at
-    /// the sharding that need asks for.
     fn register_op(&mut self, op: OperationIr);
 
-    /// The same value with another sharding, under a new id, or why no resharding produces it.
-    fn reshard(&mut self, tensor: TensorIr, sharding: Sharding) -> Result<TensorId, ShardingError>;
-
-    /// The whole value of `tensor`: the data itself while it is on the host, otherwise its shards
-    /// gathered onto the first member and read there.
+    /// The whole value of `tensor`, its shards gathered onto the first member and read there.
     fn read(&mut self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
 
     /// Waits for every member's work to finish.
@@ -78,15 +82,20 @@ pub trait DynShardInterpreter: Send {
     fn dtype_usage(&self, dtype: DType) -> DTypeUsageSet;
 }
 
+/// The tensor a caller's shards make up once joined: its id on the sharded compute device, and
+/// its whole shape and dtype.
+pub struct JoinedTensor {
+    pub id: TensorId,
+    pub shape: Shape,
+    pub dtype: DType,
+}
+
 /// The interpreter of a sharded compute device whose members run `B`: one [`TensorInterpreter`] per member, and
 /// where each tensor's shards sit.
 pub struct ShardInterpreter<B: BackendIr> {
     interpreters: Vec<TensorInterpreter<B>>,
     devices: Vec<B::Device>,
-    shardings: HashMap<TensorId, Sharding>,
-    on_host: HashMap<TensorId, TensorData>,
-    // Ordered by id, the order the ops were issued, so running several at once is reproducible.
-    pending_ops: BTreeMap<TensorId, OperationIr>,
+    shardings: Shardings,
     next_id: u64,
     collectives: CollectiveOpRegistry<B>,
     rules: CustomOpRuleMap,
@@ -110,9 +119,7 @@ impl<B: BackendIr> ShardInterpreter<B> {
                 .map(|device| TensorInterpreter::with_custom_ops(device.clone(), handlers.clone()))
                 .collect(),
             devices,
-            shardings: HashMap::new(),
-            on_host: HashMap::new(),
-            pending_ops: BTreeMap::new(),
+            shardings: Shardings::default(),
             next_id: 0,
             collectives,
             rules,
@@ -174,7 +181,7 @@ impl<B: BackendIr> DynShardInterpreter for ShardInterpreter<B> {
     }
 
     fn sharding(&self, id: &TensorId) -> Sharding {
-        self.shardings[id]
+        self.shardings.get(id)
     }
 
     fn num_members(&self) -> usize {
@@ -183,9 +190,34 @@ impl<B: BackendIr> DynShardInterpreter for ShardInterpreter<B> {
 
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId {
         let id = self.new_tensor_id();
-        self.on_host.insert(id, data);
+        for interpreter in &mut self.interpreters {
+            interpreter.register_tensor_data_id(id, data.clone());
+        }
         self.shardings.insert(id, Sharding::Replicated);
         id
+    }
+
+    fn register_shards(
+        &mut self,
+        shards: Box<dyn Any + Send>,
+    ) -> Result<JoinedTensor, ShardsError> {
+        // Shards of another backend than the members' are on no member's device.
+        let Shards { shards, sharding } = *shards
+            .downcast::<Shards<HandleKind<B>>>()
+            .map_err(|_| ShardsError::Device { shard: 0 })?;
+        let shards = MemberShards::new(shards);
+        let shape = shards.whole_shape(sharding, &self.devices)?;
+        let dtype = shards.dtype();
+        let id = self.new_tensor_id();
+        self.register_sharded(id, ShardedTensor::new(shards.into_handles()));
+        self.shardings.insert(id, sharding);
+        Ok(JoinedTensor { id, shape, dtype })
+    }
+
+    fn take_shards(&mut self, tensor: TensorIr) -> Box<dyn Any + Send> {
+        let sharding = self.shardings.get(&tensor.id);
+        let shards = self.sharded_tensor(&tensor, sharding).into_handles();
+        Box::new(Shards { shards, sharding })
     }
 
     fn register_op(&mut self, op: OperationIr) {
@@ -197,24 +229,20 @@ impl<B: BackendIr> DynShardInterpreter for ShardInterpreter<B> {
         }
     }
 
-    fn reshard(&mut self, tensor: TensorIr, sharding: Sharding) -> Result<TensorId, ShardingError> {
-        self.run_pending(tensor.id, sharding);
-        let current = self.shardings[&tensor.id];
-        self.resharded(&tensor, current, sharding).inspect_err(|_| {
-            // The caller gave the tensor up, so a refusal must not leave it on the members.
+    fn read(&mut self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
+        if let Some(error) = self
+            .interpreters
+            .iter_mut()
+            .find_map(|interpreter| interpreter.take_error(&tensor))
+        {
             if tensor.status == TensorStatus::ReadWrite {
                 self.drop_tensor(tensor.id);
             }
-        })
-    }
-
-    fn read(&mut self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
-        self.run_pending(tensor.id, Sharding::Replicated);
-        if let Some(data) = self.take_host_data(&tensor) {
-            return Box::pin(async move { Ok(data) });
+            let error = ExecutionError::from(error);
+            return Box::pin(async move { Err(error) });
         }
-        let sharding = self.shardings[&tensor.id];
-        self.take_shards(&tensor, sharding)
+        let sharding = self.shardings.get(&tensor.id);
+        self.sharded_tensor(&tensor, sharding)
             .into_data(sharding, &self.devices[0])
     }
 
@@ -260,14 +288,20 @@ impl<B: BackendIr> ShardInterpreter<B> {
         if let Some(error) = self.failure(&op, &plan) {
             return self.fail(&op, &error);
         }
-        let temporaries = self.shard_inputs(&mut op, &plan);
+        let temporaries = match self.shard_inputs(&mut op, &plan) {
+            Ok(temporaries) => temporaries,
+            Err(error) => {
+                let reason = format!("An input of the op cannot be resharded: {error}");
+                return self.fail(&op, &TensorError::new(ExecutionError::with_context(reason)));
+            }
+        };
         for (id, sharding) in plan.output_shardings() {
             self.shardings.insert(*id, *sharding);
         }
 
         match plan.execution() {
-            Execution::Eager => self.run_on_every_member(&op),
-            Execution::Deferred => self.keep_pending(&op),
+            Execution::EveryMember => self.run_on_every_member(&op),
+            Execution::FirstMemberCopied => self.run_copied_from_first_member(&op),
             Execution::Collective => self.run_collective(&op),
             Execution::Refused(_) => unreachable!("A refused op fails before it runs"),
         }
@@ -280,9 +314,18 @@ impl<B: BackendIr> ShardInterpreter<B> {
         temporaries.into_iter().for_each(|id| self.drop_tensor(id));
     }
 
-    /// Gets every input of `op` onto the members as the plan shards it: uploaded whole, cut on the
-    /// host, or resharded. Returns the temporaries to drop after the op.
-    fn shard_inputs(&mut self, op: &mut OperationIr, plan: &OpPlan) -> Vec<TensorId> {
+    /// Reshards every input of `op` as the plan asks for. Returns the temporaries to drop after
+    /// the op.
+    ///
+    /// # Errors
+    ///
+    /// When an input cannot take the sharding the plan asks for, or its shards do not join,
+    /// after dropping the temporaries made so far.
+    fn shard_inputs(
+        &mut self,
+        op: &mut OperationIr,
+        plan: &OpPlan,
+    ) -> Result<Vec<TensorId>, ShardingError> {
         let inputs: Vec<TensorIr> = op.inputs().cloned().collect();
         let mut resharded = ReshardedInputs::default();
         for input in &inputs {
@@ -290,19 +333,13 @@ impl<B: BackendIr> ShardInterpreter<B> {
                 continue;
             }
             let target = plan.input_sharding(&input.id);
-            self.run_pending(input.id, target);
-            let consumed = inputs
-                .iter()
-                .any(|other| other.id == input.id && other.status == TensorStatus::ReadWrite);
-            // Only an input the op consumes is cut on the host. One it only reads, such as a
-            // parameter, reaches the members whole once, and each later op slices it there.
-            if !(consumed && matches!(target, Sharding::Split { .. })) {
-                self.upload(input.id);
-            }
-            let current = self.shardings[&input.id];
+            let current = self.shardings.get(&input.id);
             if current == target {
                 continue;
             }
+            let consumed = inputs
+                .iter()
+                .any(|other| other.id == input.id && other.status == TensorStatus::ReadWrite);
             let read = TensorIr {
                 status: match consumed {
                     true => TensorStatus::ReadWrite,
@@ -310,15 +347,17 @@ impl<B: BackendIr> ShardInterpreter<B> {
                 },
                 ..input.clone()
             };
-            let temporary = self
-                .resharded(&read, current, target)
-                .unwrap_or_else(|error| {
-                    panic!("A rule asked for {target:?} from {current:?}: {error}")
-                });
-            resharded.temporaries.insert(input.id, temporary);
+            match self.resharded(&read, current, target) {
+                Ok(temporary) => resharded.temporaries.insert(input.id, temporary),
+                Err(error) => {
+                    let made: Vec<_> = resharded.temporaries.into_values().collect();
+                    made.into_iter().for_each(|id| self.drop_tensor(id));
+                    return Err(error);
+                }
+            };
         }
         op.visit_mut(&mut resharded);
-        resharded.temporaries.into_values().collect()
+        Ok(resharded.temporaries.into_values().collect())
     }
 
     fn run_on(&mut self, member: usize, op: &OperationIr) {
@@ -437,7 +476,7 @@ impl<B: BackendIr> ShardInterpreter<B> {
             }
             _ => return,
         };
-        if let Sharding::Split { dim } = self.shardings[&tensor.id]
+        if let Sharding::Split { dim } = self.shardings.get(&tensor.id)
             && let Some(range) = ranges.get_mut(dim)
         {
             *range = Slice::full();
@@ -463,52 +502,7 @@ impl<B: BackendIr> ShardInterpreter<B> {
         (0..self.interpreters.len()).for_each(|member| self.run_on(member, op));
     }
 
-    fn keep_pending(&mut self, op: &OperationIr) {
-        let out = op.outputs().next().expect("A deferred op has one output");
-        self.pending_ops.insert(out.id, op.clone());
-    }
-
-    /// Runs the pending op of tensor `id`, if it has one: on every member at its shard when
-    /// `sharding` splits it, otherwise on member 0 and copied.
-    fn run_pending(&mut self, id: TensorId, sharding: Sharding) {
-        let Some(op) = self.pending_ops.remove(&id) else {
-            return;
-        };
-        let out = op.outputs().next().expect("A deferred op has one output");
-        // A split the tensor cannot take is left to the resharding after, which reports it.
-        let split = matches!(sharding, Sharding::Split { .. })
-            && Resharding::of_tensor(Sharding::Replicated, sharding, out, self.interpreters.len())
-                .is_ok();
-        match split {
-            true => {
-                self.shardings.insert(id, sharding);
-                self.run_random_on_members(op);
-            }
-            false => self.run_copied_from_first_member(&op),
-        }
-    }
-
-    fn run_random_on_members(&mut self, mut op: OperationIr) {
-        use burn_ir::{FloatOperationIr, NumericOperationIr, RandomOpIr};
-
-        fn random_desc(op: &mut OperationIr) -> &mut RandomOpIr {
-            match op {
-                OperationIr::Float(_, FloatOperationIr::Random(desc))
-                | OperationIr::NumericInt(_, NumericOperationIr::IntRandom(desc)) => desc,
-                _ => unreachable!("Only random operations are deferred"),
-            }
-        }
-
-        // Derive shard keys from the captured operation key, independently of first use
-        // and member scheduling. Replicated draws instead keep the original operation key.
-        let keys = random_desc(&mut op).key().split();
-        for (member, key) in (0..self.interpreters.len()).zip(keys) {
-            random_desc(&mut op).key = key.into();
-            self.run_on(member, &op);
-        }
-    }
-
-    fn take_shards(&mut self, tensor: &TensorIr, sharding: Sharding) -> ShardedTensor<B> {
+    fn sharded_tensor(&mut self, tensor: &TensorIr, sharding: Sharding) -> ShardedTensor<B> {
         let num_members = self.interpreters.len();
         let shards = self
             .interpreters
@@ -533,84 +527,22 @@ impl<B: BackendIr> ShardInterpreter<B> {
         target: Sharding,
     ) -> Result<TensorId, ShardingError> {
         let resharding = Resharding::of_tensor(current, target, tensor, self.interpreters.len())?;
+        let shards = self
+            .sharded_tensor(tensor, current)
+            .reshard(resharding, &tensor.shape)?;
         let id = self.new_tensor_id();
-        match resharding {
-            Resharding::Slice { dim } if self.on_host.contains_key(&tensor.id) => {
-                self.upload_chunks(tensor, id, dim)
-            }
-            resharding => self.reshard_on_members(tensor, current, resharding, id)?,
-        }
+        self.register_sharded(id, shards);
         self.shardings.insert(id, target);
         Ok(id)
     }
 
-    /// Reshards the shards of `tensor` on the members under `id`, uploading it whole first if it
-    /// is still on the host.
-    fn reshard_on_members(
-        &mut self,
-        tensor: &TensorIr,
-        current: Sharding,
-        resharding: Resharding,
-        id: TensorId,
-    ) -> Result<(), ShardingError> {
-        self.upload(tensor.id);
-        let shards = self
-            .take_shards(tensor, current)
-            .reshard(resharding, &tensor.shape);
-        self.register_shards(id, shards);
-        Ok(())
-    }
-
-    /// Cuts a tensor still on the host along `dim` and uploads each member only its chunk, under
-    /// `id`. The data leaves the host when the tensor is given up.
-    fn upload_chunks(&mut self, tensor: &TensorIr, id: TensorId, dim: usize) {
-        let split = DimSplit {
-            dim,
-            len: tensor.shape[dim],
-            members: self.interpreters.len(),
-        };
-        let chunks = split.data_chunks(&self.on_host[&tensor.id]);
-        for (interpreter, chunk) in self.interpreters.iter_mut().zip(chunks) {
-            interpreter.register_tensor_data_id(id, chunk);
-        }
-        if tensor.status == TensorStatus::ReadWrite {
-            self.drop_tensor(tensor.id);
-        }
-    }
-
-    /// The data of a tensor still on the host, which leaves it when the tensor is given up.
-    fn take_host_data(&mut self, tensor: &TensorIr) -> Option<TensorData> {
-        match tensor.status {
-            TensorStatus::ReadWrite => {
-                let data = self.on_host.remove(&tensor.id)?;
-                self.shardings.remove(&tensor.id);
-                Some(data)
-            }
-            _ => self.on_host.get(&tensor.id).cloned(),
-        }
-    }
-
-    /// Uploads a tensor still on the host to every member whole.
-    fn upload(&mut self, id: TensorId) {
-        if let Some(data) = self.on_host.remove(&id) {
-            let copies = iter::repeat_n(data, self.interpreters.len());
-            for (interpreter, data) in self.interpreters.iter_mut().zip(copies) {
-                interpreter.register_tensor_data_id(id, data);
-            }
-        }
-    }
-
-    fn register_shards(&mut self, id: TensorId, shards: ShardedTensor<B>) {
+    fn register_sharded(&mut self, id: TensorId, shards: ShardedTensor<B>) {
         for (interpreter, handle) in self.interpreters.iter_mut().zip(shards.into_handles()) {
             interpreter.register_tensor_to_device(id, handle);
         }
     }
 
     fn drop_tensor(&mut self, id: TensorId) {
-        if self.on_host.remove(&id).is_some() || self.pending_ops.remove(&id).is_some() {
-            self.shardings.remove(&id);
-            return;
-        }
         if self.shardings.remove(&id).is_some() {
             for interpreter in &mut self.interpreters {
                 interpreter.register_op(OperationIr::Drop(TensorIr {
@@ -644,22 +576,23 @@ impl IrVisitorMut for ReshardedInputs {
 /// Gives every tensor of an op the shape of the shard one member holds.
 struct MemberShapes<'a> {
     member: ShardMember,
-    shardings: &'a HashMap<TensorId, Sharding>,
+    shardings: &'a Shardings,
 }
 
 impl IrVisitorMut for MemberShapes<'_> {
     fn visit_tensor_mut(&mut self, tensor: &mut TensorIr) {
-        *tensor = self.member.local_tensor(tensor, self.shardings[&tensor.id]);
+        *tensor = self
+            .member
+            .local_tensor(tensor, self.shardings.get(&tensor.id));
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use burn_backend::ops::{DimSplit, FloatTensorOps, QTensorOps};
     use burn_flex::{Flex, FlexDevice};
-    use burn_ir::{CustomOpIr, FloatOperationIr, MatmulOpIr};
-    use burn_std::{
-        Bytes, FileReadCounter, QuantScheme, QuantStore, QuantValue, ScaleDtype, future::block_on,
-    };
+    use burn_ir::CustomOpIr;
+    use burn_std::{QuantScheme, QuantStore, QuantValue, ScaleDtype, future::block_on};
 
     use super::*;
     use crate::{CustomOpPlan, CustomOpRule, OpKind};
@@ -736,107 +669,218 @@ mod tests {
         }
     }
 
-    #[test]
-    fn a_split_of_data_uploads_no_member_the_whole_tensor() {
-        let mut interpreter =
-            ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], ShardCustomOps::default())
-                .unwrap();
-        let id = interpreter.register_tensor_data(TensorData::new(vec![0f32; 24], [4, 6]));
+    /// The shards of `data` laid out as `sharding` says, and the value they make up: a partial
+    /// sum is every member holding `data`, so the value is `data` times the members.
+    fn joined(
+        interpreter: &mut ShardInterpreter<Flex>,
+        data: &TensorData,
+        sharding: Sharding,
+    ) -> (TensorId, TensorData) {
+        let num_members = interpreter.num_members();
+        let chunks: Vec<TensorData> = match sharding {
+            Sharding::Split { dim } => DimSplit {
+                dim,
+                len: data.shape()[dim],
+                members: num_members,
+            }
+            .data_chunks(data)
+            .collect(),
+            Sharding::Replicated | Sharding::PartialSum => vec![data.clone(); num_members],
+        };
+        let value = match sharding {
+            Sharding::PartialSum => {
+                let summed: Vec<f32> = data.iter::<f32>().map(|x| x * num_members as f32).collect();
+                TensorData::new(summed, data.shape().clone())
+            }
+            _ => data.clone(),
+        };
+        let shards: Vec<HandleKind<Flex>> = chunks
+            .into_iter()
+            .map(|chunk| HandleKind::Float(Flex::float_from_data(chunk, &FlexDevice)))
+            .collect();
+        let id = interpreter
+            .register_shards(Box::new(Shards { shards, sharding }))
+            .unwrap()
+            .id;
+        (id, value)
+    }
 
-        let split = interpreter
-            .reshard(
-                whole(id, TensorStatus::ReadOnly),
-                Sharding::Split { dim: 1 },
+    #[test]
+    fn every_sharding_reshards_to_every_other_and_keeps_its_value() {
+        let data = TensorData::new((0..24).map(|i| i as f32).collect::<Vec<_>>(), [4, 6]);
+        let shardings = [
+            Sharding::Replicated,
+            Sharding::PartialSum,
+            Sharding::Split { dim: 0 },
+            Sharding::Split { dim: 1 },
+        ];
+        for num_members in 1..=4 {
+            let mut interpreter = ShardInterpreter::<Flex>::new(
+                vec![FlexDevice; num_members],
+                ShardCustomOps::default(),
             )
             .unwrap();
+            for from in shardings {
+                for to in shardings {
+                    if to == Sharding::PartialSum && from != Sharding::PartialSum {
+                        continue;
+                    }
+                    let (id, value) = joined(&mut interpreter, &data, from);
 
-        for member in &interpreter.interpreters {
-            assert!(member.read_failure(&id).is_some());
-            assert!(member.read_failure(&split).is_none());
+                    let moved = interpreter
+                        .resharded(&whole(id, TensorStatus::ReadWrite), from, to)
+                        .unwrap();
+
+                    let case = format!("{num_members} members, {from:?} to {to:?}");
+                    assert_eq!(interpreter.sharding(&moved), to, "{case}");
+                    let read = block_on(interpreter.read(whole(moved, TensorStatus::ReadWrite)));
+                    assert_eq!(read.unwrap(), value, "{case}");
+                }
+            }
         }
     }
 
+    /// Its codes and scales are cut and joined as they are, so the value reads back exactly.
     #[test]
-    fn data_an_op_consumes_split_is_cut_on_the_host() {
-        let mut interpreter =
-            ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], ShardCustomOps::default())
-                .unwrap();
-        let x = interpreter.register_tensor_data(TensorData::new(vec![1f32; 24], [4, 6]));
-        let x = interpreter
-            .reshard(
-                whole(x, TensorStatus::ReadWrite),
-                Sharding::Split { dim: 1 },
-            )
-            .unwrap();
-        let path = std::env::temp_dir().join(format!("burn-shard-cut-{}", std::process::id()));
-        std::fs::write(&path, TensorData::new(vec![1f32; 24], [6, 4]).as_bytes()).unwrap();
-        let reads = FileReadCounter::new(&path);
-        let w = interpreter.register_tensor_data(TensorData::from_bytes(
-            Bytes::from_file(&path, 96, 0),
-            [6, 4],
-            DType::F32,
-        ));
-        let out = interpreter.new_tensor_id();
-
-        // A lhs split along its columns asks for the rhs split along its rows.
-        interpreter.register_op(OperationIr::Float(
-            DType::F32,
-            FloatOperationIr::Matmul(MatmulOpIr {
-                lhs: whole(x, TensorStatus::ReadWrite),
-                rhs: TensorIr {
-                    shape: [6, 4].into(),
-                    ..whole(w, TensorStatus::ReadWrite)
-                },
-                out: TensorIr {
-                    shape: [4, 4].into(),
-                    ..whole(out, TensorStatus::NotInit)
-                },
-            }),
-        ));
-
-        // Each member reads only its rows of the file, where a whole upload reads it all on each.
-        assert_eq!(reads.read(), 96);
-        let read = block_on(interpreter.read(TensorIr {
-            shape: [4, 4].into(),
-            ..whole(out, TensorStatus::ReadWrite)
-        }))
-        .unwrap();
-        assert_eq!(read, TensorData::new(vec![6f32; 16], [4, 4]));
-        std::fs::remove_file(path).unwrap();
-    }
-
-    #[test]
-    fn a_split_inside_a_quantization_block_is_refused_before_any_upload() {
+    fn a_quantized_split_reshards_to_another_dim_and_gathers_unchanged() {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::Native)
             .per_block([2], ScaleDtype::F32);
-        let data = TensorData::quantized(vec![1i8; 24], [4, 6], scheme, &[0.1; 12], None);
-        let dtype = data.dtype();
+        let codes: Vec<i8> = (0..32).collect();
+        let scales: Vec<f32> = (1..=16).map(|i| i as f32 * 0.1).collect();
+        let data = TensorData::quantized(codes, [4, 8], scheme, &scales, None);
+        let tensor = |id| TensorIr {
+            id,
+            shape: [4, 8].into(),
+            status: TensorStatus::ReadWrite,
+            dtype: data.dtype(),
+        };
         let mut interpreter =
             ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], ShardCustomOps::default())
                 .unwrap();
-        let id = interpreter.register_tensor_data(data);
+        let rows = DimSplit {
+            dim: 0,
+            len: 4,
+            members: 2,
+        };
+        let shards: Vec<HandleKind<Flex>> = rows
+            .data_chunks(&data)
+            .map(|chunk| HandleKind::Quantized(Flex::q_from_data(chunk, &FlexDevice)))
+            .collect();
+        let by_rows = interpreter
+            .register_shards(Box::new(Shards {
+                shards,
+                sharding: Sharding::Split { dim: 0 },
+            }))
+            .unwrap()
+            .id;
 
-        let refused = interpreter.reshard(
-            TensorIr {
-                dtype,
-                ..whole(id, TensorStatus::ReadOnly)
-            },
-            Sharding::Split { dim: 1 },
-        );
+        let by_columns = interpreter
+            .resharded(
+                &tensor(by_rows),
+                Sharding::Split { dim: 0 },
+                Sharding::Split { dim: 1 },
+            )
+            .unwrap();
+        let gathered = interpreter
+            .resharded(
+                &tensor(by_columns),
+                Sharding::Split { dim: 1 },
+                Sharding::Replicated,
+            )
+            .unwrap();
 
-        assert_eq!(
-            refused,
-            Err(ShardingError::QuantizedSplit {
-                dim: 1,
-                shape: [4, 6].into(),
-                num_members: 2,
-            })
-        );
-        for member in &interpreter.interpreters {
-            assert!(member.read_failure(&id).is_some());
+        assert_eq!(block_on(interpreter.read(tensor(gathered))).unwrap(), data);
+    }
+
+    /// Two shards quantized each on their own, split along the rows of a `[4, 2]` tensor.
+    fn unjoinable_quantized(interpreter: &mut ShardInterpreter<Flex>) -> TensorIr {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native);
+        let shard = |scale| {
+            let data = TensorData::quantized(vec![0i8, 1, 2, 3], [2, 2], scheme, &[scale], None);
+            HandleKind::<Flex>::Quantized(Flex::q_from_data(data, &FlexDevice))
+        };
+        let joined = interpreter
+            .register_shards(Box::new(Shards {
+                shards: vec![shard(0.5), shard(0.25)],
+                sharding: Sharding::Split { dim: 0 },
+            }))
+            .unwrap();
+        TensorIr {
+            id: joined.id,
+            shape: joined.shape,
+            status: TensorStatus::ReadOnly,
+            dtype: joined.dtype,
         }
+    }
+
+    #[test]
+    fn quantized_shards_with_their_own_per_tensor_scales_are_never_joined() {
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], ShardCustomOps::default())
+                .unwrap();
+        let tensor = unjoinable_quantized(&mut interpreter);
+
+        let read = block_on(interpreter.read(tensor.clone()));
+        let gathered =
+            interpreter.resharded(&tensor, Sharding::Split { dim: 0 }, Sharding::Replicated);
+
+        assert!(read.is_err());
+        assert_eq!(gathered, Err(ShardingError::QuantizedScales { shard: 1 }));
+    }
+
+    /// A failed gather reports its cause on repeated reads and releases it on the last use.
+    /// The float input creates a temporary before the quantized input fails to join.
+    #[test]
+    fn an_op_gathering_unjoinable_quantized_shards_fails_its_outputs() {
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], ShardCustomOps::default())
+                .unwrap();
+        let (split, _) = joined(
+            &mut interpreter,
+            &TensorData::new(vec![1f32; 24], [4, 6]),
+            Sharding::Split { dim: 0 },
+        );
+        let quantized = unjoinable_quantized(&mut interpreter);
+        let out = interpreter.new_tensor_id();
+        let OperationIr::Custom(mut op) =
+            custom_op("plain", whole(split, TensorStatus::ReadOnly), out)
+        else {
+            unreachable!("custom_op builds a custom op")
+        };
+        op.inputs.push(quantized);
+
+        interpreter.register_op(OperationIr::Custom(op));
+
+        let first_error =
+            block_on(interpreter.read(whole(out, TensorStatus::ReadOnly))).unwrap_err();
+        assert!(
+            first_error.reason().contains("per-tensor or global scale"),
+            "{first_error}"
+        );
+
+        let repeated_error =
+            block_on(interpreter.read(whole(out, TensorStatus::ReadOnly))).unwrap_err();
+        assert_eq!(repeated_error.reason(), first_error.reason());
+
+        let consumed_error =
+            block_on(interpreter.read(whole(out, TensorStatus::ReadWrite))).unwrap_err();
+        assert_eq!(consumed_error.reason(), first_error.reason());
+        assert!(
+            interpreter.interpreters[0]
+                .handles_mut()
+                .error(&out)
+                .is_none()
+        );
+        assert!(
+            interpreter.interpreters[1]
+                .handles_mut()
+                .error(&out)
+                .is_none()
+        );
     }
 
     #[test]
@@ -909,13 +953,23 @@ mod tests {
         );
         let mut interpreter =
             ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], custom_ops).unwrap();
-        let x = interpreter.register_tensor_data(TensorData::new(vec![1f32; 24], [4, 6]));
+        let data = TensorData::new(vec![1f32; 24], [4, 6]);
+        let rows = DimSplit {
+            dim: 0,
+            len: 4,
+            members: 2,
+        };
+        let shards: Vec<HandleKind<Flex>> = rows
+            .data_chunks(&data)
+            .map(|chunk| HandleKind::Float(Flex::float_from_data(chunk, &FlexDevice)))
+            .collect();
         let x = interpreter
-            .reshard(
-                whole(x, TensorStatus::ReadWrite),
-                Sharding::Split { dim: 0 },
-            )
-            .unwrap();
+            .register_shards(Box::new(Shards {
+                shards,
+                sharding: Sharding::Split { dim: 0 },
+            }))
+            .unwrap()
+            .id;
         let out = interpreter.new_tensor_id();
         let OperationIr::Custom(mut op) =
             custom_op("reshape", whole(x, TensorStatus::ReadOnly), out)

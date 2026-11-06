@@ -5,7 +5,7 @@ use burn_backend::{
 use burn_ir::{BackendIr, HandleKind};
 use burn_std::future::{DynFut, block_on};
 
-use crate::{Resharding, Sharding};
+use crate::{Resharding, Sharding, ShardingError};
 
 /// One tensor as the backend holds it over the sharded compute device: its shard on every member, in member order.
 pub enum ShardedTensor<B: BackendIr> {
@@ -61,15 +61,19 @@ impl<B: BackendIr> ShardedTensor<B> {
 
     /// The shards once resharded, through the backend's collectives: native between its own
     /// devices where it has them, composed from transfers where it does not.
-    pub fn reshard(self, resharding: Resharding, shape: &Shape) -> Self {
-        match resharding {
+    ///
+    /// # Errors
+    ///
+    /// When quantized shards joined on the host differ in a per-tensor or global scale.
+    pub fn reshard(self, resharding: Resharding, shape: &Shape) -> Result<Self, ShardingError> {
+        Ok(match resharding {
             Resharding::Keep => self,
             Resharding::Slice { dim } => self.slice(dim, shape),
-            Resharding::AllGather { dim } => self.all_gather(dim),
+            Resharding::AllGather { dim } => self.all_gather(dim)?,
             Resharding::AllReduce => self.all_reduce(),
             Resharding::ReduceScatter { dim } => self.reduce_scatter(dim),
-            Resharding::AllToAll { from_dim, to_dim } => self.all_to_all(from_dim, to_dim),
-        }
+            Resharding::AllToAll { from_dim, to_dim } => self.all_to_all(from_dim, to_dim)?,
+        })
     }
 
     /// The whole value on `device`, read without changing the shards of any other member.
@@ -86,7 +90,8 @@ impl<B: BackendIr> ShardedTensor<B> {
                     for read in reads {
                         chunks.push(read.await?);
                     }
-                    Ok(QuantizedOnHost::<B>::joined(&chunks, dim))
+                    QuantizedOnHost::<B>::joined(&chunks, dim)
+                        .map_err(|error| ExecutionError::with_context(error.to_string()))
                 })
             }
             (shards, sharding) => read(shards.whole_on(device, sharding)),
@@ -193,31 +198,31 @@ impl<B: BackendIr> ShardedTensor<B> {
         }
     }
 
-    fn all_gather(self, dim: usize) -> Self {
-        match self {
+    fn all_gather(self, dim: usize) -> Result<Self, ShardingError> {
+        Ok(match self {
             Self::Float(shards) => Self::Float(B::float_all_gather(shards, dim)),
             Self::Int(shards) => Self::Int(B::int_all_gather(shards, dim)),
             Self::Bool(shards) => Self::Bool(B::bool_all_gather(shards, dim)),
             Self::Quantized(shards) => Self::Quantized(
-                QuantizedOnHost::<B>::from_split(shards, dim).replicated_across_members(),
+                QuantizedOnHost::<B>::from_split(shards, dim)?.replicated_across_members(),
             ),
-        }
+        })
     }
 
-    fn all_to_all(self, from_dim: usize, to_dim: usize) -> Self {
+    fn all_to_all(self, from_dim: usize, to_dim: usize) -> Result<Self, ShardingError> {
         // A member keeps its own chunk of `to_dim`, so that is the dim the shards split on, and
         // what it receives from every member makes up the whole of `from_dim`.
         let split_dim = to_dim;
         let concat_dim = from_dim;
-        match self {
+        Ok(match self {
             Self::Float(shards) => Self::Float(B::float_all_to_all(shards, split_dim, concat_dim)),
             Self::Int(shards) => Self::Int(B::int_all_to_all(shards, split_dim, concat_dim)),
             Self::Bool(shards) => Self::Bool(B::bool_all_to_all(shards, split_dim, concat_dim)),
             Self::Quantized(shards) => Self::Quantized(
-                QuantizedOnHost::<B>::from_split(shards, concat_dim)
+                QuantizedOnHost::<B>::from_split(shards, concat_dim)?
                     .split_across_members(split_dim),
             ),
-        }
+        })
     }
 
     fn all_reduce(self) -> Self {
@@ -264,17 +269,20 @@ impl<B: BackendIr> QuantizedOnHost<B> {
     }
 
     /// Reads every member's chunk of a tensor split along `dim` and joins them.
-    fn from_split(shards: Vec<B::QuantizedTensorPrimitive>, dim: usize) -> Self {
+    fn from_split(
+        shards: Vec<B::QuantizedTensorPrimitive>,
+        dim: usize,
+    ) -> Result<Self, ShardingError> {
         let devices = shards.iter().map(TensorMetadata::device).collect();
         let chunks: Vec<_> = shards.into_iter().map(Self::read).collect();
-        Self {
+        Ok(Self {
             devices,
-            whole: Self::joined(&chunks, dim),
-        }
+            whole: Self::joined(&chunks, dim)?,
+        })
     }
 
     /// The whole value of `chunks`, each member's along `dim`.
-    fn joined(chunks: &[TensorData], dim: usize) -> TensorData {
+    fn joined(chunks: &[TensorData], dim: usize) -> Result<TensorData, ShardingError> {
         let split = DimSplit {
             dim,
             len: chunks.iter().map(|chunk| chunk.shape()[dim]).sum(),
@@ -396,7 +404,8 @@ mod tests {
             Flex::float_from_data(TensorData::new(vec![0f32; 24], shape.clone()), &FlexDevice);
 
         let shards = ShardedTensor::<Flex>::replicated(HandleKind::Float(whole), &devices)
-            .reshard(Resharding::Slice { dim: 0 }, &shape);
+            .reshard(Resharding::Slice { dim: 0 }, &shape)
+            .unwrap();
 
         let ShardedTensor::Float(shards) = shards else {
             unreachable!("A float tensor's shards are float")

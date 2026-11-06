@@ -1,6 +1,6 @@
 use crate::{
     Backend, TensorMetadata,
-    distributed::ReduceOperation,
+    distributed::{ReduceOperation, ShardingError},
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use alloc::{boxed::Box, vec, vec::Vec};
@@ -469,14 +469,19 @@ impl DimSplit {
     /// The whole of the data `chunks` cut into, the inverse of
     /// [`data_chunks`](Self::data_chunks).
     ///
+    /// # Errors
+    ///
+    /// When quantized chunks differ in a scale the whole keeps once: a per-tensor scale, or a
+    /// two-level scheme's global one.
+    ///
     /// # Panics
     ///
     /// When there is not one chunk per member, or a chunk does not hold its member's range.
-    pub fn whole_data(self, chunks: &[TensorData]) -> TensorData {
+    pub fn whole_data(self, chunks: &[TensorData]) -> Result<TensorData, ShardingError> {
         assert_eq!(chunks.len(), self.members, "one chunk per member");
         match chunks[0].dtype() {
             DType::QFloat(_) => self.whole_quantized(chunks),
-            _ => self.whole_plain(chunks),
+            _ => Ok(self.whole_plain(chunks)),
         }
     }
 
@@ -504,8 +509,11 @@ impl DimSplit {
             .collect()
     }
 
-    fn whole_quantized(self, chunks: &[TensorData]) -> TensorData {
+    fn whole_quantized(self, chunks: &[TensorData]) -> Result<TensorData, ShardingError> {
         let parts: Vec<_> = chunks.iter().map(QuantizedParts::new).collect();
+        if let Some(shard) = parts.iter().position(|part| !part.joins(&parts[0])) {
+            return Err(ShardingError::QuantizedScales { shard });
+        }
         let codes: Vec<_> = parts.iter().map(|part| part.codes.clone()).collect();
         let scales = match parts[0].scheme.block_size() {
             None => parts[0].scales.clone(),
@@ -515,7 +523,7 @@ impl DimSplit {
                 DimSplit { len, ..self }.whole_plain(&scales)
             }
         };
-        parts[0].with(self.whole_plain(&codes), scales).into_data()
+        Ok(parts[0].with(self.whole_plain(&codes), scales).into_data())
     }
 
     /// The same split over the grid of block scales, one entry per block.
@@ -635,6 +643,13 @@ impl QuantizedParts {
             scales: TensorData::new(scales.block, params_shape(&shape, &scheme)),
             global: scales.global,
         }
+    }
+
+    /// Whether these parts and `first` share the scales a joined whole keeps once.
+    fn joins(&self, first: &Self) -> bool {
+        let per_tensor = self.scheme.block_size().is_none();
+        self.global.map(f32::to_bits) == first.global.map(f32::to_bits)
+            && (!per_tensor || self.scales.as_bytes() == first.scales.as_bytes())
     }
 
     fn with(&self, codes: TensorData, scales: TensorData) -> Self {
@@ -786,7 +801,7 @@ mod tests {
                 chunks, expected,
                 "packed along dim {packed_dim} from the last"
             );
-            assert_eq!(split.whole_data(&chunks), data);
+            assert_eq!(split.whole_data(&chunks), Ok(data));
         }
     }
 
@@ -811,7 +826,35 @@ mod tests {
                 TensorData::quantized(vec![4i8, 5], [1, 2], scheme, &[0.5], None),
             ]
         );
-        assert_eq!(split.whole_data(&chunks), data);
+        assert_eq!(split.whole_data(&chunks), Ok(data));
+    }
+
+    #[test]
+    fn quantized_chunks_with_another_per_tensor_or_global_scale_do_not_join() {
+        let per_tensor = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native);
+        let two_level = per_tensor
+            .per_block([2], ScaleDtype::F32)
+            .per_tensor(ScaleDtype::F32);
+        let codes = || vec![0i8, 1, 2, 3];
+        let scaled = |scale| TensorData::quantized(codes(), [2, 2], per_tensor, &[scale], None);
+        let global =
+            |global| TensorData::quantized(codes(), [2, 2], two_level, &[0.5, 0.5], Some(global));
+        let split = DimSplit {
+            dim: 0,
+            len: 4,
+            members: 2,
+        };
+
+        assert_eq!(
+            split.whole_data(&[scaled(0.5), scaled(0.25)]),
+            Err(ShardingError::QuantizedScales { shard: 1 })
+        );
+        assert_eq!(
+            split.whole_data(&[global(2.0), global(3.0)]),
+            Err(ShardingError::QuantizedScales { shard: 1 })
+        );
     }
 
     #[test]

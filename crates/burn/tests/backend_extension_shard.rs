@@ -11,7 +11,7 @@ use burn::tensor::shard::{
     CollectiveMember, CollectiveOpRegistry, CustomOpPlan, CustomOpRegistry, CustomOpRule, OpKind,
     ShardCustomOps,
 };
-use burn::tensor::{Device, Sharding, Tensor};
+use burn::tensor::{Device, Sharding, Shards, Tensor};
 
 #[backend_extension(Flex, Fusion, ShardedCompute)]
 pub trait CenterBackend: Backend {
@@ -101,6 +101,21 @@ fn input(device: &Device) -> Tensor<2> {
     Tensor::from_data([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 9.0]], device)
 }
 
+/// [`input`] split along `dim`, each member's chunk made on it.
+fn split_input(device: &Device, dim: usize) -> Tensor<2> {
+    let members = device
+        .shard_members()
+        .expect("A sharded compute device has members");
+    let shards = input(&Device::flex())
+        .chunk(members.len(), dim)
+        .into_iter()
+        .zip(&members)
+        .map(|(chunk, member)| chunk.to_device(member))
+        .collect();
+    let sharding = Sharding::Split { dim };
+    Tensor::from_shards(Shards { shards, sharding }, device).expect("The chunks make up the input")
+}
+
 fn center(x: Tensor<2>) -> Tensor<2> {
     Tensor::from_dispatch(<Dispatch as CenterBackend>::center(x.into_dispatch(), 2.0))
 }
@@ -125,7 +140,7 @@ fn gather_rows(x: Tensor<2>) -> Tensor<2> {
 #[test]
 fn a_custom_op_without_a_rule_gathers_a_split_input() {
     let device = sharded(handlers());
-    let x = input(&device).with_sharding(Sharding::Split { dim: 1 });
+    let x = split_input(&device, 1);
 
     let out = center(x);
 
@@ -140,7 +155,7 @@ fn a_custom_op_of_a_kind_runs_on_each_members_rows() {
         .with_handlers(handlers())
         .with_rule("CenterBackend::center", CenterRule);
     let device = sharded(custom_ops);
-    let x = input(&device).with_sharding(Sharding::Split { dim: 0 });
+    let x = split_input(&device, 0);
 
     let out = center(x);
 
@@ -156,7 +171,7 @@ fn a_custom_op_along_a_dim_broadcasts_its_further_inputs() {
         .with_handlers(handlers())
         .with_rule("CenterBackend::center_weighted", CenterRule);
     let device = sharded(custom_ops);
-    let x = input(&device).with_sharding(Sharding::Split { dim: 0 });
+    let x = split_input(&device, 0);
 
     let out = center_weighted(x, weight(&device));
 
