@@ -225,19 +225,22 @@ mod tests {
     }
 
     #[test]
-    fn groups_that_do_not_divide_the_members_are_refused() {
-        let shards = four_floats([[2, 4]; 4]);
+    fn groups_that_do_not_divide_the_members_or_are_one_or_every_member_are_refused() {
+        for groups in [1, 3, 4] {
+            let shards = four_floats([[2, 4]; 4]);
 
-        assert_eq!(
-            shards.whole_shape(
-                Sharding::ReplicatedSplit { dim: 0, groups: 3 },
-                &[FlexDevice; 4]
-            ),
-            Err(ShardsError::Sharding(ShardingError::Groups {
-                groups: 3,
-                num_members: 4,
-            }))
-        );
+            assert_eq!(
+                shards.whole_shape(
+                    Sharding::ReplicatedSplit { dim: 0, groups },
+                    &[FlexDevice; 4]
+                ),
+                Err(ShardsError::Sharding(ShardingError::Groups {
+                    groups,
+                    num_members: 4,
+                })),
+                "{groups} groups"
+            );
+        }
     }
 
     #[test]

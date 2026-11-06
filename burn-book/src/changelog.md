@@ -346,7 +346,7 @@ whose tensors are split over `devices` (crate `burn-shard`).
   splits its query heads over every member against such keys and values, and the matmul,
   elementwise, layout, reshape and along-dim ops, and reductions over other dims, keep it.
   **Breaking (experimental):** `Sharding` has a new variant, `ShardingError` a new `Groups`
-  variant for groups that do not divide the members, `DimShorterThanMembers` is renamed
+  variant for groups that do not divide the members or are one or every member, `DimShorterThanMembers` is renamed
   `DimShorterThanChunks`, and its and `QuantizedSplit`'s `num_members` field is now `chunks`.
   ([#6418](https://github.com/tracel-ai/burn/pull/6418))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
