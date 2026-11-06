@@ -63,12 +63,6 @@ jobs:
   code-quality:
     runs-on: ubuntu-22.04
     needs: prepare-checks
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -76,8 +70,8 @@ jobs:
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v12
         with:
-          rust-toolchain: ${{ matrix.toolchain }}
-          cache-key: ${{ matrix.rust }}-linux
+          rust-toolchain: stable
+          cache-key: stable-linux
           save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Audit
@@ -101,12 +95,6 @@ jobs:
   documentation:
     runs-on: ubuntu-22.04
     needs: prepare-checks
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -114,8 +102,8 @@ jobs:
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v12
         with:
-          rust-toolchain: ${{ matrix.toolchain }}
-          cache-key: ${{ matrix.rust }}-linux
+          rust-toolchain: stable
+          cache-key: stable-linux
           save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Documentation Build
@@ -133,11 +121,7 @@ jobs:
       COLLECT_COVERAGE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.ci_type != 'examples' }}
     strategy:
       matrix:
-        rust: [stable]
         ci_type: [backends, crates, crates-extra, examples]
-        include:
-          - rust: stable
-            toolchain: stable
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -145,9 +129,9 @@ jobs:
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v12
         with:
-          rust-toolchain: ${{ matrix.toolchain }}
+          rust-toolchain: stable
           # Keep caches isolated per shard to prevent race conditions or bloated sizes
-          cache-key: ${{ matrix.rust }}-${{ matrix.ci_type }}-linux-normal-tests
+          cache-key: stable-${{ matrix.ci_type }}-linux-normal-tests
           save-if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
           # Instrumented main builds can exhaust disk space; cache ordinary PR builds.
           enable-cache: ${{ env.COLLECT_COVERAGE != 'true' }}
@@ -239,12 +223,6 @@ jobs:
   linux-no-std-tests:
     runs-on: ubuntu-22.04
     needs: [prepare-checks, code-quality]
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -252,8 +230,8 @@ jobs:
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v12
         with:
-          rust-toolchain: ${{ matrix.toolchain }}
-          cache-key: ${{ matrix.rust }}-linux-no-std-normal-tests
+          rust-toolchain: stable
+          cache-key: stable-linux-no-std-normal-tests
           save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Crates Build
@@ -269,11 +247,7 @@ jobs:
       CARGO_TERM_COLOR: always
     strategy:
       matrix:
-        rust: [stable]
         ci_type: [backends, crates, crates-extra, examples]
-        include:
-          - rust: stable
-            toolchain: stable
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -281,8 +255,8 @@ jobs:
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v12
         with:
-          rust-toolchain: ${{ matrix.toolchain }}
-          cache-key: ${{ matrix.rust }}-${{ matrix.ci_type }}-windows-normal-tests
+          rust-toolchain: stable
+          cache-key: stable-${{ matrix.ci_type }}-windows-normal-tests
           save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Tests
@@ -292,13 +266,6 @@ jobs:
     runs-on: blaze/macos-15
     needs: [prepare-checks, code-quality]
     timeout-minutes: 60
-    # Keep the stragegy to be able to easily add new rust versions if required
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -306,8 +273,8 @@ jobs:
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v12
         with:
-          rust-toolchain: ${{ matrix.toolchain }}
-          cache-key: ${{ matrix.rust }}-macos
+          rust-toolchain: stable
+          cache-key: stable-macos
           save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Device check
