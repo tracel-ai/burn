@@ -134,24 +134,24 @@ pub struct Timeline {
     windows: Vec<Window>,
 }
 
-/// One kernel's window, on the lane it ran in, placed after the timeline's epoch.
+/// One kernel's window, beside the device it ran on, placed after the timeline's epoch.
 struct Window {
     attribution: Attribution,
-    lane: Lane,
+    ran_on: RanOn,
     start: Duration,
     end: Duration,
 }
 
-/// Which device's timeline a window is on.
+/// The device a window ran on, as far as its launching thread tells.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum Lane {
+enum RanOn {
     /// The one device a device of one runs everything on, whichever thread launched it.
     Device,
-    /// A member's, launched from its fusion worker.
+    /// A member, launched from its fusion worker.
     Member(Member),
-    /// Launched from a thread that is no member's worker: on some member, which one unknown, so
-    /// it fills no member's gaps and opens none.
-    OffMembers,
+    /// Some member, which one unknown: launched from a thread that is no member's worker, so it
+    /// fills no member's gaps and opens none.
+    UnknownMember,
 }
 
 /// What a timeline says about the run once every window is on it.
@@ -174,14 +174,14 @@ impl Timeline {
     /// Place the window `ticks` measured for a kernel launched for `member` on the component
     /// under `attribution`.
     pub fn push(&mut self, attribution: Attribution, member: Option<Member>, ticks: &ProfileTicks) {
-        let lane = match (self.members, member) {
-            (0 | 1, _) => Lane::Device,
-            (_, Some(member)) => Lane::Member(member),
-            (_, None) => Lane::OffMembers,
+        let ran_on = match (self.members, member) {
+            (0 | 1, _) => RanOn::Device,
+            (_, Some(member)) => RanOn::Member(member),
+            (_, None) => RanOn::UnknownMember,
         };
         self.windows.push(Window {
             attribution,
-            lane,
+            ran_on,
             start: ticks.start_duration_since(self.epoch),
             end: ticks.end_duration_since(self.epoch),
         });
@@ -198,35 +198,35 @@ impl Timeline {
     /// member's kernel running meanwhile does not fill the gap.
     pub fn settle(mut self) -> Settled {
         self.windows
-            .sort_by_key(|window| (window.lane, window.start));
+            .sort_by_key(|window| (window.ran_on, window.start));
         let mut idle = Vec::with_capacity(self.windows.len());
         let mut per_member = (self.members > 1).then(|| PerMember {
             members: vec![MemberTime::default(); self.members],
             off_members: Duration::ZERO,
         });
-        let mut busy_until: Option<(Lane, Duration)> = None;
+        let mut busy_until: Option<(RanOn, Duration)> = None;
         for window in &self.windows {
             let length = window.end.saturating_sub(window.start);
             let gap = match busy_until {
-                Some((lane, busy)) if lane == window.lane => {
+                Some((ran_on, busy)) if ran_on == window.ran_on => {
                     Some(window.start.saturating_sub(busy))
                 }
                 _ => None,
             };
             busy_until = Some(match busy_until {
-                Some((lane, busy)) if lane == window.lane => (lane, busy.max(window.end)),
-                _ => (window.lane, window.end),
+                Some((ran_on, busy)) if ran_on == window.ran_on => (ran_on, busy.max(window.end)),
+                _ => (window.ran_on, window.end),
             });
-            match (window.lane, per_member.as_mut()) {
-                (Lane::OffMembers, Some(per_member)) => per_member.off_members += length,
-                (Lane::Member(member), Some(per_member)) => {
+            match (window.ran_on, per_member.as_mut()) {
+                (RanOn::UnknownMember, Some(per_member)) => per_member.off_members += length,
+                (RanOn::Member(member), Some(per_member)) => {
                     if let Some(time) = per_member.members.get_mut(member.0) {
                         time.on_device += length;
                         time.idle += gap.unwrap_or_default();
                     }
                     idle.extend(gap.map(|gap| (window.attribution, gap)));
                 }
-                (Lane::Device, _) | (_, None) => {
+                (RanOn::Device, _) | (_, None) => {
                     idle.extend(gap.map(|gap| (window.attribution, gap)))
                 }
             }
