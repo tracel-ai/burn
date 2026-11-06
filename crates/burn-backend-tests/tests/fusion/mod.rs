@@ -1,6 +1,7 @@
 pub use super::*;
 
 mod cat;
+mod conv_transpose;
 #[cfg(feature = "cube")]
 mod dequantize;
 mod fusion_f16_broadcast;
