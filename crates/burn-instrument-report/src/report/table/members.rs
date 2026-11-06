@@ -29,12 +29,12 @@ impl Display for Members<'_, '_> {
             return Ok(());
         };
         let width = self.width;
-        // A timing read as its kernel launched arrives as a length with no window, so no
-        // member's time was kept apart.
+        // A run whose launches were timed alone was serialized: no member ran beside another,
+        // so their times say nothing about the run as it overlaps.
         if measurement.breakdown.timed_alone {
             return writeln!(
                 f,
-                "  {:<width$} {:>8}      not timed apart: a launch timed alone keeps no window",
+                "  {:<width$} {:>8}      not timed apart: launches timed alone ran one at a time",
                 "members", "—"
             );
         }
@@ -69,7 +69,13 @@ impl Display for Members<'_, '_> {
                 "not computing",
                 Millis(wall - slowest),
             ),
-            _ => Ok(()),
+            Some(_) => writeln!(
+                f,
+                "  {:<width$} {:>8}      the slowest member's kernels measured more than the run \
+                 took, so the two clocks disagree",
+                "not computing", "—"
+            ),
+            None => Ok(()),
         }
     }
 }

@@ -752,10 +752,10 @@ fn a_run_on_several_members_reads_each_member_apart() {
             },
             MemberTime {
                 on_device: micros(500),
-                idle: micros(1_450),
+                idle: micros(1_500),
             },
         ],
-        off_members: micros(30),
+        off_members: micros(300),
     });
 
     let rendered = Report::new(&measurement);
@@ -770,12 +770,19 @@ fn a_run_on_several_members_reads_each_member_apart() {
             .to_string()
     };
     assert!(line("member 0").contains("0.6 ms"), "{table}");
-    assert!(line("member 1").contains("1.4 ms idle"), "{table}");
+    assert!(line("member 1").contains("1.5 ms idle"), "{table}");
     assert!(line("not computing").contains("1.4 ms"), "{table}");
     assert!(line("host").contains("not separable"), "{table}");
-    assert!(line("off members").contains("0.0 ms"), "{table}");
+    assert!(line("off members").contains("0.3 ms"), "{table}");
 
-    // Timed alone, no window was kept, so the member lines would read zeros.
+    // A member busier than the clean run's wall is two clocks disagreeing, said as such.
+    let mut disagreeing = measurement.clone();
+    disagreeing.clean_wall = Some(micros(400));
+    let table = Report::new(&disagreeing).to_string();
+    let disagrees = |line: &str| line.contains("not computing") && line.contains("disagree");
+    assert!(table.lines().any(disagrees), "{table}");
+
+    // Timed alone, the launches ran one at a time, so the member lines would mislead.
     measurement.breakdown.timed_alone = true;
     let table = Report::new(&measurement).to_string();
     assert!(!table.contains("member 0"), "{table}");

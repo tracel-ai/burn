@@ -101,10 +101,13 @@ Reports also include the measured cost of a kernel launch.
 - A sharded compute device whose members fuse is instrumented on every member: each kernel is
   recorded under its component and the run reads fused. `DispatchDevice::fusion_worker` is replaced
   by `fusion_workers`, one id per member.
+  ([#6430](https://github.com/tracel-ai/burn/pull/6430))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - `Breakdown::per_member` holds each member's device and idle time on a sharded compute device
   whose members fuse, and the time of kernels launched off the members' workers. Its report prints
   them, and the clean run beyond the slowest member's kernels, in place of a host split.
-  Measurement files are version 5.
+  Measurement files are version 5. ([#6430](https://github.com/tracel-ai/burn/pull/6430))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 ### Execution performance
 

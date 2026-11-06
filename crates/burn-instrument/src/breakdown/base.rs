@@ -92,6 +92,10 @@ pub struct Breakdown {
     ///
     /// Its members run at once, so the components' times sum every member's kernels and are no
     /// one device's time: the slowest member's is what the run's wall holds.
+    ///
+    /// Partial where [`timed_alone`](Self::timed_alone) is set: launches ran one at a time.
+    /// Telling members apart needs threaded device handles: without `multi_threading`, as on
+    /// wasm, a task runs on the thread that submits it, so no member has a worker of its own.
     pub per_member: Option<PerMember>,
 }
 
