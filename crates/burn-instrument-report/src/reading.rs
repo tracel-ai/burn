@@ -148,6 +148,8 @@ pub(crate) enum HostSplit {
     },
     /// No clean run was measured to split.
     NoCleanRun,
+    /// The run was on several members at once, whose kernels sum past any one device's time.
+    SeveralMembers,
     /// A launch timed alone serializes the run, so its total is not a pipelined run's.
     TimedAlone,
     /// Nothing was timed on the device.
@@ -162,6 +164,9 @@ impl HostSplit {
         let Some(wall) = measurement.clean_wall else {
             return Self::NoCleanRun;
         };
+        if measurement.breakdown.per_member.is_some() {
+            return Self::SeveralMembers;
+        }
         let device = measurement.breakdown.total_time();
         if measurement.breakdown.timed_alone {
             Self::TimedAlone
@@ -182,7 +187,11 @@ impl HostSplit {
     pub(crate) fn host(self) -> Option<Duration> {
         match self {
             Self::Measured { host, .. } => Some(host),
-            Self::NoCleanRun | Self::TimedAlone | Self::NothingTimed | Self::ClocksDisagree => None,
+            Self::NoCleanRun
+            | Self::SeveralMembers
+            | Self::TimedAlone
+            | Self::NothingTimed
+            | Self::ClocksDisagree => None,
         }
     }
 
@@ -191,6 +200,10 @@ impl HostSplit {
         match self {
             Self::Measured { .. } => &[],
             Self::NoCleanRun => &["no clean run was measured"],
+            Self::SeveralMembers => &[
+                "the members ran at once, so their kernels",
+                "sum past any one device's time: see each member below",
+            ],
             Self::TimedAlone => &[
                 "a launch timed alone serializes the",
                 "run, so the measured total is not a pipelined run's",
