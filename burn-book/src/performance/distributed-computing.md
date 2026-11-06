@@ -12,6 +12,8 @@ used independently or together:
   can also participate in DDP.
 - `burn::module::parallel::LayerParallelism` splits one model by whole layers across several
   devices, so a model too large for one device runs as a sequence of stages.
+- `Device::shard_options(&devices).init()`, with the `shard` feature, makes one device whose
+  tensors are split over several, for tensor parallelism. It is experimental.
 
 ## Distributed Tensor Operations
 
@@ -202,6 +204,33 @@ struct Encoded {
 The `layer-parallelism-text` example splits the transformer the `text-classification` example
 trains, checks it against the single-device model, and fine-tunes it as a training pipeline.
 
+## Tensor Parallelism
+
+Tensor parallelism splits every layer instead, so all the devices work on each layer at once. With
+the `shard` feature, a sharded compute device stands for several devices, its members. A model
+built on it runs unchanged. The caller makes each split weight from one shard per member, each
+made on its member, and `Tensor::from_shards` joins them. A projection split by column needs
+nothing from the other members, and one split by row ends in an all-reduce:
+
+```rust, ignore
+use burn::tensor::{Sharding::Split, Shards, shard::DimSplit};
+
+let device = Device::shard_options(&[Device::cuda(0), Device::cuda(1)]).init()?;
+let members = device.shard_members().unwrap();
+
+// `weight` is a `[d_model, d_ff]` checkpoint tensor; each member receives its columns alone.
+let split = DimSplit { dim: 1, len: d_ff, members: members.len() };
+let shards = split
+    .data_chunks(&weight)
+    .zip(&members)
+    .map(|(chunk, member)| Tensor::<2>::from_data(chunk, member))
+    .collect();
+let weight = Tensor::from_shards(Shards { shards, sharding: Split { dim: 1 } }, &device)?;
+```
+
+The `tensor-parallelism-text` example loads the `text-classification` transformer this way, its
+attention split by heads, and checks it against the single-device model.
+
 ## Remote Devices
 
 A remote device implements the same `Device` interface as a local CUDA, WGPU, or CPU device. Tensor
@@ -280,6 +309,8 @@ across the selected server devices.
 - Use remote devices with DDP when a Burn server exposes several accelerators to a client.
 - Use layer parallelism when one copy of the model does not fit on a device, or to run a model
   across devices of different backends.
+- Use tensor parallelism when the devices share a fast interconnect, so every layer runs on all of
+  them at once. It is experimental.
 
 DDP runs on the CubeCL backends and on remote devices.
 CUDA devices with NCCL, local or on one remote server, synchronize gradients natively, and the

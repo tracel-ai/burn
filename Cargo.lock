@@ -10469,6 +10469,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "tensor-parallelism-text"
+version = "0.23.0-pre.1"
+dependencies = [
+ "burn",
+ "text-classification",
+]
+
+[[package]]
 name = "termcolor"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
