@@ -141,6 +141,80 @@ fn attention_split_on_the_heads_stays_split() {
 }
 
 #[test]
+fn attention_over_a_cache_split_on_the_heads_stays_split() {
+    // Each sequence attends a different prefix of the cache, which is filled past the shortest.
+    let lengths = TensorData::new(vec![5i64, 3], [2]);
+    check_cached_attention_on_the_heads(
+        values([2, 2, 6, 4], 2),
+        values([2, 2, 6, 4], 3),
+        lengths,
+        None,
+    );
+}
+
+#[test]
+fn attention_over_a_paged_cache_split_on_the_heads_stays_split() {
+    // Interleaved pages, so a member that reads another sequence's page is caught.
+    let lengths = TensorData::new(vec![5i64, 3], [2]);
+    let pages = TensorData::new(vec![0i64, 2, 4, 1, 3, 5], [2, 3]);
+    check_cached_attention_on_the_heads(
+        values([6, 2, 2, 4], 2),
+        values([6, 2, 2, 4], 3),
+        lengths,
+        Some(pages),
+    );
+}
+
+/// A decode step of four query heads over two key/value heads, on one device and with the query,
+/// key and value split on the heads over two members: the context stays split and matches.
+fn check_cached_attention_on_the_heads(
+    key: TensorData,
+    value: TensorData,
+    lengths: TensorData,
+    pages: Option<TensorData>,
+) {
+    let query = values([2, 4, 1, 4], 1);
+    let cache = |device: &Device| {
+        let lengths = Tensor::<1, Int>::from_data(lengths.clone(), device);
+        match &pages {
+            Some(pages) => module::AttentionCache::paged(
+                lengths,
+                Tensor::<2, Int>::from_data(pages.clone(), device),
+            ),
+            None => module::AttentionCache::new(lengths),
+        }
+    };
+    let flex = Device::flex();
+    let expected = module::attention(
+        Tensor::from_data(query.clone(), &flex),
+        Tensor::from_data(key.clone(), &flex),
+        Tensor::from_data(value.clone(), &flex),
+        None,
+        None,
+        Some(cache(&flex)),
+        Default::default(),
+    )
+    .into_data();
+
+    let device = sharded_compute(2);
+    let heads = Split { dim: 1 };
+    let context = module::attention(
+        sharded::<4>(query, &device, heads),
+        sharded(key, &device, heads),
+        sharded(value, &device, heads),
+        None,
+        None,
+        Some(cache(&device)),
+        Default::default(),
+    );
+
+    assert_eq!(context.sharding(), Some(heads));
+    context
+        .into_data()
+        .assert_approx_eq::<f32>(&expected, tolerance());
+}
+
+#[test]
 fn a_split_reshaped_onto_an_empty_dim_adds_a_replicated_tensor() {
     let device = sharded_compute(2);
     let split = Tensor::<2>::zeros([4, 0], &device).with_sharding(Split { dim: 0 });
