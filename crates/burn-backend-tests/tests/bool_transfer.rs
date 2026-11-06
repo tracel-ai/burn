@@ -6,13 +6,10 @@
 // Without a native shader compiler, wgpu uses WGSL even on a Vulkan adapter.
 #![cfg(not(any(feature = "vulkan", feature = "wgpu-msl")))]
 
-use burn_tensor::{Bool, BoolStore, DType, Device, Tensor, TensorData};
+use burn_tensor::{Bool, BoolStore, DType, Device, DeviceConfig, Tensor, TensorData};
 
 #[test]
-fn bool_move_preserves_matching_requested_storage() {
-    use burn_backend::{TensorMetadata, ops::BoolTensorOps};
-    use burn_dispatch::Dispatch;
-
+fn bool_move_preserves_supported_storage_despite_destination_default() {
     let cpu = Device::cpu();
     let wgpu = Device::wgpu(Default::default());
     let dtype = DType::Bool(BoolStore::U32);
@@ -24,14 +21,14 @@ fn bool_move_preserves_matching_requested_storage() {
         [3],
         dtype,
     );
-    let tensor = Dispatch::bool_from_data(data.clone(), wgpu.as_dispatch());
+    assert!(cpu.supports_dtype(dtype));
+    assert_eq!(cpu.settings().bool_dtype, BoolStore::U8);
+    let tensor = Tensor::<1, Bool>::from_data(data.clone(), &wgpu);
 
-    // Request U32 even though the native CPU default is U8. A detour through that
-    // default would normalize the bytes and reveal an unnecessary conversion.
-    let moved = Dispatch::bool_to_device(tensor, cpu.as_dispatch(), BoolStore::U32);
+    let moved = tensor.to_device(&cpu);
 
     assert_eq!(moved.dtype(), dtype);
-    let moved = burn_backend::read_sync(Dispatch::bool_into_data(moved)).unwrap();
+    let moved = moved.into_data();
     assert_eq!(
         moved.as_slice::<u32>().unwrap(),
         data.as_slice::<u32>().unwrap()
@@ -60,7 +57,36 @@ fn bool_move_from_cpu_preserves_strided_nonzero_values() {
 }
 
 #[test]
-fn bool_move_to_cpu_normalizes_storage_and_nonzero_values() {
+fn bool_move_to_another_backend_uses_configured_fallback_for_unsupported_storage() {
+    let wgpu = Device::wgpu(Default::default());
+    let mut flex = Device::flex();
+    flex.configure(DeviceConfig::default().bool_dtype(BoolStore::U8))
+        .unwrap();
+    assert!(!flex.supports_dtype(DType::Bool(BoolStore::U32)));
+    let data = TensorData::from_bytes_vec(
+        [2u32, 0, 255]
+            .into_iter()
+            .flat_map(u32::to_ne_bytes)
+            .collect(),
+        [3],
+        DType::Bool(BoolStore::U32),
+    );
+
+    let moved = Tensor::<1, Bool>::from_data(data, &wgpu).to_device(&flex);
+
+    let dtype = DType::Bool(BoolStore::U8);
+    assert_eq!(moved.dtype(), dtype);
+    moved.bool_not().into_data().assert_eq(
+        &TensorData::from([false, true, false]).convert_dtype(dtype),
+        true,
+    );
+}
+
+#[test]
+fn bool_move_can_convert_to_explicitly_requested_storage_on_destination() {
+    use burn_backend::{TensorMetadata, ops::BoolTensorOps};
+    use burn_dispatch::Dispatch;
+
     let cpu = Device::cpu();
     let wgpu = Device::wgpu(Default::default());
     let data = TensorData::from_bytes_vec(
@@ -71,19 +97,18 @@ fn bool_move_to_cpu_normalizes_storage_and_nonzero_values() {
         [4],
         DType::Bool(BoolStore::U32),
     );
-    let moved = Tensor::<1, Bool>::from_data(data, &wgpu).to_device(&cpu);
+    let tensor = Dispatch::bool_from_data(data, wgpu.as_dispatch());
+    // WGSL cannot write U8, so an explicit U8 request must convert on the CPU.
+    let moved = Dispatch::bool_to_device(tensor, cpu.as_dispatch(), BoolStore::U8);
 
     let dtype = DType::Bool(BoolStore::U8);
     assert_eq!(moved.dtype(), dtype);
-    let local = Tensor::<1, Bool>::from_data([true, true, true, false], &cpu);
-    moved.bool_and(local).into_data().assert_eq(
-        &TensorData::from([true, false, true, false]).convert_dtype(dtype),
-        true,
-    );
+    let moved = burn_backend::read_sync(Dispatch::bool_into_data(moved)).unwrap();
+    assert_eq!(moved.as_slice::<u8>().unwrap(), &[1, 0, 1, 1]);
 }
 
 #[test]
-fn empty_bool_move_uses_destination_storage_in_both_directions() {
+fn empty_bool_move_adapts_unsupported_storage_and_preserves_supported_storage() {
     let cpu = Device::cpu();
     let wgpu = Device::wgpu(Default::default());
     let tensor = Tensor::<2, Bool>::empty([0, 3], &cpu);
@@ -97,7 +122,6 @@ fn empty_bool_move_uses_destination_storage_in_both_directions() {
         .to_data()
         .assert_eq(&expected.clone().convert_dtype(dtype), true);
     let returned = moved.to_device(&cpu);
-    let dtype = DType::Bool(BoolStore::U8);
     assert_eq!(returned.dtype(), dtype);
     returned
         .into_data()

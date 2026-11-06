@@ -674,12 +674,12 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
 - Fix in-place CubeCL operations panicking in debug builds on tensors with a zero-sized dimension.
   ([#6348](https://github.com/tracel-ai/burn/pull/6348))
 - Fix bool `to_device` between backends panicking when the target uses a different bool storage,
-  such as Flex to CUDA or Vulkan. The data now uses the target device's bool storage.
-  Moves between CubeCL devices use the destination's configured bool storage in both directions,
-  converting on a device that supports both representations. CubeCL bool casts normalize every nonzero
-  true value to 1, and fusion and remote transfers report the resulting storage dtype.
+  such as Flex to CUDA or Vulkan. Transfers preserve source bool storage when supported by the
+  destination and otherwise use its configured bool storage. CubeCL converts on a device that
+  supports both representations and normalizes every nonzero true value to 1. Fusion and remote
+  transfers report the resulting storage dtype.
   **Breaking for third-party backends:** `BoolTensorOps::bool_to_device` and
-  `MultiBackendBridge::change_backend_bool` now take an `out_dtype: BoolDType` argument;
+  `MultiBackendBridge::change_backend_bool` now take an `out_dtype: BoolDType` argument.
   `RouterChannel::change_client_backend` takes a destination `DType`. Resolve the destination
   storage at the caller and forward it through wrappers to avoid intermediate conversions.
   ([issue #6389](https://github.com/tracel-ai/burn/issues/6389),

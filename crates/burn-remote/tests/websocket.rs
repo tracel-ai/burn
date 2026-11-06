@@ -1658,6 +1658,8 @@ fn a_tensor_many_frames_long_is_uploaded_and_read_back() {
 
 mod bool_transfer {
     use super::*;
+    use burn_backend::{TensorMetadata, ops::BoolTensorOps};
+    use burn_remote::{RemoteBackend, RemoteDevice};
     use burn_tensor::{BoolStore, DeviceConfig};
 
     fn same_server_devices(rt: &tokio::runtime::Runtime) -> (Device, Device) {
@@ -1673,63 +1675,78 @@ mod bool_transfer {
         (source, target)
     }
 
-    fn assert_bool_transfer(mut source: Device, target: Device) {
-        // Distinct storage tags exercise conversion even though Flex uses one byte for both.
+    fn backend_device(device: &Device) -> &RemoteDevice {
+        let DispatchDevice::Remote(device) = device.as_dispatch() else {
+            panic!("expected a remote device")
+        };
+        device
+    }
+
+    fn assert_supported_storage_is_preserved(mut source: Device, target: Device) {
         source
             .configure(DeviceConfig::default().bool_dtype(BoolStore::U8))
             .unwrap();
-        let data = TensorData::from([true, false, true, true]);
-        let moved = Tensor::<1, Bool>::from_data(data.clone(), &source).to_device(&target);
-
-        assert_eq!(moved.dtype(), DType::Bool(BoolStore::Native));
-        moved.to_data().assert_eq(&data, true);
-        let returned = moved.to_device(&source);
         let dtype = DType::Bool(BoolStore::U8);
-        assert_eq!(returned.dtype(), dtype);
-        returned
-            .into_data()
-            .assert_eq(&data.convert_dtype(dtype), true);
+        assert!(target.supports_dtype(dtype));
+        assert_eq!(target.settings().bool_dtype, BoolStore::Native);
+        // A cast through the target's Native default would normalize these bytes.
+        let data = TensorData::from_bytes_vec(vec![2, 0, 255], [3], dtype);
+
+        let moved = Tensor::<1, Bool>::from_data(data, &source).to_device(&target);
+
+        assert_eq!(moved.dtype(), dtype);
+        assert_eq!(moved.into_data().as_slice::<u8>().unwrap(), &[2, 0, 255]);
     }
 
     #[test]
-    fn bool_move_updates_metadata_on_same_server() {
+    fn bool_move_preserves_supported_storage_on_same_server() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let (source, target) = same_server_devices(&rt);
 
-        assert_bool_transfer(source, target);
+        assert_supported_storage_is_preserved(source, target);
 
         rt.shutdown_background();
     }
 
     #[test]
-    fn bool_move_converts_storage_between_servers() {
+    fn bool_move_preserves_supported_storage_between_servers() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let source_host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
         let target_host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
         let source = Device::remote_options(&source_host).init().unwrap();
         let target = Device::remote_options(&target_host).init().unwrap();
 
-        assert_bool_transfer(source, target);
+        assert_supported_storage_is_preserved(source, target);
 
         rt.shutdown_background();
     }
 
     #[test]
-    fn bool_move_preserves_matching_storage() {
+    fn bool_move_honors_explicit_storage_requests_on_both_transfer_paths() {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (mut source, mut target) = same_server_devices(&rt);
-        for device in [&mut source, &mut target] {
-            device
-                .configure(DeviceConfig::default().bool_dtype(BoolStore::U8))
-                .unwrap();
+        let (source, same_server) = same_server_devices(&rt);
+        let target_host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+        let other_server = Device::remote_options(&target_host).init().unwrap();
+        let u8_bool = DType::Bool(BoolStore::U8);
+        let data = TensorData::from_bytes_vec(vec![2, 0, 255], [3], u8_bool);
+
+        for target in [same_server, other_server] {
+            let tensor = RemoteBackend::bool_from_data(data.clone(), backend_device(&source));
+            let moved =
+                RemoteBackend::bool_to_device(tensor, backend_device(&target), BoolStore::Native);
+
+            assert_eq!(moved.dtype(), DType::Bool(BoolStore::Native));
+            burn_backend::read_sync(RemoteBackend::bool_into_data(moved.clone()))
+                .unwrap()
+                .assert_eq(&TensorData::from([true, false, true]), true);
+
+            let returned =
+                RemoteBackend::bool_to_device(moved, backend_device(&source), BoolStore::U8);
+            assert_eq!(returned.dtype(), u8_bool);
+            let returned =
+                burn_backend::read_sync(RemoteBackend::bool_into_data(returned)).unwrap();
+            assert_eq!(returned.as_slice::<u8>().unwrap(), &[1, 0, 1]);
         }
-
-        // A redundant cast through the server's Native default would normalize these bytes.
-        let data = TensorData::from_bytes_vec(vec![2, 0, 255], [3], DType::Bool(BoolStore::U8));
-        let moved = Tensor::<1, Bool>::from_data(data.clone(), &source).to_device(&target);
-
-        assert_eq!(moved.dtype(), data.dtype());
-        assert_eq!(moved.into_data().as_slice::<u8>().unwrap(), &[2, 0, 255]);
         rt.shutdown_background();
     }
 }

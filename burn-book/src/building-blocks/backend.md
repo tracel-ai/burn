@@ -98,16 +98,12 @@ let output = model.forward(input);
 Use `Tensor::to_device` or `Module::to_device` to move existing values. Operations involving
 multiple tensors require compatible devices, so move them explicitly before combining them.
 
-Moving a boolean tensor preserves its values using the destination device's configured bool storage.
-Its representation may change, such as `Bool(U8)` to `Bool(U32)`, including on a return move.
-For CubeCL, the conversion runs before or after the transfer according to which device supports both
-storage types. Remote bool moves request the destination storage without reading tensor values back
-to the client. The backend move receives the requested storage explicitly, so wrappers forward that
-choice without converting through their inner backend's defaults. Matching storage needs no cast.
+Boolean transfers preserve values and storage dtype when the destination supports that storage.
+Otherwise, they use the destination device's configured bool storage.
 
 `Device::supports_dtype` describes support for the exact dtype, including boolean storage.
-Float and integer dtypes are preserved
-during a move; use an explicit cast when the destination does not support the numeric dtype.
+Float and integer transfers preserve their dtype. Use an explicit cast when the destination does not
+support the numeric dtype.
 
 ```rust, ignore
 let cpu = Device::flex();

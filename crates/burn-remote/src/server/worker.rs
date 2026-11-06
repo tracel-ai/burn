@@ -769,7 +769,7 @@ where
             })
     }
 
-    /// Apply the client's bool storage setting, which can differ from the server's defaults.
+    /// Use the requested bool storage without resolving the server's defaults.
     fn register_transferred_tensor(
         &mut self,
         stream: StreamId,

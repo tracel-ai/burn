@@ -1659,10 +1659,8 @@ where
 
     /// Moves the tensor to the target device's compute resource.
     ///
-    /// Boolean values are preserved using the destination's configured bool storage dtype.
-    /// Matching storage requires no cast. Numeric dtypes are preserved; moving a tensor does
-    /// not implicitly cast an unsupported float or integer dtype. Remote bool moves request the
-    /// destination storage without reading values back to the client.
+    /// Boolean values and storage dtype are preserved when the destination supports that storage.
+    /// Otherwise, boolean tensors use the destination's configured bool storage dtype.
     ///
     /// This operation preserves the tensor's autodiff association and gradient-checkpointing
     /// strategy; the target device's autodiff configuration isn't applied. Tensors newly created
