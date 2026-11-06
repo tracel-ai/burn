@@ -1,0 +1,434 @@
+diff --git a/crates/burn-cubecl/src/kernel/optim/adamw/foreach.rs b/crates/burn-cubecl/src/kernel/optim/adamw/foreach.rs
+--- a/crates/burn-cubecl/src/kernel/optim/adamw/foreach.rs
++++ b/crates/burn-cubecl/src/kernel/optim/adamw/foreach.rs
+@@ -17,6 +17,7 @@
+ /// # Errors
+ ///
+ /// Returns the original inputs for unsupported tensors, execution modes, or launch budgets.
++/// An item occupying the entire chunk budget is refused: no second nonempty item could join it.
+ #[cfg(not(feature = "fusion"))]
+ #[allow(clippy::result_large_err)]
+ pub fn prepare_adamw(
+@@ -156,7 +157,10 @@
+         }
+         let param = eager::roles(&inputs)[0].unwrap();
+         let (elements, max_chunks) = chunk_limits(param);
+-        if param.meta.num_elements().div_ceil(elements) > max_chunks {
++        // Collection retains the original parameter until the module's second traversal.
++        // An item filling the budget can never be batched; refuse it now so single-step COW
++        // remains available instead of allocating an extra parameter for a delayed singleton.
++        if param.meta.num_elements().div_ceil(elements) >= max_chunks {
+             return Err(inputs);
+         }
+         let stream = eager::roles(&inputs)[0].unwrap().client.execution_stream();
+diff --git a/crates/burn-optim/benches/adamw/foreach.rs b/crates/burn-optim/benches/adamw/foreach.rs
+--- a/crates/burn-optim/benches/adamw/foreach.rs
++++ b/crates/burn-optim/benches/adamw/foreach.rs
+@@ -94,6 +94,10 @@
+ impl ModuleMapper for Identity {}
+ 
+ pub fn run(mode: &str, workload: &str) {
++    if let Some(mode) = mode.strip_prefix("profile-") {
++        profile(mode, workload);
++        return;
++    }
+     if mode == "paired" {
+         paired(workload);
+         return;
+@@ -144,7 +148,32 @@
+         counts.batch.load(Ordering::Relaxed),
+         counts.single.load(Ordering::Relaxed)
+     );
+-    assert!(counts.batch.load(Ordering::Relaxed) + counts.single.load(Ordering::Relaxed) > 0);
++    let on_cpu = matches!(raw.as_dispatch(), burn::backend::DispatchDevice::Cube(device)
++        if device.runtime() == burn_cubecl::cubecl::RuntimeId::Cpu);
++    let expected = if mode == "foreach" && on_cpu {
++        match workload {
++            "tiny" => (4, 0),
++            "mixed_rank" => (1, 0),
++            "long_short" => (4, 2),
++            "over_limit" => (10, 0),
++            _ => (
++                0,
++                model.vectors.len() + model.matrices.len() + model.conv.len(),
++            ),
++        }
++    } else {
++        (
++            0,
++            model.vectors.len() + model.matrices.len() + model.conv.len(),
++        )
++    };
++    assert_eq!(
++        (
++            counts.batch.load(Ordering::Relaxed),
++            counts.single.load(Ordering::Relaxed)
++        ),
++        expected
++    );
+     for sample in 0..30 {
+         let grads = model.grads(&raw);
+         raw.sync().unwrap();
+@@ -175,6 +204,40 @@
+         "{{\"phase\":\"drop\",\"total_ms\":{}}}",
+         start.elapsed().as_secs_f64() * 1e3
+     );
++}
++
++/// Separate instrumented windows: profile markers can perturb timing, so these samples must not
++/// be mixed with the uninstrumented paired throughput comparison.
++fn profile(mode: &str, workload: &str) {
++    let execution = match mode {
++        "fused" => AdamWExecutionConfig::Fused,
++        "foreach" => AdamWExecutionConfig::Foreach,
++        _ => panic!("expected profile-fused or profile-foreach"),
++    };
++    let raw = Device::default();
++    let device = raw.clone().autodiff();
++    let mut model = Model::new(workload, &device);
++    let mut optim = AdamWConfig::new().with_execution(Some(execution)).init();
++    for _ in 0..8 {
++        let grads = model.grads(&raw);
++        model = optim.step(0.001, model, grads);
++        raw.sync().unwrap();
++    }
++    for sample in 0..20 {
++        let grads = model.grads(&raw);
++        raw.sync().unwrap();
++        let start = Instant::now();
++        let (updated, duration) = raw.profile(|| optim.step(0.001, model, grads)).unwrap();
++        let method = duration.timing_method();
++        let ticks = burn::tensor::read_sync(duration.resolve())
++            .expect("optimizer window must contain work");
++        model = updated;
++        println!(
++            "{{\"phase\":\"device_window\",\"mode\":\"{mode}\",\"workload\":\"{workload}\",\"sample\":{sample},\"method\":\"{method}\",\"window_ms\":{},\"host_ms\":{}}}",
++            ticks.duration().as_secs_f64() * 1e3,
++            start.elapsed().as_secs_f64() * 1e3
++        );
++    }
+ }
+ 
+ fn paired(workload: &str) {
+diff --git a/crates/burn-optim/src/optim/adamw/foreach_tests.rs b/crates/burn-optim/src/optim/adamw/foreach_tests.rs
+--- a/crates/burn-optim/src/optim/adamw/foreach_tests.rs
++++ b/crates/burn-optim/src/optim/adamw/foreach_tests.rs
+@@ -680,17 +680,88 @@
+         close(&actual, &p);
+         close(&state.momentum.moment_2, &s.unwrap().momentum.moment_2);
+     }
+-    let len = 32 * 4096 + 1;
+-    let p = varying(len, 0.4, &device);
+-    let id = raw(p.clone()).handle.memory.descriptor().id;
+-    let result = candidate
+-        .prepare(0.01, p, varying(len, 0.01, &device), None)
+-        .err()
+-        .unwrap();
+-    assert_eq!(raw(result.0.clone()).handle.memory.descriptor().id, id);
+-    assert!(result.2.is_none());
++    for len in [32 * 4096 - 1, 32 * 4096, 32 * 4096 + 1] {
++        let p = varying(len, 0.4, &device);
++        let id = raw(p.clone()).handle.memory.descriptor().id;
++        let result = candidate
++            .prepare(0.01, p, varying(len, 0.01, &device), None)
++            .err()
++            .unwrap();
++        assert_eq!(raw(result.0.clone()).handle.memory.descriptor().id, id);
++        assert!(result.2.is_none());
++    }
+     assert_eq!(counts.batch(), 1);
+     assert_eq!(counts.single.load(Ordering::Relaxed), 1);
++
++    // The boundary still permits a long item when one chunk remains for a shorter peer.
++    let mut pending = Vec::new();
++    let mut expected = Vec::new();
++    for len in [31 * 4096, 1] {
++        let p = varying(len, 0.4, &device);
++        let g = varying(len, 0.01, &device);
++        expected.push(reference.step(0.01, p.clone(), g.clone(), None));
++        pending.push(candidate.prepare(0.01, p, g, None).ok().unwrap().1);
++    }
++    let before = counts.batch();
++    let outputs = burn_cubecl::kernel::optim::execute_adamw_batch(pending);
++    assert_eq!(counts.batch() - before, 1);
++    for (output, (p, s)) in outputs.into_iter().zip(expected) {
++        let (actual, state) = AdamW::restore::<1>(1, output);
++        close(&actual, &p);
++        close(&state.momentum.moment_2, &s.unwrap().momentum.moment_2);
++    }
++}
++
++#[test]
++fn foreach_full_chunk_budget_keeps_module_parameter_reuse() {
++    let _guard = super::step_guard();
++    if binding_budget() < 11 {
++        return;
++    }
++    #[derive(burn_derive::Module, Debug)]
++    struct Large {
++        weight: Param<Tensor<2>>,
++    }
++    let raw_device = Device::default();
++    let device = raw_device.clone().autodiff();
++    let make = || Large {
++        weight: Param::from_tensor(Tensor::full([512, 256], 0.5, &device)),
++    };
++    let mut expected = make();
++    let mut actual = make();
++    let mut reference = AdamWConfig::new()
++        .with_execution(Some(AdamWExecutionConfig::Fused))
++        .init();
++    let mut candidate = AdamWConfig::new()
++        .with_execution(Some(AdamWExecutionConfig::Foreach))
++        .init();
++    let allocation = |model: &Large| {
++        raw(model.weight.val().inner())
++            .handle
++            .memory
++            .descriptor()
++            .id
++    };
++    for _ in 0..2 {
++        let before = allocation(&actual);
++        let mut ga = GradientsParams::new();
++        ga.register(
++            expected.weight.id,
++            Tensor::<2>::full([512, 256], 0.1, &raw_device),
++        );
++        expected = reference.step(0.01, expected, ga);
++        let mut gb = GradientsParams::new();
++        gb.register(
++            actual.weight.id,
++            Tensor::<2>::full([512, 256], 0.1, &raw_device),
++        );
++        let (counts, _observe) = Counts::start();
++        actual = candidate.step(0.01, actual, gb);
++        assert_eq!(counts.batch(), 0);
++        assert_eq!(counts.single.load(Ordering::Relaxed), 1);
++        assert_eq!(allocation(&actual), before);
++        close(&actual.weight.val(), &expected.weight.val());
++    }
+ }
+ 
+ #[test]
+@@ -699,45 +770,185 @@
+     if binding_budget() < 19 {
+         return;
+     }
++    #[derive(burn_derive::Module, Debug)]
++    struct MixedRank {
++        vector: Param<Tensor<1>>,
++        rank8: Param<Tensor<8>>,
++    }
++    let raw_device = Device::default();
++    let device = raw_device.clone().autodiff();
++    let mut expected = MixedRank {
++        vector: Param::from_tensor(Tensor::full([4], 0.4, &device)),
++        rank8: Param::from_tensor(Tensor::full([1, 1, 1, 1, 1, 1, 2, 2], 1.4, &device)),
++    };
++    let mut actual = expected.clone();
++    let ids = [(actual.vector.id, 1), (actual.rank8.id, 8)];
++    let mut reference_bytes = None;
++    let mut candidate_bytes = None;
++    for (step, (amsgrad, grad, expected_m2)) in [
++        (false, 4.0, 8.0),
++        (true, 2.0, 6.0),
++        (false, 1.0, 3.5),
++        (true, 0.5, 1.875),
++    ]
++    .into_iter()
++    .enumerate()
++    {
++        let config = AdamWConfig::new()
++            .with_beta_1(0.5)
++            .with_beta_2(0.5)
++            .with_amsgrad(amsgrad)
++            .with_weight_decay(0.0);
++        let mut reference = config.clone().init();
++        let mut candidate = config
++            .with_execution(amsgrad.then_some(AdamWExecutionConfig::Foreach))
++            .init();
++        if let Some(bytes) = reference_bytes.take() {
++            reference = reference.from_bytes(bytes).unwrap();
++        }
++        if let Some(bytes) = candidate_bytes.take() {
++            candidate = candidate.from_bytes(bytes).unwrap();
++        }
++        let make_grads = |model: &MixedRank| {
++            let mut grads = GradientsParams::new();
++            grads.register(model.vector.id, Tensor::<1>::full([4], grad, &raw_device));
++            grads.register(
++                model.rank8.id,
++                Tensor::<8>::full([1, 1, 1, 1, 1, 1, 2, 2], grad, &raw_device),
++            );
++            grads
++        };
++        let ga = make_grads(&expected);
++        let gb = make_grads(&actual);
++        expected = reference.step(0.01, expected, ga);
++        let (counts, _observe) = Counts::start();
++        actual = candidate.step(0.01, actual, gb);
++        assert_eq!(counts.batch(), usize::from(amsgrad));
++        assert_eq!(counts.single.load(Ordering::Relaxed), 0);
++        close(&actual.vector.val(), &expected.vector.val());
++        close(&actual.rank8.val(), &expected.rank8.val());
++        let record = candidate.to_record();
++        for (id, rank) in ids {
++            assert_eq!(
++                usize::try_from(record.scalars[&format!("{}.__rank", id.val())]).unwrap(),
++                rank
++            );
++            assert_eq!(
++                usize::try_from(record.scalars[&format!("{}.momentum.time", id.val())]).unwrap(),
++                step + 1
++            );
++            for field in ["moment_2", "max_moment_2"] {
++                let tensor = record
++                    .tensors
++                    .iter()
++                    .find(|t| t.name == format!("{}.momentum.{field}", id.val()));
++                if field == "max_moment_2" && step == 0 {
++                    assert!(tensor.is_none());
++                    continue;
++                }
++                let tensor = tensor.unwrap();
++                assert_eq!(tensor.data.dtype(), burn::tensor::DType::F32);
++                assert_eq!(tensor.data.shape().num_dims(), rank);
++                let value = if field == "moment_2" {
++                    expected_m2
++                } else {
++                    6.0
++                };
++                assert!(
++                    tensor
++                        .data
++                        .as_slice::<f32>()
++                        .unwrap()
++                        .iter()
++                        .all(|x| *x == value)
++                );
++            }
++        }
++        record_close(reference.to_record(), record);
++        reference_bytes = Some(reference.into_bytes().unwrap());
++        candidate_bytes = Some(candidate.into_bytes().unwrap());
++    }
++}
++
++#[test]
++fn foreach_amsgrad_maximum_keeps_nan_direction_and_equal_zero_bits() {
++    let _guard = super::step_guard();
++    if binding_budget() < 19 {
++        return;
++    }
+     let device = Device::default();
+-    let mut expected: Vec<_> = (0..2)
+-        .map(|i| (varying(23, 0.4 + i as f32, &device), None))
+-        .collect();
+-    let mut actual = expected.clone();
+-    for amsgrad in [false, true, false, true] {
+-        let config = AdamWConfig::new().with_amsgrad(amsgrad);
+-        let reference = config.clone().build();
+-        let candidate = config
+-            .with_execution(Some(AdamWExecutionConfig::Foreach))
+-            .build();
+-        let mut pending = Vec::new();
+-        let mut times = Vec::new();
+-        for ((p, s), (rp, rs)) in core::mem::take(&mut actual)
+-            .into_iter()
+-            .zip(core::mem::take(&mut expected))
++    let config = AdamWConfig::new()
++        .with_beta_2(0.5)
++        .with_amsgrad(true)
++        .with_weight_decay(0.0);
++    let reference = config.clone().build();
++    let candidate = config
++        .with_execution(Some(AdamWExecutionConfig::Foreach))
++        .build();
++    let to_tensor =
++        |values: Vec<f32>| Tensor::<1>::from_data(TensorData::new(values, [3]), &device);
++    let mut expected = Vec::new();
++    let mut pending = Vec::new();
++    for reverse in [false, true] {
++        let order = if reverse { [2, 1, 0] } else { [0, 1, 2] };
++        let tensor = |values: [f32; 3]| to_tensor(order.map(|i| values[i]).to_vec());
++        let param = tensor([1.0, 2.0, 3.0]);
++        let grad = tensor([2.0, 0.0, 0.0]);
++        let state = AdamWState {
++            momentum: AdaptiveMomentumState {
++                time: 3,
++                moment_1: tensor([0.0; 3]),
++                moment_2: tensor([0.0, f32::NAN, 0.0]),
++                max_moment_2: Some(tensor([f32::NAN, 7.0, -0.0])),
++            },
++        };
++        expected.push(reference.step(0.01, param.clone(), grad.clone(), Some(state.clone())));
++        pending.push(
++            candidate
++                .prepare(0.01, param, grad, Some(state))
++                .ok()
++                .unwrap()
++                .1,
++        );
++    }
++    let (counts, _observe) = Counts::start();
++    let outputs = burn_cubecl::kernel::optim::execute_adamw_batch(pending);
++    assert_eq!(counts.batch(), 1);
++    assert_eq!(counts.single.load(Ordering::Relaxed), 0);
++    let check = |a: &Tensor<1>, b: &Tensor<1>| {
++        let a = a.to_data();
++        let b = b.to_data();
++        for (&a, &b) in a
++            .as_slice::<f32>()
++            .unwrap()
++            .iter()
++            .zip(b.as_slice::<f32>().unwrap())
+         {
+-            let grad = varying(23, 0.08, &device);
+-            expected.push(reference.step(0.01, rp, grad.clone(), rs));
+-            let (time, item) = candidate.prepare(0.01, p, grad, s).ok().unwrap();
+-            times.push(time);
+-            pending.push(item);
+-        }
+-        let outputs = burn_cubecl::kernel::optim::execute_adamw_batch(pending);
+-        for (output, time) in outputs.into_iter().zip(times) {
+-            let (p, s) = AdamW::restore::<1>(time, output);
+-            actual.push((p, Some(s)));
+-        }
+-        for ((p, s), (rp, rs)) in actual.iter().zip(&expected) {
+-            close(p, rp);
+-            let s = &s.as_ref().unwrap().momentum;
+-            let r = &rs.as_ref().unwrap().momentum;
+-            close(&s.moment_1, &r.moment_1);
+-            close(&s.moment_2, &r.moment_2);
+-            assert_eq!(s.max_moment_2.is_some(), r.max_moment_2.is_some());
+-            if let (Some(a), Some(b)) = (&s.max_moment_2, &r.max_moment_2) {
+-                close(a, b);
++            if b.is_nan() {
++                assert!(a.is_nan());
++            } else if b == 0.0 || b.is_infinite() {
++                assert_eq!(a.to_bits(), b.to_bits());
++            } else {
++                assert!((a - b).abs() <= 1e-6 + 1e-5 * b.abs());
+             }
+         }
++    };
++    for (i, (output, (rp, rs))) in outputs.into_iter().zip(expected).enumerate() {
++        let (p, s) = AdamW::restore::<1>(4, output);
++        let r = rs.unwrap();
++        check(&p, &rp);
++        check(&s.momentum.moment_1, &r.momentum.moment_1);
++        check(&s.momentum.moment_2, &r.momentum.moment_2);
++        let maximum = s.momentum.max_moment_2.unwrap();
++        check(&maximum, r.momentum.max_moment_2.as_ref().unwrap());
++        let data = maximum.to_data();
++        let values = data.as_slice::<f32>().unwrap();
++        assert!(values[if i == 0 { 0 } else { 2 }].is_nan());
++        assert_eq!(values[1], 7.0);
++        assert_eq!(
++            values[if i == 0 { 2 } else { 0 }].to_bits(),
++            (-0.0f32).to_bits()
++        );
+     }
+ }
+ 

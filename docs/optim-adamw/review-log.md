@@ -92,3 +92,22 @@ Sequence参数形式，记录见[原型材料](prototypes/README.md)。
 `cb6e03726063d1534976d404d32c209cd95f77e23ec0c6d3a4739bb81ecfbd11`。
 两轮均只读，不把核验既有测试记录描述为额外执行。代码测试、性能限制、GPU未启用的依据和
 完整源码hash见候选报告及validation。此通过仅许可归档候选，不是PR3生产交付或最终全分支验收。
+
+## PR3 候选修复与验收补充
+
+[修复报告](experiments/pr3-local/refinement/README.md)记录占满chunk预算时提前回退、
+near-limit pool峰值28→24MiB、数值判别用例、host阶段计时及真实Group/Capture回退验证。
+原candidate4补丁和数据保留，修复作为后续patch应用。
+
+| 轮次 | reviewer | 结论 | 范围与处理 |
+|---|---|---|---|
+| R0 代码修复 | Halley | PASS | 预算边界、COW、特殊值、rank8迁移及benchmark；尚未包含decorator包 |
+| R0 补充harness | Halley | FAIL | 只比较两模式的checkpoint策略，不能发现两者同时恢复成默认值；改为分别对照初始非Disabled策略，重新测试和审查 |
+| R1 修复复审 | Halley | PASS | 完整稳定修复增量与checks；独立checkpoint策略断言及重跑证据核验，确认原P2关闭 |
+| R2 独立复审 | Feynman | PASS | 全部增量、patch重放、9个源码hash、61项数据、checks12项hash、日志与报告算术核验，无新增确认问题 |
+
+失败后重新计数，最终连续 **2/2 PASS**；两轮均为只读review，没有重新执行测试。
+refinement补丁SHA-256为`66da8d1421756123d1ee1aeb9db097c725ccb949322cf2a2d0b7c6de3fb0130c`。
+最终记录CPU49pass/2ignored、Fusion13pass/1ignored、clippy通过，以及实际Group/Capture2pass；
+CPU专用用例在Fusion提前返回，Capture验证IR录制，不扩大覆盖声明。本增量继续以patch归档，
+生产依赖发布、正式接入和全分支最终审查仍未完成。

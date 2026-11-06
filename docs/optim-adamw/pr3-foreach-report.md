@@ -86,3 +86,7 @@ CPU tiny与80参数模型三轮同进程配对均有收益；大参数和mixed-r
 near-limit pool峰值由24增加到28MiB。首步JIT、模块遍历下界、实际launch和局限均单列。
 这些结果只证明本地候选行为，不能绕过可获取CubeCL revision、CubeK/Burn一致pin、
 下游依赖图与正式性能门禁。额外fork发布仍等待此前申请的确认。
+
+后续[候选修复](experiments/pr3-local/refinement/README.md)已将占满chunk预算的项提前回退，
+near-limit pool峰值从28MiB降回24MiB；补充AMSGrad特殊值、递减梯度跨checkpoint迁移和host阶段测量。
+原始候选数据保留，本地修复仍不代表生产PR3完成。

@@ -2,6 +2,10 @@
 
 状态：**已在本地补丁依赖上实现并验证的候选，尚未接入生产分支；不计 PR3 完成。**
 
+后续[候选修复与分项报告](refinement/README.md)解决占满chunk预算导致的多余参数分配，
+补充特殊值、rank8 checkpoint迁移及真实host分项。以下表格保留原candidate4证据，
+复现最新候选需在本补丁之后再应用refinement补丁；不得把两版数据混用。
+
 `foreach.patch` 基于 Burn `3221d3f9d`，包含 CPU 多参数 kernel、模块两次遍历、配置、
 共同 COW planner、测试及模块 benchmark。依赖仍需要
 [execution stream getter](../../prerequisites/README.md)。本目录保存代码和实测证据，

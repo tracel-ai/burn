@@ -1,0 +1,10 @@
+build-attempt-1.log
+sha256=423d994611fa9a991b78aba8999a0b9ecec60ffbe1e1b2f3f03024d56a2d10ff
+exit=101: harness used private Shape.dims; fixed to dims(). The initial debug=0 profile also emitted rust-objcopy/libLLVM strip warnings; strip is now disabled.
+
+decorators.log
+sha256=db40370416d9cfb6ab63ec038505183ca24c921599050cd511b787373707f87c
+exit=0: first runtime run, 2 passed, 0 failed, 0 ignored, 0 filtered; 0.45s. Group=448 reference launches, Capture=62 operations and 8 outputs; AdamW batch/single=0 in both.
+
+Before checkpointing-oracle correction: previous decorators.log sha256=cc249ce0343a21582751aab0e766448ad2ac140330fea8ffb0ae6dc801c1b3f5
+Previous Group assertions compared Reference/Foreach strategies only; they did not independently prove preservation of the initial non-Disabled strategy. Replaced by two assertions against the initial tracked-device strategy.

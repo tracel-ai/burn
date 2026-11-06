@@ -1,0 +1,20 @@
+[package]
+name = "adamw-foreach-decorator-checks"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+resolver = "3"
+
+[dependencies]
+burn = { package = "burn-core", path = "../../../../../crates/burn-core", default-features = false, features = ["std", "cpu", "group", "capture"] }
+burn-optim = { path = "../../../../../crates/burn-optim", default-features = false, features = ["std", "cpu"] }
+burn-cubecl = { path = "../../../../../crates/burn-cubecl", default-features = false, features = ["std", "cpu"] }
+burn-ir = { path = "../../../../../crates/burn-ir", default-features = false, features = ["std"] }
+burn-pack = { path = "../../../../../crates/burn-pack", default-features = false, features = ["std"] }
+serde_json = "1"
+
+[profile.dev]
+debug = 0
+strip = "none"

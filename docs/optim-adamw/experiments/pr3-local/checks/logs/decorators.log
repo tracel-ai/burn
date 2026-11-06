@@ -1,0 +1,31 @@
+UTC 2026-11-06T14:54:44Z
+Darwin arm64
+cargo 1.100.0-beta.7 (72b77b8d9 2026-10-17)
+rustc 1.100.0-beta.7 (fd8e211ae 2026-10-17)
+rustdoc 1.100.0-beta.7 (fd8e211ae 2026-10-17)
+toolchain=beta
+cargo=/Users/fdasdfdaf/.rustup/toolchains/beta-aarch64-apple-darwin/bin/cargo
+rustc=/Users/fdasdfdaf/.rustup/toolchains/beta-aarch64-apple-darwin/bin/rustc
+rustdoc=/Users/fdasdfdaf/.rustup/toolchains/beta-aarch64-apple-darwin/bin/rustdoc
+target=/Volumes/HIKSEMI/code/burn/target/adamw-foreach-decorators
+override=/Volumes/HIKSEMI/code/burn/target/adamw-foreach-local.toml
+wrappers=empty
+BURN_DEVICE=cpu
+    Finished `test` profile [unoptimized] target(s) in 4.61s
+     Running tests/decorators.rs (/Volumes/HIKSEMI/code/burn/target/adamw-foreach-decorators/debug/build/adamw-foreach-decorator-checks/69dd26f32044bcac/out/decorators-69dd26f32044bcac)
+running 2 tests
+test capture_records_identical_reference_ir_with_all_state_outputs_and_no_launches ... observer control: raw CPU Foreach direct step, batch=0, single=1, total=1
+Capture: 62 identical normalized operations, eight outputs (param/m1/m2/max for each parameter), time=[[1,1],[2,2]], batch=0 single=0 total_raw=0
+ok
+test group_module_and_direct_steps_preserve_state_and_use_reference_fallback ... observer control: raw CPU Foreach direct step, batch=0, single=1, total=1
+Group checkpointing oracle: initial tracked strategy=Balanced
+Group step 1: two params, six state tensors, time=1, F32 [2,2], module/direct device and values match, Reference/Foreach checkpointing=Balanced, batch=0 single=0
+Group step 2: two params, six state tensors, time=2, F32 [2,2], module/direct device and values match, Reference/Foreach checkpointing=Balanced, batch=0 single=0
+Group observed launches: batch=0, single=0, reference operations=448; checkpoint restored between steps
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+cargo_test_exit_status=0
+tee_exit_status=0
+raw_log_sha256=664318e8ee9847cab46d608f2ca69fddf31650ad13fa3e6726c63c3ecfd2fecf

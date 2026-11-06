@@ -1,0 +1,7 @@
+Checkpointing-oracle correction validation:
+bash -n run.sh: PASS
+beta rustfmt --edition 2024 --check tests/decorators.rs: PASS
+bash run.sh: exit 0; real Group/Capture tests both passed
+Group fixture strategy exists and is not Disabled; Reference and Foreach outputs each equal the initial tracked-device strategy on both parameters and both steps.
+root Cargo.lock SHA-256 unchanged before/after this run: 9cca6cc04cc7408767d7befb7b549dce2ac0c68492c3b0a1544f7a6ca44712ee
+Prior exit-status probe on unchanged run.sh (see exit-status-probe.log): CARGO_BUILD_TARGET=adamw-decorator-invalid-target; cargo=101, tee=0, script=101. Not rerun for this assertion-only change.

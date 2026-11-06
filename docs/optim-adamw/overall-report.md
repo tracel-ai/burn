@@ -81,3 +81,6 @@ PR3尚未接入生产，因此本报告不能作为“全部PR优化已完成”
 该候选没有改动生产pin或上述累计效果数据，仍需可获取的CubeCL getter revision及CubeK/Burn同步接入。
 其CPU收益、GPU未启用的依据、JIT成本及内存/性能回退均在独立报告中；不计作已完成PR3，
 也不把此前生产分支三轮review当作该候选或未来依赖升级的审查。
+
+后续[本地修复及分项验证](experiments/pr3-local/refinement/README.md)消除了满chunk预算singleton
+造成的额外参数分配，并补足AMSGrad特殊值、rank8 checkpoint迁移及host分项计时。生产状态不变。

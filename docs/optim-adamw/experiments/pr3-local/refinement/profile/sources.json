@@ -1,0 +1,4 @@
+{
+  "crates/burn-optim/src/optim/module/module_optimizer.rs": "3cf1a72adb5cc233d999a3bb5ddee87afaaea239b3f48ba57311a954d2e650be",
+  "crates/burn-cubecl/src/kernel/optim/adamw/foreach.rs": "f265e475ae27a0e0741f9a0fcec7ec29307ea74bfca0f9f39004c8d7e7187a45"
+}
