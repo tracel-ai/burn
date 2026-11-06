@@ -5,10 +5,22 @@
 //!
 //! ```rust,ignore
 //! let device = Device::shard_options(&[Device::cuda(0), Device::cuda(1)]).init()?;
+//! let shards = device
+//!     .shard_members()
+//!     .unwrap()
+//!     .iter()
+//!     .enumerate()
+//!     .map(|(index, member)| Tensor::<2>::from_data(columns_of_member(index), member))
+//!     .collect();
+//! let sharding = Sharding::Split { dim: 1 };
+//! let weight = Tensor::from_shards(Shards { shards, sharding }, &device)?;
 //! ```
+//!
+//! [`DimSplit`] says which range of a split dim each member holds, and cuts a `TensorData` to it.
 
 use alloc::vec::Vec;
 
+pub use burn_backend::ops::DimSplit;
 pub use burn_dispatch::__shard::{
     CollectiveMember, CollectiveOpHandler, CollectiveOpRegistry, CustomOpPlan, CustomOpRegistry,
     CustomOpRule, Linearity, OpKind, ReducedDims, ReductionKind, ShardCustomOps,
@@ -43,7 +55,8 @@ impl ShardOptions {
 
     /// A new sharded compute device of the devices, its members, that a tensor can be split over, apart from every
     /// other one, even one of the same devices. A tensor made on it is replicated on every
-    /// member until it is [sharded](crate::Tensor::with_sharding).
+    /// member. A split tensor is made of each member's shard with
+    /// [`Tensor::from_shards`](crate::Tensor::from_shards).
     ///
     /// Make a sharded compute device once and reuse it, as any device: each call registers a new sharded compute device for the
     /// rest of the process.

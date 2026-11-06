@@ -4,12 +4,12 @@ use std::{
 };
 
 use burn_backend::{DType, DeviceId, DeviceOps, DeviceSettings, RouterDeviceType};
-use burn_ir::BackendIr;
-use burn_router::{get_client, register_scoped_client};
-use burn_std::{QuantConfig, Shape, device::Device};
+use burn_ir::{BackendIr, HandleKind};
+use burn_router::{RouterTensor, get_client, register_scoped_client};
+use burn_std::{QuantConfig, device::Device};
 
 use super::{ShardClient, ShardCustomOps, channel::ShardChannel, interpreter::ShardInterpreter};
-use crate::{Resharding, Sharding, ShardingError};
+use crate::{Shards, ShardsError};
 
 /// A sharded compute device of devices, its members, that a tensor's shards are spread over.
 ///
@@ -128,21 +128,32 @@ impl ShardedComputeDevice {
         Ok(device)
     }
 
-    /// Why a value of `shape` made on this device cannot take `sharding`, if it cannot.
-    ///
-    /// # Errors
-    ///
-    /// When `sharding` splits a dim `shape` lacks or one shorter than the members, or is a partial
-    /// sum, which a new value never is.
-    pub fn check_sharding(&self, shape: &Shape, sharding: Sharding) -> Result<(), ShardingError> {
-        let num_members = get_client::<ShardChannel>(self).num_members();
-        Resharding::new(Sharding::Replicated, sharding, shape, num_members).map(|_| ())
-    }
-
     /// The devices of its members, in member order, when they run `B`, or `None` when they run
     /// another backend.
     pub fn members<B: BackendIr>(&self) -> Option<Vec<B::Device>> {
         get_client::<ShardChannel>(self).members::<B::Device>()
+    }
+
+    pub fn num_members(&self) -> usize {
+        get_client::<ShardChannel>(self).num_members()
+    }
+
+    /// The tensor `shards` make up: one shard per member, of the members' backend `B`, each
+    /// already on its member. Nothing moves between
+    /// members, and no member reads another's shard.
+    ///
+    /// # Errors
+    ///
+    /// When the members do not run `B`, when there is not one shard per member, when shard `i` is
+    /// not on member `i`'s device, when the shards differ in dtype, when a partial sum is not of
+    /// floats or ints, or when a shard's shape is not its member's part: the whole value when
+    /// replicated or a partial sum, and its balanced chunk of the split dim when split, a
+    /// quantized chunk holding whole quantization blocks.
+    pub fn join_shards<B: BackendIr>(
+        &self,
+        shards: Shards<HandleKind<B>>,
+    ) -> Result<RouterTensor<ShardClient>, ShardsError> {
+        get_client::<ShardChannel>(self).join_shards(shards)
     }
 }
 
