@@ -65,3 +65,10 @@ clone、嵌套scope及随后allocation实际stream。生产pin和Cargo缓存均�
 可复现补丁、哈希和验证命令见[前置补丁](prerequisites/README.md)。这是上游能力准备，
 不算完成Foreach，也不替代本PR的数值、分组、stream恢复或端到端性能验收。
 此外，当前CubeK也固定相同CubeCL revision；引入getter后需要同步依赖图，不能只更新Burn的pin。
+
+## Sequence 参数形式本地原型
+
+设计第8.2节的参数组合已在CPU上编译并实际执行：三种rank、转置stride、七个chunk、
+optional history及部分输出alias均在一次launch内得到正确结果，并验证variant key与重用。
+源码与记录见[Sequence原型](prototypes/README.md)。这不是AdamW算法或ModuleOptimizer接入，
+不算一个独立优化PR，不改变Foreach仍未实现的状态。

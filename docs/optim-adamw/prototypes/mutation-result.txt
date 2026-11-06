@@ -1,0 +1,24 @@
+   Compiling cubecl-cpu v0.12.0-pre.2 (/Volumes/HIKSEMI/code/burn/target/adamw-cubecl-stream-prerequisite/crates/cubecl-cpu)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.56s
+     Running tests/foreach_sequence.rs (target/adamw-stream-prerequisite-build/debug/build/cubecl-cpu/ab49a5825e543c3b/out/foreach_sequence-ab49a5825e543c3b)
+
+running 1 test
+test sequence_views_cover_mixed_rank_layouts_and_optional_state_in_one_launch ... FAILED
+
+failures:
+
+---- sequence_views_cover_mixed_rank_layouts_and_optional_state_in_one_launch stdout ----
+
+thread 'sequence_views_cover_mixed_rank_layouts_and_optional_state_in_one_launch' (6653166) panicked at crates/cubecl-cpu/tests/foreach_sequence.rs:185:17:
+assertion `left == right` failed
+  left: [201.0, 208.0, 215.0, 222.0, 229.0, 208.0, 215.0, 222.0, 229.0, 236.0, 215.0, 222.0, 229.0, 236.0, 243.0]
+ right: [1201.0, 1208.0, 1215.0, 1222.0, 1229.0, 1208.0, 1215.0, 1222.0, 1229.0, 1236.0, 1215.0, 1222.0, 1229.0, 1236.0, 1243.0]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    sequence_views_cover_mixed_rank_layouts_and_optional_state_in_one_launch
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+error: test failed, to rerun pass `-p cubecl-cpu --test foreach_sequence`

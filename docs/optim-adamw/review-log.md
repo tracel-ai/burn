@@ -56,3 +56,21 @@ no_std与burn-cubecl raw单测的既有编译失败如实记录在[报告](pr1-f
 James、Ptolemy分别完成一轮独立只读review，连续2/2 PASS；James同次调用中的额外复核不另计一轮。
 格式、干净pin apply检查通过；clippy失败于未改动的CubeCL dispatcher第69行，已记录。
 此增量只是可接入上游的前置补丁和证据，不能计为PR3优化完成，也不改变此前生产实现3/3审查结论。
+
+## PR3 Sequence 原型增量
+
+生产代码及依赖pin未变。原型在本仓库target副本实际编译并执行，验证设计第8.2节的
+Sequence参数形式，记录见[原型材料](prototypes/README.md)。
+
+| 轮次 | reviewer | 结论 | 发现与处理 |
+|---|---|---|---|
+| S0 | Russell | PASS | 初始版本审查；后续发现测试盲点，该通过不计入最终连续通过。 |
+| S1 | Mill | FAIL | history在各张量上均为`i+1`，全部误读history[0]也能通过。已加张量编号。 |
+| S2 | Mill | PASS | 修复后第1轮，确认错绑变异编译成功后数值失败、正确源码复测通过，证据hash一致。 |
+| S3 | Plato | PASS | 修复后第2轮，独立复核bounds、stride、chunk覆盖、alias绑定、key声明及全部证据hash。 |
+
+最终连续 **2/2 PASS**，对应源码SHA-256为
+`0a6813e8ea0e461bde577dbfdb1e17dd1a14abb81c63a48b2c76924d82cddfae`。
+正确版本1个integration test通过，含8次launch、24个输出张量；故障注入退出101并在数值断言失败。
+两轮review均为只读，没有将核验已有运行记录描述为再次运行。此增量不是AdamW算法实现、性能优化
+或PR3验收；Foreach的生产依赖前置与完整实现仍未完成。

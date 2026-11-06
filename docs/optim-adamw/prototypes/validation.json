@@ -1,0 +1,80 @@
+{
+  "base_revision": "d88b0febb50e7b83a8548125f6a701c12f11a2ba",
+  "prototype_sha256": "0a6813e8ea0e461bde577dbfdb1e17dd1a14abb81c63a48b2c76924d82cddfae",
+  "runtime_client_sha256": "dfa75d5a8d3b19b42852747d423b7f65082712e41148de46c861e0a9858b2fc3",
+  "prerequisite_patch": "../prerequisites/cubecl-execution-stream.patch",
+  "binary_sha256": "5e95f27cd8e24f1029a3d7635e250af366d13eb15721816451266df81df16f56",
+  "rustc": "rustc 1.100.0-beta.7 (fd8e211ae 2026-10-17)",
+  "wrapper": "disabled; absolute beta cargo/rustc; runner unset",
+  "backend": "CubeCL CPU / Apple M4",
+  "command": "cargo test --manifest-path target/adamw-cubecl-stream-prerequisite/Cargo.toml -p cubecl-cpu --no-default-features --features std --test foreach_sequence",
+  "exit_code": 0,
+  "stdout_summary": [
+    "    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.60s",
+    "test sequence_views_cover_mixed_rank_layouts_and_optional_state_in_one_launch ... ok",
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s"
+  ],
+  "test_log_sha256": "9ab71bd9006ab94560db3b279fae161bc6b7c8bbd542b1025598b2f40ab5523d",
+  "shape_and_strides": [
+    {
+      "shape": [
+        21
+      ],
+      "strides": [
+        1
+      ]
+    },
+    {
+      "shape": [
+        3,
+        5
+      ],
+      "strides": [
+        1,
+        3
+      ]
+    },
+    {
+      "shape": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "strides": [
+        12,
+        6,
+        3,
+        1
+      ]
+    }
+  ],
+  "chunk_elements": 8,
+  "chunks_per_launch": 7,
+  "launches_per_case": 1,
+  "configurations": 4,
+  "repetitions_per_configuration": 2,
+  "distinct_kernel_keys": 4,
+  "formula": "out = input * 2 + optional_history",
+  "production_adamw_or_foreach": false,
+  "limitations": [
+    "No module integration",
+    "No AdamW numeric equivalence claim",
+    "No stream restoration proof",
+    "No production COW planner proof",
+    "No performance conclusion",
+    "No GPU run"
+  ],
+  "test_result_sha256": "8cda1c00186743e334abc70c1667650962e7aff3117ebad5fa55ca72ec21ef52",
+  "history_values": "(tensor * 1000 + i + 1) as f32",
+  "mutation": {
+    "edit": "history.index(tensor).read(index) -> history.index(0usize).read(index)",
+    "exit_code": 101,
+    "compiled": true,
+    "failure": "Output values differ: second tensor first element 201.0 instead of 1201.0",
+    "log_sha256": "a7b5b66864cbd757748cd81ce8527e143092dbfabece1715ae745022e919db62",
+    "result_sha256": "59034bf0c0fe680282d0bc8a73a848043a659d86862dd70cf6c9abfbcae3393e",
+    "source_restored_and_test_passed": true,
+    "source_note": "Mutation preceded the variant_keys local-variable rename and kernel-key assertion-message clarification; arithmetic and test inputs are identical."
+  }
+}
