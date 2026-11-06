@@ -15,7 +15,7 @@ remains in [`release/0.22`](https://github.com/tracel-ai/burn/blob/release/0.22/
 - **Mem** = peak allocation of the current run (`max alloc` from divan).
 - The April run called `Tensor<Flex, D>` directly. The benches now live in `burn-backend-tests` and
   go through `burn-tensor`'s device dispatch, which adds roughly 100 ns per op. Ops that take
-  under a microsecond (slicing, `unfold`, casts that only relabel, `expand`) show that overhead as
+  under a microsecond (slicing, `unfold`, no-op casts, `expand`) show that overhead as
   a slowdown; it is not a change in the kernels.
 - **Now** is the faster median of two full passes on AC power. Other work on the machine can slow
   a pass, so a single pass can read high: the passes differ by 2% in the median row and by up to
@@ -87,12 +87,12 @@ remains in [`release/0.22`](https://github.com/tracel-ai/burn/blob/release/0.22/
 
 ## Int Cast
 
-| Operation  | Size      | Now     | Apr 2026 | Change | Mem     |
-| ---------- | --------- | ------- | -------- | ------ | ------- |
-| i64 to i8  | 256x256   | 3.01 us | 3.19 us  | ~1x    | 65.6 KB |
-| i64 to i32 | 64x64     | 92.6 ns | 16.8 ns  | 0.2x   | 16.0 B  |
-| i64 to i32 | 256x256   | 98.5 ns | 13.6 ns  | 0.1x   | 16.0 B  |
-| i64 to i32 | 1024x1024 | 93.2 ns | 13.6 ns  | 0.1x   | 16.0 B  |
+| Operation          | Size      | Now     | Apr 2026 | Change | Mem     |
+| ------------------ | --------- | ------- | -------- | ------ | ------- |
+| i32 to i8          | 256x256   | 3.01 us | 3.19 us  | ~1x    | 65.6 KB |
+| i32 to i32 (no-op) | 64x64     | 92.6 ns | 16.8 ns  | 0.2x   | 16.0 B  |
+| i32 to i32 (no-op) | 256x256   | 98.5 ns | 13.6 ns  | 0.1x   | 16.0 B  |
+| i32 to i32 (no-op) | 1024x1024 | 93.2 ns | 13.6 ns  | 0.1x   | 16.0 B  |
 
 ---
 
