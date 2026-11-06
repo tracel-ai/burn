@@ -297,7 +297,8 @@ whose tensors are split over `devices` (crate `burn-shard`).
   `ShardingError::Quantized` is replaced by `ShardingError::QuantizedSplit`, returned for a split
   that would cut either. Split shards quantized each on their own must share a per-tensor or global
   scale: a read or an op that gathers them otherwise fails with `ShardingError::QuantizedScales`,
-  and `DimSplit::whole_data` returns a `Result`.
+  and `DimSplit::whole_data` returns a `Result`. Reading a failed sharded operation returns its
+  recorded execution error instead of panicking.
   ([#6396](https://github.com/tracel-ai/burn/pull/6396),
   [#6408](https://github.com/tracel-ai/burn/pull/6408))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)

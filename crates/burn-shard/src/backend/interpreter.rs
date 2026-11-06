@@ -230,6 +230,17 @@ impl<B: BackendIr> DynShardInterpreter for ShardInterpreter<B> {
     }
 
     fn read(&mut self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
+        if let Some(error) = self
+            .interpreters
+            .iter_mut()
+            .find_map(|interpreter| interpreter.take_error(&tensor))
+        {
+            if tensor.status == TensorStatus::ReadWrite {
+                self.drop_tensor(tensor.id);
+            }
+            let error = ExecutionError::from(error);
+            return Box::pin(async move { Err(error) });
+        }
         let sharding = self.shardings.get(&tensor.id);
         self.sharded_tensor(&tensor, sharding)
             .into_data(sharding, &self.devices[0])
@@ -821,8 +832,8 @@ mod tests {
         assert_eq!(gathered, Err(ShardingError::QuantizedScales { shard: 1 }));
     }
 
-    /// A custom op with no rule gathers its inputs: the split float input is gathered into a
-    /// temporary before the quantized one fails to join.
+    /// A failed gather reports its cause on repeated reads and releases it on the last use.
+    /// The float input creates a temporary before the quantized input fails to join.
     #[test]
     fn an_op_gathering_unjoinable_quantized_shards_fails_its_outputs() {
         let mut interpreter =
@@ -844,7 +855,32 @@ mod tests {
 
         interpreter.register_op(OperationIr::Custom(op));
 
-        assert_fails_on_every_member(&interpreter, &out, "per-tensor or global scale");
+        let first_error =
+            block_on(interpreter.read(whole(out, TensorStatus::ReadOnly))).unwrap_err();
+        assert!(
+            first_error.reason().contains("per-tensor or global scale"),
+            "{first_error}"
+        );
+
+        let repeated_error =
+            block_on(interpreter.read(whole(out, TensorStatus::ReadOnly))).unwrap_err();
+        assert_eq!(repeated_error.reason(), first_error.reason());
+
+        let consumed_error =
+            block_on(interpreter.read(whole(out, TensorStatus::ReadWrite))).unwrap_err();
+        assert_eq!(consumed_error.reason(), first_error.reason());
+        assert!(
+            interpreter.interpreters[0]
+                .handles_mut()
+                .error(&out)
+                .is_none()
+        );
+        assert!(
+            interpreter.interpreters[1]
+                .handles_mut()
+                .error(&out)
+                .is_none()
+        );
     }
 
     #[test]
