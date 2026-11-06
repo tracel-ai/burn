@@ -3,8 +3,8 @@ use std::{any::Any, collections::HashMap};
 
 use burn_backend::{DType, DTypeUsageSet, DeviceSettings, ExecutionError, Shape, TensorData};
 use burn_ir::{
-    BackendIr, BaseOperationIr, HandleKind, IrVisitorMut, OperationIr, TensorError, TensorId,
-    TensorIr, TensorStatus,
+    BackendIr, BaseOperationIr, CapturedGraphId, HandleKind, IrVisitorMut, OperationIr,
+    TensorError, TensorId, TensorIr, TensorStatus,
 };
 use burn_router::TensorInterpreter;
 use burn_std::{
@@ -16,6 +16,7 @@ use burn_std::{
 use super::{
     CollectiveMember, CollectiveOpRegistry, MemberDevice, ShardCustomOps, ShardError,
     custom_ops::{CustomOpRuleMap, MemberCustomOps},
+    graph::MemberGraphs,
     plan::{Execution, OpPlan},
     shardings::Shardings,
     shards::MemberShards,
@@ -80,6 +81,26 @@ pub trait DynShardInterpreter: Send {
 
     /// What every member can do with `dtype`, since each op runs on all of them.
     fn dtype_usage(&self, dtype: DType) -> DTypeUsageSet;
+
+    /// Prepares every member for a graph capture.
+    fn graph_prepare(&mut self) -> Result<(), ExecutionError>;
+
+    /// Starts recording every member's launches, each into a graph of its own.
+    fn graph_start_capture(&mut self) -> Result<(), ExecutionError>;
+
+    /// Stops every member's recording, and keeps their graphs under the id returned.
+    fn graph_stop_capture(&mut self) -> Result<CapturedGraphId, ExecutionError>;
+
+    /// Replays every member's graph of `graph`.
+    ///
+    /// # Safety
+    ///
+    /// The contract of [`Backend::graph_replay`](burn_backend::Backend::graph_replay), for every
+    /// member's tensors the graph read or wrote.
+    unsafe fn graph_replay(&mut self, graph: CapturedGraphId) -> Result<(), ExecutionError>;
+
+    /// Frees every member's graph of `graph`.
+    fn graph_release(&mut self, graph: CapturedGraphId);
 }
 
 /// The tensor a caller's shards make up once joined: its id on the sharded compute device, and
@@ -99,6 +120,7 @@ pub struct ShardInterpreter<B: BackendIr> {
     next_id: u64,
     collectives: CollectiveOpRegistry<B>,
     rules: CustomOpRuleMap,
+    graphs: MemberGraphs<B>,
 }
 
 impl<B: BackendIr> ShardInterpreter<B> {
@@ -123,6 +145,7 @@ impl<B: BackendIr> ShardInterpreter<B> {
             next_id: 0,
             collectives,
             rules,
+            graphs: MemberGraphs::default(),
         })
     }
 
@@ -279,6 +302,27 @@ impl<B: BackendIr> DynShardInterpreter for ShardInterpreter<B> {
             .fold(DTypeUsageSet::all(), |usage, interpreter| {
                 usage & interpreter.dtype_usage(dtype)
             })
+    }
+
+    fn graph_prepare(&mut self) -> Result<(), ExecutionError> {
+        self.graphs.prepare(&self.interpreters)
+    }
+
+    fn graph_start_capture(&mut self) -> Result<(), ExecutionError> {
+        self.graphs.start(&self.interpreters)
+    }
+
+    fn graph_stop_capture(&mut self) -> Result<CapturedGraphId, ExecutionError> {
+        self.graphs.stop(&self.interpreters)
+    }
+
+    unsafe fn graph_replay(&mut self, graph: CapturedGraphId) -> Result<(), ExecutionError> {
+        // Safety: forwarded verbatim from this method's own contract.
+        unsafe { self.graphs.replay(&self.interpreters, graph) }
+    }
+
+    fn graph_release(&mut self, graph: CapturedGraphId) {
+        self.graphs.release(graph);
     }
 }
 
