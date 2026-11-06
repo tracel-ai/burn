@@ -442,6 +442,9 @@ impl TraceOperationFuser {
                         inputs: tensors,
                         output,
                         dim: desc.dim,
+                        equal_input_sizes: desc.tensors.iter().all(|tensor| {
+                            tensor.shape[desc.dim] == desc.tensors[0].shape[desc.dim]
+                        }),
                     });
 
                     Some(())
