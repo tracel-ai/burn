@@ -1,178 +1,122 @@
 use burn::{
-    module::Param,
-    nn::{
-        Linear,
-        attention::MultiHeadAttention,
-        transformer::{PositionWiseFeedForward, TransformerEncoderLayer},
-    },
+    module::{ModuleMapper, Param},
     prelude::*,
-    store::{BurnpackStore, ModuleSnapshot, ModuleStore, PathFilter},
-    tensor::{Sharding::Split, Shards, shard::DimSplit},
+    store::{BurnpackStore, ModuleStore},
+    tensor::{
+        Sharding::{self, Replicated, Split},
+        Shards,
+        shard::DimSplit,
+    },
 };
-use text_classification::model::TextClassificationModel;
 
-/// A checkpoint read into a model on a sharded compute device: the weights the model's
-/// [`TensorParallel`] plan splits reach each member as that member's chunk alone, and every other
-/// weight loads whole on every member.
-pub struct ShardedLoad {
-    store: BurnpackStore,
-    device: Device,
-    members: Vec<Device>,
-    split_paths: Vec<String>,
+/// Projections split by output column: each member computes whole attention heads, or a slice of
+/// the feed-forward's hidden width, with nothing sent between members.
+const COLUMN_SPLIT: [&str; 4] = ["mha.query", "mha.key", "mha.value", "pwff.linear_inner"];
+
+/// Projections split by input row, each taking the slice its column-split partner produced. Their
+/// output is a partial sum, reduced by one all-reduce when the next op reads it.
+const ROW_SPLIT: [&str; 2] = ["mha.output", "pwff.linear_outer"];
+
+/// Megatron's split of a transformer encoder, by parameter path. A [`Linear`](burn::nn::Linear)
+/// weight is `[d_input, d_output]`. A row-split projection's bias is added after the reduction, so
+/// it stays replicated, as does everything else: the embeddings, the layer norms and the head.
+pub fn megatron(path: &str) -> Sharding {
+    let Some((module, param)) = path.rsplit_once('.') else {
+        return Replicated;
+    };
+    let column = COLUMN_SPLIT.iter().any(|name| module.ends_with(name));
+    let row = ROW_SPLIT.iter().any(|name| module.ends_with(name));
+    match param {
+        "weight" if column => Split { dim: 1 },
+        "bias" if column => Split { dim: 0 },
+        "weight" if row => Split { dim: 0 },
+        _ => Replicated,
+    }
 }
 
-impl ShardedLoad {
-    /// # Panics
-    ///
-    /// When `device` is not a sharded compute device.
-    pub fn new(store: BurnpackStore, device: &Device) -> Self {
-        let members = device
-            .shard_members()
-            .expect("tensor parallelism needs a sharded compute device");
+/// Loads a checkpoint into a module built on a sharded compute device, splitting each weight as
+/// `plan` says for its path. A split weight reaches each member as that member's chunk alone.
+pub struct ShardedLoad<P> {
+    store: BurnpackStore,
+    plan: P,
+    path: Vec<String>,
+    whole: usize,
+    per_member: usize,
+}
+
+impl<P: Fn(&str) -> Sharding> ShardedLoad<P> {
+    pub fn new(store: BurnpackStore, plan: P) -> Self {
         Self {
             store,
-            device: device.clone(),
-            members,
-            split_paths: Vec::new(),
+            plan,
+            path: Vec::new(),
+            whole: 0,
+            per_member: 0,
         }
     }
 
-    /// `model` with every weight loaded, split as its plan says.
-    pub fn load<M: TensorParallel + ModuleSnapshot>(mut self, model: M) -> M {
-        let mut model = model.tensor_parallel(&mut self, "");
-        let replicated: Vec<String> = self
-            .store
-            .keys()
-            .expect("the checkpoint should list its tensors")
-            .into_iter()
-            .filter(|path| !self.split_paths.contains(path))
-            .collect();
-        self.store
-            .filter(PathFilter::new().with_full_paths(replicated))
-            .apply_to(&mut model)
-            .expect("the checkpoint should hold every replicated weight");
-        model
+    /// The share of the model's weights each member holds.
+    pub fn share_per_member(&self) -> f64 {
+        self.per_member as f64 / self.whole as f64
     }
 
-    /// The weight at `path` split along `dim`. Each member's chunk is cut on the host and made on
-    /// that member, so no member ever holds another's.
-    fn split<const D: usize>(
-        &mut self,
-        param: Param<Tensor<D>>,
-        path: String,
-        dim: usize,
-    ) -> Param<Tensor<D>> {
+    /// The checkpoint tensor at `path` on `device`, cut into one chunk per member when split.
+    fn tensor<const D: usize>(&mut self, path: &str, device: &Device) -> Tensor<D> {
         let data = self
             .store
-            .get_tensor(&path)
+            .get_tensor(path)
             .expect("the checkpoint should read")
             .unwrap_or_else(|| panic!("the checkpoint has no {path}"))
             .to_data()
             .expect("the checkpoint should read");
-        let split = DimSplit {
-            dim,
-            len: data.shape()[dim],
-            members: self.members.len(),
-        };
-        let shards = split
-            .data_chunks(&data)
-            .zip(&self.members)
-            .map(|(chunk, member)| Tensor::from_data(chunk, member))
-            .collect();
-        let tensor = Tensor::from_shards(
-            Shards {
-                shards,
-                sharding: Split { dim },
-            },
-            &self.device,
-        )
-        .expect("each chunk is its member's part");
-        self.split_paths.push(path);
-        Param::initialized(param.id, tensor)
+        let members = device
+            .shard_members()
+            .expect("the module should be on a sharded compute device");
+        self.whole += data.num_elements();
+
+        match (self.plan)(path) {
+            Split { dim } => {
+                self.per_member += data.num_elements() / members.len();
+                let split = DimSplit {
+                    dim,
+                    len: data.shape()[dim],
+                    members: members.len(),
+                };
+                let shards = split
+                    .data_chunks(&data)
+                    .zip(&members)
+                    .map(|(chunk, member)| Tensor::from_data(chunk, member))
+                    .collect();
+                Tensor::from_shards(
+                    Shards {
+                        shards,
+                        sharding: Split { dim },
+                    },
+                    device,
+                )
+                .expect("each chunk is its member's part")
+            }
+            _ => {
+                self.per_member += data.num_elements();
+                Tensor::from_data(data, device)
+            }
+        }
     }
 }
 
-/// Megatron's split of a module over a sharded compute device: which of its weights split, and
-/// along which dim. Anything a plan leaves alone, such as the embeddings, the layer norms and the
-/// classification head, stays replicated: every member holds all of it.
-pub trait TensorParallel {
-    /// The module with the weights its plan splits read from `load`, under the checkpoint path
-    /// `prefix`, which is empty or ends with a dot.
-    fn tensor_parallel(self, load: &mut ShardedLoad, prefix: &str) -> Self;
-}
-
-impl TensorParallel for TextClassificationModel {
-    fn tensor_parallel(mut self, load: &mut ShardedLoad, prefix: &str) -> Self {
-        self.transformer.layers = self
-            .transformer
-            .layers
-            .into_iter()
-            .enumerate()
-            .map(|(index, layer)| {
-                layer.tensor_parallel(load, &format!("{prefix}transformer.layers.{index}."))
-            })
-            .collect();
-        self
-    }
-}
-
-impl TensorParallel for TransformerEncoderLayer {
-    fn tensor_parallel(mut self, load: &mut ShardedLoad, prefix: &str) -> Self {
-        self.mha = self.mha.tensor_parallel(load, &format!("{prefix}mha."));
-        self.pwff = self.pwff.tensor_parallel(load, &format!("{prefix}pwff."));
-        self
-    }
-}
-
-/// Each member computes whole heads: the query, key and value projections are split by output
-/// column, which is by head, and the output projection by input row.
-impl TensorParallel for MultiHeadAttention {
-    fn tensor_parallel(mut self, load: &mut ShardedLoad, prefix: &str) -> Self {
-        self.query = self.query.split_columns(load, &format!("{prefix}query."));
-        self.key = self.key.split_columns(load, &format!("{prefix}key."));
-        self.value = self.value.split_columns(load, &format!("{prefix}value."));
-        self.output = self.output.split_rows(load, &format!("{prefix}output."));
-        self
-    }
-}
-
-/// Each member computes a slice of the hidden width, so the activation between the two
-/// projections never leaves its member.
-impl TensorParallel for PositionWiseFeedForward {
-    fn tensor_parallel(mut self, load: &mut ShardedLoad, prefix: &str) -> Self {
-        self.linear_inner = self
-            .linear_inner
-            .split_columns(load, &format!("{prefix}linear_inner."));
-        self.linear_outer = self
-            .linear_outer
-            .split_rows(load, &format!("{prefix}linear_outer."));
-        self
-    }
-}
-
-/// How a [`Linear`] splits. Its weight is `[d_input, d_output]`.
-pub trait LinearSplit {
-    /// Each member holds a slice of the output features, and so produces that slice of the
-    /// output, with nothing sent between members.
-    fn split_columns(self, load: &mut ShardedLoad, prefix: &str) -> Self;
-
-    /// Each member holds a slice of the input features and takes that slice of the input. Its
-    /// output is a partial sum, reduced by one all-reduce when the next op needs it whole. The
-    /// bias stays replicated, added once after that reduction.
-    fn split_rows(self, load: &mut ShardedLoad, prefix: &str) -> Self;
-}
-
-impl LinearSplit for Linear {
-    fn split_columns(mut self, load: &mut ShardedLoad, prefix: &str) -> Self {
-        self.weight = load.split(self.weight, format!("{prefix}weight"), 1);
-        self.bias = self
-            .bias
-            .map(|bias| load.split(bias, format!("{prefix}bias"), 0));
-        self
+impl<P: Fn(&str) -> Sharding> ModuleMapper for ShardedLoad<P> {
+    fn enter_module(&mut self, name: &str, _container_type: &str) {
+        self.path.push(name.to_string());
     }
 
-    fn split_rows(mut self, load: &mut ShardedLoad, prefix: &str) -> Self {
-        self.weight = load.split(self.weight, format!("{prefix}weight"), 0);
-        self
+    fn exit_module(&mut self, _name: &str, _container_type: &str) {
+        self.path.pop();
+    }
+
+    fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
+        let path = self.path.join(".");
+        let tensor = self.tensor(&path, &param.lazy_device());
+        let id = param.id;
+        param.transform_for_load(tensor, id)
     }
 }

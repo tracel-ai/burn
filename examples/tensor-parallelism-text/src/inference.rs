@@ -14,7 +14,7 @@ use text_classification::{
     training::ExperimentConfig,
 };
 
-use crate::split::ShardedLoad;
+use crate::split::{ShardedLoad, megatron};
 
 /// From AG News's test set.
 const SAMPLES: [&str; 3] = [
@@ -47,14 +47,18 @@ pub fn infer(devices: Vec<Device>, artifact_dir: &str) {
         members.len()
     );
 
-    let model =
-        ShardedLoad::new(checkpoint.store(), &sharded).load(architecture.classifier(&sharded));
+    let mut load = ShardedLoad::new(checkpoint.store(), megatron);
+    let model = architecture.classifier(&sharded).map(&mut load);
+    println!(
+        "each of {} members holds {:.0}% of the weights",
+        members.len(),
+        100.0 * load.share_per_member()
+    );
     let mut single = architecture.classifier(&members[0]);
     checkpoint
         .store()
         .apply_to(&mut single)
         .expect("the checkpoint should hold every weight");
-    print_split(&model, members.len());
 
     let samples: Vec<String> = SAMPLES.map(String::from).to_vec();
     let batcher = TextClassificationBatcher::new(tokenizer, architecture.seq_length);
@@ -161,27 +165,4 @@ impl Checkpoint {
             WeightSource::Bytes(bytes) => BurnpackStore::from_bytes(Some(bytes.clone())),
         }
     }
-}
-
-/// How the first encoder layer's weights lie over the members; every layer is split alike.
-fn print_split(model: &TextClassificationModel, num_members: usize) {
-    let layer = &model.transformer.layers[0];
-    let linears = [
-        ("attention query", &layer.mha.query),
-        ("attention key", &layer.mha.key),
-        ("attention value", &layer.mha.value),
-        ("attention output", &layer.mha.output),
-        ("feed-forward inner", &layer.pwff.linear_inner),
-        ("feed-forward outer", &layer.pwff.linear_outer),
-    ];
-    println!("encoder layer 0 over {num_members} members:");
-    for (name, linear) in linears {
-        let weight = linear.weight.val();
-        println!(
-            "  {name:<19} {:?} {:?}",
-            weight.dims(),
-            weight.sharding().unwrap()
-        );
-    }
-    println!();
 }

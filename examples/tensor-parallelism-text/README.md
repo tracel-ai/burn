@@ -10,8 +10,9 @@ and every layer's weights are split across it:
   never leaves its member.
 
 Each row-split projection ends in one all-reduce, two per layer. The embeddings, layer norms and
-classification head stay replicated on every member. `src/split.rs` is the whole plan. Each split
-weight is read from the checkpoint and cut on the host, and each member receives only its chunk.
+classification head stay replicated on every member. `megatron` in `src/split.rs` is the whole
+plan, from a parameter's path to its sharding. Each split weight is read from the checkpoint and
+cut on the host, and each member receives only its chunk.
 
 Train the single-device model first. It saves to `/tmp/text-classification-ag-news`, and the
 example takes another directory as its argument. Without one it uses fresh weights, which classify
