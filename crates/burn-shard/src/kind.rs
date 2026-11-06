@@ -28,6 +28,8 @@ pub enum OpKind<'a> {
     Slice { ranges: &'a [Slice] },
     /// Its first input with its second written within `ranges`.
     SliceAssign { ranges: &'a [Slice] },
+    /// Its inputs laid end to end along `dim`.
+    Concat { dim: usize },
     /// Its input broadcast along its dims of length 1, and along new leading dims.
     Expand,
     /// Attention of a query, key and value, then an optional mask or bias, or both.

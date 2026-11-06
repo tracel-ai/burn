@@ -210,6 +210,17 @@ impl TensorShardings<'_> {
                     out.shape.num_dims(),
                 ),
             ),
+            (OpKind::Concat { dim }, [_, ..]) => {
+                let shardings: OpInputs<_> =
+                    inputs.iter().map(|input| self.sharding(input)).collect();
+                let rule = LayoutRule::concat(&shardings, dim);
+                OpPlan::from_rule(
+                    inputs,
+                    out,
+                    rule.sharding(inputs.len()),
+                    Execution::EveryMember,
+                )
+            }
             (OpKind::Attention, _) => self.attention(inputs, out),
             _ => None,
         }
@@ -348,7 +359,10 @@ impl TensorShardings<'_> {
             CustomOpPlan::Gathered => None,
             CustomOpPlan::Kind(kind) => self.custom_kind(kind, op),
             CustomOpPlan::Collective { inputs, outputs } => {
-                Some(self.collective(op, &inputs, &outputs))
+                Some(self.explicit(op, &inputs, &outputs, Execution::Collective))
+            }
+            CustomOpPlan::Sharded { inputs, outputs } => {
+                Some(self.explicit(op, &inputs, &outputs, Execution::EveryMember))
             }
         }
     }
@@ -371,14 +385,21 @@ impl TensorShardings<'_> {
         }
     }
 
-    /// The plan of a collective custom op, refused when a tensor cannot take its sharding: the
-    /// rule reads the IR alone, so it cannot know what each input holds now.
+    /// The plan of a custom op whose rule names every tensor's sharding, run as `execution`
+    /// says: collective or by each member on its shards. Refused when a tensor cannot take its
+    /// sharding: the rule reads the IR alone, so it cannot know what each input holds now.
     ///
     /// # Panics
     ///
     /// When the rule gives another number of shardings than the op has tensors, or two
     /// shardings for one tensor it reads twice.
-    fn collective(&self, op: &CustomOpIr, inputs: &[Sharding], outputs: &[Sharding]) -> OpPlan {
+    fn explicit(
+        &self,
+        op: &CustomOpIr,
+        inputs: &[Sharding],
+        outputs: &[Sharding],
+        execution: Execution,
+    ) -> OpPlan {
         assert!(
             inputs.len() == op.inputs.len() && outputs.len() == op.outputs.len(),
             "The rule of `{}` gives {} input and {} output shardings to an op of {} inputs and {} \
@@ -389,13 +410,13 @@ impl TensorShardings<'_> {
             op.inputs.len(),
             op.outputs.len(),
         );
-        if let Some(error) = self.collective_refusal(op, inputs, outputs) {
+        if let Some(error) = self.explicit_refusal(op, inputs, outputs) {
             return OpPlan::refused(error);
         }
         OpPlan::from_shardings(
             op.inputs.iter().zip(inputs.iter().copied()),
             op.outputs.iter().zip(outputs.iter().copied()),
-            Execution::Collective,
+            execution,
         )
         .unwrap_or_else(|| {
             panic!(
@@ -405,7 +426,7 @@ impl TensorShardings<'_> {
         })
     }
 
-    fn collective_refusal(
+    fn explicit_refusal(
         &self,
         op: &CustomOpIr,
         inputs: &[Sharding],

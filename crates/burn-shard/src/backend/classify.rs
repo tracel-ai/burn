@@ -64,6 +64,11 @@ impl<'a> OpClass<'a> {
                 [&desc.input],
                 &desc.out,
             ),
+            BaseOperationIr::Cat(desc) => Self::Kind {
+                kind: OpKind::Concat { dim: desc.dim },
+                inputs: desc.tensors.iter().collect(),
+                out: &desc.out,
+            },
             BaseOperationIr::Slice(desc) => Self::of_kind(
                 OpKind::Slice {
                     ranges: &desc.ranges,
@@ -113,7 +118,6 @@ impl<'a> OpClass<'a> {
             | BaseOperationIr::ScatterNd(_)
             | BaseOperationIr::GatherNd(_)
             | BaseOperationIr::RepeatDim(_)
-            | BaseOperationIr::Cat(_)
             | BaseOperationIr::Empty(_)
             | BaseOperationIr::Ones(_)
             | BaseOperationIr::Zeros(_) => Self::Gathered,

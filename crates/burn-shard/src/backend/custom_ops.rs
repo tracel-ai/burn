@@ -114,6 +114,17 @@ pub enum CustomOpPlan<'a> {
         inputs: Vec<Sharding>,
         outputs: Vec<Sharding>,
     },
+    /// Each member running the operation by its own handler on its own shards, each input
+    /// sharded as `inputs` says and each output landing as `outputs` says: for an operation
+    /// whose members need nothing from each other once their inputs are placed, such as one
+    /// that runs per head, with several outputs or with a split no [`OpKind`] states. The
+    /// tensors take the shards' shapes, and the scalars stay whole. When a tensor cannot take
+    /// its sharding, the outputs fail on every member; another number of shardings than the
+    /// operation has tensors panics.
+    Sharded {
+        inputs: Vec<Sharding>,
+        outputs: Vec<Sharding>,
+    },
 }
 
 /// A registry of one backend, its type erased and its backend kept by name.
