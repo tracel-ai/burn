@@ -1,6 +1,7 @@
 use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
     UnfusedOp,
+    ops::PartsInFlight,
     stream::{StreamId, execution::Operation},
     tensor::held,
 };
@@ -191,6 +192,15 @@ where
         })
     }
 
+    /// Executes what `stream` has queued so far without waiting for it: for an operation other
+    /// devices wait on, such as one member's part of a collective, which the stream must not hold
+    /// back for a later operation to fuse with.
+    pub(crate) fn execute_queued(&self, stream: StreamId) {
+        self.server
+            .submit(move |server| server.drain_stream(stream));
+        self.server.flush_queue();
+    }
+
     /// Flush the operations queue.
     pub fn flush_queue(&self) {
         self.server.flush_queue();
@@ -321,6 +331,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        PartsInFlight::wait_until_none();
         let dtype = tensor.dtype;
         let client_dst_cloned = client_dst.clone();
         let shape = tensor.shape.clone();
@@ -365,6 +376,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        PartsInFlight::wait_until_none();
         let dtype = tensor.dtype;
         let client_dst_cloned = client_dst.clone();
         let shape = tensor.shape.clone();
@@ -409,6 +421,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        PartsInFlight::wait_until_none();
         let dtype = tensor.dtype;
         let client_dst_cloned = client_dst.clone();
         let shape = tensor.shape.clone();
@@ -453,6 +466,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        PartsInFlight::wait_until_none();
         let dtype = tensor.dtype;
         let client_dst_cloned = client_dst.clone();
         let shape = tensor.shape.clone();

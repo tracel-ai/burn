@@ -41,12 +41,12 @@ impl<R: FusionRuntime> UnfusedOp<R> {
             }
         };
         let reserved = reserved.init(op);
-        let ptr_execute = shim_execute::<R, O>;
 
         UnfusedOp {
             kind: UnfusedOpKind::Arena(UnfusedOpInArena {
                 reserved,
-                ptr_execute,
+                ptr_execute: shim_execute::<R, O>,
+                ptr_skipped: shim_skipped::<R, O>,
             }),
             stream_id,
         }
@@ -62,6 +62,15 @@ impl<R: FusionRuntime> UnfusedOp<R> {
             UnfusedOpKind::Alloc(o) => o.execute(handles),
         })
     }
+
+    /// Runs the [operation](Operation)'s [`skipped`](Operation::skipped) in place of its
+    /// execution.
+    pub fn skipped(&self) {
+        self.stream_id.executes(|| match &self.kind {
+            UnfusedOpKind::Arena(o) => o.skipped(),
+            UnfusedOpKind::Alloc(o) => o.skipped(),
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -73,6 +82,8 @@ struct UnfusedOpInArena<R: FusionRuntime> {
         *const Data,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) -> Result<(), ExecutionError>,
+    /// The skipped function pointer.
+    ptr_skipped: fn(*const Data),
 }
 
 impl<R: FusionRuntime> Clone for UnfusedOpInArena<R> {
@@ -80,6 +91,7 @@ impl<R: FusionRuntime> Clone for UnfusedOpInArena<R> {
         Self {
             reserved: self.reserved.clone(),
             ptr_execute: self.ptr_execute,
+            ptr_skipped: self.ptr_skipped,
         }
     }
 }
@@ -91,6 +103,10 @@ impl<R: FusionRuntime> UnfusedOpInArena<R> {
     ) -> Result<(), ExecutionError> {
         (self.ptr_execute)(self.reserved.as_ref(), handles)
     }
+
+    fn skipped(&self) {
+        (self.ptr_skipped)(self.reserved.as_ref())
+    }
 }
 
 fn shim_execute<R: FusionRuntime, O: Operation<R>>(
@@ -99,6 +115,11 @@ fn shim_execute<R: FusionRuntime, O: Operation<R>>(
 ) -> Result<(), ExecutionError> {
     let operation: &O = unsafe { (ptr_data as *const O).as_ref().unwrap() };
     operation.execute(handles)
+}
+
+fn shim_skipped<R: FusionRuntime, O: Operation<R>>(ptr_data: *const Data) {
+    let operation: &O = unsafe { (ptr_data as *const O).as_ref().unwrap() };
+    operation.skipped()
 }
 
 impl<R: FusionRuntime> Clone for UnfusedOp<R> {
