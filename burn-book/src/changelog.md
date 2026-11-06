@@ -442,6 +442,11 @@ For example, update custom progress logger implementations:
 + fn end_test(&mut self, progress: &Progress);
 ```
 
+- Add `DataLoaderBuilder::drop_last(bool)` and `FixBatchStrategy::with_drop_last(bool)` to discard
+  the final incomplete batch, including with multiple workers. The default keeps it. Expected
+  output counts and progress exclude dropped samples; `num_items()` keeps reporting the input
+  dataset size. ([#5911](https://github.com/tracel-ai/burn/pull/5911))
+  [@ProgrammerProfi](https://github.com/ProgrammerProfi)
 - Flush partial gradient accumulation only after normal dataloader exhaustion. An interruption or
   error observed before that update discards the pending window.
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
