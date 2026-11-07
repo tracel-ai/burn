@@ -6,6 +6,10 @@ use super::{LrScheduler, LrSchedulerRecord, String};
 use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
 use crate::{LearningRate, RecordState};
 
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float as _;
+
 /// The configuration for create a [step learning rate scheduler](StepLrScheduler).
 ///
 /// This scheduler returns the learning rate `initial_lr` from the start, and keeps doing so until
@@ -13,7 +17,7 @@ use crate::{LearningRate, RecordState};
 /// `gamma` before repeating the process.
 ///
 /// Gamma values out of range (0.0, 1.0) and non-positive initial learning rates are acceptable, but
-/// a warning log will be output for such a value in case of mistyping.
+/// a warning log will be output with the `std` feature for such a value in case of mistyping.
 ///
 /// ## Notes
 ///
@@ -40,6 +44,7 @@ impl StepLrSchedulerConfig {
 
         // Atypical values of `initial_lr` and `gamma` are not rejected because they might be useful
         // in some cases like debugging (e.g., https://datascience.stackexchange.com/q/89518).
+        #[cfg(feature = "std")]
         if self.initial_lr <= 0.0 {
             log::warn!(
                 "Initial learning rate value of {} is not a positive number. Ignore this warning \
@@ -47,6 +52,7 @@ impl StepLrSchedulerConfig {
                 self.initial_lr
             );
         }
+        #[cfg(feature = "std")]
         if self.gamma <= 0.0 || self.gamma >= 1.0 {
             log::warn!(
                 "Gamma value of {} is out of range (0.0, 1.0). Ignore this warning if it is \

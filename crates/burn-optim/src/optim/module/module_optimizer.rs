@@ -9,8 +9,9 @@ use crate::{
 };
 
 use alloc::collections::BTreeMap;
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
 use alloc::sync::Arc;
+use alloc::vec;
 use alloc::vec::Vec;
 use burn::module::{Module, ModuleMapper, Param, ParamId};
 use burn::store::RecordError;

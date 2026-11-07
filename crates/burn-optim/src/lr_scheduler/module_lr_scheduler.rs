@@ -1,3 +1,8 @@
+use alloc::{
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use burn_core::{self as burn, module::ParamId};
 
 use burn::config::Config;

@@ -7,6 +7,10 @@ use crate::LearningRate;
 use crate::RecordState;
 use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
 
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float as _;
+
 /// Configuration to create a [noam](NoamLrScheduler) learning rate scheduler.
 #[derive(Config, Debug)]
 pub struct NoamLrSchedulerConfig {

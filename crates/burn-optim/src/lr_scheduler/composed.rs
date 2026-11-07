@@ -1,3 +1,4 @@
+use alloc::{string::ToString, vec::Vec};
 use burn_core::{self as burn};
 
 use super::cosine::CosineAnnealingLrSchedulerConfig;

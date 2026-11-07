@@ -893,6 +893,11 @@ and parameter group, including partial accumulation windows. Custom strategies m
 Use `OnOptimizerStep::with(...)` to register standard metrics for optimizer updates.
 See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics).
 
+#### Optimizers without the standard library
+
+- Restore `burn-optim` builds without default features, including module learning-rate policies
+  and their schedulers.
+
 #### Regression metrics
 
 - Add regression evaluation metrics (`MseMetric`, `MaeMetric`, `R2ScoreMetric`) to

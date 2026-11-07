@@ -1,5 +1,6 @@
-use std::fmt::Debug;
+use core::fmt::Debug;
 
+use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 pub(super) use alloc::string::String;
 use alloc::vec::Vec;
