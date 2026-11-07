@@ -121,7 +121,10 @@ impl<B: BackendIr> ShardedTensor<B> {
         match self {
             Self::Float(shards) => Self::Float(each(shards, |t| B::float_to_device(t, device))),
             Self::Int(shards) => Self::Int(each(shards, |t| B::int_to_device(t, device))),
-            Self::Bool(shards) => Self::Bool(each(shards, |t| B::bool_to_device(t, device))),
+            Self::Bool(shards) => Self::Bool(each(shards, |t| {
+                let dtype = t.dtype().into();
+                B::bool_to_device(t, device, dtype)
+            })),
             Self::Quantized(shards) => Self::Quantized(each(shards, |t| B::q_to_device(t, device))),
         }
     }

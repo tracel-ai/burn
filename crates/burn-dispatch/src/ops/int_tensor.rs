@@ -33,10 +33,18 @@ impl IntTensorOps<Self> for Dispatch {
 
     #[backend_dispatch(skip)]
     fn int_to_device(tensor: IntTensor<Self>, device: &DispatchDevice) -> IntTensor<Self> {
-        to_device!(Int, int, tensor, device, int_to_device, |inner, device| {
-            let data = burn_backend::read_sync(B1::int_into_data(inner)).expect("Should read data");
-            B2::int_from_data(data, device)
-        })
+        to_device!(
+            Int,
+            int,
+            tensor,
+            device,
+            int_to_device(),
+            |inner, device| {
+                let data =
+                    burn_backend::read_sync(B1::int_into_data(inner)).expect("Should read data");
+                B2::int_from_data(data, device)
+            }
+        )
     }
 
     fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {

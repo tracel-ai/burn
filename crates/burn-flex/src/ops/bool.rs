@@ -7,7 +7,7 @@ use burn_backend::{
     ops::{BoolTensorOps, IntTensorOps},
     tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
-use burn_std::{Bytes, FloatDType, IntDType, Shape, Slice, bf16, f16};
+use burn_std::{BoolDType, BoolStore, Bytes, FloatDType, IntDType, Shape, Slice, bf16, f16};
 
 use crate::{Flex, FlexTensor, Layout};
 
@@ -20,8 +20,23 @@ impl BoolTensorOps<Flex> for Flex {
         Ok(tensor.into_data())
     }
 
-    fn bool_to_device(tensor: BoolTensor<Flex>, _device: &Device<Flex>) -> BoolTensor<Flex> {
-        tensor
+    fn bool_to_device(
+        tensor: BoolTensor<Flex>,
+        _device: &Device<Flex>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Flex> {
+        if tensor.dtype() == out_dtype.into() {
+            return tensor;
+        }
+        match out_dtype {
+            BoolStore::Native => {
+                crate::ops::comparison::bool_not_equal_elem(tensor, false, out_dtype)
+            }
+            BoolStore::U8 => {
+                FlexTensor::from_arc(tensor.data_arc(), tensor.layout().clone(), out_dtype.into())
+            }
+            BoolStore::U32 => panic!("Flex does not support Bool(U32) storage"),
+        }
     }
 
     fn bool_cat(tensors: Vec<BoolTensor<Flex>>, dim: usize) -> BoolTensor<Flex> {
