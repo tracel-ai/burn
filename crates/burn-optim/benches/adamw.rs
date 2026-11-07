@@ -12,6 +12,8 @@
 //!
 //! `--verify-path` runs every workload once in both execution modes and checks the fused result
 //! against the reference before any measurement.
+//! The `unaligned` case offsets only the fused gradient; its reference uses identical values in
+//! an aligned allocation because generic reference kernels require aligned buffer bindings.
 //!
 //! `--measure-memory <reference|fused> <workload>` runs the workload and prints the device
 //! allocator's live and peak usage. Peak pages are per process, so run each mode separately.
@@ -56,6 +58,8 @@ mod bench {
         TailMinus,
         /// One large vector with one element above a multiple of the vector width.
         TailPlus,
+        /// One large vector whose fused gradient has an offset binding.
+        Unaligned,
     }
 
     impl Workload {
@@ -66,9 +70,11 @@ mod bench {
                 Workload::Large4 => 4,
                 Workload::Large16 => 16,
                 Workload::LongShort => 2,
-                Workload::Tiny | Workload::MixedRank | Workload::TailMinus | Workload::TailPlus => {
-                    0
-                }
+                Workload::Tiny
+                | Workload::MixedRank
+                | Workload::TailMinus
+                | Workload::TailPlus
+                | Workload::Unaligned => 0,
             }
         }
 
@@ -97,12 +103,13 @@ mod bench {
                 Workload::LongShort => "long_short",
                 Workload::TailMinus => "tail_minus",
                 Workload::TailPlus => "tail_plus",
+                Workload::Unaligned => "unaligned",
             };
             f.write_str(name)
         }
     }
 
-    pub const WORKLOADS: [Workload; 8] = [
+    pub const WORKLOADS: [Workload; 9] = [
         Workload::Tiny,
         Workload::MixedRank,
         Workload::Large1,
@@ -111,6 +118,7 @@ mod bench {
         Workload::LongShort,
         Workload::TailMinus,
         Workload::TailPlus,
+        Workload::Unaligned,
     ];
 
     fn optimizer(fused: bool) -> AdamW {
@@ -271,9 +279,21 @@ mod bench {
     }
 
     impl Case {
-        fn new(workload: Workload, device: &Device, varied: bool) -> Self {
+        fn new(workload: Workload, device: &Device, varied: bool, fused: bool) -> Self {
             if workload == Workload::MixedRank {
                 return Self::Mixed(Box::new(Mixed::all(device, varied)));
+            }
+            if workload == Workload::Unaligned {
+                let case = Self::Squares(vec![Square::from_shape([1, 1_048_576], device, varied)]);
+                #[cfg(cubecl_backend)]
+                if fused {
+                    let mut case = case;
+                    case.offset_gradient(device);
+                    return case;
+                }
+                #[cfg(not(cubecl_backend))]
+                let _ = fused;
+                return case;
             }
             if matches!(workload, Workload::TailMinus | Workload::TailPlus) {
                 let len = if workload == Workload::TailMinus {
@@ -291,6 +311,41 @@ mod bench {
                 squares.push(Square::new(1024, device, varied));
             }
             Self::Squares(squares)
+        }
+
+        /// Keep the reference aligned: its generic vector kernels assume aligned bindings.
+        /// The fused gradient retains this offset through warmup and every measured step.
+        #[cfg(cubecl_backend)]
+        fn offset_gradient(&mut self, device: &Device) {
+            let Self::Squares(params) = self else {
+                unreachable!("the offset workload has one vector")
+            };
+            assert_eq!(params.len(), 1);
+            let grad = &mut params[0].grad;
+            let len = grad.shape().num_elements();
+            let offset = match device.as_dispatch() {
+                burn_core::backend::DispatchDevice::Cube(cube)
+                    if cube.runtime() == burn_cubecl::cubecl::RuntimeId::Wgpu =>
+                {
+                    cube.client().properties().memory.alignment.div_ceil(4) as usize
+                }
+                _ => 1,
+            };
+            let mut values = vec![0.0; offset];
+            values.extend_from_slice(grad.to_data().as_slice::<f32>().unwrap());
+            let mut primitive =
+                Tensor::<2>::from_data(TensorData::new(values, [1, len + offset]), device)
+                    .try_into_primitive::<burn_cubecl::Cube>()
+                    .unwrap();
+            let raw = (&mut primitive as &mut dyn std::any::Any)
+                .downcast_mut::<burn_cubecl::tensor::CubeTensor>()
+                .expect("unaligned benchmark requires raw CubeCL");
+            raw.handle.offset_start = Some((offset * 4) as u64);
+            raw.meta.remove(1);
+            raw.meta.insert(1, len, 1);
+            raw.meta.remove(0);
+            raw.meta.insert(0, 1, len);
+            *grad = Tensor::from_primitive::<burn_cubecl::Cube>(primitive);
         }
 
         /// Number of parameter slots stepped by this case.
@@ -370,7 +425,7 @@ mod bench {
     pub fn run(bencher: divan::Bencher, workload: Workload, fused: bool, sync: bool) {
         let device = Device::default();
         let optimizer = optimizer(fused);
-        let mut case = Case::new(workload, &device, false);
+        let mut case = Case::new(workload, &device, false, fused);
         #[cfg(cubecl_backend)]
         if fused {
             case.assert_fused_runs(&optimizer);
@@ -409,9 +464,12 @@ mod bench {
             let reference = optimizer(false);
             let fused = optimizer(true);
             // Varied inputs so decay, state and bias correction cannot hide behind constants.
-            let mut reference_case = Case::new(workload, &device, true);
+            let mut reference_case = Case::new(workload, &device, true, false);
             // The fused case must start from the reference's exact values.
             let mut fused_case = reference_case.clone();
+            if workload == Workload::Unaligned {
+                fused_case.offset_gradient(&device);
+            }
             #[cfg(cubecl_backend)]
             fused_case.assert_fused_runs(&fused);
 
@@ -441,7 +499,7 @@ mod bench {
     pub fn measure_memory(workload: Workload, fused: bool) {
         let device = Device::default();
         let optimizer = optimizer(fused);
-        let mut case = Case::new(workload, &device, false);
+        let mut case = Case::new(workload, &device, false, fused);
         // Prove the path in a separate --verify-path process: cloning and stepping here
         // would inflate the process-wide allocator peaks before the measurement.
         for _ in 0..STEPS {
@@ -477,7 +535,7 @@ mod bench {
     pub fn measure_reuse(workload: Workload, fused: bool, shared: bool) {
         let device = Device::default();
         let optimizer = optimizer(fused);
-        let mut case = Case::new(workload, &device, false);
+        let mut case = Case::new(workload, &device, false, fused);
         case.step(&optimizer);
         device.sync().unwrap();
         let retained = shared.then(|| case.clone());
@@ -498,7 +556,7 @@ mod bench {
     pub fn measure_jit(workload: Workload, fused: bool) {
         let device = Device::default();
         let optimizer = optimizer(fused);
-        let mut case = Case::new(workload, &device, false);
+        let mut case = Case::new(workload, &device, false, fused);
         // Setup compiles its own kernels; only the step is measured. The path is proven by
         // `--verify-path`; running the proof here would JIT the kernel outside the timer.
         device.sync().unwrap();
@@ -517,7 +575,7 @@ mod bench {
     pub fn samples(workload: Workload, fused: bool, shared: bool) {
         let device = Device::default();
         let optimizer = optimizer(fused);
-        let mut case = Case::new(workload, &device, false);
+        let mut case = Case::new(workload, &device, false, fused);
         for _ in 0..5 {
             let retained = shared.then(|| case.clone());
             case.step(&optimizer);
