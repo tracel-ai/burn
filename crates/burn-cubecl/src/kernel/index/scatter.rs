@@ -16,11 +16,11 @@ fn scatter_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     input: &mut Tensor<T>,
     indices: &Tensor<I>,
     value: &Tensor<T>,
-    in_shape: Sequence<FastDivmod<usize>>,
+    value_shape: Sequence<FastDivmod<usize>>,
     #[comptime] dim: usize,
     #[define(T, I)] _dtypes: [ElemType; 2],
 ) {
-    let rank = in_shape.len().comptime();
+    let rank = value_shape.len().comptime();
     let stride_input = input.stride(dim);
     let stride_value = value.stride(dim);
     let stride_indices = indices.stride(dim);
@@ -36,16 +36,16 @@ fn scatter_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     for i in 0..rank {
         let i = rank - i - 1;
         if i != dim {
-            let shape_input_loop = input.shape(i);
+            let shape_value_loop = value.shape(i);
 
-            let (rem, local_pos) = in_shape[i].div_mod(offset);
+            let (rem, local_pos) = value_shape[i].div_mod(offset);
             offset = rem;
 
             offset_input += local_pos * input.stride(i);
             offset_indices += local_pos * indices.stride(i);
             offset_value += local_pos * value.stride(i);
 
-            num_elems *= shape_input_loop;
+            num_elems *= shape_value_loop;
         }
     }
 
@@ -181,13 +181,18 @@ fn scatter_op<Op: BinaryOpFamily>(
         false => tensor.copy(),
     };
 
-    let num_elems = tensor.meta.num_elements() / tensor.meta.shape()[dim];
-
-    let working_units = num_elems;
+    // One unit per value row along `dim`: the values (and indices) may be smaller than the
+    // tensor on the other dims
+    let value_rows = value.meta.shape()[dim];
+    if value_rows == 0 {
+        return tensor;
+    }
+    let working_units = value.meta.num_elements() / value_rows;
     let cube_dim = CubeDim::new(&indices.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&indices.client, working_units, cube_dim);
 
     let (tensor_dtype, indices_dtype) = (tensor.dtype, indices.dtype);
+    let value_shape = shape_divmod(&value);
 
     unsafe {
         scatter_kernel::launch_unchecked::<Op>(
@@ -198,7 +203,7 @@ fn scatter_op<Op: BinaryOpFamily>(
             tensor.clone().into_tensor_arg(),
             indices.into_tensor_arg(),
             value.into_tensor_arg(),
-            shape_divmod(&tensor),
+            value_shape,
             dim,
             [
                 dtype_to_storage_type(tensor_dtype),

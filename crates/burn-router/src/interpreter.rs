@@ -92,6 +92,12 @@ impl<B: BackendIr> TensorInterpreter<B> {
         }
     }
 
+    /// The handles of the tensors on this interpreter's device, for a handler that runs one
+    /// operation over several interpreters at once.
+    pub fn handles_mut(&mut self) -> &mut HandleContainer<B::Handle> {
+        &mut self.context.handles
+    }
+
     /// Get the tensor handle for the given [tensor representation](TensorIr).
     pub fn get_tensor_handle(&mut self, tensor: &TensorIr) -> B::Handle {
         let handles = &mut self.context.handles;
@@ -134,7 +140,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 ctx.handles.register_int_tensor::<B>(&id, tensor);
             }
             HandleKind::Bool(tensor) => {
-                let tensor = B::bool_to_device(tensor, &self.device);
+                let dtype = tensor.dtype().into();
+                let tensor = B::bool_to_device(tensor, &self.device, dtype);
                 ctx.handles.register_bool_tensor::<B>(&id, tensor);
             }
             HandleKind::Quantized(tensor) => {
@@ -2120,6 +2127,13 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         .attn_bias
                         .as_ref()
                         .map(|ab| handles.get_float_tensor::<B>(ab));
+                    let cache =
+                        desc.lengths
+                            .as_ref()
+                            .map(|lengths| burn_backend::ops::AttentionCache {
+                                lengths: handles.get_int_tensor::<B>(lengths),
+                                pages: desc.pages.as_ref().map(|p| handles.get_int_tensor::<B>(p)),
+                            });
 
                     let output = B::attention(
                         query,
@@ -2127,6 +2141,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         value,
                         mask,
                         attn_bias,
+                        cache,
                         desc.options.clone().into(),
                     );
 
@@ -2355,8 +2370,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 Some(handler) => handler(handles, desc, &self.device),
                 None => {
                     let error = TensorError::new(ExecutionError::with_context(format!(
-                        "No custom-op handler registered for `{}`. Register one on the server \
-                         via `CustomOpRegistry`/the server builder before starting it.",
+                        "No custom-op handler registered for `{}`. Register one in the \
+                         `CustomOpRegistry` the server or sharded compute device is made with.",
                         desc.id
                     )));
                     handles.free_inputs(op);

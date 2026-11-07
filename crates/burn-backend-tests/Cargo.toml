@@ -96,6 +96,10 @@ divan = "0.1"
 name = "autodiff_transfer"
 required-features = ["flex", "cpu"]
 
+[[test]]
+name = "bool_transfer"
+required-features = ["cpu", "wgpu"]
+
 [[bench]]
 name = "attention"
 harness = false

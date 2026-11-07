@@ -1,5 +1,5 @@
 use burn_backend::{
-    ExecutionError, FloatDType, Shape, Slice, TensorData, TensorPrimitive,
+    ExecutionError, FloatDType, IntDType, Shape, Slice, TensorData, TensorPrimitive,
     ops::QTensorOps,
     quantization::{QuantScheme, QuantizationParametersPrimitive},
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
@@ -215,6 +215,10 @@ impl QTensorOps<Self> for Dispatch {
         B::quantize(tensor, scheme, qparams)
     }
 
+    fn quantize_dynamic(tensor: FloatTensor<Self>, scheme: &QuantScheme) -> QuantizedTensor<Self> {
+        B::quantize_dynamic(tensor, scheme)
+    }
+
     fn dequantize(tensor: QuantizedTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         B::dequantize(tensor, dtype)
     }
@@ -229,7 +233,7 @@ impl QTensorOps<Self> for Dispatch {
             quantized,
             tensor,
             device,
-            q_to_device,
+            q_to_device(),
             |inner, device| {
                 let data =
                     burn_backend::read_sync(B1::q_into_data(inner)).expect("Should read data");
@@ -276,6 +280,22 @@ impl QTensorOps<Self> for Dispatch {
 
     fn q_slice(tensor: QuantizedTensor<Self>, slices: &[Slice]) -> QuantizedTensor<Self> {
         B::q_slice(tensor, slices)
+    }
+
+    fn q_gather(
+        dim: usize,
+        tensor: QuantizedTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> QuantizedTensor<Self> {
+        B::q_gather(dim, tensor, indices)
+    }
+
+    fn q_argmax(tensor: QuantizedTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
+        B::q_argmax(tensor, dim, out_dtype)
+    }
+
+    fn q_argmin(tensor: QuantizedTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
+        B::q_argmin(tensor, dim, out_dtype)
     }
 
     #[backend_dispatch(skip)]

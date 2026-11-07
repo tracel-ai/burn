@@ -25,7 +25,7 @@ use crate::{
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 11;
+pub const PROTOCOL_VERSION: u16 = 12;
 
 /// Routing id for a task whose result is fetched back.
 ///
@@ -307,7 +307,13 @@ pub enum Task {
         new_id: TensorId,
         src_id: TensorId,
     },
-    RegisterTensorRemote(StreamId, TensorRemote, TensorId),
+    /// Register downloaded data with the destination dtype. Only boolean storage may change.
+    RegisterTensorRemote {
+        stream_id: StreamId,
+        tensor: TensorRemote,
+        new_id: TensorId,
+        dtype: DType,
+    },
     ExposeTensorRemote {
         stream_id: StreamId,
         tensor: TensorIr,
@@ -333,10 +339,12 @@ pub enum Task {
     ///
     /// `stream_id` is the client stream that will consume `new_id`, so the registration lands
     /// on the same stream as the ops that use the transferred tensor.
+    /// `dtype` is the destination dtype. Only boolean storage may differ from the source.
     RegisterTensorLocal {
         stream_id: StreamId,
         transfer_id: LocalTransferId,
         new_id: TensorId,
+        dtype: DType,
     },
     /// Register `id` as failed by `reason`: its data was never produced, so a read of it reports
     /// why. For a transfer whose source could not send it, as when its session ended.
