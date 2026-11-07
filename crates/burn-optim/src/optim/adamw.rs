@@ -1049,7 +1049,7 @@ mod tests {
             }
             let device = Device::default();
             // WGPU requires storage-buffer binding offsets aligned to its adapter limit.
-            // CPU/native Metal allow a one-float offset, which exercises scalar fallback.
+            // Other runtimes exercise the fused kernel's one-float-offset scalar fallback.
             let offset_stride = match device.as_dispatch() {
                 burn::backend::DispatchDevice::Cube(cube)
                     if cube.runtime() == burn_cubecl::cubecl::RuntimeId::Wgpu =>
@@ -1068,6 +1068,10 @@ mod tests {
                     let make = |scale, offset| {
                         let offset = offset * offset_stride;
                         let values = values(len + offset, scale);
+                        // The reference's generic vector kernels assume aligned bindings.
+                        // Give it the same logical values in a normal allocation; only the
+                        // fused kernel is responsible for this synthetic unaligned input.
+                        let reference = tensor(&values[offset..], [len], &device);
                         let mut primitive = tensor(&values, [len + offset], &device)
                             .try_into_primitive::<burn_cubecl::Cube>()
                             .unwrap();
@@ -1079,14 +1083,22 @@ mod tests {
                             raw.meta.remove(0);
                             raw.meta.insert(0, len, 1);
                         }
-                        Tensor::<1>::from_primitive::<burn_cubecl::Cube>(primitive)
+                        (
+                            Tensor::<1>::from_primitive::<burn_cubecl::Cube>(primitive),
+                            reference,
+                        )
                     };
-                    let mut actual = (make(1.0, param_offset), None);
-                    let mut expected = (actual.0.clone(), None);
+                    let (param, reference_param) = make(1.0, param_offset);
+                    let mut actual = (param, None);
+                    let mut expected = (reference_param, None);
                     for _ in 0..3 {
-                        let grad = make(0.1, grad_offset);
-                        expected =
-                            reference.step(LEARNING_RATE, expected.0, grad.clone(), expected.1);
+                        let (grad, reference_grad) = make(0.1, grad_offset);
+                        expected = reference.step(
+                            LEARNING_RATE,
+                            expected.0,
+                            reference_grad,
+                            expected.1,
+                        );
                         let (launches, _observation) = KernelCounter::start();
                         actual = fused.step(LEARNING_RATE, actual.0, grad, actual.1);
                         assert!(
