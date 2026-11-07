@@ -789,6 +789,15 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 
 ### Training and data
 
+#### AdamW execution
+
+- Add opt-in `AdamWExecutionConfig::Fused` for raw CubeCL F32 updates and `Foreach` for compatible
+  CPU module parameters. The dedicated kernels reuse exclusively owned outputs and vectorize
+  eligible CPU buffers. Unsupported cases retain the reference implementation; configuration
+  defaults, gradient clipping, and checkpoint formats are unchanged. See
+  [AdamW execution](./building-blocks/optimizer.md#adamw-execution) for feature selection and
+  batching tradeoffs.
+
 #### Binary cross-entropy loss
 
 - Reject invalid binary-cross-entropy inputs.

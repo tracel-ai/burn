@@ -18,6 +18,58 @@ use burn::store::RecordError;
 use burn::tensor::{Bytes, Device, Tensor};
 use hashbrown::HashMap;
 
+#[cfg(cubecl_backend)]
+use burn_cubecl::kernel::optim::{AdamWBatchResult, AdamWPending, execute_adamw_batch};
+
+#[cfg(cubecl_backend)]
+struct PendingUpdate {
+    id: ParamId,
+    optim: Arc<dyn DynOptimizer>,
+    grad_clipping: Option<GradientClipping>,
+    path: String,
+    time: usize,
+    context: ParameterContext,
+}
+
+#[cfg(cubecl_backend)]
+struct ApplyBatchMapper<'a> {
+    outputs: HashMap<
+        ParamId,
+        (
+            PendingUpdate,
+            AdamWBatchResult<crate::optim::adamw::CubePrimitive>,
+        ),
+    >,
+    states: &'a mut HashMap<ParamId, OptimizationContext>,
+}
+
+#[cfg(cubecl_backend)]
+impl ModuleMapper for ApplyBatchMapper<'_> {
+    fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
+        let Some((update, output)) = self.outputs.remove(&param.id) else {
+            return param;
+        };
+        let (id, tensor, mapper) = param.consume();
+        // A deferred singleton can reuse its parameter after collection releases this handle.
+        drop(tensor);
+        let output = output.finish();
+        // This traversal supplies the original rank, so no boxed state builder or runtime
+        // rank dispatch is needed to reconstruct the optimizer state.
+        let (tensor, state) = crate::AdamW::restore::<D>(update.time, output);
+        let tensor = update.context.restore(tensor, id);
+        self.states.insert(
+            id,
+            OptimizationContext {
+                optim: update.optim,
+                grad_clipping: update.grad_clipping,
+                path: Some(update.path),
+                state: DynState::create(state, D),
+            },
+        );
+        Param::from_mapped_value(id, tensor, mapper)
+    }
+}
+
 /// Scalar key (per parameter) under which the parameter's state rank is persisted.
 ///
 /// Reserved: a custom [`Optimizer::State`](crate::Optimizer::State) must not have a top-level
@@ -119,12 +171,39 @@ impl ModuleOptimizer {
         module: M,
         mut grads: GradAdaptor,
     ) -> M {
-        module.map(&mut ModuleOptimizerMapper::new(
+        let mut mapper = ModuleOptimizerMapper::new(
             self.optimizers.iter().collect(),
             &mut self.param_context,
             &mut grads,
             lr_policy,
-        ))
+        );
+        let module = module.map(&mut mapper);
+        #[cfg(cubecl_backend)]
+        {
+            if mapper.pending.is_empty() {
+                return module;
+            }
+            let (updates, inputs): (Vec<_>, Vec<_>) =
+                core::mem::take(&mut mapper.pending).into_iter().unzip();
+            drop(mapper);
+            let outputs = execute_adamw_batch(inputs);
+            let mut apply = ApplyBatchMapper {
+                outputs: updates
+                    .into_iter()
+                    .zip(outputs)
+                    .map(|(update, output)| (update.id, (update, output)))
+                    .collect(),
+                states: &mut self.param_context,
+            };
+            let module = module.map(&mut apply);
+            assert!(
+                apply.outputs.is_empty(),
+                "module traversal must restore every collected parameter"
+            );
+            module
+        }
+        #[cfg(not(cubecl_backend))]
+        module
     }
 
     /// Adds an optimizer specific to a parameter group.
@@ -372,6 +451,10 @@ struct ModuleOptimizerMapper<'a> {
     states: &'a mut HashMap<ParamId, OptimizationContext>,
     grads: &'a mut GradAdaptor,
     lr_module: ModuleLearningRate,
+    #[cfg(cubecl_backend)]
+    pending: Vec<(PendingUpdate, AdamWPending)>,
+    #[cfg(cubecl_backend)]
+    foreach_enabled: bool,
 }
 
 impl<'a> ModuleOptimizerMapper<'a> {
@@ -381,12 +464,24 @@ impl<'a> ModuleOptimizerMapper<'a> {
         grads: &'a mut GradAdaptor,
         lr_module: ModuleLearningRate,
     ) -> Self {
+        #[cfg(cubecl_backend)]
+        let foreach_enabled = optimizer_groups.iter().any(|group| {
+            group
+                .optim
+                .as_any()
+                .and_then(|optim| optim.downcast_ref::<crate::AdamW>())
+                .is_some_and(crate::AdamW::uses_foreach)
+        });
         Self {
             path: vec![],
             optimizer_groups,
             states,
             grads,
             lr_module,
+            #[cfg(cubecl_backend)]
+            pending: Vec::new(),
+            #[cfg(cubecl_backend)]
+            foreach_enabled,
         }
     }
 
@@ -423,8 +518,7 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
         let tensor = if let Some((grad, device)) = grad {
             let context = ParameterContext::capture(&tensor);
 
-            let entry = self.states.remove_entry(&id);
-            let key = entry.as_ref().map(|(k, _)| *k);
+            let entry = self.states.remove(&id);
             let tensor = if tensor.device() != device {
                 tensor.to_device(&device)
             } else {
@@ -432,7 +526,7 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
             };
 
             let path = self.path.join(".");
-            let (optim, grad_clipping, existing_dyn_state) = match entry.map(|(_, s)| s) {
+            let (optim, grad_clipping, existing_dyn_state) = match entry {
                 Some(OptimizationContext {
                     optim,
                     grad_clipping,
@@ -464,17 +558,56 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
             );
 
             let lr = self.lr_module.lr_from_param(id, Some(path.as_str()));
+            let state = existing_dyn_state.map(|s| optim.to_device_dyn(s, &device));
+            #[cfg(cubecl_backend)]
+            let (inner, clipped_grad, state) = {
+                let adamw = self
+                    .foreach_enabled
+                    .then(|| optim.as_any())
+                    .flatten()
+                    .and_then(|optim| optim.downcast_ref::<crate::AdamW>());
+                if D <= 8 && adamw.is_some_and(|optim| optim.can_batch(&device)) {
+                    let prepared = adamw.unwrap().prepare(
+                        lr,
+                        tensor.clone().inner(),
+                        clipped_grad,
+                        state.map(|s| s.downcast::<crate::AdamWState<D>>()),
+                    );
+                    match prepared {
+                        Ok((time, pending)) => {
+                            let update = PendingUpdate {
+                                id,
+                                optim,
+                                grad_clipping,
+                                path,
+                                time,
+                                context,
+                            };
+                            self.pending.push((update, pending));
+                            return Param::from_mapped_value(id, tensor, mapper);
+                        }
+                        Err((inner, grad, state)) => {
+                            drop(tensor);
+                            (inner, grad, state.map(|s| DynState::create(s, D)))
+                        }
+                    }
+                } else {
+                    (tensor.inner(), clipped_grad, state)
+                }
+            };
+            #[cfg(not(cubecl_backend))]
+            let inner = tensor.inner();
             let (tensor, state) = optim.step_dyn(
                 D,
                 lr,
-                tensor.inner().into_bridge(),
+                inner.into_bridge(),
                 clipped_grad.into_bridge(),
-                existing_dyn_state.map(|s| optim.to_device_dyn(s, &device)),
+                state,
             );
 
             if let Some(state) = state {
                 self.states.insert(
-                    key.unwrap_or(id),
+                    id,
                     OptimizationContext {
                         optim,
                         path: Some(path),

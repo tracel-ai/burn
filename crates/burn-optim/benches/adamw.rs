@@ -20,6 +20,10 @@
 #[path = "../src/optim/adamw/test_support.rs"]
 mod test_support;
 
+#[cfg(cubecl_backend)]
+#[path = "adamw/foreach.rs"]
+mod foreach;
+
 mod bench {
     use std::fmt;
 
@@ -582,6 +586,11 @@ fn main() {
     }
 
     let args: Vec<String> = std::env::args().collect();
+    #[cfg(cubecl_backend)]
+    if let Some(index) = args.iter().position(|arg| arg == "--module-samples") {
+        foreach::run(&args[index + 1], &args[index + 2]);
+        return;
+    }
 
     if args.iter().any(|arg| arg == "--verify-path") {
         #[cfg(cubecl_backend)]

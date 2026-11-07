@@ -23,13 +23,12 @@
 //!
 //! - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
 //! - `tracing`: instrument operations with the `tracing` crate.
-//! - `cpu`, `cuda`, `rocm`, `wgpu`, `wgpu-msl`, `vulkan`, `webgpu`, `metal`: compile the fused
-//!   AdamW step for that CubeCL runtime and enable the matching `burn-core` backend. Without one
+//! - `cpu`, `cuda`, `rocm`, `wgpu`, `wgpu-msl`, `vulkan`, `webgpu`, `metal`: compile the specialized
+//!   AdamW updates for that CubeCL runtime and enable the matching `burn-core` backend. Without one
 //!   of these the fused step is not built and every configuration falls back to the reference
 //!   update. Default features enable kernel fusion with a `burn` runtime, where the fused step
-//!   also falls back; build without default features to run it. Numerical parity is covered by
-//!   tests on CPU, Metal and native wgpu with WGSL or MSL. Browser WebGPU, CUDA, ROCm and
-//!   Vulkan have not been validated in this checkout's environment.
+//!   also falls back; build without default features to run it. Module-level Foreach batching is
+//!   limited to eligible CPU parameters; other inputs use the single-parameter fallback.
 
 #[macro_use]
 extern crate derive_new;

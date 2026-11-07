@@ -131,6 +131,12 @@ macro_rules! dispatch_rank {
 /// Object-safe view over an [`Optimizer`], allowing [`ModuleOptimizer`](crate::optim::ModuleOptimizer)
 /// to stay non-generic. Rank-generic operations are dispatched on a runtime rank.
 pub trait DynOptimizer: Send + Sync {
+    /// Expose the concrete optimizer to internal module-level execution strategies.
+    #[doc(hidden)]
+    fn as_any(&self) -> Option<&dyn Any> {
+        None
+    }
+
     /// Perform an optimizer step for a single parameter of the given `rank`.
     fn step_dyn(
         &self,
@@ -162,6 +168,10 @@ pub trait DynOptimizer: Send + Sync {
 }
 
 impl<O: Optimizer> DynOptimizer for O {
+    fn as_any(&self) -> Option<&dyn Any> {
+        Some(self)
+    }
+
     fn step_dyn(
         &self,
         rank: usize,

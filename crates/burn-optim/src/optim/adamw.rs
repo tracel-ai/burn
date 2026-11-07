@@ -11,8 +11,21 @@ use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 #[cfg(cubecl_backend)]
 mod cube;
 
+#[cfg(cubecl_backend)]
+pub(crate) type CubePrimitive =
+    <burn_cubecl::Cube as burn::backend::BackendTypes>::FloatTensorPrimitive;
+
 #[cfg(all(test, cubecl_backend))]
 mod test_support;
+
+#[cfg(all(test, cubecl_backend))]
+mod foreach_tests;
+
+#[cfg(all(test, cubecl_backend))]
+fn step_guard() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|poison| poison.into_inner())
+}
 
 /// Without a CubeCL runtime the fused execution is unavailable, so every step falls back.
 #[cfg(not(cubecl_backend))]
@@ -61,6 +74,11 @@ pub enum AdamWExecutionConfig {
     /// [`Reference`](Self::Reference). The module optimizer strips the autodiff context itself;
     /// a direct [`Optimizer::step`](crate::Optimizer::step) call on a tracked tensor falls back.
     Fused,
+    /// Batch compatible CPU module parameters on their original execution streams.
+    ///
+    /// Direct calls, other runtimes, large inputs and singleton groups use
+    /// [`Fused`](Self::Fused), including its fallback to the reference implementation.
+    Foreach,
 }
 
 /// [`AdamW`] Configuration.
@@ -138,7 +156,7 @@ impl Optimizer for AdamW {
     ) -> (Tensor<D>, Option<Self::State<D>>) {
         match &self.execution {
             AdamWExecutionConfig::Reference => self.reference_step(lr, tensor, grad, state),
-            AdamWExecutionConfig::Fused => match cube::try_step(
+            AdamWExecutionConfig::Fused | AdamWExecutionConfig::Foreach => match cube::try_step(
                 lr,
                 tensor,
                 grad,
@@ -160,6 +178,50 @@ impl Optimizer for AdamW {
 }
 
 impl AdamW {
+    #[cfg(cubecl_backend)]
+    pub(crate) fn uses_foreach(&self) -> bool {
+        matches!(self.execution, AdamWExecutionConfig::Foreach)
+    }
+
+    #[cfg(cubecl_backend)]
+    pub(crate) fn can_batch(&self, device: &Device) -> bool {
+        self.uses_foreach()
+            && !burn_cubecl::FUSED
+            && matches!(
+                device.as_dispatch(),
+                burn::backend::DispatchDevice::Cube(cube)
+                    if cube.runtime() == burn_cubecl::cubecl::RuntimeId::Cpu
+            )
+    }
+
+    #[cfg(cubecl_backend)]
+    #[allow(clippy::result_large_err)]
+    pub(crate) fn prepare<const D: usize>(
+        &self,
+        lr: LearningRate,
+        tensor: Tensor<D>,
+        grad: Tensor<D>,
+        state: Option<AdamWState<D>>,
+    ) -> Result<(usize, burn_cubecl::kernel::optim::AdamWPending), StepInputs<D>> {
+        cube::try_prepare(
+            lr,
+            tensor,
+            grad,
+            state,
+            &self.momentum,
+            self.weight_decay,
+            self.cautious_weight_decay,
+        )
+    }
+
+    #[cfg(cubecl_backend)]
+    pub(crate) fn restore<const D: usize>(
+        time: usize,
+        output: burn_cubecl::kernel::optim::AdamWOutput<CubePrimitive>,
+    ) -> (Tensor<D>, AdamWState<D>) {
+        cube::restore(time, output)
+    }
+
     /// The reference implementation: the update is assembled from tensor operations.
     fn reference_step<const D: usize>(
         &self,
@@ -669,14 +731,18 @@ mod tests {
 
     #[test]
     fn execution_round_trips_through_json_and_binary() {
-        for execution in [AdamWExecutionConfig::Reference, AdamWExecutionConfig::Fused] {
-            let expected_fused = matches!(execution, AdamWExecutionConfig::Fused);
+        for execution in [
+            AdamWExecutionConfig::Reference,
+            AdamWExecutionConfig::Fused,
+            AdamWExecutionConfig::Foreach,
+        ] {
+            let expected = core::mem::discriminant(&execution);
             let config = AdamWConfig::new().with_execution(Some(execution));
             let json = burn::config::config_to_json(&config);
             let loaded = AdamWConfig::load_binary(json.as_bytes()).unwrap();
-            assert!(loaded.execution.is_some());
-            assert!(
-                matches!(&loaded.execution, Some(AdamWExecutionConfig::Fused)) == expected_fused
+            assert_eq!(
+                core::mem::discriminant(loaded.execution.as_ref().unwrap()),
+                expected
             );
         }
     }
@@ -690,14 +756,7 @@ mod tests {
         use burn::tensor::DType;
         use burn_cubecl::kernel::optim::{AdamWHostScalars, AdamWInputs, try_adamw};
 
-        /// The launch counter is process-wide; serialize tests that can submit the kernel.
-        static STEP_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-        fn step_guard() -> std::sync::MutexGuard<'static, ()> {
-            STEP_LOCK
-                .lock()
-                .unwrap_or_else(|poison| poison.into_inner())
-        }
+        use super::super::step_guard;
 
         fn tolerance() -> Tolerance<f32> {
             // Four epsilons of absolute slack and eight of relative: enough for different FMA
@@ -1093,12 +1152,8 @@ mod tests {
                     let mut expected = (reference_param, None);
                     for _ in 0..3 {
                         let (grad, reference_grad) = make(0.1, grad_offset);
-                        expected = reference.step(
-                            LEARNING_RATE,
-                            expected.0,
-                            reference_grad,
-                            expected.1,
-                        );
+                        expected =
+                            reference.step(LEARNING_RATE, expected.0, reference_grad, expected.1);
                         let (launches, _observation) = KernelCounter::start();
                         actual = fused.step(LEARNING_RATE, actual.0, grad, actual.1);
                         assert!(
@@ -1830,15 +1885,41 @@ mod tests {
             if !device.supports_dtype(DType::F16) {
                 return;
             }
-            let fused = fused_config(false, false, 0.0).build();
-
-            // 300 * 300 overflows F16: materializing each tensor operation gives m2 = inf, which
-            // an F32 chain inside one fused kernel would wrongly keep finite.
-            let grad = tensor::<1>(&[300.0], [1], &device).cast(DType::F16);
-            let param = tensor::<1>(&[1.0], [1], &device).cast(DType::F16);
-            let (_, state) = no_launch(|| fused.step(LEARNING_RATE, param, grad, None));
-            let moment_2 = state.unwrap().momentum.moment_2.cast(DType::F32).to_data();
-            assert!(moment_2.as_slice::<f32>().unwrap()[0].is_infinite());
+            let config = fused_config(false, false, 0.0);
+            let fused = config.build();
+            let reference = config.with_execution(None).build();
+            let make = || {
+                (
+                    tensor::<1>(&[1.0], [1], &device).cast(DType::F16),
+                    tensor::<1>(&[300.0], [1], &device).cast(DType::F16),
+                )
+            };
+            let (param, grad) = make();
+            let expected = reference.step(LEARNING_RATE, param, grad, None);
+            let (param, grad) = make();
+            let actual = no_launch(|| fused.step(LEARNING_RATE, param, grad, None));
+            let expected_state = &expected.1.unwrap().momentum;
+            let actual_state = &actual.1.unwrap().momentum;
+            assert_eq!(expected_state.time, actual_state.time);
+            assert!(expected_state.max_moment_2.is_none());
+            assert!(actual_state.max_moment_2.is_none());
+            for (expected, actual) in [
+                (&expected.0, &actual.0),
+                (&expected_state.moment_1, &actual_state.moment_1),
+                (&expected_state.moment_2, &actual_state.moment_2),
+            ] {
+                assert_eq!(actual.dtype(), DType::F16);
+                assert_special_close(
+                    &expected.clone().cast(DType::F32).to_data(),
+                    &actual.clone().cast(DType::F32).to_data(),
+                );
+            }
+            // Eager F16 materializes 300 * 300 as infinity before scaling. A fusion graph can
+            // retain a wider intermediate, so its contract is the independently built reference.
+            if !burn_cubecl::FUSED {
+                let moment_2 = actual_state.moment_2.clone().cast(DType::F32).to_data();
+                assert!(moment_2.as_slice::<f32>().unwrap()[0].is_infinite());
+            }
         }
 
         #[test]

@@ -43,6 +43,17 @@ vulkan = ["std", "dep:burn-cubecl", "burn-core/vulkan", "burn-cubecl/vulkan"]
 webgpu = ["std", "dep:burn-cubecl", "burn-core/webgpu", "burn-cubecl/webgpu"]
 metal = ["std", "dep:burn-cubecl", "burn-core/metal", "burn-cubecl/metal"]
 
+# Public-API regression tests for AdamW's decorator fallback. Keep their runtimes opt-in.
+adamw-execution-tests = [
+    "cpu",
+    "burn-core/shard",
+    "burn-core/capture",
+    "burn-core/ir",
+    "burn-core/remote-server",
+    "burn-core/remote-websocket",
+    "dep:tokio",
+]
+
 # collective = ["burn-collective"]
 
 [dependencies]
@@ -58,6 +69,7 @@ num-traits = { workspace = true }
 derive-new = { workspace = true }
 log = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, optional = true, features = ["rt-multi-thread", "net", "time"] }
 
 # The same implementation of HashMap in std but with no_std support (only alloc crate is needed)
 hashbrown = { workspace = true, features = ["serde"] } # no_std compatible
