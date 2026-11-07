@@ -887,7 +887,7 @@ For example, update custom progress logger implementations:
   `EmaWarmup`, and `EmaRecord` to `burn-optim` (`burn::optim` / `burn::ema`) for maintaining a
   detached exponential moving average of a module's floating-point parameters across optimizer
   steps with decay warmup and burnpack checkpointing.
-  ([#5402](https://github.com/tracel-ai/burn/issues/5402))
+  ([#6441](https://github.com/tracel-ai/burn/pull/6441))
   [@divakantpandey](https://github.com/divakantpandey)
 
 #### LBFGS optimizer
