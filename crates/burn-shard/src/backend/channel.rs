@@ -72,7 +72,8 @@ impl MultiBackendBridge for ShardBridge {
         tensor: TensorData,
         _shape: Shape,
         _target: &ShardedComputeDevice,
+        out_dtype: burn_backend::BoolDType,
     ) -> TensorData {
-        tensor
+        tensor.convert_dtype(out_dtype.into())
     }
 }

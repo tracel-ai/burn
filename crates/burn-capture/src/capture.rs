@@ -486,8 +486,9 @@ impl MultiBackendBridge for CaptureBridge {
         tensor: TensorData,
         _shape: Shape,
         _target: &Self::Device,
+        out_dtype: burn_backend::BoolDType,
     ) -> TensorData {
-        tensor
+        tensor.convert_dtype(out_dtype.into())
     }
 }
 
