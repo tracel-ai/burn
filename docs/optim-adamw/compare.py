@@ -29,6 +29,8 @@ def main():
         manifest = json.loads(Path(str(path) + ".json").read_text())
         if hashlib.sha256(path.read_bytes()).hexdigest() != manifest["binary_sha256"]:
             raise ValueError(f"{path}: manifest mismatch")
+        if set(manifest["features"].split(",")) != set(args.features.split(",")):
+            raise ValueError(f"{path}: features differ from the saved build manifest")
         result["binaries"][label] = manifest
     env = {**os.environ, "BURN_DEVICE": args.backend}
     args.output.parent.mkdir(parents=True, exist_ok=True)

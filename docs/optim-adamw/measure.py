@@ -17,38 +17,40 @@ def main():
     parser.add_argument("output", type=Path)
     parser.add_argument("--backend", required=True)
     parser.add_argument("--features", required=True)
-    parser.add_argument("--modes", nargs="+", default=["reference", "fused"])
+    parser.add_argument("--modes", nargs="+")
+    parser.add_argument("--module", action="store_true", help="Measure complete ModuleOptimizer steps")
+    parser.add_argument("--repeats", type=int, default=1, help="Independent processes per workload/mode")
     parser.add_argument("--workloads", nargs="+", default=[
         "tiny", "mixed_rank", "large_1", "large_4", "large_16", "long_short",
     ])
     parser.add_argument("--shared", action="store_true")
     parser.add_argument("--source-manifest", type=Path,
-                        help="Source hashes saved alongside this exact built binary")
+                        help="Build manifest (default: <binary>.json, produced by build.py)")
     args = parser.parse_args()
+    args.modes = args.modes or (["paired"] if args.module else ["reference", "fused"])
+    allowed = {"paired", "fused", "foreach", "profile-fused", "profile-foreach"} if args.module else {"reference", "fused"}
+    if args.repeats < 1 or not set(args.modes) <= allowed or (args.module and args.shared):
+        parser.error("Invalid modes, repeat count, or shared module measurement")
+    if args.module and "paired" in args.modes and {"fused", "foreach"} & set(args.modes):
+        parser.error("Measure paired and single-model throughput in separate reports")
     binary = str(args.binary.resolve())
+    manifest = json.loads((args.source_manifest or Path(binary + ".json")).read_text())
+    with Path(binary).open("rb") as executable:
+        binary_hash = hashlib.file_digest(executable, "sha256").hexdigest()
+    if manifest["binary_sha256"] != binary_hash:
+        raise ValueError("Source manifest belongs to another binary")
+    if set(manifest["features"].split(",")) != set(args.features.split(",")):
+        raise ValueError("Features differ from the saved build manifest")
     env = {**os.environ, "BURN_DEVICE": args.backend}
     report = {
         "date": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "platform": platform.platform(), "backend": args.backend,
         "load_average": os.getloadavg(),
-        "features": args.features, "binary_sha256": hashlib.sha256(Path(binary).read_bytes()).hexdigest(),
-        "warmup_steps": 5, "samples": 30, "shared": args.shared,
-        "rustc": subprocess.check_output(["rustc", "--version"], text=True).strip(),
-        "sources": {}, "runs": [],
+        "features": args.features, "binary_sha256": binary_hash,
+        "module": args.module, "repeats": args.repeats, "shared": args.shared,
+        "samples": 30, "paired_samples_per_mode": 40,
+        "build": manifest, "sources": manifest["sources"], "runs": [],
     }
-    for path in [
-        "Cargo.lock", "crates/burn-optim/benches/adamw.rs",
-        "crates/burn-optim/Cargo.toml", "crates/burn-optim/build.rs",
-        "crates/burn-optim/src/optim/adamw.rs",
-        "crates/burn-optim/src/optim/adamw/cube.rs",
-        "crates/burn-cubecl/src/kernel/optim/adamw.rs",
-    ]:
-        report["sources"][path] = hashlib.sha256(Path(path).read_bytes()).hexdigest()
-    if args.source_manifest:
-        manifest = json.loads(args.source_manifest.read_text())
-        if manifest["binary_sha256"] != report["binary_sha256"]:
-            raise ValueError("Source manifest belongs to another binary")
-        report["sources"] = manifest["sources"]
     args.output.parent.mkdir(parents=True, exist_ok=True)
 
     def save():
@@ -67,12 +69,17 @@ def main():
             raise RuntimeError(f"{command}: exit {result.returncode}\n{result.stderr[-4000:]}")
         print(args.backend, " ".join(options), "ok", flush=True)
 
-    if "fused" in args.modes:
+    if not args.module and "fused" in args.modes:
         run("--verify-path")
     for workload in args.workloads:
-        for mode in args.modes:
-            run("--samples-json", mode, workload, *(["--shared"] if args.shared else []))
-            if not args.shared:
+        for repeat in range(args.repeats):
+            for mode in args.modes if repeat % 2 == 0 else reversed(args.modes):
+                if args.module:
+                    run("--module-samples", mode, workload)
+                else:
+                    run("--samples-json", mode, workload, *(["--shared"] if args.shared else []))
+        if not args.module and not args.shared:
+            for mode in args.modes:
                 run("--measure-memory", mode, workload)
                 run("--measure-jit", mode, workload)
 
