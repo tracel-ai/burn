@@ -136,16 +136,16 @@ rocm = ["burn-core/rocm", "burn-linalg?/rocm", "burn-signal?/rocm", "burn-vision
 flex = ["burn-core/flex", "burn-linalg?/flex", "burn-signal?/flex", "burn-vision?/flex"]
 vulkan = ["wgpu", "burn-core/vulkan", "burn-linalg?/vulkan", "burn-signal?/vulkan", "burn-vision?/vulkan"]
 webgpu = ["wgpu", "burn-core/webgpu", "burn-linalg?/webgpu", "burn-signal?/webgpu", "burn-vision?/webgpu"]
-metal = ["wgpu", "burn-core/metal", "burn-linalg?/metal", "burn-signal?/metal", "burn-vision?/metal"]
-metal-native = ["burn-core/metal-native", "burn-linalg?/metal-native", "burn-signal?/metal-native", "burn-vision?/metal-native"]
+wgpu-msl = ["wgpu", "burn-core/wgpu-msl", "burn-linalg?/wgpu-msl", "burn-signal?/wgpu-msl", "burn-vision?/wgpu-msl"]
+metal = ["burn-core/metal", "burn-linalg?/metal", "burn-signal?/metal", "burn-vision?/metal"]
 wgpu = ["burn-core/wgpu", "burn-linalg?/wgpu", "burn-signal?/wgpu", "burn-vision?/wgpu"]
 cpu = ["burn-core/cpu", "burn-linalg?/cpu", "burn-signal?/cpu", "burn-vision?/cpu"]
 
 # Backend extensions
 extension = ["burn-core/extension"]
 capture = ["burn-core/capture", "burn-linalg?/capture", "burn-signal?/capture"]
-# Experimental: tensors split over a group of devices, for tensor parallelism.
-group = ["burn-core/group"]
+# Experimental: tensors split over several devices, for tensor parallelism.
+shard = ["burn-core/shard"]
 
 [dependencies]
 

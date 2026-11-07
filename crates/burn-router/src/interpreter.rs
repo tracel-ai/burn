@@ -12,10 +12,11 @@ use alloc::{
     vec::Vec,
 };
 use burn_backend::{
-    Backend, BackendGraph, DType, DeviceDescription, DeviceOps, DeviceTelemetry, ExecutionError,
-    ExecutionMode, ExecutionModeToken, ExecutionStatistics, FloatDType, MemoryReport, Peak,
-    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, Shape, TensorData,
-    TensorMetadata, TensorPrimitive, ops::TransactionPrimitive,
+    Backend, BackendGraph, DType, DeviceDescription, DeviceOps, DeviceTelemetry, EnvironmentBundle,
+    EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, FloatDType, MemoryReport, Peak, PeakError, PeakKey,
+    ProfileDuration, ProfileOptions, ProfileToken, Shape, TensorData, TensorMetadata,
+    TensorPrimitive, ops::TransactionPrimitive,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
@@ -91,6 +92,12 @@ impl<B: BackendIr> TensorInterpreter<B> {
         }
     }
 
+    /// The handles of the tensors on this interpreter's device, for a handler that runs one
+    /// operation over several interpreters at once.
+    pub fn handles_mut(&mut self) -> &mut HandleContainer<B::Handle> {
+        &mut self.context.handles
+    }
+
     /// Get the tensor handle for the given [tensor representation](TensorIr).
     pub fn get_tensor_handle(&mut self, tensor: &TensorIr) -> B::Handle {
         let handles = &mut self.context.handles;
@@ -133,7 +140,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 ctx.handles.register_int_tensor::<B>(&id, tensor);
             }
             HandleKind::Bool(tensor) => {
-                let tensor = B::bool_to_device(tensor, &self.device);
+                let dtype = tensor.dtype().into();
+                let tensor = B::bool_to_device(tensor, &self.device, dtype);
                 ctx.handles.register_bool_tensor::<B>(&id, tensor);
             }
             HandleKind::Quantized(tensor) => {
@@ -1289,6 +1297,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.distribution,
                         &self.device,
                         desc.out.dtype.into(),
+                        desc.key(),
                     );
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
@@ -1516,6 +1525,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.distribution,
                         &self.device,
                         desc.out.dtype.into(),
+                        desc.key(),
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
@@ -2117,6 +2127,13 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         .attn_bias
                         .as_ref()
                         .map(|ab| handles.get_float_tensor::<B>(ab));
+                    let cache =
+                        desc.lengths
+                            .as_ref()
+                            .map(|lengths| burn_backend::ops::AttentionCache {
+                                lengths: handles.get_int_tensor::<B>(lengths),
+                                pages: desc.pages.as_ref().map(|p| handles.get_int_tensor::<B>(p)),
+                            });
 
                     let output = B::attention(
                         query,
@@ -2124,6 +2141,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         value,
                         mask,
                         attn_bias,
+                        cache,
                         desc.options.clone().into(),
                     );
 
@@ -2352,8 +2370,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 Some(handler) => handler(handles, desc, &self.device),
                 None => {
                     let error = TensorError::new(ExecutionError::with_context(format!(
-                        "No custom-op handler registered for `{}`. Register one on the server \
-                         via `CustomOpRegistry`/the server builder before starting it.",
+                        "No custom-op handler registered for `{}`. Register one in the \
+                         `CustomOpRegistry` the server or sharded compute device is made with.",
                         desc.id
                     )));
                     handles.free_inputs(op);
@@ -2509,6 +2527,47 @@ impl<B: BackendIr> TensorInterpreter<B> {
         token: ExecutionModeToken,
     ) -> Result<ExecutionStatistics, ExecutionError> {
         B::execution_mode_close(&self.device, token)
+    }
+
+    /// Create a compute environment in the storage the backend reaches.
+    pub fn environment_create(
+        &self,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_create(&self.device, name, origin)
+    }
+
+    /// Make `id` the backend's compute environment, where the calling stream
+    /// stands.
+    pub fn environment_activate(
+        &self,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_activate(&self.device, id)
+    }
+
+    /// The backend's compute environment.
+    pub fn environment_active(&self) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_active(&self.device)
+    }
+
+    /// Serialize the compute environment `id`, where the calling stream
+    /// stands.
+    pub fn environment_save(
+        &self,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        B::environment_save(&self.device, id)
+    }
+
+    /// Bring what `origin` holds into the environment `id` of the backend.
+    pub fn environment_merge(
+        &self,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        B::environment_merge(&self.device, id, origin)
     }
 
     /// What the backend's device is, as its driver states it.

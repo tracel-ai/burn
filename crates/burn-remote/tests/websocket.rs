@@ -403,6 +403,38 @@ fn transfer_client() {
 }
 
 #[test]
+fn random_requests_keep_their_seeds_across_remote_reseeding() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default(), Default::default()]),
+    );
+    let device = Device::remote_options(&host).init().unwrap();
+    let other = Device::remote_options(&host)
+        .device_index(1)
+        .init()
+        .unwrap();
+    let float = || Tensor::<1>::random([12], Distribution::Default, &device);
+    let int = || Tensor::<1, Int>::random([12], Distribution::Uniform(0., 1000.), &device);
+
+    device.seed(7);
+    let expected_float = float().into_data();
+    let expected_int = int().into_data();
+    device.seed(7);
+    let pending_float = float();
+    let pending_int = int();
+    // Both server devices share Flex's implicit RNG; neither reset may affect these draws.
+    other.seed(13);
+    device.seed(19);
+    pending_int.into_data().assert_eq(&expected_int, false);
+    pending_float.into_data().assert_eq(&expected_float, false);
+    rt.shutdown_background();
+}
+
+#[test]
 fn test_to_device_over_websocket() {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_io()
@@ -1622,4 +1654,70 @@ fn a_tensor_many_frames_long_is_uploaded_and_read_back() {
     let expected: Vec<f32> = values.iter().map(|value| value * 2.0).collect();
     assert_eq!(doubled, expected);
     rt.shutdown_background();
+}
+
+mod bool_transfer {
+    use super::*;
+    use burn_backend::{TensorMetadata, ops::BoolTensorOps};
+    use burn_tensor::{BoolStore, DeviceConfig};
+
+    fn assert_bool_transfer_storage(mut source: Device, target: Device) {
+        source
+            .configure(DeviceConfig::default().bool_dtype(BoolStore::U8))
+            .unwrap();
+        let dtype = DType::Bool(BoolStore::U8);
+        assert!(target.supports_dtype(dtype));
+        assert_eq!(target.settings().bool_dtype, BoolStore::Native);
+        // A cast through the target's Native default would normalize these bytes.
+        let data = TensorData::from_bytes_vec(vec![2, 0, 255], [3], dtype);
+
+        let moved = Tensor::<1, Bool>::from_data(data.clone(), &source).to_device(&target);
+
+        assert_eq!(moved.dtype(), dtype);
+        moved.into_data().assert_eq(&data, true);
+
+        // Request storage different from each destination's default, including through fusion.
+        let tensor = Dispatch::bool_from_data(data, target.as_dispatch());
+        let moved = Dispatch::bool_to_device(tensor, source.as_dispatch(), BoolStore::Native);
+        assert_eq!(moved.dtype(), DType::Bool(BoolStore::Native));
+        burn_backend::read_sync(Dispatch::bool_into_data(moved.clone()))
+            .unwrap()
+            .assert_eq(&TensorData::from([true, false, true]), true);
+
+        let returned = Dispatch::bool_to_device(moved, target.as_dispatch(), BoolStore::U8);
+        assert_eq!(returned.dtype(), dtype);
+        let returned = burn_backend::read_sync(Dispatch::bool_into_data(returned)).unwrap();
+        assert_eq!(returned.as_slice::<u8>().unwrap(), &[1, 0, 1]);
+    }
+
+    #[test]
+    fn bool_move_preserves_or_converts_storage_on_same_server() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default(); 2]));
+        let source = Device::remote_options(&host)
+            .device_index(0)
+            .init()
+            .unwrap();
+        let target = Device::remote_options(&host)
+            .device_index(1)
+            .init()
+            .unwrap();
+
+        assert_bool_transfer_storage(source, target);
+
+        rt.shutdown_background();
+    }
+
+    #[test]
+    fn bool_move_preserves_or_converts_storage_between_servers() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let source_host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+        let target_host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+        let source = Device::remote_options(&source_host).init().unwrap();
+        let target = Device::remote_options(&target_host).init().unwrap();
+
+        assert_bool_transfer_storage(source, target);
+
+        rt.shutdown_background();
+    }
 }

@@ -43,6 +43,9 @@ pub use data::*;
 pub mod distribution;
 pub use distribution::*;
 
+mod random;
+pub use random::RandomKey;
+
 /// Traits for tensor element types and conversions.
 pub mod element;
 pub use element::*;
@@ -79,6 +82,13 @@ pub use cubecl_environment::bytes::*;
 // backends and other burn crates don't have to depend on it directly.
 pub use cubecl_environment::future::reader;
 pub use cubecl_environment::{backtrace, future, rand, stream, sync};
+
+/// Compute environment values, kept by the cubecl runtimes and carried by every backend.
+pub mod environment {
+    pub use cubecl_environment::environment::{
+        EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
+    };
+}
 
 pub use half::{bf16, f16};
 

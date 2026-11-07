@@ -1,5 +1,6 @@
 use crate::execution::OPEN_MODES;
 use crate::{CubeDevice, tensor::CubeTensor};
+use burn_backend::RandomKey;
 use burn_backend::cubecl::{ThroughputKey, dtype_to_storage_type, measure_peak_throughput};
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceDescription,
@@ -7,6 +8,8 @@ use burn_backend::{
     MemoryPoolReport, MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration,
     ProfileOptions, ProfileToken, TensorData, profile_with_tokens,
 };
+#[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+use burn_backend::{EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin};
 use burn_std::{BoolStore, DType, id::StreamId, quantization::quantizable};
 use cubecl::device::DeviceId;
 use cubecl::{
@@ -116,6 +119,10 @@ impl Backend for CubeBackend {
         cubek::random::seed(seed);
     }
 
+    fn next_random_key(_device: &Self::Device) -> RandomKey {
+        RandomKey::new(cubek::random::next_seed())
+    }
+
     fn ad_enabled(_device: &Self::Device) -> bool {
         false
     }
@@ -220,6 +227,57 @@ impl Backend for CubeBackend {
             .executes(|| device.client().flush().map_err(server_err));
         let closed = OPEN_MODES.lock().close(token);
         flushed.and(closed)
+    }
+
+    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+    fn environment_create(
+        _device: &Self::Device,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        Ok(EnvironmentId::create(&name, origin)?)
+    }
+
+    /// Activated for the whole process, as cubecl keeps one environment
+    /// active per process. The launches the calling stream's client still
+    /// buffers are flushed first, so they compile into the environment they
+    /// were issued in.
+    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+    fn environment_activate(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        device.client().flush().map_err(server_err)?;
+        Ok(id.activate()?)
+    }
+
+    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+    fn environment_active(_device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
+        Ok(EnvironmentId::active())
+    }
+
+    /// The launches the calling stream's client still buffers are flushed
+    /// first, so what they compile is saved with the rest.
+    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+    fn environment_save(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        device.client().flush().map_err(server_err)?;
+        Ok(id.save()?)
+    }
+
+    /// The launches the calling stream's client still buffers are flushed
+    /// first, so they compile into the environment as it was before the
+    /// merge.
+    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+    fn environment_merge(
+        device: &Self::Device,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        device.client().flush().map_err(server_err)?;
+        Ok(id.merge(origin)?)
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

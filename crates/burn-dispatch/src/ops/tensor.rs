@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use burn_backend::RandomKey;
 use burn_backend::{
     BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::{FloatTensorOps, PadMode},
@@ -30,8 +31,9 @@ impl FloatTensorOps<Self> for Dispatch {
         distribution: burn_backend::Distribution,
         device: &DispatchDevice,
         dtype: FloatDType,
+        key: RandomKey,
     ) -> FloatTensor<Self> {
-        B::float_random(shape, distribution, device, dtype)
+        B::float_random(shape, distribution, device, dtype, key)
     }
 
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
@@ -743,13 +745,21 @@ mod tests {
             .capture_scope(|first_scope| {
                 let float = Dispatch::float_to_device(float, &first_dispatch);
                 let int = Dispatch::int_to_device(int, &first_dispatch);
-                let bool = Dispatch::bool_to_device(bool, &first_dispatch);
+                let bool = Dispatch::bool_to_device(
+                    bool,
+                    &first_dispatch,
+                    burn_backend::BoolDType::Native,
+                );
 
                 let second_graph = second
                     .capture_scope(|second_scope| {
                         Dispatch::float_to_device(float, &second_dispatch);
                         Dispatch::int_to_device(int, &second_dispatch);
-                        Dispatch::bool_to_device(bool, &second_dispatch);
+                        Dispatch::bool_to_device(
+                            bool,
+                            &second_dispatch,
+                            burn_backend::BoolDType::Native,
+                        );
                         second_scope.complete([], [])
                     })
                     .unwrap();
@@ -777,7 +787,11 @@ mod tests {
             .capture_scope(|first_scope| {
                 let float = Dispatch::float_neg(Dispatch::float_to_device(float, &first_dispatch));
                 let int = Dispatch::int_neg(Dispatch::int_to_device(int, &first_dispatch));
-                let bool = Dispatch::bool_not(Dispatch::bool_to_device(bool, &first_dispatch));
+                let bool = Dispatch::bool_not(Dispatch::bool_to_device(
+                    bool,
+                    &first_dispatch,
+                    burn_backend::BoolDType::Native,
+                ));
 
                 let second_graph = second
                     .capture_scope(|second_scope| {
@@ -791,7 +805,11 @@ mod tests {
                             }));
                         let bool_result =
                             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                                Dispatch::bool_to_device(bool, &second_dispatch)
+                                Dispatch::bool_to_device(
+                                    bool,
+                                    &second_dispatch,
+                                    burn_backend::BoolDType::Native,
+                                )
                             }));
 
                         assert!(float_result.is_err());

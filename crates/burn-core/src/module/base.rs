@@ -502,7 +502,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         crate::store::ModuleRecord::from_module(self, None)
     }
 
-    /// Collect the tensor parameters `group` names into a [`ModuleRecord`](crate::store::ModuleRecord).
+    /// Collect this module's tensor parameters matched by `group` into a
+    /// [`ModuleRecord`](crate::store::ModuleRecord).
     ///
     /// The record of a part of the module rather than all of it — what a run that trained a
     /// group writes when the rest of the module is the checkpoint it started from, and what
@@ -522,8 +523,10 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// Apply a [`ModuleRecord`](crate::store::ModuleRecord) to this module, returning the loaded
     /// module.
     ///
-    /// Honors the record's [`DTypePolicy`](crate::store::DTypePolicy), `validate`, and
-    /// `allow_partial` settings.
+    /// Honors the record's [`DTypePolicy`](crate::store::DTypePolicy),
+    /// [`validate`](crate::store::ModuleRecord::validate),
+    /// [`allow_partial`](crate::store::ModuleRecord::allow_partial), and
+    /// [`allow_unused`](crate::store::ModuleRecord::allow_unused) settings.
     fn try_load_record(
         self,
         record: crate::store::ModuleRecord,
@@ -550,7 +553,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     ///
     /// Convenience for [`into_record`](Module::into_record) followed by
     /// [`ModuleRecord::save`](crate::store::ModuleRecord::save). For non-default load behavior
-    /// (dtype policy, partial loading, validation), go through the record directly.
+    /// (dtype policy, partial loading, unused tensors, shape validation), go through the record
+    /// directly.
     #[cfg(feature = "std")]
     fn save_file<P: AsRef<std::path::Path>>(self, path: P) -> Result<(), crate::store::RecordError>
     where
@@ -563,8 +567,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     ///
     /// Uses the default load behavior. Panics on I/O or validation errors; use
     /// [`try_load_file`](Module::try_load_file) for the fallible variant, or go through
-    /// [`ModuleRecord`](crate::store::ModuleRecord) to configure dtype policy, partial loading or
-    /// validation.
+    /// [`ModuleRecord`](crate::store::ModuleRecord) to configure dtype policy, partial loading,
+    /// unused tensors, or shape validation.
     #[cfg(feature = "std")]
     fn load_file<P: AsRef<std::path::Path>>(self, path: P) -> Self
     where
@@ -631,6 +635,8 @@ pub trait ModuleVisitor {
     /// - `container_type`: The type of the container with format:
     ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
     ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
+    ///   - For named enum variant fields: "Variant:TypeName::VariantName"
+    ///     (e.g., "Variant:MyEnum::Wide")
     ///   - For Vec containers: "Vec" (name is the index)
     ///   - For Tuple containers: "Tuple" (name is the index)
     ///   - For Array containers: "Array" (name is the index)
@@ -647,6 +653,8 @@ pub trait ModuleVisitor {
     /// - `container_type`: The type of the container with format:
     ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
     ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
+    ///   - For named enum variant fields: "Variant:TypeName::VariantName"
+    ///     (e.g., "Variant:MyEnum::Wide")
     ///   - For Vec containers: "Vec" (name is the index)
     ///   - For Tuple containers: "Tuple" (name is the index)
     ///   - For Array containers: "Array" (name is the index)
@@ -717,6 +725,8 @@ pub trait ModuleMapper {
     /// - `container_type`: The type of the container with format:
     ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
     ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
+    ///   - For named enum variant fields: "Variant:TypeName::VariantName"
+    ///     (e.g., "Variant:MyEnum::Wide")
     ///   - For Vec containers: "Vec" (name is the index)
     ///   - For Tuple containers: "Tuple" (name is the index)
     ///   - For Array containers: "Array" (name is the index)
@@ -733,6 +743,8 @@ pub trait ModuleMapper {
     /// - `container_type`: The type of the container with format:
     ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
     ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
+    ///   - For named enum variant fields: "Variant:TypeName::VariantName"
+    ///     (e.g., "Variant:MyEnum::Wide")
     ///   - For Vec containers: "Vec" (name is the index)
     ///   - For Tuple containers: "Tuple" (name is the index)
     ///   - For Array containers: "Array" (name is the index)

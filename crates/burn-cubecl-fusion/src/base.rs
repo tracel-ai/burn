@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use burn_std::{
     DType, Metadata, Shape, Strides,
@@ -36,8 +37,7 @@ pub struct CubeFusionHandle {
     pub strides: Strides,
     /// How the tensor is stored: `None` for rows, under `strides` over the shape the IR states;
     /// otherwise storage tiles, whose physical dims the IR cannot state (it knows the logical
-    /// shape only), so the handle carries them. A fused kernel reads rows and refuses a tiled
-    /// input.
+    /// shape only), so the handle carries them. A fused kernel reads them laid back in rows.
     pub tiles: Option<Tiles>,
     /// Quantization runtime parameters, if applicable
     pub qparams: Option<QParams>,
@@ -109,6 +109,38 @@ impl CubeFusionHandle {
                 .with_tiling(tiles.tiling)
                 .expect("a fusion handle's tiling describes its own rank"),
             None => Metadata::new(logical, self.strides.clone()),
+        }
+    }
+
+    /// This tensor laid back in rows, `shape` being the logical shape the IR states; itself when
+    /// it is rows already.
+    ///
+    /// # Panics
+    ///
+    /// On quantized storage tiles: nothing lays packed values and their scales back as rows.
+    pub fn untile(self, shape: Shape) -> Self {
+        if self.tiles.is_none() {
+            return self;
+        }
+        assert!(
+            self.qparams.is_none(),
+            "untile: a storage-tiled quantized tensor is read only by the kernel it was tiled for"
+        );
+        let (client, device, dtype) = (self.client.clone(), self.device.clone(), self.dtype);
+        let rows = cubek::matmul::tiled::storage::untile(
+            &client,
+            self.binding(shape),
+            dtype_to_storage_type(dtype),
+        )
+        .expect("a fusion handle's tiles describe its own buffer");
+        Self {
+            client,
+            handle: rows.handle,
+            device,
+            strides: rows.metadata.strides().clone(),
+            tiles: None,
+            dtype,
+            qparams: None,
         }
     }
 

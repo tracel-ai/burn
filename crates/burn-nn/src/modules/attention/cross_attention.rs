@@ -58,10 +58,10 @@ pub struct CrossAttentionConfig {
 ///
 /// # Params
 ///
-/// - `query`: [`Linear`] layer with `d_model` input and output features.
-/// - `key`: [`Linear`] layer with `d_model` input and output features.
-/// - `value`: [`Linear`] layer with `d_model` input and output features.
-/// - `output`: [`Linear`] layer with `d_model` input and output features.
+/// - `query`: [`Linear`] layer with `d_model` input and `n_heads * d_head` output features.
+/// - `key`: [`Linear`] layer with `d_context` input and `n_heads_kv * d_head` output features.
+/// - `value`: [`Linear`] layer with `d_context` input and `n_heads_kv * d_head` output features.
+/// - `output`: [`Linear`] layer with `n_heads * d_head` input and `d_model` output features.
 ///
 /// Should be created with [CrossAttentionConfig].
 pub struct CrossAttention {

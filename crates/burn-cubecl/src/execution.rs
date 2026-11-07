@@ -5,6 +5,7 @@
 //! this process runs under the one open here, and one is open at a time.
 //! Opens of the process mode already open join it: they share its collector,
 //! so each token reads what every device triggered while the mode was open.
+//! A tuning pass also includes the preceding compile pass's statistics.
 
 use alloc::vec::Vec;
 use burn_backend::{
@@ -28,6 +29,8 @@ struct OpenProcessMode {
 /// out for them.
 pub(crate) struct OpenModes {
     process: Option<OpenProcessMode>,
+    /// Keep deferred compilation observable if the next process pass tunes it.
+    compile_statistics: Option<cube::StatisticsCollector>,
     streams: Vec<(ExecutionModeToken, cube::StreamModeOverride)>,
     next_id: u64,
 }
@@ -35,6 +38,7 @@ pub(crate) struct OpenModes {
 /// The process's one record of what is open: cubecl's modes are process-wide.
 pub(crate) static OPEN_MODES: Mutex<OpenModes> = Mutex::new(OpenModes {
     process: None,
+    compile_statistics: None,
     streams: Vec::new(),
     next_id: 0,
 });
@@ -91,7 +95,11 @@ impl OpenModes {
         process.overrides.retain(|(held, _)| *held != token);
         let statistics = process.collector.statistics().into();
         if process.overrides.is_empty() {
-            self.process = None;
+            self.compile_statistics = self
+                .process
+                .take()
+                .filter(|process| process.mode == ProcessMode::CompileOnly)
+                .map(|process| process.collector);
         }
         Ok(statistics)
     }
@@ -117,7 +125,10 @@ impl OpenModes {
                 Ok(())
             }
             None => {
-                let collector = cube::StatisticsCollector::new();
+                let collector = match (mode, self.compile_statistics.take()) {
+                    (ProcessMode::CompileAndAutotune, Some(collector)) => collector,
+                    _ => cube::StatisticsCollector::new(),
+                };
                 let execution = cube::ProcessModeOverride::new(mode.into(), &collector);
                 self.process = Some(OpenProcessMode {
                     mode,

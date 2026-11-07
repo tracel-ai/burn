@@ -1,7 +1,8 @@
 use burn_backend::{
-    DTypeUsageSet, DeviceDescription, DeviceTelemetry, ExecutionError, ExecutionMode,
-    ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
-    ProfileOptions, ProfileToken, TensorData,
+    DTypeUsageSet, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
+    EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken,
+    ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey, ProfileOptions, ProfileToken,
+    TensorData,
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
@@ -24,14 +25,14 @@ use crate::{
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 9;
+pub const PROTOCOL_VERSION: u16 = 12;
 
 /// Routing id for a task whose result is fetched back.
 ///
 /// Only the result-producing tasks ([`Task::ReadTensors`], [`Task::SyncBackend`],
 /// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`], [`Task::CapturePrepare`],
-/// [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`], the execution-mode tasks
-/// and the description and measurement tasks) carry a
+/// [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`], the execution-mode,
+/// environment, description and measurement tasks) carry a
 /// `RequestId`; the server echoes it on its [`TaskResponse`] so the client demultiplexes results
 /// back to the right pending callback. Fire-and-forget tasks have no id because no result ever
 /// comes back.
@@ -306,7 +307,13 @@ pub enum Task {
         new_id: TensorId,
         src_id: TensorId,
     },
-    RegisterTensorRemote(StreamId, TensorRemote, TensorId),
+    /// Register downloaded data with the destination dtype. Only boolean storage may change.
+    RegisterTensorRemote {
+        stream_id: StreamId,
+        tensor: TensorRemote,
+        new_id: TensorId,
+        dtype: DType,
+    },
     ExposeTensorRemote {
         stream_id: StreamId,
         tensor: TensorIr,
@@ -332,10 +339,12 @@ pub enum Task {
     ///
     /// `stream_id` is the client stream that will consume `new_id`, so the registration lands
     /// on the same stream as the ops that use the transferred tensor.
+    /// `dtype` is the destination dtype. Only boolean storage may differ from the source.
     RegisterTensorLocal {
         stream_id: StreamId,
         transfer_id: LocalTransferId,
         new_id: TensorId,
+        dtype: DType,
     },
     /// Register `id` as failed by `reason`: its data was never produced, so a read of it reports
     /// why. For a transfer whose source could not send it, as when its session ended.
@@ -399,6 +408,18 @@ pub enum Task {
     /// Close an open execution mode on the stream it was opened on, after every earlier task,
     /// answering what the work under it triggered.
     ExecutionModeClose(RequestId, ExecutionModeToken),
+    /// Create a compute environment in the storage of the server's backend.
+    EnvironmentCreate(RequestId, String, EnvironmentOrigin),
+    /// Make an environment the one of the server's backend where `stream_id` stands, after every
+    /// earlier task.
+    EnvironmentActivate(RequestId, StreamId, EnvironmentId),
+    /// The environment of the server's backend.
+    EnvironmentActive(RequestId),
+    /// Serialize an environment where `stream_id` stands, after every earlier task.
+    EnvironmentSave(RequestId, StreamId, EnvironmentId),
+    /// Bring what the origin holds into an environment where `stream_id` stands, after every
+    /// earlier task.
+    EnvironmentMerge(RequestId, StreamId, EnvironmentId, EnvironmentOrigin),
     /// What the session's device is, as its driver states it.
     DeviceDescription(RequestId),
     /// One reading of the counters of the session's device.
@@ -492,6 +513,14 @@ pub enum TaskResponseContent {
     /// The answer to [`ExecutionModeStatistics`](Task::ExecutionModeStatistics) and
     /// [`ExecutionModeClose`](Task::ExecutionModeClose).
     ExecutionStatistics(Result<ExecutionStatistics, ExecutionError>),
+    /// The answer to [`EnvironmentCreate`](Task::EnvironmentCreate),
+    /// [`EnvironmentActivate`](Task::EnvironmentActivate) and
+    /// [`EnvironmentActive`](Task::EnvironmentActive).
+    Environment(Result<EnvironmentId, EnvironmentError>),
+    /// The answer to [`EnvironmentSave`](Task::EnvironmentSave).
+    EnvironmentSaved(Result<EnvironmentBundle, EnvironmentError>),
+    /// The answer to [`EnvironmentMerge`](Task::EnvironmentMerge).
+    EnvironmentMerged(Result<(), EnvironmentError>),
     /// The answer to [`DeviceDescription`](Task::DeviceDescription).
     DeviceDescription(Option<DeviceDescription>),
     /// The answer to [`MeasureTelemetry`](Task::MeasureTelemetry).

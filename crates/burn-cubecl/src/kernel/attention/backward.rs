@@ -2,18 +2,18 @@
 //! tile-DSL routines: what autodiff records instead of the decomposed attention, for the
 //! attentions [`backward_serves`] admits.
 
-use super::tile::{routines_take, scoring};
+use super::tile::{routines_take, scoring, visibility_serves};
 use crate::{
     CubeBackend, CubeDevice,
     ops::{numeric::full_device_dtype, swap_dims},
     tensor::CubeTensor,
 };
-use burn_backend::ops::{AttentionBackward, AttentionModuleOptions, CausalAlignment};
+use burn_backend::ops::{AttentionBackward, AttentionModuleOptions};
 use burn_backend::{DType, Shape, cubecl::dtype_to_storage_type};
 use cubecl::client::Client;
 use cubecl::prelude::InputScalar;
 use cubecl::std::tensor::TensorHandle;
-use cubek::attention::kernels::select::selector::QueryPositions;
+use cubek::attention::kernels::select::problem::QueryPositions;
 use cubek::attention::kernels::tune::{AttentionTuneInputs, launch_tuned};
 use cubek::attention_backward::{AttentionBackwardTensors, attention_backward as launch_backward};
 use cubek::std::autotune::GroupPriority;
@@ -21,19 +21,18 @@ use cubek::std::autotune::GroupPriority;
 /// Whether cubek's forward pass with logsumexp and its backward pass serve an attention of
 /// `query` against `key` and `value` with `options`, no mask and no additive bias: operands of one
 /// element the routines take and the device runs, query heads that split evenly over the key
-/// heads, no softcap, and a causal mask anchored at the bottom right, the one cubek reads, or one
-/// over as many queries as keys, where both anchors agree.
+/// heads, no softcap, and a visibility they can place: a causal edge at either corner, or a
+/// bottom-right window, but not a top-left causal edge combined with a window over different
+/// query and key lengths.
 pub fn backward_serves(
     query: &CubeTensor,
     key: &CubeTensor,
     value: &CubeTensor,
     options: &AttentionModuleOptions,
 ) -> bool {
-    let (q_shape, k_shape) = (query.meta.shape(), key.meta.shape());
-    let anchored = !options.is_causal
-        || options.causal_alignment == CausalAlignment::BottomRight
-        || q_shape[2] == k_shape[2];
-    routines_take(query, key, value) && options.softcap.is_none() && anchored
+    routines_take(query, key, value)
+        && options.softcap.is_none()
+        && visibility_serves(options, query.meta.shape()[2], key.meta.shape()[2])
 }
 
 /// The attention of `query` over `key` and `value`, `[b, h, q, dv]`, and each query's logsumexp,

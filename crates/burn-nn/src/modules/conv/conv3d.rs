@@ -32,7 +32,8 @@ pub struct Conv3dConfig {
     /// Controls the connections between input and output channels.
     #[config(default = "1")]
     pub groups: usize,
-    /// The padding configuration.
+    /// The padding configuration. `Same` resolves to asymmetric padding when the total
+    /// padding of an axis is odd, so outputs always have `ceil(input / stride)` elements.
     #[config(default = "PaddingConfig3d::Valid")]
     pub padding: PaddingConfig3d,
     /// If bias should be added to the output.
@@ -153,14 +154,19 @@ impl Conv3d {
         let [_batch_size, _channels_in, depth_in, height_in, width_in] = input.dims();
         let effective_kernel =
             core::array::from_fn(|i| (self.kernel_size[i] - 1) * self.dilation[i] + 1);
-        let padding = self.padding.calculate_padding_3d(
+        let (depth, height, width) = self.padding.calculate_padding_3d_pairs(
             depth_in,
             height_in,
             width_in,
             &effective_kernel,
             &self.stride,
         );
-        ConvOptions::new(self.stride, padding, self.dilation, self.groups)
+        ConvOptions::new_with_padding(
+            self.stride,
+            [depth, height, width],
+            self.dilation,
+            self.groups,
+        )
     }
 
     /// None where the convolution cannot size its output, which it rejects.
@@ -271,6 +277,64 @@ mod tests {
         let device = Default::default();
         let config = Conv3dConfig::new([4, 4], [2, 2, 2]).with_padding(PaddingConfig3d::Same);
         let _ = config.init(&device);
+    }
+
+    #[test]
+    fn same_padding_with_stride_is_asymmetric() {
+        let device = Device::default().autodiff();
+        let conv = Conv3dConfig::new([1, 1], [3, 3, 3])
+            .with_stride([2, 2, 2])
+            .with_padding(PaddingConfig3d::Same)
+            .with_bias(false)
+            .with_initializer(Initializer::Constant { value: 1.0 })
+            .init(&device);
+        let input = Tensor::<1, burn::tensor::Int>::arange(0..64, &device)
+            .reshape([1, 1, 4, 4, 4])
+            .float()
+            .require_grad();
+
+        let output = conv.forward(input.clone());
+        let grads = output.clone().sum().backward();
+
+        assert_eq!(output.dims(), [1, 1, 2, 2, 2]);
+        let tolerance = Tolerance::rel_abs(0.01, 0.01);
+        output.to_data().assert_approx_eq::<FT>(
+            &TensorData::new(
+                vec![567.0f32, 405., 486., 342., 810., 558., 612., 420.],
+                [1, 1, 2, 2, 2],
+            ),
+            tolerance,
+        );
+        conv.weight
+            .val()
+            .grad(&grads)
+            .unwrap()
+            .reshape([27])
+            .to_data()
+            .assert_approx_eq::<FT>(
+                &TensorData::from([
+                    168.0f32, 176., 88., 200., 208., 104., 100., 104., 52., 296., 304., 152., 328.,
+                    336., 168., 164., 168., 84., 148., 152., 76., 164., 168., 84., 82., 84., 42.,
+                ]),
+                tolerance,
+            );
+        let plane = [
+            [1.0f32, 1., 2., 1.],
+            [1., 1., 2., 1.],
+            [2., 2., 4., 2.],
+            [1., 1., 2., 1.],
+        ];
+        let c = [1.0f32, 1., 2., 1.];
+        let expected: alloc::vec::Vec<f32> = c
+            .iter()
+            .flat_map(|c| plane.iter().flatten().map(move |p| c * p))
+            .collect();
+        input
+            .grad(&grads)
+            .unwrap()
+            .reshape([64])
+            .to_data()
+            .assert_approx_eq::<FT>(&TensorData::from(expected.as_slice()), tolerance);
     }
 
     #[test]

@@ -29,9 +29,9 @@ use cubecl::{
 use cubek::matmul::kernels::{
     MatmulOpStrategy,
     plan::MatmulCall,
-    select::{problem::MatmulProblem, selector::measured_table},
+    select::{problem::MatmulProblem, selector::measured_autotune},
     tune::{
-        MatmulTableGroups,
+        MatmulAutotuneGroups,
         key::{MatmulTuneKey, create_key},
     },
 };
@@ -119,8 +119,8 @@ fn elected<V: SinkLaunchVisitor>(call: &MatmulCall, visitor: V) -> Option<V::Out
         (call.lhs.meta.shape(), call.lhs.tensor.kind()),
         (call.rhs.meta.shape(), call.rhs.tensor.kind()),
     );
-    let autotune = measured_table(MatmulOpStrategy::Autotune, &problem, &call.hw)?;
-    let (settings, _) = autotune.fastest_routine(call, MatmulTableGroups::default())?;
+    let autotune = measured_autotune(MatmulOpStrategy::Autotune, &problem, &call.hw)?;
+    let (settings, _) = autotune.fastest_routine(call, MatmulAutotuneGroups::default())?;
     Some(settings.sink_launch(call, visitor))
 }
 
@@ -144,7 +144,6 @@ fn execute_fused(
         lhs,
         rhs,
         out: dtype_to_storage_type(context.tensors[&op.out.id].dtype),
-        routes: None,
         destination: None,
     };
     elected(&call, FusedRun { arg, context }).unwrap_or(Err(TraceError::RunnerError(

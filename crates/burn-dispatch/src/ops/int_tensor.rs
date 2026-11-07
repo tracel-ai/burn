@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use burn_backend::RandomKey;
 use burn_backend::{
     BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::{IntTensorOps, PadMode},
@@ -32,10 +33,18 @@ impl IntTensorOps<Self> for Dispatch {
 
     #[backend_dispatch(skip)]
     fn int_to_device(tensor: IntTensor<Self>, device: &DispatchDevice) -> IntTensor<Self> {
-        to_device!(Int, int, tensor, device, int_to_device, |inner, device| {
-            let data = burn_backend::read_sync(B1::int_into_data(inner)).expect("Should read data");
-            B2::int_from_data(data, device)
-        })
+        to_device!(
+            Int,
+            int,
+            tensor,
+            device,
+            int_to_device(),
+            |inner, device| {
+                let data =
+                    burn_backend::read_sync(B1::int_into_data(inner)).expect("Should read data");
+                B2::int_from_data(data, device)
+            }
+        )
     }
 
     fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
@@ -324,8 +333,9 @@ impl IntTensorOps<Self> for Dispatch {
         distribution: burn_backend::Distribution,
         device: &DispatchDevice,
         dtype: IntDType,
+        key: RandomKey,
     ) -> IntTensor<Self> {
-        B::int_random(shape, distribution, device, dtype)
+        B::int_random(shape, distribution, device, dtype, key)
     }
 
     fn int_expand(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {

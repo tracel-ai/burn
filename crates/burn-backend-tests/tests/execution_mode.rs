@@ -67,6 +67,38 @@ fn a_stream_in_execute_runs_inside_a_discarding_pass() {
     );
 }
 
+/// The tuning snapshot includes compilation gathered in the preceding compile pass.
+#[test]
+#[serial]
+fn tuning_statistics_include_the_compile_pass() {
+    let device = Device::default();
+    if !applies_modes(&device) {
+        return;
+    }
+    let input = TestTensor::<1>::from_data([0.5, 1.5], &device);
+    device.sync().unwrap();
+
+    let compile = device.mode(ProcessMode::CompileOnly).unwrap();
+    let _compiled = input.clone().cos().sin();
+    let before = compile.close().unwrap();
+    assert!(before.compilation.registered > 0);
+    assert!(before.compilation.settled() < before.compilation.registered);
+
+    let tune = device.mode(ProcessMode::CompileAndAutotune).unwrap();
+    assert_eq!(tune.reader().statistics().unwrap(), before);
+    let _tuned = input.cos().sin();
+    let after = tune.close().unwrap();
+    assert!(after.compilation.registered >= before.compilation.registered);
+    assert_eq!(after.compilation.settled(), after.compilation.registered);
+
+    let next = device
+        .mode(ProcessMode::CompileAndAutotune)
+        .unwrap()
+        .close()
+        .unwrap();
+    assert_eq!(next.compilation.registered, 0);
+}
+
 /// Work registered before the mode opens runs, even when a backend still holds
 /// it queued: it was registered to execute.
 #[test]

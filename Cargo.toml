@@ -12,7 +12,7 @@ members = [
 
 exclude = [
     "examples/notebook",
-    "examples/dqn-agent",         # gym-rs
+    "examples/dqn-agent", # gym-rs
 ]
 
 [workspace.package]
@@ -121,7 +121,9 @@ turso = { version = "0.8.2", default-features = false }
 branches = { version = "0.4.6", default-features = false, features = ["std"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-zip = { version = "9.0.4", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip = { version = "9.0.4", default-features = false, features = [
+    "deflate-flate2-zlib-rs",
+] }
 
 # Persist related
 memmap2 = { version = "0.9" }
@@ -199,7 +201,7 @@ burn-dispatch = { path = "crates/burn-dispatch", version = "0.23.0-pre.1", defau
 burn-einsum = { path = "crates/burn-einsum", version = "0.23.0-pre.1", default-features = false }
 burn-flex = { path = "crates/burn-flex", version = "0.23.0-pre.1", default-features = false }
 burn-fusion = { path = "crates/burn-fusion", version = "0.23.0-pre.1", default-features = false }
-burn-group = { path = "crates/burn-group", version = "0.23.0-pre.1", default-features = false }
+burn-shard = { path = "crates/burn-shard", version = "0.23.0-pre.1", default-features = false }
 burn-instrument = { path = "crates/burn-instrument", version = "0.23.0-pre.1", default-features = false }
 burn-instrument-report = { path = "crates/burn-instrument-report", version = "0.23.0-pre.1", default-features = false }
 burn-instrument-macros = { path = "crates/burn-instrument-macros", version = "0.23.0-pre.1", default-features = false }
@@ -223,11 +225,11 @@ burn-wgpu = { path = "crates/burn-wgpu", version = "0.23.0-pre.1", default-featu
 pytorch-reader = { path = "crates/pytorch-reader", version = "0.23.0-pre.1" }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fdba0a849104c0d805a86c883b32ce06c2c85ba1" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fdba0a849104c0d805a86c883b32ce06c2c85ba1" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fdba0a849104c0d805a86c883b32ce06c2c85ba1" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fdba0a849104c0d805a86c883b32ce06c2c85ba1" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "06e1c8ec2057898d0f1118060c6bd46baa38f708" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3e6d4f35c26e486728d4f46f00d0cf84f47b2171" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3e6d4f35c26e486728d4f46f00d0cf84f47b2171" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3e6d4f35c26e486728d4f46f00d0cf84f47b2171" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3e6d4f35c26e486728d4f46f00d0cf84f47b2171" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "eb332b888d026f1b1767b222a841ee1aa0e9b6f5" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -240,6 +242,9 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 # cubecl-environment = { version = "0.12.0-pre.1", default-features = false }
 # cubecl-zspace = { version = "0.12.0-pre.1", default-features = false }
 # cubek = { version = "0.4.0-pre.1", default-features = false }
+
+# cubecl at cubecl dev (the flip pin plus cubecl#2025's tiled metadata), until cubek pins a
+# cubecl holding #2025. The host differs from the pin's so cargo takes it as a patch.
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.

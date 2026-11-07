@@ -3,10 +3,12 @@ use crate::{
     client::GlobalFusionClient,
     stream::{Context, OrderedExecution},
 };
+use burn_backend::RandomKey;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceOps, DeviceTelemetry,
-    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
-    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, profile_with_tokens,
+    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
+    ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
+    ProfileDuration, ProfileOptions, ProfileToken, profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -49,9 +51,11 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     }
 
     fn seed(device: &B::Device, seed: u64) {
-        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
-        let device = device.clone();
-        client.sync(move || B::seed(&device, seed));
+        B::seed(device, seed);
+    }
+
+    fn next_random_key(device: &Self::Device) -> RandomKey {
+        B::next_random_key(device)
     }
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
@@ -161,6 +165,56 @@ impl<B: FusionBackend> Backend for Fusion<B> {
                 closed.and(Err(server_error(err)))
             }
         }
+    }
+
+    fn environment_create(
+        device: &Self::Device,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_create(device, name, origin)
+    }
+
+    /// Activated after the calling stream's queue drains, so what was
+    /// registered before compiles into the environment it was registered in.
+    fn environment_activate(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::environment_activate(&device, id))
+            .map_err(server_error)?
+    }
+
+    fn environment_active(device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_active(device)
+    }
+
+    /// Saved after the calling stream's queue drains, so what it compiles is
+    /// in the save.
+    fn environment_save(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::environment_save(&device, id))
+            .map_err(server_error)?
+    }
+
+    fn environment_merge(
+        device: &Self::Device,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::environment_merge(&device, id, origin))
+            .map_err(server_error)?
     }
 
     fn ad_enabled(_device: &Self::Device) -> bool {
