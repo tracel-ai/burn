@@ -135,20 +135,6 @@ impl MatmulOptimization {
             fallbacks,
         };
 
-        // A storage-tiled operand is read through its binding by the eager matmul, which stages
-        // to its tiles; the fused product is not verified on them.
-        let op = &arg.info.matmul.op;
-        let stored = [op.lhs.id, op.rhs.id].iter().any(|id| {
-            context
-                .handles
-                .get_handle_ref(id)
-                .is_some_and(|handle| handle.tiles.is_some())
-        });
-        if stored {
-            arg.execute_fallback(context);
-            return;
-        }
-
         // The fused product runs the routine the unfused one measured fastest, and races the
         // fallback; without autotune nothing is measured, so the fallback runs.
         #[cfg(feature = "autotune")]

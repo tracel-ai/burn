@@ -115,6 +115,8 @@ serde = { workspace = true }
 text_placeholder = { workspace = true, features = ["struct_context"] }
 
 [dev-dependencies]
+# The fusion inspector, for the tests that assert which operations ran fused.
+burn-fusion = { workspace = true, features = ["test-util"] }
 cubecl = { workspace = true, features = ["test-runtime"] }
 
 [package.metadata.docs.rs]
