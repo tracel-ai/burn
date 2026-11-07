@@ -881,6 +881,15 @@ For example, update custom progress logger implementations:
 - Add `ImageFolderDataset::class_name` to look up the class name of a label.
   ([#6310](https://github.com/tracel-ai/burn/pull/6310))
 
+#### Exponential moving average (EMA)
+
+- Add `ExponentialMovingAverage` (`Ema`), `ExponentialMovingAverageConfig` (`EmaConfig`),
+  `EmaWarmup`, and `EmaRecord` to `burn-optim` (`burn::optim` / `burn::ema`) for maintaining a
+  detached exponential moving average of a module's floating-point parameters across optimizer
+  steps with decay warmup and burnpack checkpointing.
+  ([#5402](https://github.com/tracel-ai/burn/issues/5402))
+  [@divakantpandey](https://github.com/divakantpandey)
+
 #### LBFGS optimizer
 
 - Keep LBFGS parameter updates aligned when some parameters have no gradients, including when
