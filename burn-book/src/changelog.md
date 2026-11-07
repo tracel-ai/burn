@@ -308,6 +308,14 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   tensor-parallel decode. ([#6293](https://github.com/tracel-ai/burn/pull/6293))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- Under fusion, a collective the backend runs natively (NCCL on CUDA) is queued as one part on
+  each member's own stream instead of waiting for every member first, so the caller keeps queueing
+  work while the devices run it. Tensor-parallel decode over four L4 GPUs runs about 1.8x faster.
+  A member whose input carries a failure still joins the others, which receive NaN (zeros for
+  integers and booleans) in its place. Backend implementors provide
+  `FusionBackend::collective_parts`, returning `None` to keep a collective on the caller.
+  ([#6421](https://github.com/tracel-ai/burn/pull/6421))
+
 #### Distributed data parallel training
 
 - Fix DDP gradient-synchronization hangs across local and remote devices.
