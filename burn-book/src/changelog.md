@@ -108,6 +108,11 @@ Third-party backends replace `memory_pool_report`, `memory_pool_usage` and `memo
 with `measure_memory`, and may implement `device_description`, `measure_telemetry` and
 `measure_peaks`.
 
+`SlicedPoolReport` is now `MemoryPoolReport`, whose `kind` tells a pool of shared pages from one
+whose allocations each own their page. `measure_memory` reports both, so a memory without
+sub-slicing, as in every wasm build, no longer reports an empty list. The largest allocation a
+device accepts is `capabilities().properties.memory.max_page_size`.
+
 - Report the runtime-stated capacity in bytes for workload sizing, now
   `Device::description()`'s `max_memory`. The value is distinct from currently free memory;
   backends without a reported capacity return `None`. ([#6250](https://github.com/tracel-ai/burn/pull/6250))
