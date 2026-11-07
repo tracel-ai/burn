@@ -1,7 +1,0 @@
-
-thread 'DSD-4-40960' (4749516) panicked at /kache/.cargo/git/checkouts/cubecl-058c47895211d464/d88b0fe/crates/cubecl-wgpu/src/runtime.rs:54:57:
-Unable to acquire wgpu device: UnsupportedGraphicsApi { api: WebGpu }
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
-
-thread 'main' (4749510) panicked at /kache/.cargo/git/checkouts/cubecl-058c47895211d464/d88b0fe/crates/cubecl-common/src/device/handle/channel.rs:456:35:
-called `Result::unwrap()` on an `Err` value: RecvError

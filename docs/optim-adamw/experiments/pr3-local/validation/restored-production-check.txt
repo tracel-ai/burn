@@ -1,5 +1,0 @@
-    Checking burn-cpu v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-cpu)
-    Checking burn-tensor v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-tensor)
-    Checking burn-instrument v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-instrument)
-    Checking burn-core v0.23.0-pre.1 (/Volumes/HIKSEMI/code/burn/crates/burn-core)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 12.30s

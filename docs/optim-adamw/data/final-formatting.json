@@ -1,6 +1,0 @@
-{
-  "path": "crates/burn-cubecl/src/kernel/optim/adamw.rs",
-  "reviewed_and_measured_sha256": "da4cb826519ff3d3f84044caa743a20ffe3e2245a3c8e941b272834a703c722f",
-  "formatted_sha256": "56638a88be99621da0214a86ead82445c1ee62b06e90d19cae57a3bbe3c41e86",
-  "change": "Rustfmt expanded one if expression; token stream unchanged after whitespace normalization. No behavioral change."
-}
