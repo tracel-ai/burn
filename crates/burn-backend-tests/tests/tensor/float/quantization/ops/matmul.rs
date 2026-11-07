@@ -285,6 +285,10 @@ fn should_matmul_two_level_rhs() {
 #[test]
 fn should_matmul_nvfp4_rhs() {
     let device = Default::default();
+    let rhs: TestTensor<2> = TestTensorInt::arange(0..64 * 32, &device)
+        .float()
+        .div_scalar(2048.)
+        .reshape([64, 32]);
     let scheme = device
         .settings()
         .quantization
@@ -293,10 +297,6 @@ fn should_matmul_nvfp4_rhs() {
         .per_block([16], ScaleDtype::UE4M3)
         .per_tensor(ScaleDtype::F32)
         .with_store(QuantStore::PackedU32(0));
-    let rhs: TestTensor<2> = TestTensorInt::arange(0..64 * 32, &device)
-        .float()
-        .div_scalar(2048.)
-        .reshape([64, 32]);
     let quantized = rhs.quantize_dynamic(&scheme);
 
     for rows in [1, 48] {
