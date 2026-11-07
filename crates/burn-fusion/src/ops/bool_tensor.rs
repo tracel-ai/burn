@@ -300,10 +300,14 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bool_to_device(tensor: BoolTensor<Self>, device_dst: &Device<Self>) -> BoolTensor<Self> {
+    fn bool_to_device(
+        tensor: BoolTensor<Self>,
+        device_dst: &Device<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         let device_src: &B::Device = tensor.client.device();
 
-        if device_src == device_dst {
+        if device_src == device_dst && tensor.dtype == out_dtype.into() {
             return tensor;
         }
 
@@ -311,7 +315,13 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let client_dst = get_client::<B>(device_dst);
         let client_src = tensor.client.clone();
 
-        GlobalFusionClient::change_client_bool::<B>(tensor.into_ir(), client_src, client_dst, id)
+        GlobalFusionClient::change_client_bool::<B>(
+            tensor.into_ir(),
+            client_src,
+            client_dst,
+            id,
+            out_dtype,
+        )
     }
 
     fn bool_reshape(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {

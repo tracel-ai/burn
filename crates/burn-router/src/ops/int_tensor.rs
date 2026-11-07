@@ -68,7 +68,8 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
         if &tensor.client.device() == device {
             return tensor;
         }
-        R::change_client_backend(tensor, device)
+        let dtype = tensor.dtype;
+        R::change_client_backend(tensor, device, dtype)
     }
 
     fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {

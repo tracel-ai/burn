@@ -122,6 +122,47 @@ pub(crate) fn handle_backend_tests(
         )?;
     }
 
+    if matches!(backend, TestBackend::Wgpu) && matches!(context, Context::Std) {
+        for (features, remote_features) in [
+            ("std,cpu,wgpu,fusion", "client,server,websocket,fusion"),
+            ("std,cpu,wgpu", "client,server,websocket"),
+        ] {
+            build_helpers::custom_crates_tests(
+                vec!["burn-backend-tests"],
+                handle_test_args(
+                    &[
+                        "--no-default-features",
+                        "--features",
+                        features,
+                        "--test",
+                        "bool_transfer",
+                    ],
+                    args.release,
+                ),
+                None,
+                None,
+                "CPU/WGSL bool transfer tests",
+            )?;
+            build_helpers::custom_crates_tests(
+                vec!["burn-remote"],
+                handle_test_args(
+                    &[
+                        "--no-default-features",
+                        "--features",
+                        remote_features,
+                        "--test",
+                        "websocket",
+                        "bool_transfer::",
+                    ],
+                    args.release,
+                ),
+                None,
+                None,
+                "remote bool transfer tests",
+            )?;
+        }
+    }
+
     let group_cpu_tests = matches!(backend, TestBackend::Flex) && matches!(context, Context::Std);
     if group_cpu_tests {
         // Keep each backend separate, and leave SIMD/threading defaults to the

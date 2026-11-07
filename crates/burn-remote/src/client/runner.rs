@@ -10,7 +10,7 @@ use burn_backend::{
 };
 use burn_ir::{CapturedGraphId, TensorIr};
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
-use burn_std::{DeviceSettings, device_handle::CallError, future::DynFut};
+use burn_std::{BoolDType, DType, DeviceSettings, device_handle::CallError, future::DynFut};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -529,21 +529,22 @@ impl RemoteTensorHandle {
     /// A move to or from a device whose session has ended sends no transfer: its tensors are gone
     /// with it. The tensor on the target is failed by that end instead, and a read of it reports
     /// why. Only an end this client has already seen is caught.
-    pub(crate) fn change_backend(self, target_device: &RemoteDevice) -> Self {
+    pub(crate) fn change_backend(self, target_device: &RemoteDevice, dtype: DType) -> Self {
         let ended = [&self.client.device, target_device].map(RemoteDevice::session_error);
-        if let Some(error) = ended.into_iter().flatten().next() {
-            return self.fail_on(target_device, error);
-        }
-        if self.client.device.peer_id() == target_device.peer_id() {
-            self.change_backend_local(target_device)
+        let mut moved = if let Some(error) = ended.into_iter().flatten().next() {
+            self.fail_on(target_device, error)
+        } else if self.client.device.peer_id() == target_device.peer_id() {
+            self.change_backend_local(target_device, dtype)
         } else {
             assert_eq!(
                 self.client.device.peer_addr().is_iroh(),
                 target_device.peer_addr().is_iroh(),
                 "Moving a tensor between an Iroh server and a WebSocket server is not supported"
             );
-            self.change_backend_remote(target_device)
-        }
+            self.change_backend_remote(target_device, dtype)
+        };
+        moved.tensor.dtype = dtype;
+        moved
     }
 
     /// The tensor on `target_device`, failed by `error` instead of transferred. A target whose
@@ -570,7 +571,7 @@ impl RemoteTensorHandle {
     /// Same-host transfer: hand the device-resident primitive from the source session to the
     /// target session on the same server, which moves it with the inner backend's `to_device`.
     /// No host round-trip.
-    fn change_backend_local(mut self, target_device: &RemoteDevice) -> Self {
+    fn change_backend_local(mut self, target_device: &RemoteDevice, dtype: DType) -> Self {
         // The stream of the calling user thread: the source reads the tensor back on the
         // stream that produced it, and the target registers the result on the stream that
         // will consume it — same contract as the regular op/tensor registration paths.
@@ -588,7 +589,7 @@ impl RemoteTensorHandle {
 
         let new_id = service::new_tensor_id();
         target_client.handle.submit(move |s| {
-            s.register_tensor_local(stream_id, transfer_id, new_id);
+            s.register_tensor_local(stream_id, transfer_id, new_id, dtype);
         });
         target_client.handle.flush_queue();
         drop(order);
@@ -604,7 +605,7 @@ impl RemoteTensorHandle {
     /// the tensor. The target server will open a new network connection to the original server
     /// to download the data.
     /// This way the client never sees the tensor's data, and we avoid a bottleneck.
-    fn change_backend_remote(mut self, target_device: &RemoteDevice) -> Self {
+    fn change_backend_remote(mut self, target_device: &RemoteDevice, dtype: DType) -> Self {
         // See `change_backend_local`: carry the calling thread's stream so the source readback
         // and the target registration land on the client streams, not arbitrary server threads.
         let stream_id = StreamId::current();
@@ -626,7 +627,7 @@ impl RemoteTensorHandle {
         let peer = self.client.device.peer_addr();
         let new_id = service::new_tensor_id();
         target_client.handle.submit(move |s| {
-            s.register_tensor_remote(stream_id, TensorRemote { capability, peer }, new_id);
+            s.register_tensor_remote(stream_id, TensorRemote { capability, peer }, new_id, dtype);
         });
         // Same as the source side: drain the closure queue so it runs now and
         // `register_tensor_remote` flushes the registration onto the target's wire.
@@ -649,7 +650,8 @@ impl MultiBackendBridge for RemoteBridge {
         _shape: burn_backend::Shape,
         target_device: &Self::Device,
     ) -> Self::TensorHandle {
-        tensor.change_backend(target_device)
+        let dtype = tensor.tensor.dtype;
+        tensor.change_backend(target_device, dtype)
     }
 
     fn change_backend_int(
@@ -657,15 +659,17 @@ impl MultiBackendBridge for RemoteBridge {
         _shape: burn_backend::Shape,
         target_device: &Self::Device,
     ) -> Self::TensorHandle {
-        tensor.change_backend(target_device)
+        let dtype = tensor.tensor.dtype;
+        tensor.change_backend(target_device, dtype)
     }
 
     fn change_backend_bool(
         tensor: Self::TensorHandle,
         _shape: burn_backend::Shape,
         target_device: &Self::Device,
+        out_dtype: BoolDType,
     ) -> Self::TensorHandle {
-        tensor.change_backend(target_device)
+        tensor.change_backend(target_device, out_dtype.into())
     }
 }
 

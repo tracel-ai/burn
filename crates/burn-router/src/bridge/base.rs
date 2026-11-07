@@ -1,4 +1,4 @@
-use burn_backend::{Shape, backend::DeviceOps};
+use burn_backend::{BoolDType, Shape, backend::DeviceOps};
 
 /// Allows tensors to be transferred between multiple backends.
 pub trait MultiBackendBridge: Send + Sync + 'static {
@@ -21,11 +21,12 @@ pub trait MultiBackendBridge: Send + Sync + 'static {
         target_device: &Self::Device,
     ) -> Self::TensorHandle;
 
-    /// Change the backend of the given bool tensor.
+    /// Change the backend of the given bool tensor using the requested destination storage.
     fn change_backend_bool(
         tensor: Self::TensorHandle,
         shape: Shape,
         target_device: &Self::Device,
+        out_dtype: BoolDType,
     ) -> Self::TensorHandle;
 
     // TODO: change_backend_quantized
