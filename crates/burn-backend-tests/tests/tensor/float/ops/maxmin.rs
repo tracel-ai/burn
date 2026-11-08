@@ -602,3 +602,29 @@ fn test_nan_max_min_dim_flex_half_dtypes() {
             );
     }
 }
+
+#[test]
+fn test_nan_max_min_dim_empty_output() {
+    // The reduced axis is not empty, so there is nothing to reduce and the output is empty.
+    let tensor = TestTensor::<2>::empty([0, 3], &Default::default());
+
+    assert_eq!(tensor.clone().nan_max_dim(1).dims(), [0, 1]);
+    assert_eq!(tensor.nan_min_dim(1).dims(), [0, 1]);
+}
+
+// Like `max_dim` and `max`, an empty reduced axis is rejected rather than returning NaN.
+#[test]
+#[should_panic]
+fn test_nan_max_dim_empty_axis_should_panic() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let _ = tensor.nan_max_dim(1).into_data();
+}
+
+#[test]
+#[should_panic]
+fn test_nan_min_empty_tensor_should_panic() {
+    let tensor = TestTensor::<1>::empty([0], &Default::default());
+
+    let _ = tensor.nan_min().into_data();
+}

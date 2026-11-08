@@ -1371,6 +1371,12 @@ fn nan_reduce_dim<const D: usize>(
     identity: f64,
     reduce: fn(Tensor<D>, usize) -> Tensor<D>,
 ) -> Tensor<D> {
+    // Nothing to mask: a zero-sized tensor either has an empty output or an empty reduced axis,
+    // which `reduce` already handles (and rejects) the same way as the NaN-propagating version.
+    if tensor.shape().num_elements() == 0 {
+        return reduce(tensor, dim);
+    }
+
     let nan = tensor.clone().is_nan();
     let all_nan = nan.clone().all_dim(dim);
     reduce(tensor.mask_fill(nan, identity), dim).mask_fill(all_nan, f64::NAN)
