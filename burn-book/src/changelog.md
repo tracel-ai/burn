@@ -548,6 +548,10 @@ own a random generator.
 - Fix f16 min/max and top-k operations with indices failing during autotuning on CubeCL backends.
   ([#6428](https://github.com/tracel-ai/burn/pull/6428)) [@laggui](https://github.com/laggui)
 
+- Add `nan_max`, `nan_min`, `nan_max_dim` and `nan_min_dim` for float tensors. They ignore NaN and
+  return NaN only for all-NaN inputs, like NumPy's `nanmax` and `nanmin`.
+  ([#6278](https://github.com/tracel-ai/burn/pull/6278)) [@HarpeLm](https://github.com/HarpeLm)
+
 #### Tensor remainder
 
 - Correct floating-point remainder results for special values.
