@@ -2442,5 +2442,2830 @@
         }
       }
     ]
+  },
+  "upstream_sync": {
+    "date": "2026-11-08",
+    "upstream": "43acf2ded51bf7be46c71666b7d5705ec21e7a8e",
+    "dependencies": {
+      "cubecl": "https://github.com/onenewcode/cubecl@5a9e57489357e0336dae0ff23df502b1896be397",
+      "cubek": "https://github.com/onenewcode/cubek@f67dce4244d89fff2c809bd5c3194620612bf682"
+    },
+    "notes": [
+      "This section records the new dependency snapshot; earlier top-level measurements and downstream validation retain their original source identities.",
+      "Build git_head is the pre-merge parent because validation preceded the merge commit. The build source map and merge proof identify the tested tree.",
+      "Initial raw/fusion/JIT/decorator suites preceded the mechanical feature isolation fix. Both fusion suites, strict clippy, repository checks and the rebuilt executable were validated after that fix.",
+      "The first clippy attempt failed on the upstream fusion-only method compiled without fusion. The first repository check failed on a read-only cached build artifact; both failures and successful reruns are retained.",
+      "CUDA confirmation contains three processes per mode with 30 steady samples each, alternating process order. It measures Reference versus Fused, not GPU multi-tensor batching."
+    ],
+    "environment": {
+      "gpu": "NVIDIA GeForce RTX 5070 Ti Laptop GPU, 615.71.10, 12227 MiB",
+      "RUSTC_WRAPPER": "/usr/bin/env",
+      "RUSTC_WORKSPACE_WRAPPER": "/usr/bin/env",
+      "HOST_CC": "cc",
+      "HOST_CXX": "c++",
+      "benchmark_build": "build.py disables both Rust wrappers"
+    },
+    "merge_proof": {
+      "previous_head": "cde42f54f9fa530ddbd7dd7e53a550a84b9a9fff",
+      "upstream": "43acf2ded51bf7be46c71666b7d5705ec21e7a8e",
+      "source_diff_sha256": "adc3088c8699667935d33263bb7c199976e78c1d9ab41ce6e5c33f1d2c7f3f09",
+      "manifest_only_fork_pins": true,
+      "lock_changes_relative_to_upstream": [
+        "burn-optim",
+        "cubecl",
+        "cubecl-common",
+        "cubecl-core",
+        "cubecl-cpp",
+        "cubecl-cpu",
+        "cubecl-cuda",
+        "cubecl-environment",
+        "cubecl-hip",
+        "cubecl-ir",
+        "cubecl-llvm",
+        "cubecl-macros",
+        "cubecl-macros-internal",
+        "cubecl-metal",
+        "cubecl-monitoring",
+        "cubecl-opt",
+        "cubecl-runtime",
+        "cubecl-server",
+        "cubecl-spirv",
+        "cubecl-std",
+        "cubecl-tile",
+        "cubecl-wgpu",
+        "cubecl-zspace",
+        "cubek",
+        "cubek-attention",
+        "cubek-attention-backward",
+        "cubek-convolution",
+        "cubek-fft",
+        "cubek-gated-delta",
+        "cubek-interpolate",
+        "cubek-matmul",
+        "cubek-microkernel",
+        "cubek-pool",
+        "cubek-quant",
+        "cubek-random",
+        "cubek-reduce",
+        "cubek-std"
+      ],
+      "no_additional_version_changes": true,
+      "upstream_changed_files_sha256": {
+        "Cargo.lock": "b6ab789928f726ea0a5dee46e99f7357ffcc629fba3ecea019cc4d5aaba2527b",
+        "Cargo.toml": "a5e0cfea49f9ba37c82aac1238c40e9af6fe4c2c8adf110de843281bb3912a16",
+        "burn-book/src/changelog.md": "cb4fde016fec9258677f20f0eeb8be60155297d74307528aa598c43fbfe09556",
+        "crates/burn-backend-tests/tests/tensor/collective.rs": "f79c8c87d454018799704c014213343e4eb3ea8955ca0f9c27c45866156e79e9",
+        "crates/burn-cubecl/src/fusion.rs": "e1c69e8ac161763d1e791eeb76175170d87a2969b60c0d931dfcdec9c1b15356",
+        "crates/burn-cubecl/src/ops/collective.rs": "a8b7762b3348183e60acd9c1739d926b65eda400d2656b6c34f7cefd89649f9e",
+        "crates/burn-cubecl/src/ops/mod.rs": "593fa84cc32cd8787fdea8128f01491e9a8e8fb4b79dbfe68fa6a8ce209a325f",
+        "crates/burn-fusion/src/backend.rs": "966a673e8b424dbb9d99b609cd2dd9d1145407454f8ea778da1807eda753f78f",
+        "crates/burn-fusion/src/client.rs": "442bd485b9f885b519ebe88aeab901b6e5248718dfa1e64b5a2e75c1438cf331",
+        "crates/burn-fusion/src/lib.rs": "c64f6b77ca8d27d644f211cc200eae53ee4a9eff1f06654cbb127f1a0849923e",
+        "crates/burn-fusion/src/op.rs": "2f7aee35a21ad3f0b3a70c998ed6a5c8c5d03874a26e72ff79ceb1421d7540aa",
+        "crates/burn-fusion/src/ops/collective.rs": "47745adba00cc275f6bef5558b6189597cce2f154fe8f4c4db321cb54773dca9",
+        "crates/burn-fusion/src/ops/mod.rs": "b4a3c71669111984b510de0feea88a6d59a50ffbe65eed872e56106b68beaa06",
+        "crates/burn-fusion/src/stream/execution/base.rs": "695cca37bf3b0b775e60015ab2f40974b874168e8c856ed48ef70303c3e29ec5",
+        "crates/burn-fusion/src/stream/execution/ordering.rs": "dcf180ca2c145f0def3e1df58509d9be71f30091f0d77a3f7c9d30e040b46cb0",
+        "crates/burn-fusion/src/stream/multi/tests.rs": "a246178e0c64b6ea843d5f2b7af13795d5db62fa0214e51861cf7c81661b8254",
+        "crates/burn-router/src/fusion.rs": "d159fb168562f16007f5b671f6601a4f2fa8fdbbca412878c606a58b493f502d"
+      },
+      "source_diff_identical_to_upstream_before_feature_fix": true,
+      "feature_fix": {
+        "description": "Move fusion-only Exchange::run_member and GroupMember import into the existing fusion module, retaining the exact function body.",
+        "patch": "diff --git a/crates/burn-cubecl/src/ops/collective.rs b/crates/burn-cubecl/src/ops/collective.rs\nindex 1a91be0fe..74a6dc4c7 100644\n--- a/crates/burn-cubecl/src/ops/collective.rs\n+++ b/crates/burn-cubecl/src/ops/collective.rs\n@@ -11,7 +11,7 @@ use burn_backend::{\n };\n use core::cmp::Ordering;\n use cubecl::{\n-    client::{Client, ClientGroup, GroupMember, MemberBuffers},\n+    client::{Client, ClientGroup, MemberBuffers},\n     ir::ElemType,\n };\n \n@@ -299,20 +299,6 @@ impl Exchange {\n             Self::AllToAll { .. } => clients.all_to_all(buffers),\n         }\n     }\n-\n-    /// Queues `member`'s own part.\n-    fn run_member(self, member: &GroupMember, elem: ElemType, buffers: MemberBuffers) {\n-        match self {\n-            Self::AllReduce { op } => {\n-                member.all_reduce(buffers, elem, reduce_operation_to_cubecl(op))\n-            }\n-            Self::AllGather { .. } => member.all_gather(buffers),\n-            Self::ReduceScatter { op, .. } => {\n-                member.reduce_scatter(buffers, elem, reduce_operation_to_cubecl(op))\n-            }\n-            Self::AllToAll { .. } => member.all_to_all(buffers),\n-        }\n-    }\n }\n \n /// A collective the members' group runs natively, with each member's tensor.\n@@ -455,9 +441,23 @@ mod parts {\n     use burn_backend::cubecl::dtype_to_storage_type;\n     use burn_fusion::{Collective, CollectivePart};\n     use burn_ir::{BackendIr, TensorHandle};\n-    use cubecl::prelude::InputScalar;\n+    use cubecl::{client::GroupMember, prelude::InputScalar};\n \n     impl Exchange {\n+        /// Queues `member`'s own part.\n+        fn run_member(self, member: &GroupMember, elem: ElemType, buffers: MemberBuffers) {\n+            match self {\n+                Self::AllReduce { op } => {\n+                    member.all_reduce(buffers, elem, reduce_operation_to_cubecl(op))\n+                }\n+                Self::AllGather { .. } => member.all_gather(buffers),\n+                Self::ReduceScatter { op, .. } => {\n+                    member.reduce_scatter(buffers, elem, reduce_operation_to_cubecl(op))\n+                }\n+                Self::AllToAll { .. } => member.all_to_all(buffers),\n+            }\n+        }\n+\n         fn from_fusion(collective: Collective) -> Self {\n             match collective {\n                 Collective::AllReduce { op } => Self::AllReduce { op },\n",
+        "patch_sha256": "ecf0d2cf4b7f52b18ac8a457d66863273ece07248dedc3e925cf70678bc1aee8"
+      }
+    },
+    "reviews": {
+      "stage": "Burn merge before documentation refresh",
+      "staged_patch_sha256": "ad374c7a5b16d3c94de0ba5a133fa7044aaf42b6c07124a98d2927958d4b613d",
+      "reviews_before_commit": [
+        {
+          "reviewer": "/root/foreach_architecture",
+          "result": "PASS",
+          "scope": "upstream source preservation, dependency sources and lockfile, execution streams, fusion and decorator fallback, COW"
+        },
+        {
+          "reviewer": "/root/kernel_review",
+          "result": "PASS",
+          "scope": "upstream source preservation, dependency sources and lockfile, execution streams, fusion and decorator fallback, COW"
+        },
+        {
+          "reviewer": "/root",
+          "result": "PASS",
+          "scope": "upstream source preservation, dependency sources and lockfile, execution streams, fusion and decorator fallback, COW"
+        }
+      ],
+      "feature_isolation_fix": {
+        "patch_sha256": "ecf0d2cf4b7f52b18ac8a457d66863273ece07248dedc3e925cf70678bc1aee8",
+        "source_sha256": "a8b7762b3348183e60acd9c1739d926b65eda400d2656b6c34f7cefd89649f9e",
+        "reviews_before_commit": [
+          {
+            "reviewer": "/root/foreach_architecture",
+            "result": "PASS",
+            "scope": "unchanged function body and only caller under fusion; no new suppression or API"
+          },
+          {
+            "reviewer": "/root/kernel_review",
+            "result": "PASS",
+            "scope": "unchanged function body and only caller under fusion; no new suppression or API"
+          },
+          {
+            "reviewer": "/root",
+            "result": "PASS",
+            "scope": "unchanged function body and only caller under fusion; no new suppression or API"
+          }
+        ]
+      }
+    },
+    "cubecl_validation": {
+      "repository": "target/adamw-evidence/deps/cubecl",
+      "branch": "feat/execution-stream",
+      "original_head": "e97ef2c4dc06e18281effe0b71e1d361b2d1e4c4",
+      "upstream": "cb1b7bc6e521b2556ed01cf096b99104a50b35ae",
+      "merge_conflicts": false,
+      "fork_patch_sha256": "59679ff5d137ee873325880b6592eddd0a91c34988297c31d38c7fb593277083",
+      "fork_patch_byte_identical_to_original": true,
+      "staged_upstream_files_byte_identical": true,
+      "checks": [
+        {
+          "command": "cargo test -p cubecl-cpu --locked --no-default-features --features std --test execution_stream",
+          "exit_code": 0,
+          "result": "2 passed; 0 failed; 0 ignored",
+          "log": "getter-cpu.log",
+          "sha256": "543ace2db813c6425ec72c262bd23a1df0ae456a9977eb28c741682dfebfccc5"
+        },
+        {
+          "command": "cargo check -p cubecl-runtime --locked --no-default-features",
+          "exit_code": 0,
+          "log": "runtime-no-default.log",
+          "sha256": "58660554f850fca511c7b56601b55d9b2dd8964ffecd9312035163b7e70cc231"
+        },
+        {
+          "command": "cargo clippy -p cubecl-cpu --locked --no-default-features --features std --test execution_stream --no-deps -- -D warnings",
+          "exit_code": 0,
+          "log": "getter-clippy.log",
+          "sha256": "c03e9642578555a562a26ff7429b40f51f27368dfbf0f78aab6dca5979411f20"
+        },
+        {
+          "command": "rustfmt --edition 2024 --check crates/cubecl-runtime/src/client.rs crates/cubecl-cpu/tests/execution_stream.rs",
+          "exit_code": 0
+        },
+        {
+          "command": "git diff --check && git diff --cached --check",
+          "exit_code": 0
+        }
+      ],
+      "sources": {
+        "Cargo.lock": "dc480a166f93009b5f965c581a8545d8135914e44c0e75340e902b3c2dd17a76",
+        "crates/cubecl-runtime/src/client.rs": "70b08ca933cb849daf1473d0a70dc890c9482b2a969c54bb6d003a6680a31c22",
+        "crates/cubecl-cpu/tests/execution_stream.rs": "4606392fa15f679f3c041c7a58fcb35da9b5b68cfae4f8d1561401f94f9b3755"
+      },
+      "reviews": [
+        {
+          "reviewer": "/root",
+          "result": "PASS; exact original patch plus upstream, getter delegates side-effect-free stream_id"
+        },
+        {
+          "reviewer": "/root/foreach_architecture",
+          "result": "PASS; exact blob/patch proof; GroupMember queue still uses same pin/ambient resolver"
+        }
+      ],
+      "environment": {
+        "RUSTC_WRAPPER": "",
+        "RUSTC_WORKSPACE_WRAPPER": "",
+        "HOST_CC": "cc",
+        "HOST_CXX": "c++",
+        "CARGO_TARGET_DIR": "/mnt/data/code/burn/target/adamw-evidence/deps-build"
+      },
+      "not_run": [
+        "Full CubeCL cargo xtask validate",
+        "GPU getter tests",
+        "Performance measurements"
+      ],
+      "integrated_commit": "5a9e57489357e0336dae0ff23df502b1896be397",
+      "published": true,
+      "push_command": "git push origin feat/execution-stream",
+      "push_exit_code": 0
+    },
+    "cubek_metadata": {
+      "path": "target/adamw-evidence/deps/cubek/target/adamw-sync-metadata.json",
+      "sha256": "101c1058b705eb76b32e28dccf87bf7dd0780e471af00d4df53c06920e42c7fa",
+      "packages": 563,
+      "cubecl_packages": 22,
+      "cubecl_source": "git+https://github.com/onenewcode/cubecl?rev=5a9e57489357e0336dae0ff23df502b1896be397#5a9e57489357e0336dae0ff23df502b1896be397",
+      "locked_online_and_offline_metadata_passed": true,
+      "Cargo.toml_sha256": "d5b1335812d2b0ff4787176984c66ab0962f2e178e2f5eb2262468aaa4671c95",
+      "Cargo.lock_sha256": "527de9e9c15d8aab7dd4755d097c263a782c1625ddadb7dcfbdb3860dc09a3b2"
+    },
+    "pre_sync_cuda_recheck": {
+      "git_head": "cde42f54f9fa530ddbd7dd7e53a550a84b9a9fff",
+      "binary_sha256": "9027a164e8a6db51f27b3baecc26123bef1a4e1a3a78a58178030b9a54357dd9",
+      "source_mismatches": [],
+      "command": [
+        "compute-sanitizer",
+        "--tool",
+        "memcheck",
+        "--error-exitcode",
+        "99",
+        "target/adamw-evidence/bin/reviewed",
+        "--verify-path"
+      ],
+      "BURN_DEVICE": "cuda",
+      "started": "2026-11-08T13:00:58+0800",
+      "exit_code": 0,
+      "log": "target/adamw-evidence/cuda-recheck-2026-11-08.log",
+      "log_sha256": "1d00649b41f0456b5ae6740fe0f617d4025d7f31e548645a165392d158102a00"
+    },
+    "validation": [
+      {
+        "name": "adamw-cuda",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "burn-optim",
+          "--locked",
+          "--no-default-features",
+          "--features",
+          "std,cpu,cuda",
+          "--lib",
+          "adamw",
+          "--",
+          "--test-threads=1"
+        ],
+        "device": "cuda",
+        "exit_code": 0,
+        "elapsed_seconds": 78.47042632199009,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/adamw-cuda.log",
+        "log_sha256": "63f88944d94b293ce4d68b7fd8acc0e1ccb4f93f33dcba4b6d108bd960d84b83",
+        "summaries": [
+          "test result: ok. 50 passed; 0 failed; 2 ignored; 0 measured; 131 filtered out; finished in 17.23s"
+        ]
+      },
+      {
+        "name": "adamw-cpu",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "burn-optim",
+          "--locked",
+          "--no-default-features",
+          "--features",
+          "std,cpu,cuda",
+          "--lib",
+          "adamw",
+          "--",
+          "--test-threads=1"
+        ],
+        "device": "cpu",
+        "exit_code": 0,
+        "elapsed_seconds": 50.826343140011886,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/adamw-cpu.log",
+        "log_sha256": "eccf1bd3b93b4ad12960d721474572f519bad1399cbce51bcc095a7a141d4734",
+        "summaries": [
+          "test result: ok. 50 passed; 0 failed; 2 ignored; 0 measured; 131 filtered out; finished in 50.47s"
+        ]
+      },
+      {
+        "name": "vector_width_has_distinct_and_reusable_jit_keys",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "burn-optim",
+          "--locked",
+          "--no-default-features",
+          "--features",
+          "std,cpu,cuda",
+          "--lib",
+          "vector_width_has_distinct_and_reusable_jit_keys",
+          "--",
+          "--ignored",
+          "--test-threads=1"
+        ],
+        "device": "cpu",
+        "exit_code": 0,
+        "elapsed_seconds": 35.674308700006804,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/vector_width_has_distinct_and_reusable_jit_keys.log",
+        "log_sha256": "4c68159d037e02d0690e3650418dc6e48dfc720493bc7e224eb63a21e48d842f",
+        "summaries": [
+          "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 182 filtered out; finished in 0.14s"
+        ]
+      },
+      {
+        "name": "foreach_jit_reuses_stable_layout_and_distinguishes_descriptors",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "burn-optim",
+          "--locked",
+          "--no-default-features",
+          "--features",
+          "std,cpu,cuda",
+          "--lib",
+          "foreach_jit_reuses_stable_layout_and_distinguishes_descriptors",
+          "--",
+          "--ignored",
+          "--test-threads=1"
+        ],
+        "device": "cpu",
+        "exit_code": 0,
+        "elapsed_seconds": 0.3870656799990684,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/foreach_jit_reuses_stable_layout_and_distinguishes_descriptors.log",
+        "log_sha256": "1d38503e2e31489f2f1523c4d5ebee27f3e391a637e3927b60158474715205a8",
+        "summaries": [
+          "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 182 filtered out; finished in 0.15s"
+        ]
+      },
+      {
+        "name": "adamw-decorators",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "burn-optim",
+          "--locked",
+          "--no-default-features",
+          "--features",
+          "std,cpu,cuda,adamw-execution-tests",
+          "--test",
+          "adamw_execution",
+          "--",
+          "--test-threads=1"
+        ],
+        "device": "cpu",
+        "exit_code": 0,
+        "elapsed_seconds": 68.46287219200167,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/adamw-decorators.log",
+        "log_sha256": "0b38d87d56c9067d02df0449832126ad9b3e257b253ce0622e805ac9f9913d03",
+        "summaries": [
+          "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s"
+        ]
+      },
+      {
+        "name": "adamw-fusion-cuda",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "burn-optim",
+          "--locked",
+          "--no-default-features",
+          "--features",
+          "std,cpu,cuda,burn-cubecl/fusion",
+          "--lib",
+          "adamw",
+          "--",
+          "--test-threads=1"
+        ],
+        "device": "cuda",
+        "exit_code": 0,
+        "elapsed_seconds": 84.82469223000226,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/adamw-fusion-cuda.log",
+        "log_sha256": "4d6ea2ed9b80dec5f1129e30ce40ff3f41f5a07eb434611758636328a46aaca6",
+        "summaries": [
+          "test result: ok. 50 passed; 0 failed; 2 ignored; 0 measured; 131 filtered out; finished in 24.07s"
+        ]
+      },
+      {
+        "name": "adamw-fusion-cpu",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "burn-optim",
+          "--locked",
+          "--no-default-features",
+          "--features",
+          "std,cpu,cuda,burn-cubecl/fusion",
+          "--lib",
+          "adamw",
+          "--",
+          "--test-threads=1"
+        ],
+        "device": "cpu",
+        "exit_code": 0,
+        "elapsed_seconds": 23.10945022199303,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/adamw-fusion-cpu.log",
+        "log_sha256": "ee84c6c1f11df5bb33b3937d3914a943f67d5c5ecf5b5991cf37b0ef85c4fc1c",
+        "summaries": [
+          "test result: ok. 50 passed; 0 failed; 2 ignored; 0 measured; 131 filtered out; finished in 22.65s"
+        ]
+      },
+      {
+        "name": "clippy-adamw",
+        "command": [
+          "cargo",
+          "clippy",
+          "-p",
+          "burn-optim",
+          "--locked",
+          "--no-default-features",
+          "--features",
+          "std,cpu,cuda,burn-cubecl/autotune",
+          "--all-targets",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "device": null,
+        "exit_code": 101,
+        "elapsed_seconds": 32.40317430300638,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/clippy-adamw.log",
+        "log_sha256": "ade83209a2f8763de1b00207f6391c8db0957c32f893df39c50b8005066f37b2",
+        "summaries": []
+      },
+      {
+        "name": "clippy-adamw",
+        "command": [
+          "cargo",
+          "clippy",
+          "-p",
+          "burn-optim",
+          "--locked",
+          "--no-default-features",
+          "--features",
+          "std,cpu,cuda,burn-cubecl/autotune",
+          "--all-targets",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "device": null,
+        "exit_code": 0,
+        "elapsed_seconds": 12.963150784009486,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/clippy-adamw-retry-1.log",
+        "log_sha256": "0056d3416ffbf5c12e1085ba8c866be997013fb848370cc8577c14115e204d33",
+        "collective_source_sha256": "a8b7762b3348183e60acd9c1739d926b65eda400d2656b6c34f7cefd89649f9e",
+        "summaries": []
+      },
+      {
+        "name": "adamw-fusion-cuda-feature-fix",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "burn-optim",
+          "--locked",
+          "--no-default-features",
+          "--features",
+          "std,cpu,cuda,burn-cubecl/fusion",
+          "--lib",
+          "adamw",
+          "--",
+          "--test-threads=1"
+        ],
+        "device": "cuda",
+        "exit_code": 0,
+        "elapsed_seconds": 28.783019481998053,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/adamw-fusion-cuda-feature-fix.log",
+        "log_sha256": "ffabe4bdebd7dd8f7dc390d439d3f719334ec39b0e22a5d3321b1ed7b45e8c22",
+        "collective_source_sha256": "a8b7762b3348183e60acd9c1739d926b65eda400d2656b6c34f7cefd89649f9e",
+        "summaries": [
+          "test result: ok. 50 passed; 0 failed; 2 ignored; 0 measured; 131 filtered out; finished in 19.02s"
+        ]
+      },
+      {
+        "name": "adamw-fusion-cpu-feature-fix",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "burn-optim",
+          "--locked",
+          "--no-default-features",
+          "--features",
+          "std,cpu,cuda,burn-cubecl/fusion",
+          "--lib",
+          "adamw",
+          "--",
+          "--test-threads=1"
+        ],
+        "device": "cpu",
+        "exit_code": 0,
+        "elapsed_seconds": 25.845567151001887,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/adamw-fusion-cpu-feature-fix.log",
+        "log_sha256": "618d5838cddbe1ba4ee5221cfec56f502ae1910ec05ab0b855f8a053cfa20026",
+        "collective_source_sha256": "a8b7762b3348183e60acd9c1739d926b65eda400d2656b6c34f7cefd89649f9e",
+        "summaries": [
+          "test result: ok. 50 passed; 0 failed; 2 ignored; 0 measured; 131 filtered out; finished in 25.57s"
+        ]
+      },
+      {
+        "name": "run-checks",
+        "command": [
+          "cargo",
+          "run-checks"
+        ],
+        "device": null,
+        "exit_code": 1,
+        "elapsed_seconds": 17.34255277500779,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/run-checks.log",
+        "log_sha256": "24f7d5930efc48ea82a56b5d561fe3c4098051df4a075b3e6dd0c7a9e31bcee3",
+        "collective_source_sha256": "a8b7762b3348183e60acd9c1739d926b65eda400d2656b6c34f7cefd89649f9e",
+        "summaries": []
+      },
+      {
+        "name": "run-checks",
+        "command": [
+          "cargo",
+          "run-checks"
+        ],
+        "device": null,
+        "exit_code": 0,
+        "elapsed_seconds": 348.53731243900256,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/run-checks-retry-1.log",
+        "log_sha256": "666946f573de7369d5aebc05c0ed61d0781427b53881a33ea47087733fe0c30e",
+        "collective_source_sha256": "a8b7762b3348183e60acd9c1739d926b65eda400d2656b6c34f7cefd89649f9e",
+        "summaries": [
+          "test result: ok. 748 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.15s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 1951 passed; 0 failed; 18 ignored; 0 measured; 0 filtered out; finished in 1.05s",
+          "test result: ok. 1411 passed; 0 failed; 15 ignored; 0 measured; 0 filtered out; finished in 0.29s",
+          "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s",
+          "test result: ok. 222 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 120 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 1 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s",
+          "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 26.84s",
+          "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.23s",
+          "test result: ok. 113 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+          "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.43s",
+          "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s",
+          "test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.65s"
+        ]
+      },
+      {
+        "name": "build-benchmark",
+        "command": [
+          "python3",
+          "docs/optim-adamw/build.py",
+          "target/adamw-evidence/upstream-sync-2026-11-08/adamw",
+          "--features",
+          "std,cpu,cuda"
+        ],
+        "device": null,
+        "exit_code": 0,
+        "elapsed_seconds": 103.15666998899542,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/build-benchmark.log",
+        "log_sha256": "d2fefb208076130c7f0c66c73581c106875a21658ad499dea9594f0aac157377",
+        "collective_source_sha256": "a8b7762b3348183e60acd9c1739d926b65eda400d2656b6c34f7cefd89649f9e",
+        "summaries": []
+      },
+      {
+        "name": "cuda-sanitizer",
+        "command": [
+          "compute-sanitizer",
+          "--tool",
+          "memcheck",
+          "--error-exitcode",
+          "99",
+          "target/adamw-evidence/upstream-sync-2026-11-08/adamw",
+          "--verify-path"
+        ],
+        "device": "cuda",
+        "exit_code": 0,
+        "elapsed_seconds": 2.203215503002866,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/cuda-sanitizer.log",
+        "log_sha256": "1d00649b41f0456b5ae6740fe0f617d4025d7f31e548645a165392d158102a00",
+        "collective_source_sha256": "a8b7762b3348183e60acd9c1739d926b65eda400d2656b6c34f7cefd89649f9e",
+        "summaries": [
+          "verified: tiny (90 tensors)",
+          "verified: mixed_rank (9 tensors)",
+          "verified: large_1 (3 tensors)",
+          "verified: large_4 (12 tensors)",
+          "verified: large_16 (48 tensors)",
+          "verified: long_short (96 tensors)",
+          "verified: tail_minus (3 tensors)",
+          "verified: tail_plus (3 tensors)",
+          "verified: unaligned (3 tensors)",
+          "========= ERROR SUMMARY: 0 errors"
+        ]
+      },
+      {
+        "name": "cpu-path",
+        "command": [
+          "target/adamw-evidence/upstream-sync-2026-11-08/adamw",
+          "--verify-path"
+        ],
+        "device": "cpu",
+        "exit_code": 0,
+        "elapsed_seconds": 4.916609309002524,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/cpu-path.log",
+        "log_sha256": "dad167fe2934b622ec724e29c26976eba4dc1ac5d33ba090b501e39ce4e2277e",
+        "collective_source_sha256": "a8b7762b3348183e60acd9c1739d926b65eda400d2656b6c34f7cefd89649f9e",
+        "summaries": [
+          "verified: tiny (90 tensors)",
+          "verified: mixed_rank (9 tensors)",
+          "verified: large_1 (3 tensors)",
+          "verified: large_4 (12 tensors)",
+          "verified: large_16 (48 tensors)",
+          "verified: long_short (96 tensors)",
+          "verified: tail_minus (3 tensors)",
+          "verified: tail_plus (3 tensors)",
+          "verified: unaligned (3 tensors)"
+        ]
+      },
+      {
+        "name": "cuda-large-16",
+        "command": [
+          "python3",
+          "docs/optim-adamw/measure.py",
+          "target/adamw-evidence/upstream-sync-2026-11-08/adamw",
+          "target/adamw-evidence/upstream-sync-2026-11-08/cuda-large-16.json",
+          "--backend",
+          "cuda",
+          "--features",
+          "std,cpu,cuda",
+          "--repeats",
+          "3",
+          "--workloads",
+          "large_16"
+        ],
+        "device": null,
+        "exit_code": 0,
+        "elapsed_seconds": 7.113201201995253,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/cuda-large-16.log",
+        "log_sha256": "89680c51dc087e0f152649aa62469c1a5ce4bcad4287185ffa80c61e549a19bc",
+        "collective_source_sha256": "a8b7762b3348183e60acd9c1739d926b65eda400d2656b6c34f7cefd89649f9e",
+        "summaries": []
+      },
+      {
+        "name": "fusion-stream-tests",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "burn-fusion",
+          "--locked",
+          "--lib"
+        ],
+        "device": null,
+        "exit_code": 0,
+        "elapsed_seconds": 9.671034161990974,
+        "log": "target/adamw-evidence/upstream-sync-2026-11-08/fusion-stream-tests.log",
+        "log_sha256": "8710235a0eaed837e864113e3c349629a488fb73b2834b70372522e471624925",
+        "collective_source_sha256": "a8b7762b3348183e60acd9c1739d926b65eda400d2656b6c34f7cefd89649f9e",
+        "summaries": [
+          "test result: ok. 144 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.03s"
+        ]
+      }
+    ],
+    "repository_checks_summary": {
+      "passed": 4659,
+      "failed": 0,
+      "ignored": 39,
+      "test_executables": 29
+    },
+    "cache_repair": {
+      "reason": "run-checks could not overwrite a cached read-only hardlink for psm metadata",
+      "action": "Replace read-only build artifacts with byte-identical private writable copies; shared cache links remain untouched",
+      "files": 154,
+      "bytes": 274796053,
+      "record_path": "target/adamw-evidence/upstream-sync-2026-11-08/cache-artifact-repair.json",
+      "record_sha256": "59a7c57ee83599ad13ae7007574cb7d90342311811367b21026f235af6f53880"
+    },
+    "build": {
+      "command": [
+        "cargo",
+        "bench",
+        "-p",
+        "burn-optim",
+        "--bench",
+        "adamw",
+        "--no-default-features",
+        "--features",
+        "std,cpu,cuda",
+        "--no-run",
+        "--locked",
+        "--message-format=json"
+      ],
+      "features": "std,cpu,cuda",
+      "sources": {
+        ".cargo/config.toml": "ee87330c6a297ee9c37a1832d6ad3c114fce6cd6e6fe61edf64bcd6b29cdcc9d",
+        "Cargo.lock": "b6ab789928f726ea0a5dee46e99f7357ffcc629fba3ecea019cc4d5aaba2527b",
+        "Cargo.toml": "a5e0cfea49f9ba37c82aac1238c40e9af6fe4c2c8adf110de843281bb3912a16",
+        "crates/burn-cubecl/Cargo.toml": "7c3e00290250de8238b9743fa28e2e56dbc46108313e273445d756908a1aaab6",
+        "crates/burn-cubecl/src/backend.rs": "a39e0560b76a0a8dbe621e22e46fd98bbfb679519f82e119e5bb7e213c885180",
+        "crates/burn-cubecl/src/element.rs": "c62616a11c5da43f659219d071191fda53a1bc9b5c8f34060063995ad397d602",
+        "crates/burn-cubecl/src/execution.rs": "2574284a389b299c964b75aba1c1400bd1c206f09d4bda60966fe48888e6d1d9",
+        "crates/burn-cubecl/src/fusion/registry.rs": "3478ddfc03cb885fd9532727cacaf96e614b4c3d08eecc91362d155b210032c8",
+        "crates/burn-cubecl/src/fusion.rs": "e1c69e8ac161763d1e791eeb76175170d87a2969b60c0d931dfcdec9c1b15356",
+        "crates/burn-cubecl/src/kernel/attention/backward.rs": "991a368667421c3d16cb52b7271537ed4b160dd7feae1d3ff22ad56436ea6922",
+        "crates/burn-cubecl/src/kernel/attention/base.rs": "d2a754788b68ff60f4fe030d3b2b8a75cf858068da4a8e6d031a7ec898572735",
+        "crates/burn-cubecl/src/kernel/attention/cache.rs": "31ae6fa00554f0d847dd75e02cf3a2163827317ba64edfee29482ff976479f56",
+        "crates/burn-cubecl/src/kernel/attention/mod.rs": "e9cb90bb6edef8ddb302988dde03799e3bb277e50590e0935e12b57bd77db94d",
+        "crates/burn-cubecl/src/kernel/attention/tile.rs": "f33a195d81036605abf3fa760d23759cdbf647235d0f6d7036c205348a6d08c5",
+        "crates/burn-cubecl/src/kernel/binary.rs": "4b44ea79b1d24e08c63553c8be48adb6e05580a19356bc1b8b44cf3d9b02a12a",
+        "crates/burn-cubecl/src/kernel/binary_float.rs": "31ab3333165254ba1bbe4e29838072717d7d676cdafc7fcc6430a06098365ee9",
+        "crates/burn-cubecl/src/kernel/binary_int.rs": "27b20bea0a1f7d64e859f74f74680114470271fd6ea744f047cfdd3d8c36646f",
+        "crates/burn-cubecl/src/kernel/cast/base.rs": "abc4e4ecd8fe81aa5395f58da6e0f5f578f39489b574c2c85f9ad9359d2aad50",
+        "crates/burn-cubecl/src/kernel/cast/bool_cast.rs": "00af7c398f47b5d5523058321495ffeb4e2c6cad31242540e6a3873ef2bbeeba",
+        "crates/burn-cubecl/src/kernel/cast/mod.rs": "21d9ae5772025fb715dca8437e4b5a1b1ace2d06b37cb62a2c0cd3ad00b074a6",
+        "crates/burn-cubecl/src/kernel/clamp.rs": "55acfe3b2eba024bc2036aaddfc86cf19b4cc21068afd63f052b4c0fcfd0268b",
+        "crates/burn-cubecl/src/kernel/comparison.rs": "6a21d957b8f780a7cf9edae1fbdc1e74e05446057c3c15e19914a34c7b37e5f9",
+        "crates/burn-cubecl/src/kernel/contiguous.rs": "c39deb3506a126f40f9dae43616f5741a9c798d5a1fab720c23c51be67170697",
+        "crates/burn-cubecl/src/kernel/conv/backward_data/fallback.rs": "e7aeb560ee6a7505f98dc824e0d29023f073805f90bc6a48a14fb49092824ecf",
+        "crates/burn-cubecl/src/kernel/conv/backward_data/implicit_gemm/launch.rs": "86c98d0fdc5ed982c0467d39a53888a5f491549f9a5a07b13292bd401950cc12",
+        "crates/burn-cubecl/src/kernel/conv/backward_data/implicit_gemm/mod.rs": "e1131a9317b964e54faeff1f227c6e40433712f83e3808f4ea901237158bab56",
+        "crates/burn-cubecl/src/kernel/conv/backward_data/mod.rs": "f2c1f70c0364eb7e7b84bc0d22fd44e4b507a6c581ce911e2605340483666d18",
+        "crates/burn-cubecl/src/kernel/conv/backward_data/stride_phases.rs": "02690d4dae6965ffa0ddcbfb910ea0ade31c9c981b5d19291c4fa2d299d1cc03",
+        "crates/burn-cubecl/src/kernel/conv/backward_data/tune.rs": "f57bb9ba8568b2361ea41e766fad6231b0105aad51b746f77757c08a82580ed3",
+        "crates/burn-cubecl/src/kernel/conv/backward_weight/depthwise.rs": "0b1665c4a2a5d151f7ac28f4f9a09249b8a1dd234c9bca8d594e8de0ed9e9546",
+        "crates/burn-cubecl/src/kernel/conv/backward_weight/fallback.rs": "88b4837b003f23129d9c3c21ef63fd495bc8934ac3c90113f914eb5919ff9714",
+        "crates/burn-cubecl/src/kernel/conv/backward_weight/implicit_gemm/launch.rs": "1161b578e803024a81991fa3a06b91a38173ab1e57f10d71f175dbc95cc6ec8e",
+        "crates/burn-cubecl/src/kernel/conv/backward_weight/implicit_gemm/mod.rs": "e1131a9317b964e54faeff1f227c6e40433712f83e3808f4ea901237158bab56",
+        "crates/burn-cubecl/src/kernel/conv/backward_weight/mod.rs": "eaa87038625c2c4b632321fd6281f0e1d15514283af76d4c09f420ddb477900a",
+        "crates/burn-cubecl/src/kernel/conv/backward_weight/split_implicit.rs": "673e1881e6d9e46a241a0b0f3455390e033fa98bd69a226b0d768db5e9e21ffa",
+        "crates/burn-cubecl/src/kernel/conv/backward_weight/tune.rs": "08ae4e74f74f08ebee8069b07ca09fff006819e968b019ed5fb9597bd8a9fa4f",
+        "crates/burn-cubecl/src/kernel/conv/base.rs": "dfa340fc063143001a023373ee803625adcf92aefe603e2515560d6d9a06a3e2",
+        "crates/burn-cubecl/src/kernel/conv/conv_transpose2d/base.rs": "99084b21de2a6853a07cc69aa1126f321c9b97457b5d88bda05dcaca8c969a4c",
+        "crates/burn-cubecl/src/kernel/conv/conv_transpose2d/col2im.rs": "eac7e75ce0e51588410032838d84105d4738aca00e92f6a5857ad6a7055cc32d",
+        "crates/burn-cubecl/src/kernel/conv/conv_transpose2d/mod.rs": "b53492dce7a3d2f2bcb6d2734cbdb75d8eabfa350e776922b456db06801cfb38",
+        "crates/burn-cubecl/src/kernel/conv/conv_transpose2d/transpose_direct.rs": "0d6e82a1450cccb3f135e6a7488e80bbb81d05d97a72979731b4862239311ee6",
+        "crates/burn-cubecl/src/kernel/conv/conv_transpose2d/tune.rs": "84c303e4e0a58074d6bb76dd83e839d07ee13de15863751a6821b2d6360e40c5",
+        "crates/burn-cubecl/src/kernel/conv/conv_transpose3d/base.rs": "9b938552758a1032d1ae60da4a1612eb6657c73e2ae0844f48a13f0d9a2764dd",
+        "crates/burn-cubecl/src/kernel/conv/conv_transpose3d/col2im.rs": "4fdc74f8343d947f4b0b4e5c9005ecc8b29c036d86fe2ef3b72754df405f1c25",
+        "crates/burn-cubecl/src/kernel/conv/conv_transpose3d/mod.rs": "b53492dce7a3d2f2bcb6d2734cbdb75d8eabfa350e776922b456db06801cfb38",
+        "crates/burn-cubecl/src/kernel/conv/conv_transpose3d/transpose_direct.rs": "63eee16d937e29c66d7ddfdecbd3c75f73f49da9b8edf821f37a13f81ea5966f",
+        "crates/burn-cubecl/src/kernel/conv/conv_transpose3d/tune.rs": "0fb42a6d35531cf9ab4b7fa9b20765c8196f1c9f43bc321682504871707ebfb5",
+        "crates/burn-cubecl/src/kernel/conv/deform_conv2d.rs": "27c34339a5bfa9ecd055b2d8f671ea8c67be66aafe6945868e6eea8ca4215a4c",
+        "crates/burn-cubecl/src/kernel/conv/deform_conv_transpose2d.rs": "525189f9ce00ec62f83798d12222abd60cb6645e944ca1c8829ffa148067d4f6",
+        "crates/burn-cubecl/src/kernel/conv/direct.rs": "696f1dd7883d94026b80888e198c366bfb1e55de3fa5bfc5ff4b353ba86a7b72",
+        "crates/burn-cubecl/src/kernel/conv/forward/depthwise.rs": "984afc1c18d5b29c4de3d57dbfa1e8f7b656a05a2833b364d8c7c971a3c2b4d0",
+        "crates/burn-cubecl/src/kernel/conv/forward/implicit_gemm/launch.rs": "a00957364c8887cebf764d7ad4bf6fcc5fa2ebba34b14613c520222b9dee9dab",
+        "crates/burn-cubecl/src/kernel/conv/forward/implicit_gemm/mod.rs": "e1131a9317b964e54faeff1f227c6e40433712f83e3808f4ea901237158bab56",
+        "crates/burn-cubecl/src/kernel/conv/forward/mod.rs": "8d41e4ebf45d3074ee9b0c31038cfebd73c2a519771ebab08824d57b41fa69b0",
+        "crates/burn-cubecl/src/kernel/conv/forward/tune.rs": "3320c961a41120f397e0bf0377b223f9896c14e7ae34c6b26029992ea994d1d5",
+        "crates/burn-cubecl/src/kernel/conv/im2col.rs": "094662b643b5ba07b670a7c67e5fa4f71b5066424a32cb289840229b490c5232",
+        "crates/burn-cubecl/src/kernel/conv/mod.rs": "d47caa7287e83977f7a33a4bf6a008865a5c417b3dbb3f624c5feca8e778904a",
+        "crates/burn-cubecl/src/kernel/conv/tune_key.rs": "b68f2567c206685c8575641dc9319d1edfb685e9b3b451c707148b753112f46a",
+        "crates/burn-cubecl/src/kernel/conv/unit.rs": "e7cd9879e273a9cb8493b088bc467baf26f96c30da4a164f0b5c241bd7fff184",
+        "crates/burn-cubecl/src/kernel/cross.rs": "5c52dbd1a0c519c38f36e79b1f2f470375980bd24b8c526b74fb005681d2b6b7",
+        "crates/burn-cubecl/src/kernel/ctc.rs": "57d4eb1f03f56666ea0da9d651fadedd006a7804a21f7e17e71a3a3cc76e72b4",
+        "crates/burn-cubecl/src/kernel/fft/base.rs": "d6ea94b2bcd7dfbd01252d6054b51a1c6b55ad2f0905ce12e719690e0bd58c5f",
+        "crates/burn-cubecl/src/kernel/fft/mod.rs": "f74315888d8c038d27037da7bfb6edbdd72347454ff0d56860de55786dd9117c",
+        "crates/burn-cubecl/src/kernel/grid_sample/base.rs": "f003a31d749bb65b565ad1d64e4677de91296f3956b821299d8210a399a472ef",
+        "crates/burn-cubecl/src/kernel/grid_sample/bilinear.rs": "318ccaef2ce39df4afeca7c10e451039c78aea961c31cb536668bebfaacd4568",
+        "crates/burn-cubecl/src/kernel/grid_sample/mod.rs": "b6afdee23face1827bd9b309874548cf5c7102b5f79ee70c80e74746f2f3499c",
+        "crates/burn-cubecl/src/kernel/index/flip.rs": "0095fbd1db5d097dd5e4b9eb703e5ca62978e5508b742348057b4f690247f066",
+        "crates/burn-cubecl/src/kernel/index/gather.rs": "198d6a561afc508eb23f9d0901b74091e1bee112c195c69b0dc1cd8336538737",
+        "crates/burn-cubecl/src/kernel/index/gather_nd.rs": "14187a679b924bfd4016fe6091f84bb6e3000813b93bcb03406a78f75f9ba673",
+        "crates/burn-cubecl/src/kernel/index/mod.rs": "bb2643c56c485f8813510ef2d211fb83ba566d3163b74b22510015671a46e719",
+        "crates/burn-cubecl/src/kernel/index/repeat_dim.rs": "7f1b61436f028e78635b01c4b96dc4eb023c09eff4adafb67c6e4622cca7eed0",
+        "crates/burn-cubecl/src/kernel/index/scatter.rs": "db8ac1a6c317fd3dbd7b2765765090882b9dd186c5c79c793b13c78e98c60ae9",
+        "crates/burn-cubecl/src/kernel/index/scatter_nd.rs": "64ff1c1d47741d1d918f07682b0fec913120dd6012642f5995c666704a2bcc48",
+        "crates/burn-cubecl/src/kernel/index/select.rs": "e6a12477b0b8e34a4d57f7860f4a278411ecb9da69d54df4596bea6ff43c442b",
+        "crates/burn-cubecl/src/kernel/index/select_assign.rs": "17c9b3e08965cf4970367d23020f9bd2c732943c1dd77292a57ac233eb5d9996",
+        "crates/burn-cubecl/src/kernel/index/slice.rs": "6d8edae2b52656deac064c4c16cfba16c0879e4b99fcee2f125fe038e3f7273a",
+        "crates/burn-cubecl/src/kernel/index/slice_assign.rs": "8de38359013779996908967836f964bccd4fafb225135b9f1342ed1a1aac96e7",
+        "crates/burn-cubecl/src/kernel/interpolate/base.rs": "664897b3fe0f9eb3c51cf2c72e9764612a80e456e4086faa08bd34a40e2ce373",
+        "crates/burn-cubecl/src/kernel/interpolate/mod.rs": "c007a6bd1d6d044efc8b7af07eaf0656e911cbaf94e5763b0a455c0a6a50af97",
+        "crates/burn-cubecl/src/kernel/interpolate/tune.rs": "3fe48752d974da27dac6aa04ca77f8fc50533f2992aab70099ce7fd5d4767385",
+        "crates/burn-cubecl/src/kernel/mask/base.rs": "d1195d468a0636a916b25c9cff180d6ad224e66bc6addde252b6ef4c6526de06",
+        "crates/burn-cubecl/src/kernel/mask/mask_fill.rs": "5e392d210651867af406a2b65591e867e6395f6d7eb080988a778706c431cd8a",
+        "crates/burn-cubecl/src/kernel/mask/mask_where.rs": "bdea063e99929b4f80da23f2d5d5a50d515c8393581e9671d93276746e0d53f2",
+        "crates/burn-cubecl/src/kernel/mask/mod.rs": "1a124d282dfe4a75a1ef2fe6f43572a07cff9de414d05519d07b7d8067cd568f",
+        "crates/burn-cubecl/src/kernel/matmul/base.rs": "9a67d75ac3353bdb14cc06487700e1996b129bb68ed6f57433ce580501ea3256",
+        "crates/burn-cubecl/src/kernel/matmul/mod.rs": "d3c9288e03b937a160c804143a914182d8233f7fca7952667a3211f5c5d41393",
+        "crates/burn-cubecl/src/kernel/matmul/tile.rs": "ebed6735c7253bb633e3bfd6d1ac7b971ef20b50a14573ebe0ed692fe1de8e48",
+        "crates/burn-cubecl/src/kernel/matmul/utils.rs": "4a48664cf26641bbda0da41cba2f975465358246c56a4ab7f11a833efb29dd7a",
+        "crates/burn-cubecl/src/kernel/memory_order.rs": "557d83d22765ab0438919fc7edbb0ffd51303931f29789b4655ed95ef5c55c59",
+        "crates/burn-cubecl/src/kernel/mod.rs": "ca1ed4fa4c4f3f405b04b34f4d4070e07b78e43d7f6b346df7d632c338d92d5a",
+        "crates/burn-cubecl/src/kernel/optim/adamw/foreach.rs": "7e521bebb2b4fffa73dcd802d2b82a744754995e22ed7a590865a91cb8ff8b4b",
+        "crates/burn-cubecl/src/kernel/optim/adamw.rs": "aa8d23db05872589ec0ae1523b6a9387c82bc002f556078e411891c84aabc3f2",
+        "crates/burn-cubecl/src/kernel/optim/mod.rs": "8525f7c018ba26af0e869b949bffd28a83a4ab8aa7e4da797f518dca81e1218b",
+        "crates/burn-cubecl/src/kernel/pool/avg_pool3d.rs": "cc23f737945bed5a43d2c49ff72f56b5ecfa6cb44a54cfa10a8b03e2382cf03c",
+        "crates/burn-cubecl/src/kernel/pool/base.rs": "919e2cf414c123e5b85e63a019e526afa5c8f1e65e69225295dd6a01b5159a0d",
+        "crates/burn-cubecl/src/kernel/pool/max_pool3d.rs": "cc7a03d7ab6d1cbc45b8834ba15ff42fbea6ebfd1e0308093c6f084d544b1e24",
+        "crates/burn-cubecl/src/kernel/pool/mod.rs": "46079db2c941d69448a8420bc6ecc3556de28b5bd3910c20501f8de16ecefafb",
+        "crates/burn-cubecl/src/kernel/prng/bernoulli.rs": "c79604f697d547896bb57fcabf4b58e26a49925e2924c9b374b745da3920f8e5",
+        "crates/burn-cubecl/src/kernel/prng/mod.rs": "f4534797e64423ebdbc08f5ba50ebebd3e85e48035c13bc12d19808b82b7daa5",
+        "crates/burn-cubecl/src/kernel/prng/normal.rs": "8079494ee8a11eb480fe8e5c8389b079ee91fbbc37ead1c4aafa370e22dec5f6",
+        "crates/burn-cubecl/src/kernel/prng/uniform.rs": "e6bfa28663d902b45677c7361d816f0296c05e991e7c2971b4305280addca537",
+        "crates/burn-cubecl/src/kernel/quantization/dequantize.rs": "f889bd9780a299933799b3e96e4c618803150bb7e228a8ff4cdaf68e58475a41",
+        "crates/burn-cubecl/src/kernel/quantization/mod.rs": "1a7bca7c89232e5ae578f7fadef9086db318cf62dde4bab12de8deaf7ce336d1",
+        "crates/burn-cubecl/src/kernel/quantization/quantize.rs": "97a3144a84653e311db4ca6fa8b493943887067b270caf01ce2f2bc0abb74bf9",
+        "crates/burn-cubecl/src/kernel/reduce/base.rs": "85c205886375ca0ff0d71c8f8b10266986404c3d688dc5b7bb2057ecddf40f0a",
+        "crates/burn-cubecl/src/kernel/reduce/bounds.rs": "1e2720ed806ac64f7ce1460f1af0372885b77420ed5fc3f34babd5937bd34e01",
+        "crates/burn-cubecl/src/kernel/reduce/mod.rs": "46fb579895132b08a7c541ae85f6dbba4794c0d62cbf085d83ee969897b31536",
+        "crates/burn-cubecl/src/kernel/reduce/tune.rs": "f7897ae89806f3625ae5d86aa4d15cb3265f981e9b6d263a53f7c2454e2945e9",
+        "crates/burn-cubecl/src/kernel/unary_float.rs": "ee306d64c68f16e0d7ebc92087939c586875d33a3fe97efc9da07774964a2e28",
+        "crates/burn-cubecl/src/kernel/unary_int.rs": "beea00842e82609a65ae5f527b98b491df8b10de66fc52e673e9f0169518854f",
+        "crates/burn-cubecl/src/kernel/unary_numeric.rs": "03ec96b26bd1bb0d3f1e26de89d1bf8af81dbed9f9c20895234236068ba0871f",
+        "crates/burn-cubecl/src/kernel/utils.rs": "378d721f6e4f0aa6f958bc52d434dfc843584113b12afce9310eefd4a766fe8a",
+        "crates/burn-cubecl/src/lib.rs": "3d4ada590ab3714cc44effc3477b90a8e764b2e4c9430858caaa352d7c3c93c8",
+        "crates/burn-cubecl/src/ops/activation.rs": "a7cf7a0135d47922349cec1beabb75d9a2a9e60a9cde9dce6fd41c6c3c7246ac",
+        "crates/burn-cubecl/src/ops/base.rs": "ebac0ca1633522b3741648ed3d8566b0a58e2bf8c24e352aee9fb86ebcb481df",
+        "crates/burn-cubecl/src/ops/bool_tensor.rs": "d3bcbb9dc6c16f253368051301985073f2f93affad22883eb4331cd386ce2cd5",
+        "crates/burn-cubecl/src/ops/collective.rs": "a8b7762b3348183e60acd9c1739d926b65eda400d2656b6c34f7cefd89649f9e",
+        "crates/burn-cubecl/src/ops/distributed.rs": "d81812e33c629ea285c0e8eaeabc590200ebb175537806e9f2a3f3644c221038",
+        "crates/burn-cubecl/src/ops/int_tensor.rs": "aaed3d361ce87455deea62550caf57027d44a6f6e5cf7688b12648ffdba42aa3",
+        "crates/burn-cubecl/src/ops/mod.rs": "593fa84cc32cd8787fdea8128f01491e9a8e8fb4b79dbfe68fa6a8ce209a325f",
+        "crates/burn-cubecl/src/ops/module.rs": "46bf18de537d37ddb2870f354ff2235ced0f840e79ffcd9152bcb324808e5cce",
+        "crates/burn-cubecl/src/ops/numeric.rs": "f98808512a60fa9f284e334f0620280dd5970f3d413223d8bdc13713384b3297",
+        "crates/burn-cubecl/src/ops/qtensor.rs": "64bb1550e2687410271d4b3aafc5ef25cdb76452826b0de041dfc64aab5c007a",
+        "crates/burn-cubecl/src/ops/tensor.rs": "98771a8c92b68e910bff0db602436bc907233ec95c672a51a55ac9f3236ad1f4",
+        "crates/burn-cubecl/src/ops/transaction.rs": "83b5dff2b33ebbde889cd3b58cda33d6eea66a9c4322b28788675f8da2107d79",
+        "crates/burn-cubecl/src/template/base.rs": "7676d527954035a3c69358b1fc76d2fdef9b0a135dec74f7c3e66fe0cbc28da5",
+        "crates/burn-cubecl/src/template/mod.rs": "00a4769b3f8daab2d3c822f1350bb05d31294c916d1d852a3a1e32af64cd2093",
+        "crates/burn-cubecl/src/template/source.rs": "aba53e829dddc5a8e971b8f6d30754a981fc0fdf78b7b42a0e21a67e7930ec2d",
+        "crates/burn-cubecl/src/tensor/base.rs": "23fa8f0fd10040952b1ea51fbf900bb8af54e6ad71fb3f891f7f767727d3df35",
+        "crates/burn-cubecl/src/tensor/mod.rs": "9bc4d7511acb397e92985645d2c3d865af5ab20195d4d014c5e99a0bbbcfee72",
+        "crates/burn-cubecl/src/tensor/quantization.rs": "d5929d77f3b2a8cc61c63e2b76123101c9e3dec19a5bd5ac5b44fd1cad4d0cd9",
+        "crates/burn-cubecl/src/tensor/stored.rs": "3d8a667fbf9dcfde81480fded758d5324f48a587fb6546a61f7cb18da624275b",
+        "crates/burn-cubecl/src/tune_key.rs": "b88229b121ef400577ee1b00b5225575f12d37244b53ee345453ac845f9422c8",
+        "crates/burn-optim/Cargo.toml": "923c9ed75f39daf6fae39aa7eec17dbd04065789ebafb0215e622cb1d61b1a43",
+        "crates/burn-optim/benches/adamw/foreach.rs": "b07be6486d07f44adb8ca8706e776b9ad4dfbf6565f54bf600244f188ae47aa7",
+        "crates/burn-optim/benches/adamw.rs": "6bbe7bf5d11f208124f10ac5e3390a3147955de12bf5119225643288687df67e",
+        "crates/burn-optim/build.rs": "04fc478a00f2a8ee59f08f3af1197760741b38557d7326c8baf17dec2c285f2c",
+        "crates/burn-optim/src/grad_clipping/base.rs": "0ee572facaa7217f4d6bca36a42ccc3b54dc211e1be81fa97fe51a76ffd4bf8d",
+        "crates/burn-optim/src/grad_clipping/mod.rs": "c620077cdd0b422bbc0b9ff72d6d62309add8c054ad92129fc2a324b70ae56c7",
+        "crates/burn-optim/src/lib.rs": "3b1070adfb47ba7dcfa6190d4c29a0e04ff4b87f00d5deeb6787a80c79ff0f71",
+        "crates/burn-optim/src/lr_scheduler/base.rs": "297481c12d7a13eb6a8c87f80f2a0fb815e2da78373ee44c7823d86ed6d22fa0",
+        "crates/burn-optim/src/lr_scheduler/composed.rs": "e1db687a93aae4f4c5fe773aa736f90d1ef4fb0e71f2aaa9436f88e811950946",
+        "crates/burn-optim/src/lr_scheduler/constant.rs": "9f56e26bbb4ea28186c6fdb7492a18b03df086e306ca3005c7daef0773d35de8",
+        "crates/burn-optim/src/lr_scheduler/cosine.rs": "487f5966cd3861c333b9120f6a977278a15161df468391156dbd9775e3569ac3",
+        "crates/burn-optim/src/lr_scheduler/exponential.rs": "e7b318531da38a90ca84d60d1b99d34b95cb48b437d6e258d2cfc899eda9b70b",
+        "crates/burn-optim/src/lr_scheduler/linear.rs": "0f22c27c8c5c9bd53a1af3c77c4677bb89c49438be5eca7789a220a459e71fdb",
+        "crates/burn-optim/src/lr_scheduler/mod.rs": "a39410a76fc1e13724df24cb19cc73e9cbe23ba0e39277d9adf484ae3f325974",
+        "crates/burn-optim/src/lr_scheduler/module_lr_scheduler.rs": "8eff2bc9384e4948003ed098fca63c1c9129272a49fcc5e04e59ea440756208c",
+        "crates/burn-optim/src/lr_scheduler/noam.rs": "52216b47680f03492a51c71c71998ebfa526da3636416d1006c7d19a8fa60421",
+        "crates/burn-optim/src/lr_scheduler/sequential.rs": "828c246891877c223a38f1f721f1ee6770ca592c3549eded46ac9aacd032d665",
+        "crates/burn-optim/src/lr_scheduler/step.rs": "52c031985352352ca7e26d919686a1822d23f413e1f88f3baf7226d42f0673ec",
+        "crates/burn-optim/src/optim/adafactor/tests.rs": "a18bb449451953c01a781792af55bcf0366b57398bbb1772fddef168c01efc45",
+        "crates/burn-optim/src/optim/adafactor.rs": "070ecaa5bd5c08deaf99ecb3983845dcb2493667fb0d824fc2224e7ff69eb0d4",
+        "crates/burn-optim/src/optim/adagrad.rs": "2b64948c3368d542964cbeb55b5a43076d9294a998364902e1d616907145a53b",
+        "crates/burn-optim/src/optim/adam.rs": "b9ab12ffb7ed2e32634816c5afa5b3d4e7870a61b9fda2676aa8e00eb1d24605",
+        "crates/burn-optim/src/optim/adamw/cube.rs": "04750fd734fa30a1e9ec96f04f1fba6cee8e150ccaa4f26ad2a550368a1aa3f1",
+        "crates/burn-optim/src/optim/adamw/foreach_tests.rs": "4e6d5891f8be698ad74822e5b4199fd91afd3891df93b7eb761ead408531ffb0",
+        "crates/burn-optim/src/optim/adamw/test_support.rs": "4c2d996aa836bb8e2c5f198bd4b36d4e8c21a756a603a46906c1e41e5d8abf54",
+        "crates/burn-optim/src/optim/adamw.rs": "76d329770fe49d9226e41558d9151f99313dea7e7afa09e758d9beee64b4c391",
+        "crates/burn-optim/src/optim/adan.rs": "f62557ed5bbe8a861f3237d99206de699f92c5975cd6e0f80d2acabfcb5bec3d",
+        "crates/burn-optim/src/optim/base.rs": "15de18e0dbaff1dbe71e163707416434df67785ac793644dd30683359b6666a5",
+        "crates/burn-optim/src/optim/decay.rs": "24e6dd23980cff4861febe82dfb752fcb9112fbc6edb0fef7a80cb55fb514722",
+        "crates/burn-optim/src/optim/grad_accum.rs": "5d040784cf87386aeed31f2634b3e476cabf3ad7e6787e38a68711e1277ad216",
+        "crates/burn-optim/src/optim/grads.rs": "41c2f260ed1e0cd3fcc947d352119c11fa4d9875564e508df5ff9d9fa685a6cb",
+        "crates/burn-optim/src/optim/lamb.rs": "d73dbc4aa0720111bf0ec789d095fc45a0de88cd70c2b8ed3a6ea77d037d20d6",
+        "crates/burn-optim/src/optim/lbfgs.rs": "4c5d2ffe8295e5f707cb61fcc85d66c5b664528ad91dec00b381a2f2cba7b342",
+        "crates/burn-optim/src/optim/lion.rs": "49575cccc9c25e3a0dab50cf9d1dbfa129786210f6f080aff1336e83206b85e3",
+        "crates/burn-optim/src/optim/mod.rs": "6f02ea9f781dc15431617ac939f4741ca1b91ce14af2e3e9844bda121693adec",
+        "crates/burn-optim/src/optim/module/base.rs": "2dc878f3831f64ea2fda97faaee5486ea97398b9f44ad179a6a9c43f526f3d2b",
+        "crates/burn-optim/src/optim/module/mod.rs": "ff4d165bcb2dd22f8ceddec0322352203ac67ca1bb3b5b3183e530170b8ea18e",
+        "crates/burn-optim/src/optim/module/module_optimizer.rs": "66b9a1283205032d37c76834cb2f82b1fe27a7df4778c30530750a9e65ff02fc",
+        "crates/burn-optim/src/optim/module/parameter_context.rs": "8ce35d3298c0427fdacda198e2053374c3675d8f5d95f09a6cecd2546656af07",
+        "crates/burn-optim/src/optim/module/record/mod.rs": "9636b2234be909907e54ce27982eec6d56bf94662f136df80bba55fe75e687dc",
+        "crates/burn-optim/src/optim/momentum.rs": "b11fe4b798678b622d3d0c9de34bcbb3d89b7912385a2bc88d5c83223d738115",
+        "crates/burn-optim/src/optim/muon.rs": "fc78a645dc0d6658c144a434829e0b811bce2a62e9aa0d97d462536d865de4d4",
+        "crates/burn-optim/src/optim/rmsprop.rs": "3f420856fd18d91ec0ee63f17ceb3fe5457c44ba7d95afafb78ec1c99d2286ce",
+        "crates/burn-optim/src/optim/sgd.rs": "9d57e0fed4c1cb426830a1a1feeb8e7d778a721ae3b7dcb7f77b6d1c4758025a",
+        "crates/burn-optim/src/optim/state.rs": "52c0e351b48da82fd7ca1caf57b6a1f9ded9796f61faa6f46443e85d7cff7d79",
+        "crates/burn-optim/src/optim/visitor.rs": "fc4cfc556e69323930ee999beb4986e312409a389385359075c32a861cbc67fd",
+        "crates/burn-optim/src/parallel/mod.rs": "9223151ae6200a3339350be8c272d9fef26c71535c70739c38cb85796f05bf40",
+        "crates/burn-optim/src/parallel/training.rs": "6ad685eb0b7b6461dca579921c3e6014b4893b6d2846275a84e5c6c950fdaa20",
+        "crates/burn-optim/tests/adamw_execution.rs": "d8246e317663d49ae4065dd2aff1a250eea9a27926987273718f670a948a85df",
+        "crates/burn-optim/tests/lstm.rs": "8e93cb44d4be54e920d26e38a15bc9c73181c2a5fa701da9c5318e96ee396e1e",
+        "crates/burn-optim/tests/pwff_activation.rs": "83cc72bd46ad727e77295c385abad6692ac443a2ad87dd82d2f02f9023b79395"
+      },
+      "binary_sha256": "6f8359ec2772236703287b75fdd7520313d080f6267302472af50835035cf102",
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+      "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+      "git_head": "cde42f54f9fa530ddbd7dd7e53a550a84b9a9fff",
+      "rustflags": "",
+      "encoded_rustflags": "",
+      "wrappers_disabled": true
+    },
+    "cuda_confirmation_report_sha256": "d87f4abf7eabb863a705df829c91cce94b676481bfac59bfe3d8b5c6e47fda56",
+    "cuda_confirmation": {
+      "date": "2026-11-08T13:27:51+0800",
+      "platform": "Linux-6.12.113+deb13-amd64-x86_64-with-glibc2.41",
+      "backend": "cuda",
+      "load_average": [
+        13.81982421875,
+        13.07568359375,
+        8.3876953125
+      ],
+      "features": "std,cpu,cuda",
+      "binary_sha256": "6f8359ec2772236703287b75fdd7520313d080f6267302472af50835035cf102",
+      "module": false,
+      "repeats": 3,
+      "shared": false,
+      "samples": 30,
+      "paired_samples_per_mode": 40,
+      "runs": [
+        {
+          "args": [
+            "--verify-path"
+          ],
+          "exit_code": 0,
+          "load_before": [
+            13.81982421875,
+            13.07568359375,
+            8.3876953125
+          ],
+          "load_after": [
+            13.81982421875,
+            13.07568359375,
+            8.3876953125
+          ],
+          "stdout": "verified: tiny (90 tensors)\nverified: mixed_rank (9 tensors)\nverified: large_1 (3 tensors)\nverified: large_4 (12 tensors)\nverified: large_16 (48 tensors)\nverified: long_short (96 tensors)\nverified: tail_minus (3 tensors)\nverified: tail_plus (3 tensors)\nverified: unaligned (3 tensors)\n",
+          "stderr": ""
+        },
+        {
+          "args": [
+            "--samples-json",
+            "reference",
+            "large_16"
+          ],
+          "exit_code": 0,
+          "load_before": [
+            13.81982421875,
+            13.07568359375,
+            8.3876953125
+          ],
+          "load_after": [
+            13.81982421875,
+            13.07568359375,
+            8.3876953125
+          ],
+          "stderr": "",
+          "rows": [
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 0,
+              "enqueue_ms": 0.691685,
+              "total_ms": 1.462977,
+              "retained_drop_sync_ms": 0.194848
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 1,
+              "enqueue_ms": 0.810373,
+              "total_ms": 1.481948,
+              "retained_drop_sync_ms": 0.007224
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 2,
+              "enqueue_ms": 0.739368,
+              "total_ms": 1.446665,
+              "retained_drop_sync_ms": 0.096775
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 3,
+              "enqueue_ms": 0.744148,
+              "total_ms": 1.481272,
+              "retained_drop_sync_ms": 0.008349
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 4,
+              "enqueue_ms": 0.727087,
+              "total_ms": 1.463239,
+              "retained_drop_sync_ms": 0.012311
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 5,
+              "enqueue_ms": 0.793873,
+              "total_ms": 1.467687,
+              "retained_drop_sync_ms": 0.00721
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 6,
+              "enqueue_ms": 0.730935,
+              "total_ms": 1.458499,
+              "retained_drop_sync_ms": 0.012097
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 7,
+              "enqueue_ms": 0.744611,
+              "total_ms": 1.470854,
+              "retained_drop_sync_ms": 0.012484
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 8,
+              "enqueue_ms": 0.73876,
+              "total_ms": 1.453367,
+              "retained_drop_sync_ms": 0.008443
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 9,
+              "enqueue_ms": 0.746252,
+              "total_ms": 1.459525,
+              "retained_drop_sync_ms": 0.011588
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 10,
+              "enqueue_ms": 0.72579,
+              "total_ms": 1.465602,
+              "retained_drop_sync_ms": 0.008692
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 11,
+              "enqueue_ms": 0.743999,
+              "total_ms": 1.464654,
+              "retained_drop_sync_ms": 0.020719
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 12,
+              "enqueue_ms": 0.757451,
+              "total_ms": 1.486971,
+              "retained_drop_sync_ms": 0.008423
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 13,
+              "enqueue_ms": 0.782402,
+              "total_ms": 1.469874,
+              "retained_drop_sync_ms": 0.008254
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 14,
+              "enqueue_ms": 0.747433,
+              "total_ms": 1.467143,
+              "retained_drop_sync_ms": 0.00687
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 15,
+              "enqueue_ms": 0.720121,
+              "total_ms": 1.452528,
+              "retained_drop_sync_ms": 0.123798
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 16,
+              "enqueue_ms": 0.741652,
+              "total_ms": 1.477872,
+              "retained_drop_sync_ms": 0.006393
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 17,
+              "enqueue_ms": 0.718206,
+              "total_ms": 1.441208,
+              "retained_drop_sync_ms": 0.016252
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 18,
+              "enqueue_ms": 0.70719,
+              "total_ms": 1.452137,
+              "retained_drop_sync_ms": 0.014246
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 19,
+              "enqueue_ms": 0.656646,
+              "total_ms": 1.450972,
+              "retained_drop_sync_ms": 0.006126
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 20,
+              "enqueue_ms": 0.693505,
+              "total_ms": 1.455783,
+              "retained_drop_sync_ms": 0.011556
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 21,
+              "enqueue_ms": 0.675994,
+              "total_ms": 1.444779,
+              "retained_drop_sync_ms": 0.016865
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 22,
+              "enqueue_ms": 0.740608,
+              "total_ms": 1.450739,
+              "retained_drop_sync_ms": 0.006819
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 23,
+              "enqueue_ms": 0.695283,
+              "total_ms": 1.453013,
+              "retained_drop_sync_ms": 0.00696
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 24,
+              "enqueue_ms": 0.851982,
+              "total_ms": 1.47313,
+              "retained_drop_sync_ms": 0.007224
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 25,
+              "enqueue_ms": 0.708336,
+              "total_ms": 1.451521,
+              "retained_drop_sync_ms": 0.018352
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 26,
+              "enqueue_ms": 0.720325,
+              "total_ms": 1.464037,
+              "retained_drop_sync_ms": 0.007082
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 27,
+              "enqueue_ms": 0.695375,
+              "total_ms": 1.447522,
+              "retained_drop_sync_ms": 0.016532
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 28,
+              "enqueue_ms": 0.730062,
+              "total_ms": 1.454012,
+              "retained_drop_sync_ms": 0.007109
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 29,
+              "enqueue_ms": 0.685949,
+              "total_ms": 1.442833,
+              "retained_drop_sync_ms": 0.00663
+            },
+            {
+              "final_drop_sync_ms": 0.007902
+            }
+          ]
+        },
+        {
+          "args": [
+            "--samples-json",
+            "fused",
+            "large_16"
+          ],
+          "exit_code": 0,
+          "load_before": [
+            13.81982421875,
+            13.07568359375,
+            8.3876953125
+          ],
+          "load_after": [
+            13.81982421875,
+            13.07568359375,
+            8.3876953125
+          ],
+          "stderr": "",
+          "rows": [
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 0,
+              "enqueue_ms": 0.089462,
+              "total_ms": 1.065748,
+              "retained_drop_sync_ms": 0.008613
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 1,
+              "enqueue_ms": 0.098538,
+              "total_ms": 1.07629,
+              "retained_drop_sync_ms": 0.008585
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 2,
+              "enqueue_ms": 0.099152,
+              "total_ms": 1.078466,
+              "retained_drop_sync_ms": 0.009002
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 3,
+              "enqueue_ms": 0.101506,
+              "total_ms": 1.080245,
+              "retained_drop_sync_ms": 0.00853
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 4,
+              "enqueue_ms": 0.10645,
+              "total_ms": 1.085355,
+              "retained_drop_sync_ms": 0.010246
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 5,
+              "enqueue_ms": 0.088044,
+              "total_ms": 1.070105,
+              "retained_drop_sync_ms": 0.009498
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 6,
+              "enqueue_ms": 0.099952,
+              "total_ms": 1.076225,
+              "retained_drop_sync_ms": 0.008366
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 7,
+              "enqueue_ms": 0.098167,
+              "total_ms": 1.081959,
+              "retained_drop_sync_ms": 0.195802
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 8,
+              "enqueue_ms": 0.103498,
+              "total_ms": 1.084455,
+              "retained_drop_sync_ms": 0.008945
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 9,
+              "enqueue_ms": 0.092977,
+              "total_ms": 1.074508,
+              "retained_drop_sync_ms": 0.007807
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 10,
+              "enqueue_ms": 0.094386,
+              "total_ms": 1.074654,
+              "retained_drop_sync_ms": 0.008091
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 11,
+              "enqueue_ms": 0.098658,
+              "total_ms": 1.078761,
+              "retained_drop_sync_ms": 0.017887
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 12,
+              "enqueue_ms": 0.089195,
+              "total_ms": 1.069029,
+              "retained_drop_sync_ms": 0.00607
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 13,
+              "enqueue_ms": 0.079826,
+              "total_ms": 1.06442,
+              "retained_drop_sync_ms": 0.006617
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 14,
+              "enqueue_ms": 0.085404,
+              "total_ms": 1.063064,
+              "retained_drop_sync_ms": 0.006508
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 15,
+              "enqueue_ms": 0.087996,
+              "total_ms": 1.070381,
+              "retained_drop_sync_ms": 0.006515
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 16,
+              "enqueue_ms": 0.086101,
+              "total_ms": 1.064941,
+              "retained_drop_sync_ms": 0.005538
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 17,
+              "enqueue_ms": 0.084776,
+              "total_ms": 1.067039,
+              "retained_drop_sync_ms": 0.010117
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 18,
+              "enqueue_ms": 0.082981,
+              "total_ms": 1.07252,
+              "retained_drop_sync_ms": 0.00748
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 19,
+              "enqueue_ms": 0.10061,
+              "total_ms": 1.081594,
+              "retained_drop_sync_ms": 0.007896
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 20,
+              "enqueue_ms": 0.095281,
+              "total_ms": 1.07626,
+              "retained_drop_sync_ms": 0.007089
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 21,
+              "enqueue_ms": 0.085664,
+              "total_ms": 1.73593,
+              "retained_drop_sync_ms": 0.009146
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 22,
+              "enqueue_ms": 0.151023,
+              "total_ms": 1.131817,
+              "retained_drop_sync_ms": 0.008723
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 23,
+              "enqueue_ms": 0.102128,
+              "total_ms": 1.081537,
+              "retained_drop_sync_ms": 0.008092
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 24,
+              "enqueue_ms": 0.097703,
+              "total_ms": 1.078267,
+              "retained_drop_sync_ms": 0.008457
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 25,
+              "enqueue_ms": 0.101492,
+              "total_ms": 1.082536,
+              "retained_drop_sync_ms": 0.006862
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 26,
+              "enqueue_ms": 0.087585,
+              "total_ms": 1.068618,
+              "retained_drop_sync_ms": 0.006591
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 27,
+              "enqueue_ms": 0.085691,
+              "total_ms": 1.065743,
+              "retained_drop_sync_ms": 0.007535
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 28,
+              "enqueue_ms": 0.077519,
+              "total_ms": 1.062996,
+              "retained_drop_sync_ms": 0.006677
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 29,
+              "enqueue_ms": 0.08575,
+              "total_ms": 1.068946,
+              "retained_drop_sync_ms": 0.007739
+            },
+            {
+              "final_drop_sync_ms": 0.006989
+            }
+          ]
+        },
+        {
+          "args": [
+            "--samples-json",
+            "fused",
+            "large_16"
+          ],
+          "exit_code": 0,
+          "load_before": [
+            13.81982421875,
+            13.07568359375,
+            8.3876953125
+          ],
+          "load_after": [
+            13.81982421875,
+            13.07568359375,
+            8.3876953125
+          ],
+          "stderr": "",
+          "rows": [
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 0,
+              "enqueue_ms": 0.091937,
+              "total_ms": 1.074323,
+              "retained_drop_sync_ms": 0.007924
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 1,
+              "enqueue_ms": 0.09802,
+              "total_ms": 1.075019,
+              "retained_drop_sync_ms": 0.00745
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 2,
+              "enqueue_ms": 0.084957,
+              "total_ms": 1.06664,
+              "retained_drop_sync_ms": 0.016292
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 3,
+              "enqueue_ms": 0.090719,
+              "total_ms": 1.070644,
+              "retained_drop_sync_ms": 0.006302
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 4,
+              "enqueue_ms": 0.078469,
+              "total_ms": 1.057872,
+              "retained_drop_sync_ms": 0.006855
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 5,
+              "enqueue_ms": 0.079726,
+              "total_ms": 1.059647,
+              "retained_drop_sync_ms": 0.006347
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 6,
+              "enqueue_ms": 0.087348,
+              "total_ms": 1.057382,
+              "retained_drop_sync_ms": 0.016622
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 7,
+              "enqueue_ms": 0.100599,
+              "total_ms": 1.082343,
+              "retained_drop_sync_ms": 0.01689
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 8,
+              "enqueue_ms": 0.092361,
+              "total_ms": 1.064991,
+              "retained_drop_sync_ms": 0.006279
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 9,
+              "enqueue_ms": 0.08706,
+              "total_ms": 1.065126,
+              "retained_drop_sync_ms": 0.00666
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 10,
+              "enqueue_ms": 0.087827,
+              "total_ms": 1.058907,
+              "retained_drop_sync_ms": 0.016584
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 11,
+              "enqueue_ms": 0.098682,
+              "total_ms": 1.075995,
+              "retained_drop_sync_ms": 0.006319
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 12,
+              "enqueue_ms": 0.087212,
+              "total_ms": 1.068882,
+              "retained_drop_sync_ms": 0.006389
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 13,
+              "enqueue_ms": 0.080331,
+              "total_ms": 1.060312,
+              "retained_drop_sync_ms": 0.005931
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 14,
+              "enqueue_ms": 0.078602,
+              "total_ms": 1.05607,
+              "retained_drop_sync_ms": 0.006136
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 15,
+              "enqueue_ms": 0.077988,
+              "total_ms": 1.056049,
+              "retained_drop_sync_ms": 0.007017
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 16,
+              "enqueue_ms": 0.078226,
+              "total_ms": 1.057428,
+              "retained_drop_sync_ms": 0.005827
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 17,
+              "enqueue_ms": 0.080227,
+              "total_ms": 1.060719,
+              "retained_drop_sync_ms": 0.005729
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 18,
+              "enqueue_ms": 0.087357,
+              "total_ms": 1.067988,
+              "retained_drop_sync_ms": 0.016685
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 19,
+              "enqueue_ms": 0.097128,
+              "total_ms": 1.07872,
+              "retained_drop_sync_ms": 0.006272
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 20,
+              "enqueue_ms": 0.087422,
+              "total_ms": 1.069445,
+              "retained_drop_sync_ms": 0.025504
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 21,
+              "enqueue_ms": 0.09574,
+              "total_ms": 1.077656,
+              "retained_drop_sync_ms": 0.008483
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 22,
+              "enqueue_ms": 0.089026,
+              "total_ms": 1.068758,
+              "retained_drop_sync_ms": 0.006814
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 23,
+              "enqueue_ms": 0.095201,
+              "total_ms": 1.079913,
+              "retained_drop_sync_ms": 0.00779
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 24,
+              "enqueue_ms": 0.087111,
+              "total_ms": 1.067272,
+              "retained_drop_sync_ms": 0.006747
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 25,
+              "enqueue_ms": 0.090056,
+              "total_ms": 1.071492,
+              "retained_drop_sync_ms": 0.006322
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 26,
+              "enqueue_ms": 0.088426,
+              "total_ms": 1.072179,
+              "retained_drop_sync_ms": 0.012602
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 27,
+              "enqueue_ms": 0.090386,
+              "total_ms": 1.072521,
+              "retained_drop_sync_ms": 0.010528
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 28,
+              "enqueue_ms": 0.101072,
+              "total_ms": 1.085679,
+              "retained_drop_sync_ms": 0.006601
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 29,
+              "enqueue_ms": 0.088959,
+              "total_ms": 1.071919,
+              "retained_drop_sync_ms": 0.007824
+            },
+            {
+              "final_drop_sync_ms": 0.008174
+            }
+          ]
+        },
+        {
+          "args": [
+            "--samples-json",
+            "reference",
+            "large_16"
+          ],
+          "exit_code": 0,
+          "load_before": [
+            13.81982421875,
+            13.07568359375,
+            8.3876953125
+          ],
+          "load_after": [
+            13.81982421875,
+            13.07568359375,
+            8.3876953125
+          ],
+          "stderr": "",
+          "rows": [
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 0,
+              "enqueue_ms": 0.751253,
+              "total_ms": 1.475155,
+              "retained_drop_sync_ms": 0.084351
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 1,
+              "enqueue_ms": 0.747449,
+              "total_ms": 1.471556,
+              "retained_drop_sync_ms": 0.007392
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 2,
+              "enqueue_ms": 0.719158,
+              "total_ms": 1.444917,
+              "retained_drop_sync_ms": 0.006468
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 3,
+              "enqueue_ms": 0.68519,
+              "total_ms": 1.439304,
+              "retained_drop_sync_ms": 0.00652
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 4,
+              "enqueue_ms": 0.670001,
+              "total_ms": 1.439393,
+              "retained_drop_sync_ms": 0.006483
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 5,
+              "enqueue_ms": 0.747982,
+              "total_ms": 1.443941,
+              "retained_drop_sync_ms": 0.016587
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 6,
+              "enqueue_ms": 0.702703,
+              "total_ms": 1.450966,
+              "retained_drop_sync_ms": 0.006585
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 7,
+              "enqueue_ms": 0.695762,
+              "total_ms": 1.444817,
+              "retained_drop_sync_ms": 0.016805
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 8,
+              "enqueue_ms": 0.681466,
+              "total_ms": 1.448938,
+              "retained_drop_sync_ms": 0.016696
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 9,
+              "enqueue_ms": 0.723712,
+              "total_ms": 1.449844,
+              "retained_drop_sync_ms": 0.005817
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 10,
+              "enqueue_ms": 0.72845,
+              "total_ms": 1.444867,
+              "retained_drop_sync_ms": 0.017656
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 11,
+              "enqueue_ms": 0.760695,
+              "total_ms": 1.46153,
+              "retained_drop_sync_ms": 0.008447
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 12,
+              "enqueue_ms": 0.774948,
+              "total_ms": 1.451487,
+              "retained_drop_sync_ms": 0.006562
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 13,
+              "enqueue_ms": 0.698697,
+              "total_ms": 1.439666,
+              "retained_drop_sync_ms": 0.006614
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 14,
+              "enqueue_ms": 0.716181,
+              "total_ms": 1.440226,
+              "retained_drop_sync_ms": 0.017695
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 15,
+              "enqueue_ms": 0.719132,
+              "total_ms": 1.45077,
+              "retained_drop_sync_ms": 0.015812
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 16,
+              "enqueue_ms": 0.717163,
+              "total_ms": 1.452106,
+              "retained_drop_sync_ms": 0.01683
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 17,
+              "enqueue_ms": 0.764301,
+              "total_ms": 1.451491,
+              "retained_drop_sync_ms": 0.006176
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 18,
+              "enqueue_ms": 0.738257,
+              "total_ms": 1.444234,
+              "retained_drop_sync_ms": 0.017244
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 19,
+              "enqueue_ms": 0.759136,
+              "total_ms": 1.453366,
+              "retained_drop_sync_ms": 0.018344
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 20,
+              "enqueue_ms": 0.752444,
+              "total_ms": 1.463119,
+              "retained_drop_sync_ms": 0.017493
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 21,
+              "enqueue_ms": 0.758936,
+              "total_ms": 1.46142,
+              "retained_drop_sync_ms": 0.017042
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 22,
+              "enqueue_ms": 0.736665,
+              "total_ms": 1.452557,
+              "retained_drop_sync_ms": 0.006647
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 23,
+              "enqueue_ms": 0.738124,
+              "total_ms": 1.448755,
+              "retained_drop_sync_ms": 0.006731
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 24,
+              "enqueue_ms": 0.6804,
+              "total_ms": 1.444569,
+              "retained_drop_sync_ms": 0.006171
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 25,
+              "enqueue_ms": 0.691372,
+              "total_ms": 1.441077,
+              "retained_drop_sync_ms": 0.008738
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 26,
+              "enqueue_ms": 0.744891,
+              "total_ms": 1.471159,
+              "retained_drop_sync_ms": 0.007507
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 27,
+              "enqueue_ms": 0.672052,
+              "total_ms": 1.470068,
+              "retained_drop_sync_ms": 0.006374
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 28,
+              "enqueue_ms": 0.717898,
+              "total_ms": 1.452532,
+              "retained_drop_sync_ms": 0.007963
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 29,
+              "enqueue_ms": 0.717869,
+              "total_ms": 1.467196,
+              "retained_drop_sync_ms": 0.008086
+            },
+            {
+              "final_drop_sync_ms": 0.009364
+            }
+          ]
+        },
+        {
+          "args": [
+            "--samples-json",
+            "reference",
+            "large_16"
+          ],
+          "exit_code": 0,
+          "load_before": [
+            13.81982421875,
+            13.07568359375,
+            8.3876953125
+          ],
+          "load_after": [
+            13.81982421875,
+            13.07568359375,
+            8.3876953125
+          ],
+          "stderr": "",
+          "rows": [
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 0,
+              "enqueue_ms": 0.822085,
+              "total_ms": 1.480182,
+              "retained_drop_sync_ms": 0.022224
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 1,
+              "enqueue_ms": 0.991229,
+              "total_ms": 1.492588,
+              "retained_drop_sync_ms": 0.007722
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 2,
+              "enqueue_ms": 0.995984,
+              "total_ms": 1.483163,
+              "retained_drop_sync_ms": 0.012724
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 3,
+              "enqueue_ms": 0.999005,
+              "total_ms": 1.506514,
+              "retained_drop_sync_ms": 0.00742
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 4,
+              "enqueue_ms": 0.820183,
+              "total_ms": 1.479511,
+              "retained_drop_sync_ms": 0.115834
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 5,
+              "enqueue_ms": 0.70742,
+              "total_ms": 1.461849,
+              "retained_drop_sync_ms": 0.007885
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 6,
+              "enqueue_ms": 0.705728,
+              "total_ms": 1.456763,
+              "retained_drop_sync_ms": 0.01731
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 7,
+              "enqueue_ms": 0.754769,
+              "total_ms": 1.458004,
+              "retained_drop_sync_ms": 0.006656
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 8,
+              "enqueue_ms": 0.716618,
+              "total_ms": 1.447088,
+              "retained_drop_sync_ms": 0.018142
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 9,
+              "enqueue_ms": 0.67162,
+              "total_ms": 1.452206,
+              "retained_drop_sync_ms": 0.006383
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 10,
+              "enqueue_ms": 0.654436,
+              "total_ms": 1.448389,
+              "retained_drop_sync_ms": 0.005929
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 11,
+              "enqueue_ms": 0.795691,
+              "total_ms": 1.444802,
+              "retained_drop_sync_ms": 0.00726
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 12,
+              "enqueue_ms": 1.020698,
+              "total_ms": 1.477552,
+              "retained_drop_sync_ms": 0.007217
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 13,
+              "enqueue_ms": 0.992914,
+              "total_ms": 1.482597,
+              "retained_drop_sync_ms": 0.014479
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 14,
+              "enqueue_ms": 1.081524,
+              "total_ms": 1.521393,
+              "retained_drop_sync_ms": 0.009735
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 15,
+              "enqueue_ms": 0.738921,
+              "total_ms": 1.471351,
+              "retained_drop_sync_ms": 0.268119
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 16,
+              "enqueue_ms": 3.275522,
+              "total_ms": 3.874159,
+              "retained_drop_sync_ms": 0.009437
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 17,
+              "enqueue_ms": 0.717857,
+              "total_ms": 1.472357,
+              "retained_drop_sync_ms": 0.007548
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 18,
+              "enqueue_ms": 0.94389,
+              "total_ms": 1.460116,
+              "retained_drop_sync_ms": 0.007293
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 19,
+              "enqueue_ms": 0.678254,
+              "total_ms": 1.447439,
+              "retained_drop_sync_ms": 0.034891
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 20,
+              "enqueue_ms": 0.73248,
+              "total_ms": 1.471264,
+              "retained_drop_sync_ms": 0.008199
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 21,
+              "enqueue_ms": 0.711134,
+              "total_ms": 1.46535,
+              "retained_drop_sync_ms": 0.111703
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 22,
+              "enqueue_ms": 0.719769,
+              "total_ms": 1.470599,
+              "retained_drop_sync_ms": 0.099594
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 23,
+              "enqueue_ms": 0.745934,
+              "total_ms": 1.471304,
+              "retained_drop_sync_ms": 0.018352
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 24,
+              "enqueue_ms": 0.70821,
+              "total_ms": 1.457979,
+              "retained_drop_sync_ms": 0.015858
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 25,
+              "enqueue_ms": 0.678476,
+              "total_ms": 1.442628,
+              "retained_drop_sync_ms": 0.01019
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 26,
+              "enqueue_ms": 0.66114,
+              "total_ms": 1.439384,
+              "retained_drop_sync_ms": 0.018053
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 27,
+              "enqueue_ms": 0.679245,
+              "total_ms": 1.442914,
+              "retained_drop_sync_ms": 0.006516
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 28,
+              "enqueue_ms": 0.64664,
+              "total_ms": 1.439839,
+              "retained_drop_sync_ms": 0.006602
+            },
+            {
+              "workload": "large_16",
+              "fused": false,
+              "shared": false,
+              "sample": 29,
+              "enqueue_ms": 0.712894,
+              "total_ms": 1.440819,
+              "retained_drop_sync_ms": 0.006935
+            },
+            {
+              "final_drop_sync_ms": 0.006754
+            }
+          ]
+        },
+        {
+          "args": [
+            "--samples-json",
+            "fused",
+            "large_16"
+          ],
+          "exit_code": 0,
+          "load_before": [
+            13.81982421875,
+            13.07568359375,
+            8.3876953125
+          ],
+          "load_after": [
+            13.81982421875,
+            13.07568359375,
+            8.3876953125
+          ],
+          "stderr": "",
+          "rows": [
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 0,
+              "enqueue_ms": 0.099916,
+              "total_ms": 1.083403,
+              "retained_drop_sync_ms": 0.012498
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 1,
+              "enqueue_ms": 0.096132,
+              "total_ms": 1.078066,
+              "retained_drop_sync_ms": 0.008368
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 2,
+              "enqueue_ms": 0.107764,
+              "total_ms": 1.08978,
+              "retained_drop_sync_ms": 0.008335
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 3,
+              "enqueue_ms": 0.093209,
+              "total_ms": 1.074581,
+              "retained_drop_sync_ms": 0.006866
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 4,
+              "enqueue_ms": 0.089121,
+              "total_ms": 1.07044,
+              "retained_drop_sync_ms": 0.00786
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 5,
+              "enqueue_ms": 0.090484,
+              "total_ms": 1.072317,
+              "retained_drop_sync_ms": 0.008882
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 6,
+              "enqueue_ms": 0.101877,
+              "total_ms": 1.083071,
+              "retained_drop_sync_ms": 0.017736
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 7,
+              "enqueue_ms": 0.091489,
+              "total_ms": 1.07201,
+              "retained_drop_sync_ms": 0.143208
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 8,
+              "enqueue_ms": 0.103331,
+              "total_ms": 1.083393,
+              "retained_drop_sync_ms": 0.007221
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 9,
+              "enqueue_ms": 0.090914,
+              "total_ms": 1.076749,
+              "retained_drop_sync_ms": 0.008738
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 10,
+              "enqueue_ms": 0.108151,
+              "total_ms": 1.091727,
+              "retained_drop_sync_ms": 0.007833
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 11,
+              "enqueue_ms": 0.089398,
+              "total_ms": 1.074379,
+              "retained_drop_sync_ms": 0.098124
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 12,
+              "enqueue_ms": 0.101218,
+              "total_ms": 1.083221,
+              "retained_drop_sync_ms": 0.006989
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 13,
+              "enqueue_ms": 0.089244,
+              "total_ms": 1.071245,
+              "retained_drop_sync_ms": 0.007772
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 14,
+              "enqueue_ms": 0.100569,
+              "total_ms": 1.07953,
+              "retained_drop_sync_ms": 0.006467
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 15,
+              "enqueue_ms": 0.088563,
+              "total_ms": 1.075537,
+              "retained_drop_sync_ms": 0.009103
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 16,
+              "enqueue_ms": 0.10584,
+              "total_ms": 1.087849,
+              "retained_drop_sync_ms": 0.009757
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 17,
+              "enqueue_ms": 0.107085,
+              "total_ms": 1.089668,
+              "retained_drop_sync_ms": 0.008718
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 18,
+              "enqueue_ms": 0.110869,
+              "total_ms": 1.092726,
+              "retained_drop_sync_ms": 0.009938
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 19,
+              "enqueue_ms": 0.105497,
+              "total_ms": 1.087641,
+              "retained_drop_sync_ms": 0.008033
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 20,
+              "enqueue_ms": 0.110914,
+              "total_ms": 1.096308,
+              "retained_drop_sync_ms": 0.008097
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 21,
+              "enqueue_ms": 0.11125,
+              "total_ms": 1.09309,
+              "retained_drop_sync_ms": 0.010188
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 22,
+              "enqueue_ms": 0.129024,
+              "total_ms": 1.111874,
+              "retained_drop_sync_ms": 0.006932
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 23,
+              "enqueue_ms": 0.090091,
+              "total_ms": 1.071812,
+              "retained_drop_sync_ms": 0.006266
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 24,
+              "enqueue_ms": 0.087673,
+              "total_ms": 1.073368,
+              "retained_drop_sync_ms": 0.009034
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 25,
+              "enqueue_ms": 0.10223,
+              "total_ms": 1.083243,
+              "retained_drop_sync_ms": 0.014557
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 26,
+              "enqueue_ms": 0.104865,
+              "total_ms": 1.108314,
+              "retained_drop_sync_ms": 0.006905
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 27,
+              "enqueue_ms": 0.086213,
+              "total_ms": 1.066045,
+              "retained_drop_sync_ms": 0.007309
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 28,
+              "enqueue_ms": 0.086298,
+              "total_ms": 1.07013,
+              "retained_drop_sync_ms": 0.007051
+            },
+            {
+              "workload": "large_16",
+              "fused": true,
+              "shared": false,
+              "sample": 29,
+              "enqueue_ms": 0.087246,
+              "total_ms": 1.067842,
+              "retained_drop_sync_ms": 0.018144
+            },
+            {
+              "final_drop_sync_ms": 0.014135
+            }
+          ]
+        },
+        {
+          "args": [
+            "--measure-memory",
+            "reference",
+            "large_16"
+          ],
+          "exit_code": 0,
+          "load_before": [
+            13.81982421875,
+            13.07568359375,
+            8.3876953125
+          ],
+          "load_after": [
+            13.11328125,
+            12.94140625,
+            8.369140625
+          ],
+          "stdout": "memory workload=large_16 mode=reference allocs=64 in_use=268435456 reserved=354418688 peak=354418688\n",
+          "stderr": ""
+        },
+        {
+          "args": [
+            "--measure-jit",
+            "reference",
+            "large_16"
+          ],
+          "exit_code": 0,
+          "load_before": [
+            13.11328125,
+            12.94140625,
+            8.369140625
+          ],
+          "load_after": [
+            13.11328125,
+            12.94140625,
+            8.369140625
+          ],
+          "stdout": "jit workload=large_16 mode=reference first_step_ms=39.281\n",
+          "stderr": ""
+        },
+        {
+          "args": [
+            "--measure-memory",
+            "fused",
+            "large_16"
+          ],
+          "exit_code": 0,
+          "load_before": [
+            13.11328125,
+            12.94140625,
+            8.369140625
+          ],
+          "load_after": [
+            13.11328125,
+            12.94140625,
+            8.369140625
+          ],
+          "stdout": "memory workload=large_16 mode=fused allocs=64 in_use=268435456 reserved=349175808 peak=349175808\n",
+          "stderr": ""
+        },
+        {
+          "args": [
+            "--measure-jit",
+            "fused",
+            "large_16"
+          ],
+          "exit_code": 0,
+          "load_before": [
+            13.11328125,
+            12.94140625,
+            8.369140625
+          ],
+          "load_after": [
+            13.11328125,
+            12.94140625,
+            8.369140625
+          ],
+          "stdout": "jit workload=large_16 mode=fused first_step_ms=8.303\n",
+          "stderr": ""
+        }
+      ]
+    },
+    "cuda_confirmation_summary": {
+      "reference": {
+        "median_ms": 1.4548975,
+        "p95_ms": 1.486971,
+        "samples": 90,
+        "process_medians_ms": [
+          1.459012,
+          1.4508679999999998,
+          1.4635995
+        ]
+      },
+      "fused": {
+        "median_ms": 1.074351,
+        "p95_ms": 1.096308,
+        "samples": 90,
+        "process_medians_ms": [
+          1.0754394999999999,
+          1.06882,
+          1.0813005
+        ]
+      },
+      "speed_ratio": 1.3542105885320532,
+      "process_pair_ratios": [
+        1.356665809652705,
+        1.3574484010403993,
+        1.3535548166305296
+      ]
+    },
+    "limits": [
+      "One RTX 5070 Ti Laptop GPU; native multi-GPU NCCL collective execution was not validated.",
+      "The standalone downstream fixture and broader CPU/COW/vector/Foreach performance matrix were not repeated on these pins.",
+      "Metal/WGPU/ROCm hardware was not tested."
+    ]
   }
 }

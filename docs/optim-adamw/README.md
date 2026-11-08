@@ -10,10 +10,18 @@ Single-parameter fusion, copy-on-write output reuse, CPU vectorization, and CPU 
 Foreach are implemented. The execution-stream prerequisite is published and pinned, and
 singleton launches wait until the module releases its retained parameter. Current Linux
 measurements show benefits for specific workloads and regressions for others; Foreach stays
-opt-in. Focused CPU, CUDA, fusion, no-std and lint checks, complete repository validation, and
-published downstream consumption passed. Representative measurements on the reviewed source
-confirm the large-batch gain and the unaligned scalar fallback's limits. Historical measurements
-from before the upstream merge are excluded from the result set.
+opt-in. The recorded snapshot passed focused checks, complete repository validation and
+published downstream consumption; its measurements show the large-batch gain and the unaligned
+scalar fallback's limits. Those results precede the 2026-11-08 upstream synchronization and
+retain their original source identities. Earlier superseded experiments are excluded.
+
+On 2026-11-08 the branch synchronized with upstream `main` at
+`43acf2ded51bf7be46c71666b7d5705ec21e7a8e` and refreshed CubeCL/CubeK to the revisions below.
+The sync also required a feature-isolation fix: the new
+upstream collective `run_member` method and `GroupMember` import moved unchanged into the
+existing fusion-only module after strict clippy found them unused without fusion. No warning
+suppression was added, and the AdamW implementation is unchanged. Focused and full repository
+validation passed on the new pins; a rebuilt CUDA comparison is recorded separately below.
 
 ## Execution and ownership
 
@@ -142,15 +150,19 @@ The current normal Git dependency graph is:
 
 | Dependency | Published revision | Change |
 | --- | --- | --- |
-| [CubeCL](https://github.com/onenewcode/cubecl/commit/e97ef2c4dc06e18281effe0b71e1d361b2d1e4c4) | `e97ef2c4dc06e18281effe0b71e1d361b2d1e4c4` | Add the read-only `Client::execution_stream()` getter and CPU scope/pinning tests. |
-| [CubeK](https://github.com/onenewcode/cubek/commit/2fd57bac2d09c84ab3da08d5bacb6b737646182b) | `2fd57bac2d09c84ab3da08d5bacb6b737646182b` | Pin its CubeCL dependencies to the same getter revision. |
+| [CubeCL](https://github.com/onenewcode/cubecl/commit/5a9e57489357e0336dae0ff23df502b1896be397) | `5a9e57489357e0336dae0ff23df502b1896be397` | Preserve the read-only `Client::execution_stream()` getter and CPU scope/pinning tests on the updated upstream. |
+| [CubeK](https://github.com/onenewcode/cubek/commit/f67dce4244d89fff2c809bd5c3194620612bf682) | `f67dce4244d89fff2c809bd5c3194620612bf682` | Merge updated upstream and pin CubeCL dependencies to the same getter revision. |
 
-CubeCL's change is based on upstream `3e6d4f35c26e486728d4f46f00d0cf84f47b2171`;
-CubeK's dependency-only change is based on `eb332b888d026f1b1767b222a841ee1aa0e9b6f5`.
+CubeCL's change is based on upstream `cb1b7bc6e521b2556ed01cf096b99104a50b35ae`;
+CubeK's dependency-only change is based on `24ea8e9f2c3baff39fcb1db5efef1872c00e7b86`.
 Burn and CubeK resolve CubeCL workspace packages to one Git source. `cubecl-hip-sys` is a
-separate native binding from crates.io. The standalone downstream consumer successfully resolved
-22 CubeCL and 13 CubeK packages to those exact sources and executed public Foreach APIs against
-published Burn commit `639ad952b838d39e43f20db7717d914ef9b58a47`. Its 652 dependencies were
+separate native binding from crates.io.
+
+The earlier standalone downstream consumer resolved 22 CubeCL and 13 CubeK packages using
+CubeCL `e97ef2c4dc06e18281effe0b71e1d361b2d1e4c4` and CubeK
+`2fd57bac2d09c84ab3da08d5bacb6b737646182b`, then executed public Foreach APIs against
+published Burn commit `639ad952b838d39e43f20db7717d914ef9b58a47`. This is evidence for those
+older pins, not the updated dependency graph. Its 652 dependencies were
 resolved afresh; `cargo run --locked` then passed. The fixture and its source/log hashes are
 embedded in [results.json](results.json). Reproduction resolves transitive dependencies again
 before the locked run, so later runs may choose newer compatible versions. The verifier rejects
@@ -215,10 +227,34 @@ Sources:
 
 ## Validation status
 
-Checks use the published CubeCL/CubeK pins above. The durable [results.json](results.json)
-records commands, exit statuses, log hashes and test summaries; local full logs remain under
-`target/adamw-evidence`. These records describe the tested snapshots. Subsequent fixes need
-their own checks, and an earlier successful run does not cancel a later failure.
+The `upstream_sync` section of [results.json](results.json) records the 2026-11-08 snapshot;
+the original evidence remains intact with its earlier CubeCL `e97ef2c4`/CubeK `2fd57bac` pins.
+New full logs and commands are under `target/adamw-evidence/upstream-sync-2026-11-08`.
+
+| New-pin check | Observed result and boundary |
+| --- | --- |
+| Raw CPU and CUDA AdamW | Each reported 50 passes, 0 failures and 2 ignored tests; both isolated CPU JIT tests passed individually. |
+| Decorator integration | All 3 tests passed: split shards, loopback remote and Capture IR. |
+| CPU and CUDA fusion AdamW | Each passed again after the collective feature-isolation fix: 50 passes, 0 failures and 2 ignored tests. Raw-only cases return early; these are not 50 specialized-kernel executions. |
+| Host fusion unit suite | `burn-fusion --lib`: 144 passed, 1 ignored throughput timing harness; includes stream ordering for skipped operations and error paths. Native multi-GPU collective execution was not tested. |
+| Lint and repository checks | Strict all-target clippy passed with `std,cpu,cuda,burn-cubecl/autotune`; complete `cargo run-checks` passed, with 29 test summaries totaling 4,659 passes, 0 failures and 39 ignored. The initial clippy failure and read-only cache-artifact failure remain recorded; private writable artifact copies enabled the repository retry. |
+| Rebuilt executable | All 9 CPU path/value checks passed; CUDA memcheck covered the same 9 workloads and reported zero errors. |
+
+The rebuilt binary is `6f8359ec2772236703287b75fdd7520313d080f6267302472af50835035cf102`.
+Its 184 covered source hashes match the validated tree; `upstream_sync.merge_proof` also records
+upstream changes outside that build subset. CUDA `large_16` was measured in three processes
+per mode, 30 samples each, with alternating process order:
+
+| New-pin CUDA comparison | Reference median / p95 ms | Fused median / p95 ms | Median ratio | Per-process ratios |
+| --- | ---: | ---: | ---: | --- |
+| `large_16` | 1.4549 / 1.4870 | 1.0744 / 1.0963 | 1.354× | 1.357, 1.357, 1.354 |
+
+This comparison measures Reference versus single-parameter Fused execution. Differences from
+the earlier series cannot establish a dependency-induced performance change. The broader CPU,
+COW, vector and Foreach matrix and standalone downstream consumer were not repeated on these
+pins; their earlier results remain attributed to their original snapshots.
+
+The following detailed table describes that earlier snapshot:
 
 | Check | Observed result and boundary |
 | --- | --- |
@@ -261,6 +297,8 @@ advance host learning rates or step counters.
 
 ## Measured results and costs
 
+The measurements in this section and the following confirmation table use the earlier pins
+`e97ef2c4`/`2fd57bac`; they are not reattributed to the 2026-11-08 dependency update.
 The [durable evidence file](results.json) retains raw numeric samples, process/repeat identity,
 source-report hashes, environment, launch assertions, exact ablation patches, and build
 manifests deduplicated by binary hash. Each manifest's full source map is reconstructed by
@@ -398,9 +436,10 @@ control for the vector policy.
 
 ## Evidence and remaining limits
 
-The durable evidence contains 20 reports, 419 measurement processes, 10,540 sample rows and
-six binary manifests. Validation failures and their successful reruns remain separately
-recorded; the source identity and agent review records accompany the accepted measurements.
+The earlier series in the durable evidence contains 20 reports, 419 measurement processes,
+10,540 sample rows and six binary manifests. The 2026-11-08 snapshot is recorded separately in
+`upstream_sync`. Validation failures and successful reruns, source identities and agent review
+records accompany the measurements.
 
 | Requirement | Evidence and limit |
 | --- | --- |
@@ -409,8 +448,8 @@ recorded; the source identity and agent review records accompany the accepted me
 | Throughput | Scalar/vector comparisons cover 1/4/16 large parameters, tails and small controls; matching-offset controls show no unaligned vector benefit. JIT/code-size and first-use costs are recorded separately. |
 | Foreach | Real module batches, scalar/group/stream boundaries, state/context preservation and end-to-end controls are exercised. Only compatible small CPU parameters batch; heterogeneous modules can regress. |
 | Fallbacks | Flex, raw/fusion, tracked/unsupported input and actual shard/remote/Capture tests passed as recorded. Capture evidence concerns IR equivalence; CUDA hardware graph replay and unavailable runtime hardware are not established. |
-| Integration | Published dependency pins, normal downstream consumption, feature/no-std checks, book/changelog updates and complete `cargo run-checks` passed. Upstream integration of the fork dependency prerequisites is still required before merge. |
-| Review and delivery | The recorded source commits each have at least two agent reviews before commit, with findings rechecked. The draft PR is prepared with explicit AI disclosure; no human review is claimed. |
+| Integration | The 2026-11-08 snapshot passed focused checks and complete `cargo run-checks`; standalone downstream consumption remains verified only on the earlier pins. Upstream integration of the fork dependency prerequisites is still required before merge. |
+| Review and delivery | The recorded source commits each have at least two agent reviews before commit, with findings rechecked. [Draft PR #6437](https://github.com/tracel-ai/burn/pull/6437) includes explicit AI disclosure; no human review is claimed. |
 
 Current Linux validation uses an Intel Core i9-14900HX and NVIDIA GeForce RTX 5070 Ti Laptop
 GPU, driver 615.71.10, with Rust 1.99.1. Hardware, driver, OS, Rust/Cargo versions, backend,
