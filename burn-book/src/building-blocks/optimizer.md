@@ -58,32 +58,32 @@ let optimizer = AdafactorConfig::new()
 ## AdamW Execution
 
 AdamW uses tensor operations by default. Select `Fused` to combine each eligible parameter's
-moment, weight-decay, and parameter updates into a dedicated kernel, or `Foreach` to batch
-compatible CPU module parameters:
+moment, weight-decay, and parameter updates into a dedicated kernel:
 
 ```rust, ignore
 use burn::optim::{AdamWConfig, AdamWExecutionConfig};
 
 let optimizer = AdamWConfig::new()
-    .with_execution(Some(AdamWExecutionConfig::Foreach))
+    .with_execution(Some(AdamWExecutionConfig::Fused))
     .init();
 ```
 
-The specialized paths require raw CubeCL F32 tensors. For example, enable `std`, `optim`, and
+The specialized path requires raw CubeCL F32 tensors. For example, enable `std`, `optim`, and
 `cpu` with default features disabled on the `burn` dependency to use the CPU path. `Fused` also
 supports the CubeCL GPU runtimes; select the matching backend feature such as `cuda`. Enabling
-the `fusion` feature retains the general tensor-operation implementation, so these options do
-not imply a speedup on a backend with fusion enabled.
+the `fusion` feature retains the general tensor-operation implementation, so this option does
+not imply a speedup on a backend with fusion enabled. Unsupported inputs also use the reference
+implementation.
 
-Foreach batches parameters with compatible optimizer state, learning rates, and execution
-streams. Large parameters, singletons, and other runtimes use the per-parameter Fused path;
-unsupported inputs use the reference implementation. Direct `Optimizer::step` calls also use
-the per-parameter path. Measure your full optimizer step: batching saves submissions but adds
-collection and writeback work, and small or fragmented groups may not benefit.
+Eligible contiguous CPU inputs use vectorized updates when their layouts and binding alignment
+support the selected width; remaining elements use a scalar tail. Measure the complete optimizer
+step on the intended device and parameter shapes, since the benefit depends on the workload.
 
-Each output reuses storage only when it is exclusively owned and does not alias another input.
-Retained tensor handles remain unchanged. Execution modes share the same configuration defaults,
-per-parameter gradient clipping, state counters, and checkpoint format; existing checkpoints can
+Each output reuses compatible contiguous storage only when it is exclusively owned, does not
+alias another input, and has no outstanding bindings. Pending reads can retain an allocation
+after tensor handles are released; in that case Fused allocates a fresh output without host
+synchronization. Retained tensor handles remain unchanged. Execution modes share configuration
+defaults, per-parameter gradient clipping, state counters, and checkpoint format; existing checkpoints can
 resume in another mode without conversion. Old configurations without an execution field continue
 to select the reference implementation.
 
@@ -123,8 +123,7 @@ The low-level [`Optimizer`](#implementing-an-optimizer) trait updates one tensor
 2. It finds and consumes each parameter's gradient by `ParamId`.
 3. It chooses the optimizer and learning rate assigned to that parameter group.
 4. It moves optimizer state to the parameter's device when necessary.
-5. It applies the optimizer and stores the returned state. AdamW Foreach can collect compatible
-   parameters, execute them together, and write their results back in a second traversal.
+5. It applies the optimizer and stores the returned state.
 6. It preserves whether the updated parameter requires gradients.
 
 `ModuleOptimizer` is intentionally non-generic over both the module and optimizer. This makes it

@@ -14,11 +14,13 @@
 use burn_core as burn;
 
 use burn::tensor::{DType, Tensor};
-use burn_cubecl::kernel::optim::{AdamWHostScalars, AdamWInputs, try_adamw};
+use burn_cubecl::kernel::optim::{AdamWHostScalars, AdamWInputs, AdamWOutput, try_adamw};
 
 use super::{AdamWState, AdaptiveMomentumW, StepInputs};
 use crate::LearningRate;
 use crate::optim::AdaptiveMomentumState;
+
+type CubePrimitive = <burn_cubecl::Cube as burn::backend::BackendTypes>::FloatTensorPrimitive;
 
 /// Try the single-kernel update, returning the inputs untouched when it does not apply.
 ///
@@ -34,55 +36,6 @@ pub(super) fn try_step<const D: usize>(
     weight_decay: f32,
     cautious_weight_decay: bool,
 ) -> Result<(Tensor<D>, Option<AdamWState<D>>), StepInputs<D>> {
-    let (time, output) = convert(
-        lr,
-        tensor,
-        grad,
-        state,
-        momentum,
-        weight_decay,
-        |scalars, inputs| try_adamw(scalars, cautious_weight_decay, momentum.amsgrad, inputs),
-    )?;
-    let (param, state) = restore(time, output);
-    Ok((param, Some(state)))
-}
-
-#[allow(clippy::result_large_err)]
-pub(super) fn try_prepare<const D: usize>(
-    lr: LearningRate,
-    tensor: Tensor<D>,
-    grad: Tensor<D>,
-    state: Option<AdamWState<D>>,
-    momentum: &AdaptiveMomentumW,
-    weight_decay: f32,
-    cautious: bool,
-) -> Result<(usize, burn_cubecl::kernel::optim::AdamWPending), StepInputs<D>> {
-    convert(
-        lr,
-        tensor,
-        grad,
-        state,
-        momentum,
-        weight_decay,
-        |scalars, inputs| {
-            burn_cubecl::kernel::optim::prepare_adamw(scalars, cautious, momentum.amsgrad, inputs)
-        },
-    )
-}
-
-#[allow(clippy::result_large_err)]
-fn convert<const D: usize, R>(
-    lr: LearningRate,
-    tensor: Tensor<D>,
-    grad: Tensor<D>,
-    state: Option<AdamWState<D>>,
-    momentum: &AdaptiveMomentumW,
-    weight_decay: f32,
-    execute: impl FnOnce(
-        AdamWHostScalars,
-        AdamWInputs<super::CubePrimitive>,
-    ) -> Result<R, AdamWInputs<super::CubePrimitive>>,
-) -> Result<(usize, R), StepInputs<D>> {
     // Fusion tensors are handles into a deferred graph, and the fused kernel writes raw CubeCL
     // buffers. Decline before converting anything.
     if burn_cubecl::FUSED {
@@ -164,7 +117,7 @@ fn convert<const D: usize, R>(
     drop((tensor, grad, state));
     let tensor = Tensor::<D>::from_primitive::<burn_cubecl::Cube>;
 
-    let output = match execute(scalars, inputs) {
+    let output = match try_adamw(scalars, cautious_weight_decay, momentum.amsgrad, inputs) {
         Ok(output) => output,
         Err(inputs) => {
             return Err(match inputs {
@@ -191,12 +144,13 @@ fn convert<const D: usize, R>(
         }
     };
 
-    Ok((time, output))
+    let (param, state) = restore(time, output);
+    Ok((param, Some(state)))
 }
 
-pub(super) fn restore<const D: usize>(
+fn restore<const D: usize>(
     time: usize,
-    output: burn_cubecl::kernel::optim::AdamWOutput<super::CubePrimitive>,
+    output: AdamWOutput<CubePrimitive>,
 ) -> (Tensor<D>, AdamWState<D>) {
     let param = Tensor::<D>::from_primitive::<burn_cubecl::Cube>(output.param);
     let moment_1 = Tensor::<D>::from_primitive::<burn_cubecl::Cube>(output.moment_1);

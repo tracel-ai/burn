@@ -8,10 +8,6 @@
 #[cfg(not(feature = "fusion"))]
 use crate::tensor::CubeTensor;
 
-#[path = "adamw/foreach.rs"]
-mod foreach;
-pub use foreach::{AdamWBatchResult, AdamWPending, execute_adamw_batch, prepare_adamw};
-
 /// The tensors one AdamW step reads.
 pub enum AdamWInputs<T> {
     /// No optimizer state exists yet; the moments are initialized from the gradient.
@@ -67,8 +63,6 @@ pub struct AdamWHostScalars {
     epsilon: f32,
     decay_rate: f64,
     one_minus_decay_rate: f64,
-    weight_decay: f32,
-    time: usize,
 }
 
 impl AdamWHostScalars {
@@ -97,8 +91,6 @@ impl AdamWHostScalars {
             epsilon,
             decay_rate,
             one_minus_decay_rate: 1.0 - decay_rate,
-            weight_decay,
-            time,
         }
     }
 }
@@ -121,7 +113,7 @@ mod eager {
 
     /// The weight decay variant applied by one AdamW step.
     #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-    pub(super) enum DecayMode {
+    enum DecayMode {
         /// No weight decay: the parameter is used as-is.
         None,
         /// Standard decoupled weight decay.
@@ -131,7 +123,7 @@ mod eager {
     }
 
     #[derive(CubeLaunch, CubeType)]
-    pub(super) struct AdamWLaunchScalars {
+    struct AdamWLaunchScalars {
         lr: InputScalar,
         beta_1: InputScalar,
         beta_2: InputScalar,
@@ -147,7 +139,7 @@ mod eager {
 
     impl AdamWHostScalars {
         /// The decay variant these scalars call for.
-        pub(super) fn decay_mode(&self, cautious_weight_decay: bool) -> DecayMode {
+        fn decay_mode(&self, cautious_weight_decay: bool) -> DecayMode {
             if self.decay_rate == 0.0 {
                 DecayMode::None
             } else if cautious_weight_decay {
@@ -157,7 +149,7 @@ mod eager {
             }
         }
 
-        pub(super) fn to_launch(self, dtype: ElemType) -> AdamWLaunchScalarsLaunch {
+        fn to_launch(self, dtype: ElemType) -> AdamWLaunchScalarsLaunch {
             // Every scalar enters the kernel as the tensor's own float type. The host keeps
             // `lr` and the decay rates in `f64`; they are narrowed here, once, exactly like
             // the reference implementation narrows them when it multiplies a tensor by them.
@@ -250,11 +242,11 @@ mod eager {
         select_many(previous.less_than(&moment_2), moment_2, previous)
     }
 
-    /// Shared arithmetic for single-tensor and batched updates. Optional moments specialize
-    /// away at compile time, preserving the reference's initial-state evaluation boundaries.
+    /// Optional moments specialize away at compile time, preserving the reference's
+    /// initial-state evaluation boundaries.
     #[allow(clippy::type_complexity)] // CubeCL lowers the four register values directly.
     #[cube]
-    pub(super) fn update<F: Float, N: Size>(
+    fn update<F: Float, N: Size>(
         param: Vector<F, N>,
         grad: Vector<F, N>,
         old_moment_1: ComptimeOption<Vector<F, N>>,
@@ -406,7 +398,7 @@ mod eager {
 
     /// Tensor bindings plus one metadata buffer. Reserve the latter even on runtimes that
     /// pass metadata without a storage binding, so the same bound is safe for WGSL.
-    pub(super) fn num_bindings<T>(inputs: &AdamWInputs<T>, amsgrad: bool) -> u32 {
+    fn num_bindings<T>(inputs: &AdamWInputs<T>, amsgrad: bool) -> u32 {
         let inputs = match inputs {
             AdamWInputs::Initial { .. } => 2,
             AdamWInputs::State { max_moment_2, .. } => {
@@ -418,7 +410,7 @@ mod eager {
 
     /// Whether the inputs can go through the fused kernel: `F32`, same shape, device and
     /// client service, non-overlapping rows, and not empty.
-    pub(super) fn supported(inputs: &AdamWInputs<CubeTensor>, amsgrad: bool) -> bool {
+    fn supported(inputs: &AdamWInputs<CubeTensor>, amsgrad: bool) -> bool {
         let (param, grad, moments) = match inputs {
             AdamWInputs::Initial { param, grad } => (param, grad, None),
             AdamWInputs::State {
@@ -482,9 +474,10 @@ mod eager {
         Ok(launch(scalars, decay, amsgrad, inputs))
     }
 
-    /// Inputs that may be read or preserved by this step, including a disabled AMSGrad maximum.
-    pub(super) fn roles(inputs: &AdamWInputs<CubeTensor>) -> [Option<&CubeTensor>; 5] {
-        match inputs {
+    /// Compute ownership before output views add handle references, including aliases with
+    /// a disabled AMSGrad maximum that must be preserved.
+    fn reuse_mask(inputs: &AdamWInputs<CubeTensor>) -> [bool; 4] {
+        let roles = match inputs {
             AdamWInputs::Initial { param, grad } => [Some(param), Some(grad), None, None, None],
             AdamWInputs::State {
                 param,
@@ -499,16 +492,7 @@ mod eager {
                 Some(moment_2),
                 max_moment_2.as_ref(),
             ],
-        }
-    }
-
-    /// Compute ownership before output views add handle references. Other batch items are reads
-    /// too: slices of the same allocation conservatively disable reuse across the entire launch.
-    pub(super) fn reuse_mask<'a>(
-        inputs: &AdamWInputs<CubeTensor>,
-        others: impl Iterator<Item = &'a CubeTensor> + Clone,
-    ) -> [bool; 4] {
-        let roles = roles(inputs);
+        };
         let distinct = |a: &CubeTensor, b: &CubeTensor| {
             a.handle.service != b.handle.service
                 || a.handle.memory.descriptor().id != b.handle.memory.descriptor().id
@@ -516,30 +500,32 @@ mod eager {
         let reuse = |role: usize| {
             roles[role].is_some_and(|tensor| {
                 tensor.can_mut()
+                    // Queued bindings can still read this allocation after their tensor handles
+                    // are released. Do not overwrite it before those reads have finished.
+                    && !tensor.handle.memory.is_bound()
                     && tensor.is_contiguous()
                     && roles.iter().enumerate().all(|(index, other)| {
                         index == role || other.is_none_or(|other| distinct(tensor, other))
                     })
-                    && others.clone().all(|other| distinct(tensor, other))
             })
         };
         [reuse(0), reuse(2), reuse(3), reuse(4)]
     }
 
-    pub(super) struct PreparedStep {
-        pub(super) param: CubeTensor,
-        pub(super) grad: CubeTensor,
-        pub(super) moment_1: Option<CubeTensor>,
-        pub(super) moment_2: Option<CubeTensor>,
-        pub(super) old_max: Option<CubeTensor>,
-        pub(super) preserved_max: Option<CubeTensor>,
-        pub(super) out_param: CubeTensor,
-        pub(super) out_moment_1: CubeTensor,
-        pub(super) out_moment_2: CubeTensor,
-        pub(super) out_max: Option<CubeTensor>,
+    struct PreparedStep {
+        param: CubeTensor,
+        grad: CubeTensor,
+        moment_1: Option<CubeTensor>,
+        moment_2: Option<CubeTensor>,
+        old_max: Option<CubeTensor>,
+        preserved_max: Option<CubeTensor>,
+        out_param: CubeTensor,
+        out_moment_1: CubeTensor,
+        out_moment_2: CubeTensor,
+        out_max: Option<CubeTensor>,
     }
 
-    pub(super) fn prepare_outputs(
+    fn prepare_outputs(
         inputs: AdamWInputs<CubeTensor>,
         amsgrad: bool,
         reuse: [bool; 4],
@@ -597,13 +583,13 @@ mod eager {
         }
     }
 
-    pub(super) fn launch(
+    fn launch(
         scalars: AdamWHostScalars,
         decay: DecayMode,
         amsgrad: bool,
         inputs: AdamWInputs<CubeTensor>,
     ) -> AdamWOutput<CubeTensor> {
-        let reuse = reuse_mask(&inputs, core::iter::empty());
+        let reuse = reuse_mask(&inputs);
         let PreparedStep {
             param,
             grad,

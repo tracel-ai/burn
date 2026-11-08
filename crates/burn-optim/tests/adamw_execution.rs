@@ -202,9 +202,9 @@ fn check_updates(device: Device) {
             Some(Sharding::Split { dim: 0 })
         );
     }
-    let mut optimizer = config(AdamWExecutionConfig::Foreach).init();
+    let mut optimizer = config(AdamWExecutionConfig::Fused).init();
     let reference = config(AdamWExecutionConfig::Reference).build();
-    let foreach = config(AdamWExecutionConfig::Foreach).build();
+    let fused = config(AdamWExecutionConfig::Fused).build();
     let mut expected: Vec<Step> = PARAMETERS
         .into_iter()
         .map(|p| (tensor(p, &cpu), None))
@@ -225,7 +225,7 @@ fn check_updates(device: Device) {
         actual = actual
             .into_iter()
             .enumerate()
-            .map(|(i, (p, s))| foreach.step(LR, p, gradient(i, step, &device), s))
+            .map(|(i, (p, s))| fused.step(LR, p, gradient(i, step, &device), s))
             .collect();
         for (i, param) in model.params().into_iter().enumerate() {
             let value = param.val();
@@ -260,7 +260,7 @@ fn check_updates(device: Device) {
         device.sync().unwrap();
         assert_eq!(launches.adamw.load(Relaxed), 0);
         if step == 0 {
-            optimizer = config(AdamWExecutionConfig::Foreach)
+            optimizer = config(AdamWExecutionConfig::Fused)
                 .init()
                 .from_bytes(optimizer.into_bytes().unwrap())
                 .unwrap();
@@ -273,7 +273,7 @@ fn check_updates(device: Device) {
 }
 
 #[test]
-fn split_shards_preserve_updates_state_and_parameter_context() {
+fn fused_split_shards_preserve_updates_state_and_parameter_context() {
     let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let cpu = Device::cpu();
     let device = Device::shard_options(&[cpu.clone(), cpu]).init().unwrap();
@@ -356,11 +356,11 @@ fn capture_steps(execution: AdamWExecutionConfig) -> CapturedGraph {
 }
 
 #[test]
-fn capture_preserves_reference_ir_and_all_state_outputs_without_launching() {
+fn fused_capture_preserves_reference_ir_and_all_state_outputs_without_launching() {
     let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let (launches, _observation) = observe_fallback();
     let reference = capture_steps(AdamWExecutionConfig::Reference);
-    let actual = capture_steps(AdamWExecutionConfig::Foreach);
+    let actual = capture_steps(AdamWExecutionConfig::Fused);
     assert!(!reference.graph.operations.is_empty());
     assert!(reference.graph.inputs.is_empty());
     assert_eq!(reference.graph.outputs.len(), 8);
@@ -377,7 +377,7 @@ fn capture_preserves_reference_ir_and_all_state_outputs_without_launching() {
 }
 
 #[test]
-fn websocket_remote_preserves_updates_state_and_parameter_context() {
+fn fused_websocket_remote_preserves_updates_state_and_parameter_context() {
     let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let (done, completion) = std::sync::mpsc::channel();
     let worker = std::thread::spawn(move || {

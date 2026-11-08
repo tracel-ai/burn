@@ -12,7 +12,6 @@ extend-exclude = [
     "*.proto",
     "assets/ModuleSerialization.xml",
     "*.map", # linker map files
-    "docs/optim-adamw/results.json", # Raw measurements include generated kernel identifiers.
 ]
 
 [type.md]

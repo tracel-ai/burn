@@ -27,8 +27,8 @@
 //!   AdamW updates for that CubeCL runtime and enable the matching `burn-core` backend. Without one
 //!   of these the fused step is not built and every configuration falls back to the reference
 //!   update. Default features enable kernel fusion with a `burn` runtime, where the fused step
-//!   also falls back; build without default features to run it. Module-level Foreach batching is
-//!   limited to eligible CPU parameters; other inputs use the single-parameter fallback.
+//!   also falls back; build without default features to run it. Eligible CPU tensors use
+//!   vectorized updates; shared input storage is preserved.
 
 #[macro_use]
 extern crate derive_new;

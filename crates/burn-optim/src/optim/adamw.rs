@@ -11,15 +11,8 @@ use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 #[cfg(cubecl_backend)]
 mod cube;
 
-#[cfg(cubecl_backend)]
-pub(crate) type CubePrimitive =
-    <burn_cubecl::Cube as burn::backend::BackendTypes>::FloatTensorPrimitive;
-
 #[cfg(all(test, cubecl_backend))]
 mod test_support;
-
-#[cfg(all(test, cubecl_backend))]
-mod foreach_tests;
 
 #[cfg(all(test, cubecl_backend))]
 fn step_guard() -> std::sync::MutexGuard<'static, ()> {
@@ -74,11 +67,6 @@ pub enum AdamWExecutionConfig {
     /// [`Reference`](Self::Reference). The module optimizer strips the autodiff context itself;
     /// a direct [`Optimizer::step`](crate::Optimizer::step) call on a tracked tensor falls back.
     Fused,
-    /// Batch compatible CPU module parameters on their original execution streams.
-    ///
-    /// Direct calls, other runtimes, large inputs and singleton groups use
-    /// [`Fused`](Self::Fused), including its fallback to the reference implementation.
-    Foreach,
 }
 
 /// [`AdamW`] Configuration.
@@ -156,7 +144,7 @@ impl Optimizer for AdamW {
     ) -> (Tensor<D>, Option<Self::State<D>>) {
         match &self.execution {
             AdamWExecutionConfig::Reference => self.reference_step(lr, tensor, grad, state),
-            AdamWExecutionConfig::Fused | AdamWExecutionConfig::Foreach => match cube::try_step(
+            AdamWExecutionConfig::Fused => match cube::try_step(
                 lr,
                 tensor,
                 grad,
@@ -178,50 +166,6 @@ impl Optimizer for AdamW {
 }
 
 impl AdamW {
-    #[cfg(cubecl_backend)]
-    pub(crate) fn uses_foreach(&self) -> bool {
-        matches!(self.execution, AdamWExecutionConfig::Foreach)
-    }
-
-    #[cfg(cubecl_backend)]
-    pub(crate) fn can_batch(&self, device: &Device) -> bool {
-        self.uses_foreach()
-            && !burn_cubecl::FUSED
-            && matches!(
-                device.as_dispatch(),
-                burn::backend::DispatchDevice::Cube(cube)
-                    if cube.runtime() == burn_cubecl::cubecl::RuntimeId::Cpu
-            )
-    }
-
-    #[cfg(cubecl_backend)]
-    #[allow(clippy::result_large_err)]
-    pub(crate) fn prepare<const D: usize>(
-        &self,
-        lr: LearningRate,
-        tensor: Tensor<D>,
-        grad: Tensor<D>,
-        state: Option<AdamWState<D>>,
-    ) -> Result<(usize, burn_cubecl::kernel::optim::AdamWPending), StepInputs<D>> {
-        cube::try_prepare(
-            lr,
-            tensor,
-            grad,
-            state,
-            &self.momentum,
-            self.weight_decay,
-            self.cautious_weight_decay,
-        )
-    }
-
-    #[cfg(cubecl_backend)]
-    pub(crate) fn restore<const D: usize>(
-        time: usize,
-        output: burn_cubecl::kernel::optim::AdamWOutput<CubePrimitive>,
-    ) -> (Tensor<D>, AdamWState<D>) {
-        cube::restore(time, output)
-    }
-
     /// The reference implementation: the update is assembled from tensor operations.
     fn reference_step<const D: usize>(
         &self,
@@ -731,11 +675,7 @@ mod tests {
 
     #[test]
     fn execution_round_trips_through_json_and_binary() {
-        for execution in [
-            AdamWExecutionConfig::Reference,
-            AdamWExecutionConfig::Fused,
-            AdamWExecutionConfig::Foreach,
-        ] {
+        for execution in [AdamWExecutionConfig::Reference, AdamWExecutionConfig::Fused] {
             let expected = core::mem::discriminant(&execution);
             let config = AdamWConfig::new().with_execution(Some(execution));
             let json = burn::config::config_to_json(&config);
@@ -853,6 +793,59 @@ mod tests {
         }
 
         #[test]
+        fn fused_step_uses_the_client_stream_when_inputs_were_created_elsewhere() {
+            use burn::tensor::StreamId;
+
+            let _guard = step_guard();
+            if kernel_count(6) == 0 {
+                return;
+            }
+            let device = Device::default();
+            let config = fused_config(false, false, 0.1);
+            let fused = config.clone().build();
+            let reference = config.with_execution(None).build();
+            let original = StreamId::current();
+            let allocation = StreamId::allocate();
+            let submission = StreamId::allocate();
+            for pin in [None, Some(StreamId::allocate())] {
+                let (param, grad) = allocation.executes(|| {
+                    (
+                        tensor(&[1.0, -2.0, 3.0, -4.0], [4], &device),
+                        tensor(&[0.25, -0.5, 0.75, -1.0], [4], &device),
+                    )
+                });
+                let expected = reference.step(LEARNING_RATE, param.clone(), grad.clone(), None);
+                let mut primitive = param.try_into_primitive::<burn_cubecl::Cube>().unwrap();
+                let raw = (&mut primitive as &mut dyn core::any::Any)
+                    .downcast_mut::<burn_cubecl::tensor::CubeTensor>()
+                    .unwrap();
+                assert_eq!(raw.handle.stream, allocation);
+                if let Some(pin) = pin {
+                    // The client pin does not change the input's allocation stream.
+                    unsafe { raw.client.set_stream(pin) };
+                }
+                let param = Tensor::<1>::from_primitive::<burn_cubecl::Cube>(primitive);
+                submission.executes(|| {
+                    let actual = one_launch(6, || fused.step(LEARNING_RATE, param, grad, None));
+                    let state = actual.1.as_ref().unwrap();
+                    for moment in [&state.momentum.moment_1, &state.momentum.moment_2] {
+                        let primitive = moment
+                            .clone()
+                            .try_into_primitive::<burn_cubecl::Cube>()
+                            .unwrap();
+                        let raw = (&primitive as &dyn core::any::Any)
+                            .downcast_ref::<burn_cubecl::tensor::CubeTensor>()
+                            .unwrap();
+                        assert_eq!(raw.handle.stream, pin.unwrap_or(submission));
+                    }
+                    assert_step_close(&expected, &actual);
+                    assert_eq!(StreamId::current(), submission);
+                });
+                assert_eq!(StreamId::current(), original);
+            }
+        }
+
+        #[test]
         fn cow_reuses_each_owned_output_and_preserves_shared_state() {
             let _guard = step_guard();
             if kernel_count(10) == 0 {
@@ -866,6 +859,8 @@ mod tests {
             let grad = tensor(&values(16, 0.1), [4, 4], &device);
             let original = allocation(&param);
             let expected = reference.step(LEARNING_RATE, param.clone(), grad.clone(), None);
+            // Reuse assertions require the reference's outstanding reads to have completed.
+            device.sync().unwrap();
             let mut actual = one_launch(7, || fused.step(LEARNING_RATE, param, grad.clone(), None));
             assert_step_close(&expected, &actual);
             assert_eq!(
@@ -885,6 +880,7 @@ mod tests {
                     grad.clone(),
                     actual.1.clone(),
                 );
+                device.sync().unwrap();
                 actual = one_launch(10, || {
                     fused.step(LEARNING_RATE, actual.0, grad.clone(), actual.1)
                 });
@@ -952,6 +948,7 @@ mod tests {
                     grad.clone(),
                     Some(state.clone()),
                 );
+                device.sync().unwrap();
                 let actual = one_launch(10, || fused.step(LEARNING_RATE, param, grad, Some(state)));
                 assert_step_close(&expected, &actual);
                 let outputs = output_allocations(&actual.0, actual.1.as_ref().unwrap());

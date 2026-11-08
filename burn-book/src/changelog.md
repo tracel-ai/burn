@@ -799,12 +799,13 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 
 #### AdamW execution
 
-- Add opt-in `AdamWExecutionConfig::Fused` for raw CubeCL F32 updates and `Foreach` for compatible
-  CPU module parameters. The dedicated kernels reuse exclusively owned outputs and vectorize
-  eligible CPU buffers. Unsupported cases retain the reference implementation; configuration
-  defaults, gradient clipping, and checkpoint formats are unchanged. See
+- Add opt-in `AdamWExecutionConfig::Fused` for raw CubeCL F32 updates. The dedicated kernel
+  vectorizes eligible CPU buffers and reuses contiguous, exclusively owned outputs only when
+  they have no aliases or outstanding bindings, preserving shared storage and pending reads
+  without host synchronization. Unsupported cases retain the reference implementation;
+  configuration defaults, gradient clipping, and checkpoint formats are unchanged. See
   [AdamW execution](./building-blocks/optimizer.md#adamw-execution) for feature selection and
-  batching tradeoffs.
+  layout requirements.
 
 #### Binary cross-entropy loss
 
