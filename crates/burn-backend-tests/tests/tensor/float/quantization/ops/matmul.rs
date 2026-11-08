@@ -314,6 +314,37 @@ fn should_matmul_nvfp4_rhs() {
     }
 }
 
+/// A tied embedding as the vocabulary head reads it: `[n, k]` packed in NVFP4 along `k`, then
+/// transposed to the `[k, n]` rhs, at one row and at many.
+#[test]
+fn should_matmul_nvfp4_transposed_rhs() {
+    let device = Default::default();
+    let embedding: TestTensor<2> = TestTensorInt::arange(0..96 * 64, &device)
+        .float()
+        .div_scalar(6144.)
+        .reshape([96, 64]);
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::E2M1)
+        .per_block([16], ScaleDtype::UE4M3)
+        .per_tensor(ScaleDtype::F32)
+        .with_store(QuantStore::PackedU32(0));
+    let head = embedding.quantize_dynamic(&scheme).transpose();
+
+    for rows in [1, 48] {
+        let lhs: TestTensor<2> = TestTensorInt::arange(0..rows * 64, &device)
+            .float()
+            .div_scalar((rows * 64) as f32)
+            .reshape([rows as usize, 64]);
+        let expected = lhs.clone().matmul(head.clone().dequantize()).into_data();
+        let actual = lhs.matmul(head.clone()).into_data();
+
+        actual.assert_approx_eq::<FloatElem>(&expected, Tolerance::relative(1e-2));
+    }
+}
+
 /// A matmul on a block-scaled rhs followed by an element-wise tail, which a fusing backend runs as
 /// one kernel reading the rhs as stored.
 #[test]
