@@ -1,11 +1,10 @@
 //! Fused AdamW optimizer step.
 //!
 //! A vector kernel and an optional scalar tail apply an AdamW update to one parameter: they read it,
-//! its gradient and whichever state exists, and writes the parameter and moment tensors. Only
-//! `F32` row tensors are handled here; every other case is refused before a launch is submitted
-//! so the caller can run its reference implementation instead.
+//! its gradient and whichever state exists, and write the parameter and moment tensors. The
+//! dedicated kernel handles `F32` row tensors. Other inputs fall back to ordinary backend
+//! operations, or are returned untouched by [`try_adamw`] for the caller to handle.
 
-#[cfg(not(feature = "fusion"))]
 use crate::tensor::CubeTensor;
 
 /// The tensors one AdamW step reads.
@@ -51,7 +50,6 @@ pub struct AdamWOutput<T> {
 /// the bias corrections are divisors computed with `f32::powi`, never reciprocals, and the
 /// decay rates keep their `f64` host precision until they are converted for the kernel.
 #[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = "fusion", allow(dead_code))]
 pub struct AdamWHostScalars {
     lr: f64,
     beta_1: f32,
@@ -66,6 +64,25 @@ pub struct AdamWHostScalars {
 }
 
 impl AdamWHostScalars {
+    /// The values identifying this execution, in launch order: learning rate, betas, moment
+    /// factors, bias divisors, epsilon, decay rate and one minus the decay rate.
+    ///
+    /// Used by deferred operation descriptions, not as a configuration or checkpoint format.
+    pub fn to_scalars(self) -> [burn_backend::Scalar; 10] {
+        [
+            self.lr.into(),
+            self.beta_1.into(),
+            self.beta_2.into(),
+            self.factor_1.into(),
+            self.factor_2.into(),
+            self.bias_1.into(),
+            self.bias_2.into(),
+            self.epsilon.into(),
+            self.decay_rate.into(),
+            self.one_minus_decay_rate.into(),
+        ]
+    }
+
     /// Compute the scalars for a step at `time`.
     ///
     /// `time` is the 1-based step count used for bias correction: a fresh state passes `1`.
@@ -95,7 +112,6 @@ impl AdamWHostScalars {
     }
 }
 
-#[cfg(not(feature = "fusion"))]
 mod eager {
     use super::{AdamWHostScalars, AdamWInputs, AdamWOutput};
     use crate::{
@@ -780,7 +796,6 @@ mod eager {
     }
 }
 
-#[cfg(not(feature = "fusion"))]
 /// Run a fused AdamW step when the inputs qualify, returning them untouched otherwise.
 ///
 /// # Errors
@@ -797,18 +812,109 @@ pub fn try_adamw(
     eager::try_adamw(scalars, cautious_weight_decay, amsgrad, inputs)
 }
 
-#[cfg(feature = "fusion")]
-/// A fused step is only implemented for raw Cube tensors, so the inputs are returned untouched.
+/// Apply AdamW to raw tensors, using ordinary backend operations when the dedicated kernel
+/// cannot handle their layout or binding requirements.
 ///
-/// # Errors
-///
-/// Always returns `inputs`.
-#[allow(clippy::result_large_err)]
-pub fn try_adamw<T>(
-    _scalars: AdamWHostScalars,
-    _cautious_weight_decay: bool,
-    _amsgrad: bool,
-    inputs: AdamWInputs<T>,
-) -> Result<AdamWOutput<T>, AdamWInputs<T>> {
-    Err(inputs)
+/// Deferred callers resolve their tensor handles before calling this function. Rejection by
+/// [`try_adamw`] leaves every input intact, so fallback applies the update exactly once.
+pub fn adamw(
+    scalars: AdamWHostScalars,
+    cautious_weight_decay: bool,
+    amsgrad: bool,
+    inputs: AdamWInputs<CubeTensor>,
+) -> AdamWOutput<CubeTensor> {
+    match try_adamw(scalars, cautious_weight_decay, amsgrad, inputs) {
+        Ok(output) => output,
+        Err(inputs) => reference(scalars, cautious_weight_decay, amsgrad, inputs),
+    }
+}
+
+fn reference(
+    scalars: AdamWHostScalars,
+    cautious_weight_decay: bool,
+    amsgrad: bool,
+    inputs: AdamWInputs<CubeTensor>,
+) -> AdamWOutput<CubeTensor> {
+    use crate::CubeBackend as B;
+    use burn_backend::{
+        get_or_init_device_settings,
+        ops::{BoolTensorOps, FloatTensorOps},
+    };
+
+    // Match AdaptiveMomentumW's operation boundaries, including the separately rounded square.
+    let (param, moment_1, moment_2, max_moment_2) = match inputs {
+        AdamWInputs::Initial { param, grad } => {
+            let moment_1 = B::float_mul_scalar(grad.clone(), scalars.factor_1.into());
+            let moment_2 = B::float_mul_scalar(
+                B::float_powi_scalar(grad, 2.into()),
+                scalars.factor_2.into(),
+            );
+            let max_moment_2 = amsgrad.then(|| moment_2.clone());
+            (param, moment_1, moment_2, max_moment_2)
+        }
+        AdamWInputs::State {
+            param,
+            grad,
+            moment_1,
+            moment_2,
+            max_moment_2,
+        } => {
+            let moment_1 = B::float_add(
+                B::float_mul_scalar(moment_1, scalars.beta_1.into()),
+                B::float_mul_scalar(grad.clone(), scalars.factor_1.into()),
+            );
+            let moment_2 = B::float_add(
+                B::float_mul_scalar(moment_2, scalars.beta_2.into()),
+                B::float_mul_scalar(
+                    B::float_powi_scalar(grad, 2.into()),
+                    scalars.factor_2.into(),
+                ),
+            );
+            let max_moment_2 = if amsgrad {
+                let previous = max_moment_2.unwrap_or_else(|| moment_2.clone());
+                let bool_dtype = get_or_init_device_settings::<B>(&param.device).bool_dtype;
+                let mask = B::float_lower(previous.clone(), moment_2.clone(), bool_dtype);
+                Some(B::float_mask_where(previous, mask, moment_2.clone()))
+            } else {
+                max_moment_2
+            };
+            (param, moment_1, moment_2, max_moment_2)
+        }
+    };
+    let v = if amsgrad {
+        max_moment_2.as_ref().unwrap_or(&moment_2)
+    } else {
+        &moment_2
+    };
+    let delta = B::float_div(
+        B::float_div_scalar(moment_1.clone(), scalars.bias_1.into()),
+        B::float_add_scalar(
+            B::float_sqrt(B::float_div_scalar(v.clone(), scalars.bias_2.into())),
+            scalars.epsilon.into(),
+        ),
+    );
+    let decayed = if scalars.decay_rate == 0.0 {
+        param.clone()
+    } else if cautious_weight_decay {
+        let bool_dtype = get_or_init_device_settings::<B>(&param.device).bool_dtype;
+        let param_pos = B::float_greater_equal_elem(param.clone(), 0.0.into(), bool_dtype);
+        let moment_pos = B::float_greater_equal_elem(moment_1.clone(), 0.0.into(), bool_dtype);
+        let differ = B::bool_not_equal(param_pos, moment_pos);
+        B::float_sub(
+            param.clone(),
+            B::float_mask_fill(
+                B::float_mul_scalar(param, scalars.decay_rate.into()),
+                differ,
+                0.0.into(),
+            ),
+        )
+    } else {
+        B::float_mul_scalar(param.clone(), scalars.one_minus_decay_rate.into())
+    };
+    AdamWOutput {
+        param: B::float_sub(decayed, B::float_mul_scalar(delta, scalars.lr.into())),
+        moment_1,
+        moment_2,
+        max_moment_2,
+    }
 }

@@ -1336,6 +1336,7 @@ dependencies = [
  "burn-core",
  "burn-cubecl",
  "burn-derive",
+ "burn-fusion",
  "burn-nn",
  "burn-pack",
  "derive-new",

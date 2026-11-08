@@ -68,16 +68,22 @@ let optimizer = AdamWConfig::new()
     .init();
 ```
 
-The specialized path requires raw CubeCL F32 tensors. For example, enable `std`, `optim`, and
-`cpu` with default features disabled on the `burn` dependency to use the CPU path. `Fused` also
-supports the CubeCL GPU runtimes; select the matching backend feature such as `cuda`. Enabling
-the `fusion` feature retains the general tensor-operation implementation, so this option does
-not imply a speedup on a backend with fusion enabled. Unsupported inputs also use the reference
-implementation.
+The specialized path requires CubeCL F32 tensors. Enable `optim` and the matching backend
+feature, such as `cpu` or `cuda`, on the `burn` dependency. Both raw and Fusion execution are
+supported. With Fusion enabled, the update is registered as one operation per parameter and
+executes when its inputs are ready, preserving the model's other fusion optimizations.
+Unsupported dtypes and decorators retain the reference implementation. If execution reveals an
+unsupported buffer layout or binding limit, the backend applies the ordinary tensor operations.
 
 Eligible contiguous CPU inputs use vectorized updates when their layouts and binding alignment
 support the selected width; remaining elements use a scalar tail. Measure the complete optimizer
-step on the intended device and parameter shapes, since the benefit depends on the workload.
+step and complete training iteration on the intended device and parameter shapes, since the
+benefit depends on the workload and execution mode.
+
+The specialized kernel preserves the reference formula's separately rounded F32 operations.
+Fusion may contract the reference tensor chain into fused multiply-add instructions, so extreme
+values can overflow differently between the two execution choices. The specialized path does not
+introduce a higher-precision master copy for F16 or BF16 parameters.
 
 Each output reuses compatible contiguous storage only when it is exclusively owned, does not
 alias another input, and has no outstanding bindings. Pending reads can retain an allocation

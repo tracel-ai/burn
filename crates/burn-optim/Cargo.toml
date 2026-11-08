@@ -28,20 +28,23 @@ std = [
     "serde/std",
     "log",
     "burn-cubecl?/std",
+    "burn-fusion?/std",
 ]
 tracing = ["burn-core/tracing"]
 
-# CubeCL runtimes. Each compiles the fused AdamW bridge and enables the runtime's dispatch
-# backend. Without one of these features the bridge is not built and every step falls back to
-# the reference implementation.
-cpu = ["std", "dep:burn-cubecl", "burn-core/cpu", "burn-cubecl/cpu"]
-cuda = ["std", "dep:burn-cubecl", "burn-core/cuda", "burn-cubecl/cuda"]
-rocm = ["std", "dep:burn-cubecl", "burn-core/rocm", "burn-cubecl/hip"]
-wgpu = ["std", "dep:burn-cubecl", "burn-core/wgpu", "burn-cubecl/wgpu"]
-wgpu-msl = ["std", "dep:burn-cubecl", "burn-core/wgpu-msl", "burn-cubecl/wgpu-msl"]
-vulkan = ["std", "dep:burn-cubecl", "burn-core/vulkan", "burn-cubecl/vulkan"]
-webgpu = ["std", "dep:burn-cubecl", "burn-core/webgpu", "burn-cubecl/webgpu"]
-metal = ["std", "dep:burn-cubecl", "burn-core/metal", "burn-cubecl/metal"]
+# The Fusion implementation is available alongside the raw backend without selecting Fusion
+# dispatch. Cargo may enable dispatch fusion through another crate in the dependency graph.
+cubecl-backend = ["dep:burn-cubecl", "dep:burn-fusion"]
+
+# CubeCL runtimes enable the optional AdamW backend extension.
+cpu = ["std", "cubecl-backend", "burn-core/cpu", "burn-cubecl/cpu"]
+cuda = ["std", "cubecl-backend", "burn-core/cuda", "burn-cubecl/cuda"]
+rocm = ["std", "cubecl-backend", "burn-core/rocm", "burn-cubecl/hip"]
+wgpu = ["std", "cubecl-backend", "burn-core/wgpu", "burn-cubecl/wgpu"]
+wgpu-msl = ["std", "cubecl-backend", "burn-core/wgpu-msl", "burn-cubecl/wgpu-msl"]
+vulkan = ["std", "cubecl-backend", "burn-core/vulkan", "burn-cubecl/vulkan"]
+webgpu = ["std", "cubecl-backend", "burn-core/webgpu", "burn-cubecl/webgpu"]
+metal = ["std", "cubecl-backend", "burn-core/metal", "burn-cubecl/metal"]
 
 # Public-API regression tests for AdamW's decorator fallback. Keep their runtimes opt-in.
 adamw-execution-tests = [
@@ -62,8 +65,9 @@ adamw-execution-tests = [
 burn-core = { workspace = true, features = ["autodiff", "extension"] }
 burn-derive = { workspace = true }
 burn-pack = { workspace = true, default-features = false }
-# Default features off: they turn on kernel fusion, which would hide the raw eager fast path.
+# Runtime selection leaves raw versus Fusion dispatch to the application.
 burn-cubecl = { workspace = true, optional = true, default-features = false }
+burn-fusion = { workspace = true, optional = true, default-features = false }
 
 num-traits = { workspace = true }
 derive-new = { workspace = true }

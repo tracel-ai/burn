@@ -1,34 +1,39 @@
 //! AdamW per-parameter optimizer-step benchmark.
 //!
-//! Measures the reference and fused execution on the same raw CubeCL runtime:
+//! Measures the reference and fused execution on the same CubeCL runtime:
 //!
 //! ```sh
 //! cargo bench -p burn-optim --bench adamw --no-default-features \
 //!     --features std,cpu
 //! ```
 //!
-//! Kernel fusion makes every fused step decline and run the reference implementation, so a
-//! fusion build would report reference numbers under the fused name; [`main`] refuses it.
+//! Build separate raw and Fusion binaries for both microbenchmarks and complete training steps.
 //!
 //! `--verify-path` runs every workload once in both execution modes and checks the fused result
 //! against the reference before any measurement.
 //! The `unaligned` case offsets only the fused gradient; its reference uses identical values in
 //! an aligned allocation because generic reference kernels require aligned buffer bindings.
+//! This raw-buffer case is skipped by Fusion verification and Divan, and rejected when requested
+//! explicitly. Allocation-identity measurements also require raw dispatch.
 //!
 //! `--measure-memory <reference|fused> <workload>` runs the workload and prints the device
 //! allocator's live and peak usage. Peak pages are per process, so run each mode separately.
 
-#[cfg(cubecl_backend)]
+#[cfg(feature = "cubecl-backend")]
 #[path = "../src/optim/adamw/test_support.rs"]
 mod test_support;
+
+#[cfg(feature = "cubecl-backend")]
+#[path = "adamw/training.rs"]
+mod training;
 
 mod bench {
     use std::fmt;
 
-    #[cfg(cubecl_backend)]
+    #[cfg(feature = "cubecl-backend")]
     use super::test_support::KernelCounter;
     use burn_core::tensor::{Device, Distribution, Tensor};
-    #[cfg(cubecl_backend)]
+    #[cfg(feature = "cubecl-backend")]
     use burn_core::tensor::{TensorData, Tolerance};
     use burn_optim::{AdamW, AdamWConfig, AdamWExecutionConfig, AdamWState, Optimizer};
 
@@ -85,6 +90,14 @@ mod bench {
         /// The workload named on the command line.
         pub fn from_name(name: &str) -> Option<Self> {
             WORKLOADS.iter().copied().find(|w| w.to_string() == name)
+        }
+
+        fn supported(self) -> bool {
+            #[cfg(feature = "cubecl-backend")]
+            if burn_cubecl::FUSED && self == Self::Unaligned {
+                return false;
+            }
+            true
         }
     }
 
@@ -214,7 +227,7 @@ mod bench {
             }
         }
 
-        #[cfg(cubecl_backend)]
+        #[cfg(feature = "cubecl-backend")]
         fn tensors(&self) -> Vec<TensorData> {
             match self {
                 Mixed::Bias(param, _, state) => state_tensors(param, state),
@@ -232,7 +245,7 @@ mod bench {
     }
 
     /// A parameter's own value followed by its state, in a stable order.
-    #[cfg(cubecl_backend)]
+    #[cfg(feature = "cubecl-backend")]
     fn state_tensors<const D: usize>(
         param: &Option<Tensor<D>>,
         state: &Option<AdamWState<D>>,
@@ -248,7 +261,7 @@ mod bench {
         tensors
     }
 
-    #[cfg(cubecl_backend)]
+    #[cfg(feature = "cubecl-backend")]
     fn allocation_ids<const D: usize>(
         param: &Option<Tensor<D>>,
         state: &Option<AdamWState<D>>,
@@ -276,18 +289,22 @@ mod bench {
 
     impl Case {
         fn new(workload: Workload, device: &Device, varied: bool, fused: bool) -> Self {
+            assert!(
+                workload.supported(),
+                "unaligned requires raw CubeCL buffer access; it is unavailable with Fusion"
+            );
             if workload == Workload::MixedRank {
                 return Self::Mixed(Box::new(Mixed::all(device, varied)));
             }
             if workload == Workload::Unaligned {
                 let case = Self::Squares(vec![Square::from_shape([1, 1_048_576], device, varied)]);
-                #[cfg(cubecl_backend)]
+                #[cfg(feature = "cubecl-backend")]
                 if fused {
                     let mut case = case;
                     case.offset_gradient(device);
                     return case;
                 }
-                #[cfg(not(cubecl_backend))]
+                #[cfg(not(feature = "cubecl-backend"))]
                 let _ = fused;
                 return case;
             }
@@ -311,7 +328,7 @@ mod bench {
 
         /// Keep the reference aligned: its generic vector kernels assume aligned bindings.
         /// The fused gradient retains this offset through warmup and every measured step.
-        #[cfg(cubecl_backend)]
+        #[cfg(feature = "cubecl-backend")]
         fn offset_gradient(&mut self, device: &Device) {
             let Self::Squares(params) = self else {
                 unreachable!("the offset workload has one vector")
@@ -345,7 +362,7 @@ mod bench {
         }
 
         /// Number of parameter slots stepped by this case.
-        #[cfg(cubecl_backend)]
+        #[cfg(feature = "cubecl-backend")]
         fn len(&self) -> usize {
             match self {
                 Case::Squares(params) => params.len(),
@@ -355,13 +372,14 @@ mod bench {
 
         /// Prove the production bridge reaches the kernel for both the initial and the
         /// stateful step, rather than silently falling back to the reference implementation.
-        #[cfg(cubecl_backend)]
+        #[cfg(feature = "cubecl-backend")]
         fn assert_fused_runs(&self, optimizer: &AdamW) {
             let mut stepped = self.clone();
             let (launches, _observation) = KernelCounter::start();
             for kind in ["initial", "stateful"] {
                 let before = launches.get();
                 stepped.step(optimizer);
+                Device::default().sync().unwrap();
                 let count = launches.get() - before;
                 let tail_case = matches!(self, Self::Squares(params) if params.len() == 1
                     && params[0].param.as_ref().unwrap().dims()[0] == 1
@@ -373,7 +391,7 @@ mod bench {
             }
         }
 
-        #[cfg(cubecl_backend)]
+        #[cfg(feature = "cubecl-backend")]
         fn tensors(&self) -> Vec<TensorData> {
             match self {
                 Case::Squares(params) => params
@@ -384,7 +402,7 @@ mod bench {
             }
         }
 
-        #[cfg(cubecl_backend)]
+        #[cfg(feature = "cubecl-backend")]
         fn allocation_ids(&self) -> Vec<usize> {
             match self {
                 Self::Squares(params) => params
@@ -422,7 +440,7 @@ mod bench {
         let device = Device::default();
         let optimizer = optimizer(fused);
         let mut case = Case::new(workload, &device, false, fused);
-        #[cfg(cubecl_backend)]
+        #[cfg(feature = "cubecl-backend")]
         if fused {
             case.assert_fused_runs(&optimizer);
         }
@@ -439,24 +457,30 @@ mod bench {
         device.sync().unwrap();
     }
 
-    /// The benchmark's defaults must pick a raw CubeCL device, not Flex or a fusion handle.
-    #[cfg(cubecl_backend)]
-    pub fn assert_raw_cube_device() {
+    /// The benchmark must use a CubeCL runtime, with raw or Fusion dispatch.
+    #[cfg(feature = "cubecl-backend")]
+    pub fn assert_cube_device() {
         let device = Device::default();
-        let probe = Tensor::<1>::zeros([1], &device);
         assert!(
-            probe.try_into_primitive::<burn_cubecl::Cube>().is_ok(),
-            "the benchmark device is not raw CubeCL; select a CubeCL runtime without fusion"
+            matches!(
+                device.as_dispatch(),
+                burn_core::backend::DispatchDevice::Cube(_)
+            ),
+            "the benchmark requires a CubeCL runtime; set BURN_DEVICE=cpu or cuda"
         );
     }
 
     /// The fused and reference results must agree for every workload.
-    #[cfg(cubecl_backend)]
+    #[cfg(feature = "cubecl-backend")]
     pub fn verify() {
         let tolerance = Tolerance::rel_abs(8.0 * f32::EPSILON, 4.0 * f32::EPSILON);
         let device = Device::default();
 
         for workload in WORKLOADS {
+            if !workload.supported() {
+                println!("skipped: {workload} (requires raw CubeCL buffer access)");
+                continue;
+            }
             let reference = optimizer(false);
             let fused = optimizer(true);
             // Varied inputs so decay, state and bias correction cannot hide behind constants.
@@ -466,7 +490,7 @@ mod bench {
             if workload == Workload::Unaligned {
                 fused_case.offset_gradient(&device);
             }
-            #[cfg(cubecl_backend)]
+            #[cfg(feature = "cubecl-backend")]
             fused_case.assert_fused_runs(&fused);
 
             for _ in 0..STEPS {
@@ -527,8 +551,11 @@ mod bench {
     }
 
     /// Count retained output allocation IDs separately from timed samples.
-    #[cfg(cubecl_backend)]
+    #[cfg(feature = "cubecl-backend")]
     pub fn measure_reuse(workload: Workload, fused: bool, shared: bool) {
+        if burn_cubecl::FUSED {
+            panic!("allocation identity measurements require raw CubeCL dispatch");
+        }
         let device = Device::default();
         let optimizer = optimizer(fused);
         let mut case = Case::new(workload, &device, false, fused);
@@ -605,13 +632,19 @@ mod bench {
         );
     }
 
-    #[divan::bench(args = WORKLOADS, consts = [false, true], sample_count = 10)]
+    fn divan_workloads() -> impl Iterator<Item = Workload> {
+        WORKLOADS
+            .into_iter()
+            .filter(|workload| workload.supported())
+    }
+
+    #[divan::bench(args = divan_workloads(), consts = [false, true], sample_count = 10)]
     pub fn reference<const SYNC: bool>(bencher: divan::Bencher, workload: Workload) {
         run(bencher, workload, false, SYNC);
     }
 
-    #[cfg(cubecl_backend)]
-    #[divan::bench(args = WORKLOADS, consts = [false, true], sample_count = 10)]
+    #[cfg(feature = "cubecl-backend")]
+    #[divan::bench(args = divan_workloads(), consts = [false, true], sample_count = 10)]
     pub fn fused<const SYNC: bool>(bencher: divan::Bencher, workload: Workload) {
         run(bencher, workload, true, SYNC);
     }
@@ -628,25 +661,21 @@ fn mode_workload(args: &[String], flag: &str) -> Option<(String, bench::Workload
 }
 
 fn main() {
-    #[cfg(cubecl_backend)]
-    bench::assert_raw_cube_device();
-    #[cfg(cubecl_backend)]
-    if burn_cubecl::FUSED {
-        panic!(
-            "kernel fusion is enabled: every fused step would fall back to the reference \
-             implementation. Rebuild with --no-default-features --features std,cpu (or another \
-             raw CubeCL runtime) for meaningful measurements."
-        );
-    }
-
     let args: Vec<String> = std::env::args().collect();
+    #[cfg(feature = "cubecl-backend")]
+    if training::run(&args) {
+        return;
+    }
+    #[cfg(feature = "cubecl-backend")]
+    bench::assert_cube_device();
+
     if args.iter().any(|arg| arg == "--verify-path") {
-        #[cfg(cubecl_backend)]
+        #[cfg(feature = "cubecl-backend")]
         {
             bench::verify();
             return;
         }
-        #[cfg(not(cubecl_backend))]
+        #[cfg(not(feature = "cubecl-backend"))]
         panic!(
             "--verify-path needs the fused path: enable a burn-optim runtime feature such as cpu"
         );
@@ -654,9 +683,9 @@ fn main() {
     if let Some((mode, workload)) = mode_workload(&args, "--measure-memory") {
         match mode.as_str() {
             "reference" => bench::measure_memory(workload, false),
-            #[cfg(cubecl_backend)]
+            #[cfg(feature = "cubecl-backend")]
             "fused" => bench::measure_memory(workload, true),
-            #[cfg(not(cubecl_backend))]
+            #[cfg(not(feature = "cubecl-backend"))]
             "fused" => panic!(
                 "the fused path is not compiled in this build: enable a burn-optim runtime feature"
             ),
@@ -667,9 +696,9 @@ fn main() {
     if let Some((mode, workload)) = mode_workload(&args, "--measure-jit") {
         match mode.as_str() {
             "reference" => bench::measure_jit(workload, false),
-            #[cfg(cubecl_backend)]
+            #[cfg(feature = "cubecl-backend")]
             "fused" => bench::measure_jit(workload, true),
-            #[cfg(not(cubecl_backend))]
+            #[cfg(not(feature = "cubecl-backend"))]
             "fused" => panic!(
                 "the fused path is not compiled in this build: enable a burn-optim runtime feature"
             ),
@@ -681,7 +710,7 @@ fn main() {
     if let Some((mode, workload)) = mode_workload(&args, "--samples-json") {
         let fused = match mode.as_str() {
             "reference" => false,
-            #[cfg(cubecl_backend)]
+            #[cfg(feature = "cubecl-backend")]
             "fused" => true,
             other => panic!("unsupported sample mode {other}"),
         };
@@ -689,7 +718,7 @@ fn main() {
         return;
     }
 
-    #[cfg(cubecl_backend)]
+    #[cfg(feature = "cubecl-backend")]
     if let Some((mode, workload)) = mode_workload(&args, "--measure-reuse") {
         let fused = match mode.as_str() {
             "fused" => true,
@@ -700,7 +729,7 @@ fn main() {
         return;
     }
 
-    #[cfg(not(cubecl_backend))]
+    #[cfg(not(feature = "cubecl-backend"))]
     if std::env::var_os("ADAMW_REFERENCE_ONLY").is_none() {
         eprintln!(
             "skipping the AdamW benchmark: this target measures the fused path. Build with \

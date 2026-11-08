@@ -799,11 +799,14 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 
 #### AdamW execution
 
-- Add opt-in `AdamWExecutionConfig::Fused` for raw CubeCL F32 updates. The dedicated kernel
+- Add opt-in `AdamWExecutionConfig::Fused` for CubeCL F32 updates, including deferred execution
+  through Fusion without disabling fusion elsewhere in the model. The dedicated kernel
   vectorizes eligible CPU buffers and reuses contiguous, exclusively owned outputs only when
   they have no aliases or outstanding bindings, preserving shared storage and pending reads
   without host synchronization. Unsupported cases retain the reference implementation;
-  configuration defaults, gradient clipping, and checkpoint formats are unchanged. See
+  configuration defaults, gradient clipping, and checkpoint formats are unchanged. The kernel
+  preserves separately rounded F32 arithmetic; extreme values can differ from the reference
+  tensor chain when Fusion contracts that chain into fused multiply-add operations. See
   [AdamW execution](./building-blocks/optimizer.md#adamw-execution) for feature selection and
   layout requirements.
 

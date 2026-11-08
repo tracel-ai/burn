@@ -26,9 +26,9 @@
 //! - `cpu`, `cuda`, `rocm`, `wgpu`, `wgpu-msl`, `vulkan`, `webgpu`, `metal`: compile the specialized
 //!   AdamW updates for that CubeCL runtime and enable the matching `burn-core` backend. Without one
 //!   of these the fused step is not built and every configuration falls back to the reference
-//!   update. Default features enable kernel fusion with a `burn` runtime, where the fused step
-//!   also falls back; build without default features to run it. Eligible CPU tensors use
-//!   vectorized updates; shared input storage is preserved.
+//!   update. The extension supports both raw and Fusion dispatch; Fusion defers the update
+//!   until its inputs are ready. Eligible CPU tensors use vectorized updates, and shared
+//!   input storage is preserved.
 
 #[macro_use]
 extern crate derive_new;

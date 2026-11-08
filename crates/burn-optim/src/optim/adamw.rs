@@ -8,20 +8,20 @@ use burn::tensor::Tensor;
 use super::{AdaptiveMomentumState, Optimizer, module_optimizer::ModuleOptimizer};
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
-#[cfg(cubecl_backend)]
+#[cfg(feature = "cubecl-backend")]
 mod cube;
 
-#[cfg(all(test, cubecl_backend))]
+#[cfg(all(test, feature = "cubecl-backend"))]
 mod test_support;
 
-#[cfg(all(test, cubecl_backend))]
+#[cfg(all(test, feature = "cubecl-backend"))]
 fn step_guard() -> std::sync::MutexGuard<'static, ()> {
     static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
     LOCK.lock().unwrap_or_else(|poison| poison.into_inner())
 }
 
 /// Without a CubeCL runtime the fused execution is unavailable, so every step falls back.
-#[cfg(not(cubecl_backend))]
+#[cfg(not(feature = "cubecl-backend"))]
 mod cube {
     use burn_core::tensor::Tensor;
 
@@ -61,11 +61,14 @@ pub enum AdamWExecutionConfig {
     ///
     /// Large contiguous buffers with a partial vector use an additional scalar tail launch.
     ///
-    /// Available for `F32` tensors on raw CubeCL backends, built with one of `burn-optim`'s
+    /// Available for `F32` tensors on raw or Fusion CubeCL backends, built with one of `burn-optim`'s
     /// CubeCL runtime features (`cpu`, `cuda`, `rocm`, `wgpu`, ...). Every unsupported case,
-    /// including kernel fusion and tensors still in an autodiff context, falls back to
+    /// including tensors still in an autodiff context, falls back to
     /// [`Reference`](Self::Reference). The module optimizer strips the autodiff context itself;
     /// a direct [`Optimizer::step`](crate::Optimizer::step) call on a tracked tensor falls back.
+    ///
+    /// The kernel preserves the reference's separate `F32` arithmetic steps. Fusion may contract
+    /// the reference tensor chain, so extreme values can overflow differently between strategies.
     Fused,
 }
 
@@ -687,7 +690,7 @@ mod tests {
         }
     }
 
-    #[cfg(cubecl_backend)]
+    #[cfg(feature = "cubecl-backend")]
     mod fused {
         use super::super::test_support::KernelCounter;
         use super::*;
@@ -725,11 +728,8 @@ mod tests {
                 .with_execution(Some(AdamWExecutionConfig::Fused))
         }
 
-        /// Run `f` and assert it submitted exactly one AdamW kernel. Fusion builds submit none.
+        /// Expected submissions for one small parameter on the selected device.
         fn kernel_count(bindings: u32) -> usize {
-            if burn_cubecl::FUSED {
-                return 0;
-            }
             let device = Device::default();
             match device.as_dispatch() {
                 burn::backend::DispatchDevice::Cube(device) => {
@@ -744,6 +744,7 @@ mod tests {
             let (launches, _observation) = KernelCounter::start();
             let before = launches.get();
             let result = f();
+            Device::default().sync().unwrap();
             let expected = kernel_count(bindings);
             assert_eq!(
                 launches.get() - before,
@@ -758,12 +759,22 @@ mod tests {
             let (launches, _observation) = KernelCounter::start();
             let before = launches.get();
             let result = f();
+            Device::default().sync().unwrap();
             assert_eq!(
                 launches.get(),
                 before,
                 "an unsupported step must not reach the kernel"
             );
             result
+        }
+
+        fn raw_primitive<const D: usize>(tensor: Tensor<D>) -> burn_cubecl::tensor::CubeTensor {
+            let primitive = tensor.try_into_primitive::<burn_cubecl::Cube>().unwrap();
+            let primitive: alloc::boxed::Box<dyn core::any::Any> =
+                alloc::boxed::Box::new(primitive);
+            *primitive
+                .downcast::<burn_cubecl::tensor::CubeTensor>()
+                .unwrap_or_else(|_| panic!("this test requires raw CubeCL dispatch"))
         }
 
         fn allocation<const D: usize>(tensor: &Tensor<D>) -> usize {
@@ -797,7 +808,7 @@ mod tests {
             use burn::tensor::StreamId;
 
             let _guard = step_guard();
-            if kernel_count(6) == 0 {
+            if burn_cubecl::FUSED || kernel_count(6) == 0 {
                 return;
             }
             let device = Device::default();
@@ -848,7 +859,7 @@ mod tests {
         #[test]
         fn cow_reuses_each_owned_output_and_preserves_shared_state() {
             let _guard = step_guard();
-            if kernel_count(10) == 0 {
+            if burn_cubecl::FUSED || kernel_count(10) == 0 {
                 return;
             }
             let device = Device::default();
@@ -902,7 +913,7 @@ mod tests {
         #[test]
         fn cow_refuses_aliases_and_handles_layouts() {
             let _guard = step_guard();
-            if kernel_count(10) == 0 {
+            if burn_cubecl::FUSED || kernel_count(10) == 0 {
                 return;
             }
             let device = Device::default();
@@ -963,7 +974,7 @@ mod tests {
         #[test]
         fn cow_external_clones_keep_the_old_parameter_and_all_moments() {
             let _guard = step_guard();
-            if kernel_count(10) == 0 {
+            if burn_cubecl::FUSED || kernel_count(10) == 0 {
                 return;
             }
             let device = Device::default();
@@ -992,7 +1003,7 @@ mod tests {
         #[test]
         fn cow_keeps_a_preserved_maximum_unchanged() {
             let _guard = step_guard();
-            if kernel_count(8) == 0 {
+            if burn_cubecl::FUSED || kernel_count(8) == 0 {
                 return;
             }
             let device = Device::default();
@@ -1018,38 +1029,45 @@ mod tests {
         }
 
         #[test]
-        fn primitive_rejection_reconstructs_state_for_reference() {
+        fn primitive_rejection_keeps_state_for_reference() {
             let _guard = step_guard();
             let device = Device::default();
-            let param = tensor(&values(16, 1.0), [4, 4], &device);
-            // Zero strides pass the high-level shape check, then the primitive boundary
-            // declines after successful conversions and release of the wrapper handles.
-            let grad = tensor(&[0.1], [1, 1], &device).expand([4, 4]);
-            let state = AdamWState {
-                momentum: AdaptiveMomentumState {
-                    time: 7,
-                    moment_1: tensor(&[0.1; 16], [4, 4], &device),
-                    moment_2: tensor(&[0.2; 16], [4, 4], &device),
-                    max_moment_2: Some(tensor(&[0.3; 16], [4, 4], &device)),
-                },
-            };
-            let config = fused_config(false, false, 0.1);
-            let reference = config.clone().with_execution(None).build();
-            let expected = reference.step(
-                LEARNING_RATE,
-                param.clone(),
-                grad.clone(),
-                Some(state.clone()),
-            );
-            let actual = no_launch(|| config.build().step(LEARNING_RATE, param, grad, Some(state)));
-            assert_step_close(&expected, &actual);
-            assert_eq!(actual.1.unwrap().momentum.time, 8);
+            // Zero strides are only visible after resolving the backend inputs. Cover each
+            // moment-state transition through the late fallback, with both decay formulas.
+            for (amsgrad, cautious, existing, maximum) in [
+                (false, false, false, false),
+                (true, true, false, false),
+                (true, true, true, false),
+                (true, true, true, true),
+                (false, false, true, true),
+            ] {
+                let param = tensor(&values(16, 1.0), [4, 4], &device);
+                let grad = tensor(&[0.1], [1, 1], &device).expand([4, 4]);
+                let state = existing.then(|| AdamWState {
+                    momentum: AdaptiveMomentumState {
+                        time: 7,
+                        moment_1: tensor(&[0.1; 16], [4, 4], &device),
+                        moment_2: tensor(&[0.2; 16], [4, 4], &device),
+                        max_moment_2: maximum.then(|| tensor(&[0.3; 16], [4, 4], &device)),
+                    },
+                });
+                let config = fused_config(amsgrad, cautious, 0.1);
+                let reference = config.clone().with_execution(None).build();
+                let expected =
+                    reference.step(LEARNING_RATE, param.clone(), grad.clone(), state.clone());
+                let actual = no_launch(|| config.build().step(LEARNING_RATE, param, grad, state));
+                assert_step_close(&expected, &actual);
+                assert_eq!(
+                    actual.1.unwrap().momentum.time,
+                    if existing { 8 } else { 1 }
+                );
+            }
         }
 
         #[test]
         fn cow_capture_replay_matches_one_eager_update() {
             let _guard = step_guard();
-            if kernel_count(10) == 0 {
+            if burn_cubecl::FUSED || kernel_count(10) == 0 {
                 return;
             }
             let device = Device::default();
@@ -1100,7 +1118,7 @@ mod tests {
         #[test]
         fn vectorized_steps_cover_odd_lengths_and_unaligned_offsets() {
             let _guard = step_guard();
-            if kernel_count(10) == 0 {
+            if burn_cubecl::FUSED || kernel_count(10) == 0 {
                 return;
             }
             let device = Device::default();
@@ -1167,7 +1185,7 @@ mod tests {
         #[ignore = "process-wide JIT collection: run this test alone with --ignored --test-threads=1"]
         fn vector_width_has_distinct_and_reusable_jit_keys() {
             let _guard = step_guard();
-            if kernel_count(6) == 0 {
+            if burn_cubecl::FUSED || kernel_count(6) == 0 {
                 return;
             }
             let device = Device::default();
@@ -1326,16 +1344,12 @@ mod tests {
         #[test]
         fn fused_boundary_accepts_initial_and_state() {
             let _guard = step_guard();
-            // In a fusion build the production path declines; the raw CI build runs this.
+            // This checks raw primitives directly; Fusion execution is covered through the extension.
             if burn_cubecl::FUSED {
                 return;
             }
             let device = Device::default();
-            let convert = |tensor: Tensor<2>| {
-                tensor
-                    .try_into_primitive::<burn_cubecl::Cube>()
-                    .expect("fused test tensors must be raw CubeCL")
-            };
+            let convert = raw_primitive::<2>;
             let param = tensor(&values(16, 1.0), [4, 4], &device);
             let grad = tensor(&values(16, 0.1), [4, 4], &device);
             let moment_1 = tensor(&values(16, 0.01), [4, 4], &device);
@@ -1385,9 +1399,6 @@ mod tests {
         #[test]
         fn cautious_zero_crossing_keeps_separately_rounded_moments() {
             let _guard = step_guard();
-            if burn_cubecl::FUSED {
-                return;
-            }
             let device = Device::default();
             let param = tensor(&[1.0], [1], &device);
             let grad = tensor(&[1.0], [1], &device);
@@ -1406,7 +1417,7 @@ mod tests {
             let expected = reference.step(0.1, param.clone(), grad.clone(), Some(state.clone()));
             let actual = one_launch(8, || config.build().step(0.1, param, grad, Some(state)));
             assert_eq!(
-                expected
+                actual
                     .1
                     .as_ref()
                     .unwrap()
@@ -1414,10 +1425,19 @@ mod tests {
                     .moment_1
                     .to_data()
                     .as_slice::<f32>()
-                    .unwrap(),
-                &[0.0]
+                    .unwrap()[0]
+                    .to_bits(),
+                0.0f32.to_bits(),
+                "separately rounded products cancel to positive zero",
             );
-            assert_step_close(&expected, &actual);
+            actual
+                .0
+                .to_data()
+                .assert_approx_eq::<f32>(&TensorData::from([0.95f32]), tolerance());
+            assert_eq!(actual.1.as_ref().unwrap().momentum.time, 2);
+            if !burn_cubecl::FUSED {
+                assert_step_close(&expected, &actual);
+            }
         }
 
         #[test]
@@ -1428,11 +1448,10 @@ mod tests {
                 Tensor::<1>::from_floats([1.0], &device).reshape::<0, [usize; 0]>([]);
             let grad: Tensor<0> =
                 Tensor::<1>::from_floats([0.1], &device).reshape::<0, [usize; 0]>([]);
-            let convert = |tensor: Tensor<0>| {
-                tensor
-                    .try_into_primitive::<burn_cubecl::Cube>()
-                    .expect("rank-0 tensor conversion")
-            };
+            if burn_cubecl::FUSED {
+                return;
+            }
+            let convert = raw_primitive::<0>;
             let scalars = AdamWHostScalars::new(LEARNING_RATE, 0.9, 0.999, 1e-8, 0.5, 1);
             let inputs = AdamWInputs::Initial {
                 param: convert(param),
@@ -1448,9 +1467,6 @@ mod tests {
         fn fused_step_reaches_the_kernel() {
             let _guard = step_guard();
             let (launches, _observation) = KernelCounter::start();
-            if burn_cubecl::FUSED {
-                return;
-            }
             let device = Device::default();
             let fused = fused_config(true, false, 0.5).build();
             let reference = fused_config(true, false, 0.5).with_execution(None).build();
@@ -1458,7 +1474,15 @@ mod tests {
             let grad = tensor(&values(16, 0.1), [4, 4], &device);
 
             let before = launches.get();
-            let (_, state) = fused.step(LEARNING_RATE, param.clone(), grad.clone(), None);
+            let (updated, state) = fused.step(LEARNING_RATE, param.clone(), grad.clone(), None);
+            if burn_cubecl::FUSED {
+                assert_eq!(
+                    launches.get(),
+                    before,
+                    "Fusion must register the update lazily"
+                );
+            }
+            device.sync().unwrap();
             assert_eq!(
                 launches.get() - before,
                 kernel_count(7),
@@ -1466,7 +1490,8 @@ mod tests {
             );
 
             let before = launches.get();
-            fused.step(LEARNING_RATE, param.clone(), grad.clone(), state);
+            let next = fused.step(LEARNING_RATE, updated, grad.clone(), state);
+            device.sync().unwrap();
             assert_eq!(
                 launches.get() - before,
                 kernel_count(10),
@@ -1474,12 +1499,92 @@ mod tests {
             );
 
             let before = launches.get();
-            reference.step(LEARNING_RATE, param, grad, None);
+            let reference_output = reference.step(LEARNING_RATE, param, grad, None);
+            device.sync().unwrap();
+            drop((next, reference_output));
             assert_eq!(
                 launches.get() - before,
                 0,
                 "the reference step must not submit the fused kernel"
             );
+        }
+
+        #[test]
+        fn fusion_keeps_deferred_state_and_changing_scalars() {
+            let _guard = step_guard();
+            if !burn_cubecl::FUSED || kernel_count(10) == 0 {
+                return;
+            }
+            let device = Device::default();
+            let param = tensor(&values(16, 1.0), [4, 4], &device);
+            let retained = param.clone();
+            let mut actual = (param.clone(), None);
+            let mut expected = (param, None);
+            device.sync().unwrap();
+            let (launches, _observation) = KernelCounter::start();
+            // Switch AMSGrad off and back on while preserving the historical maximum.
+            // Scalars change while operations are queued, catching stale captured metadata.
+            for (index, (amsgrad, lr, decay)) in
+                [(true, 0.01, 0.1), (false, 0.02, 0.3), (true, 0.003, 0.0)]
+                    .into_iter()
+                    .enumerate()
+            {
+                let config = fused_config(amsgrad, true, decay);
+                let grad = tensor(&values(16, 0.1 * (index + 1) as f32), [4, 4], &device);
+                actual = config.build().step(lr, actual.0, grad.clone(), actual.1);
+                expected = config
+                    .with_execution(None)
+                    .build()
+                    .step(lr, expected.0, grad, expected.1);
+                assert_eq!(actual.1.as_ref().unwrap().momentum.time, index + 1);
+                assert!(actual.1.as_ref().unwrap().momentum.max_moment_2.is_some());
+            }
+            assert_step_close(&expected, &actual);
+            device.sync().unwrap();
+            assert_eq!(
+                launches.get(),
+                3,
+                "each deferred step must use the dedicated kernel"
+            );
+            retained
+                .to_data()
+                .assert_eq(&TensorData::new(values(16, 1.0), [4, 4]), true);
+        }
+
+        #[test]
+        fn fusion_step_keeps_cross_stream_inputs() {
+            use burn::tensor::StreamId;
+
+            let _guard = step_guard();
+            if !burn_cubecl::FUSED || kernel_count(10) == 0 {
+                return;
+            }
+            let device = Device::default();
+            let allocation = StreamId::allocate();
+            let submission = StreamId::allocate();
+            let original = StreamId::current();
+            let config = fused_config(true, false, 0.1);
+            let fused = config.build();
+            let reference = config.with_execution(None).build();
+            let (param, grad) = allocation.executes(|| {
+                (
+                    tensor(&values(16, 1.0), [4, 4], &device),
+                    tensor(&values(16, 0.1), [4, 4], &device),
+                )
+            });
+            // Keep a pending reference reader of the same allocation on another stream.
+            let expected = reference.step(LEARNING_RATE, param.clone(), grad.clone(), None);
+            let (launches, _observation) = KernelCounter::start();
+            let actual = submission.executes(|| {
+                let updated = fused.step(LEARNING_RATE, param, grad, None);
+                assert_step_close(&expected, &updated);
+                assert_eq!(StreamId::current(), submission);
+                updated
+            });
+            assert_eq!(StreamId::current(), original);
+            device.sync().unwrap();
+            assert_eq!(launches.get(), 1);
+            assert_eq!(actual.1.unwrap().momentum.time, 1);
         }
 
         #[test]
@@ -1602,6 +1707,7 @@ mod tests {
                 );
                 let before = launches.get();
                 let fused_step = fused.step(LEARNING_RATE, param, grad, Some(state));
+                device.sync().unwrap();
                 assert_eq!(
                     launches.get() - before,
                     kernel_count(if amsgrad { 10 } else { 8 }),
@@ -1791,15 +1897,16 @@ mod tests {
             let expected = reference.step(2e38, expected.0, grad.clone(), expected.1);
             let actual = one_launch(8, || fused.step(2e38, actual.0, grad, actual.1));
             let expected_data = expected.0.to_data();
-            // Fusion contracts the reference's own tensor chain, so the raw reference's
-            // intermediate overflow is only observable without it.
+            let actual_data = actual.0.to_data();
+            // The custom operation keeps the raw F32 multiplication boundary even when
+            // Fusion would contract the Reference expression into a finite FMA.
+            assert_eq!(
+                actual_data.as_slice::<f32>().unwrap(),
+                &[f32::NEG_INFINITY, f32::INFINITY]
+            );
             if !burn_cubecl::FUSED {
-                assert_eq!(
-                    expected_data.as_slice::<f32>().unwrap(),
-                    &[f32::NEG_INFINITY, f32::INFINITY]
-                );
+                assert_special_close(&expected_data, &actual_data);
             }
-            assert_special_close(&expected_data, &actual.0.to_data());
             assert_special_state_close(expected.1.as_ref().unwrap(), actual.1.as_ref().unwrap());
         }
 
@@ -1971,7 +2078,8 @@ mod tests {
                     let grads = GradientsParams::from_grads(grads, &fused_model);
                     let before = launches.get();
                     fused_model = fused.step(LEARNING_RATE, fused_model, grads);
-                    if step == 0 && !burn_cubecl::FUSED {
+                    device.sync().unwrap();
+                    if step == 0 {
                         assert_eq!(
                             launches.get() - before,
                             2 * kernel_count(if amsgrad { 7 } else { 6 }),

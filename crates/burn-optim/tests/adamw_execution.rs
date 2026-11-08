@@ -44,10 +44,6 @@ impl LaunchObserver for Launches {
 }
 
 fn observe_fallback() -> (Arc<Launches>, LaunchObservation) {
-    assert!(
-        !burn_cubecl::FUSED,
-        "run this suite without default/fusion features"
-    );
     let counts = Arc::new(Launches::default());
     let observation = LaunchObservation::new(counts.clone());
     let cpu = Device::cpu();
