@@ -626,6 +626,17 @@ fn sharded_compute_devices_of_the_same_devices_are_apart() {
         .assert_approx_eq::<f32>(&data, tolerance());
 }
 
+#[test]
+fn a_split_quantized_tensor_moves_to_another_sharded_compute_device_unchanged() {
+    let (first, second) = (sharded_compute(2), sharded_compute(2));
+    let weight = block_quantized(values([4, 8], 2));
+
+    let moved = sharded::<2>(weight.clone(), &first, Split { dim: 1 }).to_device(&second);
+
+    assert_eq!(moved.sharding(), Some(Replicated));
+    assert_eq!(moved.into_data(), weight);
+}
+
 fn check_megatron_mlp<const D: usize>(x_shape: [usize; D]) {
     let expected = mlp(&Device::flex(), x_shape, [Replicated; 5])
         .output

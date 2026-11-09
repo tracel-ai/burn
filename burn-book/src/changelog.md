@@ -447,6 +447,11 @@ whose tensors are split over `devices` (crate `burn-shard`).
   [#6408](https://github.com/tracel-ai/burn/pull/6408))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- A quantized tensor moves between two sharded compute devices, its codes and scales unchanged,
+  instead of panicking in the router. **Breaking:** `MultiBackendBridge` implementers must add
+  `change_backend_quantized`. ([#6474](https://github.com/tracel-ai/burn/pull/6474))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 - `Sharding::ReplicatedSplit { dim, groups }` splits a tensor into `groups` chunks, each held by a
   contiguous group of members, for key and value heads that pairs of members share when a model
   has fewer of them than members. The members' order on the device picks the pairs. Attention

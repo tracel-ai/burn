@@ -671,6 +671,15 @@ impl MultiBackendBridge for RemoteBridge {
     ) -> Self::TensorHandle {
         tensor.change_backend(target_device, out_dtype.into())
     }
+
+    fn change_backend_quantized(
+        tensor: Self::TensorHandle,
+        _shape: burn_backend::Shape,
+        target_device: &Self::Device,
+    ) -> Self::TensorHandle {
+        let dtype = tensor.tensor.dtype;
+        tensor.change_backend(target_device, dtype)
+    }
 }
 
 /// The remote service could not run a call: its thread panicked, or is gone.
