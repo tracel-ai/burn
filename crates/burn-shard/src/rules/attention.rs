@@ -3,7 +3,7 @@ use burn_std::Shape;
 
 use crate::{
     ElementwiseRule, OpSharding,
-    Sharding::{self, Replicated, Split},
+    Sharding::{self, Replicated, ReplicatedSplit, Split},
 };
 
 /// Which dim of an attention is split. Every sequence of the batch and every query head attends
@@ -17,6 +17,9 @@ pub enum AttentionRule {
     /// Megatron's layout: each member attends its own query heads, with the key and value heads
     /// they read.
     Heads,
+    /// Fewer key and value heads than members: each is held by one of `groups` groups of
+    /// contiguous members, every one attending its own query heads against it.
+    SharedHeads { groups: usize },
 }
 
 impl AttentionRule {
@@ -35,7 +38,16 @@ impl AttentionRule {
         num_members: usize,
     ) -> Self {
         let split_on = |dim| inputs.contains(&Split { dim });
-        if split_on(1) && Self::heads_split_together(q_heads, kv_heads, num_members) {
+        if let [
+            Split { dim: 1 },
+            kv @ ReplicatedSplit { dim: 1, groups },
+            value,
+        ] = inputs
+            && value == kv
+            && Self::heads_shared_by_groups(q_heads, kv_heads, groups, num_members)
+        {
+            Self::SharedHeads { groups }
+        } else if split_on(1) && Self::heads_split_together(q_heads, kv_heads, num_members) {
             Self::Heads
         } else if split_on(0) {
             Self::Batch
@@ -50,12 +62,16 @@ impl AttentionRule {
         let output = match self {
             Self::Unsplit => Replicated,
             Self::Batch => Split { dim: 0 },
-            Self::Heads => Split { dim: 1 },
+            Self::Heads | Self::SharedHeads { .. } => Split { dim: 1 },
         };
         OpSharding {
             inputs: inputs
                 .iter()
-                .map(|shape| ElementwiseRule::input_sharding(output, shape, shape.num_dims()))
+                .enumerate()
+                .map(|(input, shape)| match (self, input) {
+                    (Self::SharedHeads { groups }, 1 | 2) => ReplicatedSplit { dim: 1, groups },
+                    _ => ElementwiseRule::input_sharding(output, shape, shape.num_dims()),
+                })
                 .collect(),
             output,
         }
@@ -66,6 +82,17 @@ impl AttentionRule {
     /// whole by every member, or key and value heads that split evenly.
     fn heads_split_together(q_heads: usize, kv_heads: usize, num_members: usize) -> bool {
         q_heads == kv_heads || kv_heads == 1 || kv_heads.is_multiple_of(num_members)
+    }
+
+    /// Each group's one key and value head is read by exactly the query heads its members hold:
+    /// the query heads split evenly, so every member's run of them sits inside one head's.
+    fn heads_shared_by_groups(
+        q_heads: usize,
+        kv_heads: usize,
+        groups: usize,
+        num_members: usize,
+    ) -> bool {
+        kv_heads == groups && q_heads.is_multiple_of(num_members)
     }
 }
 
@@ -153,5 +180,44 @@ mod tests {
             rule.sharding(&[&qkv, &qkv, &qkv, &mask]).inputs[3],
             Replicated
         );
+    }
+
+    #[test]
+    fn query_heads_split_over_four_read_the_key_and_value_head_their_pair_shares() {
+        let kv = ReplicatedSplit { dim: 1, groups: 2 };
+        let shapes = shapes(16, 2);
+        let rule = AttentionRule::new([Split { dim: 1 }, kv, kv], &shapes, 4);
+        let (query, kv_shape) = (Shape::new([2, 16, 3, 4]), Shape::new([2, 2, 5, 4]));
+
+        assert_eq!(rule, AttentionRule::SharedHeads { groups: 2 });
+        assert_eq!(
+            rule.sharding(&[&query, &kv_shape, &kv_shape]),
+            OpSharding {
+                inputs: smallvec![Split { dim: 1 }, kv, kv],
+                output: Split { dim: 1 },
+            }
+        );
+    }
+
+    /// Six query heads over four members cut the heads of one pair's key head across the pair's
+    /// boundary, so a member would need both groups' key heads.
+    #[test]
+    fn query_heads_that_do_not_divide_the_members_are_not_shared_by_pairs() {
+        let kv = ReplicatedSplit { dim: 1, groups: 2 };
+
+        let rule = AttentionRule::new([Split { dim: 1 }, kv, kv], &shapes(6, 2), 4);
+
+        assert_eq!(rule, AttentionRule::Unsplit);
+    }
+
+    /// A member's query heads would read only one of its group's two key heads, so the key and
+    /// value split over every member instead.
+    #[test]
+    fn two_key_heads_per_group_split_over_every_member_instead() {
+        let kv = ReplicatedSplit { dim: 1, groups: 2 };
+
+        let rule = AttentionRule::new([Split { dim: 1 }, kv, kv], &shapes(16, 4), 4);
+
+        assert_eq!(rule, AttentionRule::Heads);
     }
 }

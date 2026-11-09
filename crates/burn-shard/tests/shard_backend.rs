@@ -7,7 +7,7 @@ use burn_flex::{Flex, FlexDevice};
 use burn_ir::HandleKind;
 use burn_shard::{
     ShardBackend, ShardedComputeDevice,
-    Sharding::{self, PartialSum, Replicated, Split},
+    Sharding::{self, PartialSum, Replicated, ReplicatedSplit, Split},
     Shards,
 };
 use burn_std::future::block_on;
@@ -443,6 +443,7 @@ fn made_on_members(
         .data_chunks(data)
         .collect(),
         Replicated => vec![data.clone(); num_members],
+        ReplicatedSplit { .. } => unreachable!("The tests make a replicated split as a tensor"),
         PartialSum => unreachable!("The tests make a partial sum with a contraction"),
     };
     device

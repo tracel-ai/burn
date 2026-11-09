@@ -251,7 +251,7 @@ Reports also include the measured cost of a kernel launch.
   on its stream. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
 
 - `capture` works on a sharded compute device: each member records its own graph, collectives
-  included, and a replay runs every member's. ([#6429](https://github.com/tracel-ai/burn/pull/6429))
+  included, and a replay launches every member's at once. ([#6429](https://github.com/tracel-ai/burn/pull/6429))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Matrix multiplication
@@ -445,6 +445,18 @@ whose tensors are split over `devices` (crate `burn-shard`).
   recorded execution error instead of panicking.
   ([#6396](https://github.com/tracel-ai/burn/pull/6396),
   [#6408](https://github.com/tracel-ai/burn/pull/6408))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- `Sharding::ReplicatedSplit { dim, groups }` splits a tensor into `groups` chunks, each held by a
+  contiguous group of members, for key and value heads that pairs of members share when a model
+  has fewer of them than members. The members' order on the device picks the pairs. Attention
+  splits its query heads over every member against such keys and values, and the matmul,
+  elementwise, layout, reshape and along-dim ops, and reductions over other dims, keep it.
+  **Breaking (experimental):** `Sharding` has a new variant, `ShardingError` a new `InvalidGroups`
+  variant for groups that do not divide the members or are one or every member,
+  `DimShorterThanMembers` is renamed `DimShorterThanChunks`, and its and `QuantizedSplit`'s
+  `num_members` field is now `chunks`.
+  ([#6418](https://github.com/tracel-ai/burn/pull/6418))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 ### Tensors

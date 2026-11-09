@@ -20,6 +20,8 @@ impl ReduceRule {
                 ReductionKind::Sum => Self::AcrossMembers { dim },
                 ReductionKind::Mean | ReductionKind::Nonlinear => Self::Gathered,
             },
+            // An all-reduce over every member would count each group's chunk once per member.
+            Sharding::ReplicatedSplit { dim, .. } if reduced_dims.contains(dim) => Self::Gathered,
             Sharding::PartialSum if !reduction.is_linear() => Self::Gathered,
             sharding => Self::Local { sharding },
         }
@@ -41,7 +43,7 @@ impl ReduceRule {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use Sharding::{PartialSum, Replicated, Split};
+    use Sharding::{PartialSum, Replicated, ReplicatedSplit, Split};
 
     #[test]
     fn summing_the_split_dim_leaves_a_summand_per_member() {
@@ -88,6 +90,22 @@ mod tests {
                 inputs: smallvec![Replicated],
                 output: Replicated
             }
+        );
+    }
+
+    #[test]
+    fn summing_a_replicated_split_dim_gathers() {
+        let kv = ReplicatedSplit { dim: 1, groups: 2 };
+
+        assert_eq!(
+            ReduceRule::new(kv, ReducedDims::Dims(&[1]), ReductionKind::Sum),
+            ReduceRule::Gathered
+        );
+        assert_eq!(
+            ReduceRule::new(kv, ReducedDims::Dims(&[0]), ReductionKind::Sum)
+                .sharding()
+                .output,
+            kv
         );
     }
 }

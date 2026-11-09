@@ -17,23 +17,22 @@ pub struct LayoutRule {
 impl LayoutRule {
     /// Output dim `i` is input dim `axes[i]`.
     pub fn permute(input: Sharding, axes: &[usize]) -> Self {
-        let output = match input {
-            Split { dim } => Split {
-                dim: axes
-                    .iter()
+        let output = match input.split_dim() {
+            Some(dim) => input.on_dim(
+                axes.iter()
                     .position(|&axis| axis == dim)
                     .expect("A permutation holds every dim"),
-            },
-            sharding => sharding,
+            ),
+            None => input,
         };
         Self { input, output }
     }
 
     pub fn swap(input: Sharding, dim1: usize, dim2: usize) -> Self {
-        let output = match input {
-            Split { dim } if dim == dim1 => Split { dim: dim2 },
-            Split { dim } if dim == dim2 => Split { dim: dim1 },
-            sharding => sharding,
+        let output = match input.split_dim() {
+            Some(dim) if dim == dim1 => input.on_dim(dim2),
+            Some(dim) if dim == dim2 => input.on_dim(dim1),
+            _ => input,
         };
         Self { input, output }
     }
@@ -41,11 +40,9 @@ impl LayoutRule {
     /// Expanding prepends the dims the output has beyond the input's, and repeats only dims of
     /// length 1, which a split never has.
     pub fn expand(input: Sharding, input_dims: usize, output_dims: usize) -> Self {
-        let output = match input {
-            Split { dim } => Split {
-                dim: dim + output_dims - input_dims,
-            },
-            sharding => sharding,
+        let output = match input.split_dim() {
+            Some(dim) => input.on_dim(dim + output_dims - input_dims),
+            None => input,
         };
         Self { input, output }
     }
@@ -53,9 +50,9 @@ impl LayoutRule {
     /// Slicing keeps a split only when it takes the split dim whole: each member then slices its
     /// own shard along the other dims.
     pub fn slice(input: Sharding, ranges: &[Slice], shape: &Shape) -> Self {
-        let sharding = match input {
-            Split { dim } if !Self::takes_whole(ranges.get(dim), shape[dim]) => Replicated,
-            sharding => sharding,
+        let sharding = match input.split_dim() {
+            Some(dim) if !Self::takes_whole(ranges.get(dim), shape[dim]) => Replicated,
+            _ => input,
         };
         Self {
             input: sharding,
@@ -72,9 +69,10 @@ impl LayoutRule {
         ranges: &[Slice],
         shape: &Shape,
     ) -> Self {
-        let split = [tensor, value].into_iter().find(|sharding| match sharding {
-            Split { dim } => Self::takes_whole(ranges.get(*dim), shape[*dim]),
-            _ => false,
+        let split = [tensor, value].into_iter().find(|sharding| {
+            sharding
+                .split_dim()
+                .is_some_and(|dim| Self::takes_whole(ranges.get(dim), shape[dim]))
         });
         let sharding = match (split, tensor, value) {
             (Some(split), _, _) => split,
@@ -132,6 +130,7 @@ impl LayoutRule {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Sharding::{ReplicatedSplit, Split};
 
     #[test]
     fn a_concat_along_another_dim_keeps_the_split_and_splits_whole_inputs_alike() {
@@ -225,5 +224,32 @@ mod tests {
         let rule = LayoutRule::swap(PartialSum, 0, 1);
 
         assert_eq!(rule.sharding(1).output, PartialSum);
+    }
+
+    #[test]
+    fn a_replicated_split_follows_its_dim_and_keeps_its_groups() {
+        let rule = LayoutRule::swap(ReplicatedSplit { dim: 2, groups: 2 }, 1, 2);
+
+        assert_eq!(
+            rule.sharding(1).output,
+            ReplicatedSplit { dim: 1, groups: 2 }
+        );
+    }
+
+    #[test]
+    fn a_key_appended_to_a_cache_shared_by_pairs_keeps_its_groups() {
+        let kv = ReplicatedSplit { dim: 1, groups: 2 };
+        let shape = Shape::new([1, 2, 16, 8]);
+        let ranges = [0..1, 0..2, 5..6, 0..8].map(Slice::from);
+
+        let rule = LayoutRule::slice_assign(kv, kv, &ranges, &shape);
+
+        assert_eq!(
+            rule.sharding(2),
+            OpSharding {
+                inputs: smallvec![kv; 2],
+                output: kv,
+            }
+        );
     }
 }

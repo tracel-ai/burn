@@ -1,6 +1,6 @@
 use burn_tensor::{
     Bool, Device, Distribution, Int, Sharding,
-    Sharding::{PartialSum, Replicated, Split},
+    Sharding::{PartialSum, Replicated, ReplicatedSplit, Split},
     Shards, ShardsError, Tensor, TensorData, Tolerance, activation,
     kind::Autodiff,
     module,
@@ -142,6 +142,70 @@ fn attention_split_on_the_heads_stays_split() {
         .assert_approx_eq::<f32>(&expected, tolerance());
 }
 
+/// Qwen-Next's layout over four members: a quarter of the query heads on each, and each of the
+/// two key and value heads shared by a pair.
+#[test]
+fn query_heads_split_over_four_attend_the_key_head_their_pair_shares() {
+    let (query, key, value) = (
+        values([1, 8, 3, 4], 1),
+        values([1, 2, 5, 4], 2),
+        values([1, 2, 5, 4], 3),
+    );
+    let flex = Device::flex();
+    let expected = module::attention(
+        Tensor::from_data(query.clone(), &flex),
+        Tensor::from_data(key.clone(), &flex),
+        Tensor::from_data(value.clone(), &flex),
+        None,
+        None,
+        None,
+        Default::default(),
+    )
+    .into_data();
+
+    let device = sharded_compute(4);
+    let (heads, pairs) = (Split { dim: 1 }, ReplicatedSplit { dim: 1, groups: 2 });
+    let key = sharded::<4>(key, &device, pairs);
+    let value = sharded::<4>(value, &device, pairs);
+    let context = module::attention(
+        sharded::<4>(query, &device, heads),
+        key.clone(),
+        value,
+        None,
+        None,
+        None,
+        Default::default(),
+    );
+
+    assert_eq!(context.sharding(), Some(heads));
+    assert_eq!(key.sharding(), Some(pairs));
+    context
+        .into_data()
+        .assert_approx_eq::<f32>(&expected, tolerance());
+}
+
+/// A key projection shared by pairs keeps its split through the projection and the reshape to
+/// heads, and reads back whole.
+#[test]
+fn a_key_projection_shared_by_pairs_reaches_its_heads_without_gathering() {
+    let (x, weight) = (values([3, 8], 4), values([8, 16], 5));
+    let expected = Tensor::<2>::from_data(x.clone(), &Device::flex())
+        .matmul(Tensor::from_data(weight.clone(), &Device::flex()))
+        .reshape([3, 2, 8])
+        .into_data();
+
+    let device = sharded_compute(4);
+    let pairs = ReplicatedSplit { dim: 1, groups: 2 };
+    let heads = sharded::<2>(x, &device, Replicated)
+        .matmul(sharded(weight, &device, pairs))
+        .reshape([3, 2, 8]);
+
+    assert_eq!(heads.sharding(), Some(pairs));
+    heads
+        .into_data()
+        .assert_approx_eq::<f32>(&expected, tolerance());
+}
+
 #[test]
 fn attention_over_a_cache_split_on_the_heads_stays_split() {
     // Each sequence attends a different prefix of the cache, which is filled past the shortest.
@@ -243,6 +307,52 @@ fn int_and_bool_tensors_split_and_move_back_whole() {
     assert_eq!(split_bools.sharding(), Some(Split { dim: 0 }));
     split_ints.into_data().assert_eq(&ints, false);
     split_bools.into_data().assert_eq(&bools, false);
+}
+
+#[test]
+fn int_and_bool_tensors_gather_each_groups_chunk() {
+    let ints = TensorData::from([[1i64, 2, 3, 4], [5, 6, 7, 8]]);
+    let bools = TensorData::from([[true, false, true, true], [false, false, true, false]]);
+    let device = sharded_compute(4);
+    let pairs = ReplicatedSplit { dim: 1, groups: 2 };
+
+    let ints = on_members::<2, Int>(ints, &device, pairs).slice(s![.., 1..3]);
+    let bools = on_members::<2, Bool>(bools, &device, pairs).slice(s![.., 1..3]);
+
+    assert_eq!(ints.sharding(), Some(Replicated));
+    assert_eq!(bools.sharding(), Some(Replicated));
+    ints.into_data()
+        .assert_eq(&TensorData::from([[2i64, 3], [6, 7]]), false);
+    bools
+        .into_data()
+        .assert_eq(&TensorData::from([[false, true], [false, true]]), false);
+}
+
+#[test]
+fn a_replicated_split_is_sliced_and_assigned_along_another_dim() {
+    let (data, update) = (values([3, 4, 5], 1), values([2, 4, 5], 2));
+    let ranges = s![1..3, 0..4, ..];
+    let flex = Device::flex();
+    let whole = Tensor::<3>::from_data(data.clone(), &flex);
+    let expected_slice = whole.clone().slice(ranges).into_data();
+    let expected_assign = whole
+        .slice_assign(ranges, Tensor::from_data(update.clone(), &flex))
+        .into_data();
+
+    let device = sharded_compute(4);
+    let pairs = ReplicatedSplit { dim: 1, groups: 2 };
+    let tensor = sharded::<3>(data, &device, pairs);
+    let sliced = tensor.clone().slice(ranges);
+    let assigned = tensor.slice_assign(ranges, sharded(update, &device, pairs));
+
+    assert_eq!(sliced.sharding(), Some(pairs));
+    assert_eq!(assigned.sharding(), Some(pairs));
+    sliced
+        .into_data()
+        .assert_approx_eq::<f32>(&expected_slice, tolerance());
+    assigned
+        .into_data()
+        .assert_approx_eq::<f32>(&expected_assign, tolerance());
 }
 
 #[test]
@@ -626,6 +736,19 @@ fn on_members<const D: usize, K: Autodiff>(
         }
         .data_chunks(&data)
         .collect(),
+        ReplicatedSplit { dim, groups } => {
+            let chunks: Vec<_> = DimSplit {
+                dim,
+                len: data.shape()[dim],
+                members: groups,
+            }
+            .data_chunks(&data)
+            .collect();
+            let members_per_group = members.len() / groups;
+            (0..members.len())
+                .map(|member| chunks[member / members_per_group].clone())
+                .collect()
+        }
         Replicated => vec![data; members.len()],
         PartialSum => unreachable!("The tests make a partial sum with an op"),
     };
