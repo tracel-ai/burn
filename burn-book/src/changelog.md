@@ -239,7 +239,7 @@ Reports also include the measured cost of a kernel launch.
   on its stream. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
 
 - `capture` works on a sharded compute device: each member records its own graph, collectives
-  included, and a replay runs every member's. ([#6429](https://github.com/tracel-ai/burn/pull/6429))
+  included, and a replay launches every member's at once. ([#6429](https://github.com/tracel-ai/burn/pull/6429))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Matrix multiplication
