@@ -110,6 +110,19 @@ To rerun autotuning in each process while retaining compiled kernels, also set
 compiled-kernel caching requires a supported native target; runtime settings cannot enable a cache
 whose persistence support was compiled out.
 
+#### Memory tracing
+
+Memory tracing makes the memory report of a CubeCL backend list every allocation still in use, with
+the code that made it. It is off by default:
+
+```toml
+# burn.toml
+[cubecl.memory]
+tracing = "labels" # or "backtraces"
+```
+
+See [Memory Tracing](../performance/memory-tracing.md) for the levels and how to read the report.
+
 ### Fusion
 
 The `[fusion]` section controls how Burn combines operations and logs fusion activity.
