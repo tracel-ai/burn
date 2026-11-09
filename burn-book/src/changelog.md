@@ -447,6 +447,10 @@ whose tensors are split over `devices` (crate `burn-shard`).
   target; the updates are now applied with atomic stores.
   ([#6215](https://github.com/tracel-ai/burn/pull/6215))
 
+- Fix boolean `gather` and `select` on Flex returning a tensor with `U8` dtype instead of the input's
+  boolean dtype, which made later boolean ops on the result panic.
+  ([#6456](https://github.com/tracel-ai/burn/pull/6456))
+
 #### Flex32 tensor data
 
 - Preserve the Flex32 dtype during tensor uploads, `TensorData` conversions, and filled-data
