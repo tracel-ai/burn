@@ -1,6 +1,6 @@
 use super::ConfigEnumAnalyzer;
 use crate::config::ConfigStructAnalyzer;
-use crate::shared::{attribute::AttributeItem, field::FieldTypeAnalyzer};
+use crate::shared::field::FieldTypeAnalyzer;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Field, Ident};
@@ -25,45 +25,77 @@ impl ConfigAnalyzerFactory {
         Self {}
     }
 
-    pub fn create_analyzer(&self, item: &syn::DeriveInput) -> Box<dyn ConfigAnalyzer> {
+    pub fn create_analyzer(&self, item: &syn::DeriveInput) -> syn::Result<Box<dyn ConfigAnalyzer>> {
         let name = item.ident.clone();
         let config_type = parse_asm(item);
 
-        match config_type {
-            ConfigType::Struct(data) => Box::new(self.create_struct_analyzer(name, data)),
+        Ok(match config_type {
+            ConfigType::Struct(data) => Box::new(self.create_struct_analyzer(name, data)?),
             ConfigType::Enum(data) => Box::new(self.create_enum_analyzer(name, data)),
-        }
+        })
     }
 
-    fn create_struct_analyzer(&self, name: Ident, fields: Vec<Field>) -> ConfigStructAnalyzer {
+    fn create_struct_analyzer(
+        &self,
+        name: Ident,
+        fields: Vec<Field>,
+    ) -> syn::Result<ConfigStructAnalyzer> {
         let fields = fields.into_iter().map(FieldTypeAnalyzer::new);
 
         let mut fields_required = Vec::new();
         let mut fields_option = Vec::new();
         let mut fields_default = Vec::new();
+        let mut fields_into = Vec::new();
 
         for field in fields {
-            let attributes: Vec<AttributeItem> = field
-                .attributes()
-                .filter(|attr| attr.has_name("config"))
-                .map(|attr| attr.item())
-                .collect();
+            let mut default = None;
+            let mut into = false;
+            for attr in &field.field.attrs {
+                if !attr.path().is_ident("config") {
+                    continue;
+                }
+                attr.parse_nested_meta(|meta| {
+                    if meta.path.is_ident("default") {
+                        if default.is_some() {
+                            return Err(meta.error("duplicate `default` attribute"));
+                        }
+                        default = Some(meta.value()?.parse()?);
+                    } else if meta.path.is_ident("into") {
+                        if into {
+                            return Err(meta.error("duplicate `into` attribute"));
+                        }
+                        into = true;
+                    } else {
+                        return Err(meta.error("expected `default` or `into`"));
+                    }
+                    Ok(())
+                })?;
+            }
 
-            if !attributes.is_empty() {
-                let item = attributes.first().unwrap().clone();
-                fields_default.push((field.clone(), item));
+            if into {
+                fields_into.push(field.ident());
+            }
+
+            if let Some(default) = default {
+                fields_default.push((field, default));
                 continue;
             }
 
             if field.is_of_type(&["Option"]) {
-                fields_option.push(field.clone());
+                fields_option.push(field);
                 continue;
             }
 
-            fields_required.push(field.clone());
+            fields_required.push(field);
         }
 
-        ConfigStructAnalyzer::new(name, fields_required, fields_option, fields_default)
+        Ok(ConfigStructAnalyzer::new(
+            name,
+            fields_required,
+            fields_option,
+            fields_default,
+            fields_into,
+        ))
     }
 
     fn create_enum_analyzer(&self, name: Ident, data: syn::DataEnum) -> ConfigEnumAnalyzer {
@@ -83,5 +115,35 @@ fn parse_asm(ast: &syn::DeriveInput) -> ConfigType {
         }
         syn::Data::Enum(enum_data) => ConfigType::Enum(enum_data.clone()),
         syn::Data::Union(_) => panic!("Only struct and enum can be derived"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Malformed field attributes must report diagnostics instead of being ignored or panicking.
+    #[test]
+    fn rejects_invalid_field_attributes() {
+        for (attributes, message) in [
+            (quote!(#[config(into = true)]), "expected `,`"),
+            (quote!(#[config(into)] #[config(into)]), "duplicate `into`"),
+            (
+                quote!(#[config(default = 1, default = 2)]),
+                "duplicate `default`",
+            ),
+            (quote!(#[config(convert)]), "expected `default` or `into`"),
+        ] {
+            let item = syn::parse_quote! {
+                struct InvalidConfig {
+                    #attributes
+                    value: usize,
+                }
+            };
+            let Err(error) = ConfigAnalyzerFactory::new().create_analyzer(&item) else {
+                panic!("expected invalid attributes to be rejected");
+            };
+            assert!(error.to_string().contains(message), "{error}");
+        }
     }
 }
