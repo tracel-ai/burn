@@ -145,17 +145,19 @@ jobs:
           cargo xtask coverage install
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask ${{ env.COLLECT_COVERAGE == 'true' && '--enable-coverage' || '' }} test --ci ${{ matrix.ci_type }}
+        env:
+          RUSTC_WORKSPACE_WRAPPER: ${{ env.COLLECT_COVERAGE == 'true' && format('{0}/.github/scripts/coverage-rustc.sh', github.workspace) || '' }}
+          LLVM_PROFILE_FILE: ${{ github.workspace }}/target/coverage/profiles/burn-%p-%m.profraw
+        run: cargo xtask test --ci ${{ matrix.ci_type }}
       # --------------------------------------------------------------------------------
       - name: Generate lcov.info
         if: env.COLLECT_COVERAGE == 'true'
         shell: bash
         run: |
-          # Killed remote-test children leave empty profiles that llvm-profdata cannot merge.
-          find . -type f -name 'burn-*.profraw' -empty -delete
-          # Exclude incremental objects and build-script binaries from LLVM export.
-          grcov . --binary-path ./target/debug/deps/ -s . -t lcov -o lcov.info \
-            --branch --ignore-not-existing --keep-only "crates/*"
+          # Interrupted processes can leave empty profiles that LLVM cannot merge.
+          find ./target/coverage/profiles -type f -name '*.profraw' -empty -delete
+          grcov ./target/coverage/profiles --binary-path ./target/debug/deps/ \
+            -s . -t lcov -o lcov.info --branch --ignore-not-existing --keep-only "crates/*"
           # grcov can exit successfully even when profile merging fails.
           if ! grep -q '^SF:crates/' lcov.info; then
             echo '::error::Coverage report contains no workspace crate sources.'
