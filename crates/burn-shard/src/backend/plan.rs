@@ -418,12 +418,12 @@ impl TensorShardings<'_> {
             op.outputs
                 .iter()
                 .zip(outputs)
-                .find_map(|(out, &target)| match target {
-                    Sharding::Split { .. } => {
+                .find_map(|(out, &target)| match target.split_dim() {
+                    Some(_) => {
                         Resharding::of_tensor(Sharding::Replicated, target, out, self.num_members)
                             .err()
                     }
-                    _ => None,
+                    None => None,
                 })
         };
         input_refusal.or_else(output_refusal)
