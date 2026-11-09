@@ -15,7 +15,7 @@ use burn_backend::{
     DTypeUsageSet, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
     EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken,
     ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
-    ProfileTicks, ProfileToken, TensorData,
+    ProfileTicks, ProfileToken, PruneOptions, Pruned, TensorData,
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
 };
 use burn_ir::{CapturedGraphId, OperationIr, TensorId, TensorIr};
@@ -821,6 +821,23 @@ impl RemoteService {
             |request| Task::EnvironmentMerge(request, stream_id, id, origin),
             |answer| match answer {
                 TaskResponseContent::EnvironmentMerged(res) => Ok(res),
+                other => Err(other),
+            },
+        )
+    }
+
+    /// Remove from the environment `id` what no workload of the server's build loads, where
+    /// `stream_id` stands, after every task sent before.
+    pub fn environment_prune(
+        &mut self,
+        stream_id: StreamId,
+        id: EnvironmentId,
+        options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        self.environment_request(
+            |request| Task::EnvironmentPrune(request, stream_id, id, options),
+            |answer| match answer {
+                TaskResponseContent::EnvironmentPruned(res) => Ok(res),
                 other => Err(other),
             },
         )

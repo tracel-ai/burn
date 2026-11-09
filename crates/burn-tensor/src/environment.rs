@@ -1,4 +1,6 @@
-pub use burn_backend::{EnvironmentBundle, EnvironmentError};
+pub use burn_backend::{
+    EnvironmentBundle, EnvironmentError, PruneOptions, PruneTally, Pruned, RecordPruning,
+};
 
 use crate::Device;
 use alloc::string::String;
@@ -23,6 +25,8 @@ use burn_dispatch::Dispatch;
 /// let built = ComputeEnvironment::new(&device, "building")?;
 /// built.activate(&device)?;
 /// // ... compile-only and tune passes ...
+/// // Keep what the workload loads: the tunes' winners, not every candidate they raced.
+/// built.prune(PruneOptions::default())?;
 /// std::fs::write(path, &*built.save()?.bytes)?;
 /// previous.activate(&device)?;
 ///
@@ -151,6 +155,24 @@ impl ComputeEnvironment {
     /// could not be reached.
     pub fn merge_bundle(&self, bundle: EnvironmentBundle) -> Result<(), EnvironmentError> {
         self.merge_from(EnvironmentOrigin::Bundle(bundle))
+    }
+
+    /// Remove what no workload of this build loads, after every operation
+    /// registered so far on the calling stream: the compiled kernels only a
+    /// losing autotune candidate launched, those another build compiled, and
+    /// the build records `options` does not keep. The autotune answers, the
+    /// winners' kernels and every kernel no tune raced stay, so the workloads
+    /// that built the environment run from it as before. A [save](Self::save)
+    /// after it holds no space the removed entries took.
+    ///
+    /// Run once the build is done: a candidate a tune still has to race is
+    /// compiled again if its kernels were pruned.
+    ///
+    /// # Errors
+    ///
+    /// The storage refused the write, or the device could not be reached.
+    pub fn prune(&self, options: PruneOptions) -> Result<Pruned, EnvironmentError> {
+        Dispatch::environment_prune(self.home.as_dispatch(), self.id.clone(), options)
     }
 
     /// The environment's name in the storage it lives in.

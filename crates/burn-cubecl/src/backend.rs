@@ -9,7 +9,9 @@ use burn_backend::{
     ProfileToken, SlicedPoolReport, TensorData, profile_with_tokens,
 };
 #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
-use burn_backend::{EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin};
+use burn_backend::{
+    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, PruneOptions, Pruned,
+};
 use burn_std::{BoolStore, DType, id::StreamId, quantization::quantizable};
 use cubecl::device::DeviceId;
 use cubecl::{
@@ -278,6 +280,20 @@ impl Backend for CubeBackend {
     ) -> Result<(), EnvironmentError> {
         device.client().flush().map_err(server_err)?;
         Ok(id.merge(origin)?)
+    }
+
+    /// The launches the calling stream's client still buffers are flushed
+    /// first, so what they compile is pruned or kept with the rest.
+    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+    fn environment_prune(
+        device: &Self::Device,
+        id: EnvironmentId,
+        options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        use cubecl::prune::Prune;
+
+        device.client().flush().map_err(server_err)?;
+        Ok(id.prune(options)?)
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

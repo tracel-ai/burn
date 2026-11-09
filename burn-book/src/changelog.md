@@ -67,6 +67,14 @@ conflicts with it (E0119); delete the handwritten one.
   ([#6188](https://github.com/tracel-ai/burn/pull/6188),
   [CubeCL #1856](https://github.com/tracel-ai/cubecl/pull/1856))
 
+#### Compute environments
+
+- `ComputeEnvironment::prune` removes what no workload of this build loads: the compiled kernels
+  only a losing autotune candidate launched, those another build compiled, and the build records
+  `PruneOptions::records` does not keep (`RecordPruning::RemoveAll` by default). The autotune
+  answers, the winners' kernels and every kernel no tune raced stay. A remote device prunes on its
+  server; the remote protocol is now version 13.
+
 #### CubeK tile kernels
 
 - Run matmul, fused matmul and attention on CubeCL backends through CubeK's tile routines, chosen

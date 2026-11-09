@@ -20,15 +20,30 @@ pub type IntElem = i32;
 mod backend;
 
 use backend::*;
-use burn_tensor::{Bytes, ComputeEnvironment, Device, EnvironmentBundle, EnvironmentError};
+use burn_tensor::{
+    Bytes, ComputeEnvironment, Device, EnvironmentBundle, EnvironmentError, PruneOptions,
+    RecordPruning,
+};
 use serial_test::serial;
 
 /// The default device, its environments kept in a directory of this run's.
 ///
 /// The runtime's configuration places the environments when it first loads,
 /// so the device is touched before the directory is set, or the load would
-/// move it back.
+/// move it back. It is installed first with the compiled kernels kept, so an
+/// environment holds kernels for a prune to tell apart.
 fn device() -> Device {
+    #[cfg(feature = "cube")]
+    {
+        use cubek::cubecl::config::{CubeClRuntimeConfig, RuntimeConfig};
+
+        static CONFIG: std::sync::Once = std::sync::Once::new();
+        CONFIG.call_once(|| {
+            let mut config = CubeClRuntimeConfig::from_current_dir();
+            config.compilation.cache = true;
+            CubeClRuntimeConfig::try_set(config);
+        });
+    }
     let device = Device::default();
     #[cfg(feature = "cube")]
     {
@@ -213,4 +228,50 @@ fn an_environment_merged_into_itself_is_unchanged() {
     itself.merge(&itself).unwrap();
 
     assert_eq!(itself.save().unwrap().bytes.len(), size);
+}
+
+/// A prune removes what the work's tunes measured and did not pick, and the
+/// build records; the save is no larger, and the work runs from it as before.
+#[test]
+#[serial]
+fn a_pruned_environment_still_runs_its_work() {
+    let device = device();
+    let shape = [37, 53, 29];
+    let (built, before) = built(&device, "pruned", shape);
+
+    let pruned = built.prune(PruneOptions::default()).unwrap();
+    let after = built.save().unwrap().bytes.len();
+
+    assert!(
+        after <= before,
+        "{pruned:?}: {after} bytes, {before} before"
+    );
+    assert_eq!(pruned.records.kept, 0, "{pruned:?}");
+    // A runtime that stores compiled kernels stored every candidate the
+    // matmul's tune raced, and only the pick's stay.
+    let stored = pruned.kernels.kept + pruned.kernels.removed;
+    assert!(stored == 0 || pruned.kernels.removed > 0, "{pruned:?}");
+    let previous = built.activate(&device).unwrap();
+    let [m, k, n] = shape;
+    let product =
+        TestTensor::<2>::ones([m, k], &device).matmul(TestTensor::<2>::ones([k, n], &device));
+    let expected = TestTensor::<2>::full([m, n], k as f32, &device);
+    product.into_data().assert_eq(&expected.into_data(), false);
+    previous.activate(&device).unwrap();
+}
+
+/// A prune that keeps the build records removes none of them.
+#[test]
+#[serial]
+fn a_prune_keeping_the_records_removes_none() {
+    let device = device();
+    let (built, _) = built(&device, "pruned-with-records", [41, 17, 23]);
+
+    let pruned = built
+        .prune(PruneOptions {
+            records: RecordPruning::KeepAll,
+        })
+        .unwrap();
+
+    assert_eq!(pruned.records.removed, 0, "{pruned:?}");
 }

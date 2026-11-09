@@ -2,7 +2,7 @@ use burn_backend::{
     DTypeUsageSet, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
     EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken,
     ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey, ProfileOptions, ProfileToken,
-    TensorData,
+    PruneOptions, Pruned, TensorData,
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
@@ -25,7 +25,7 @@ use crate::{
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 12;
+pub const PROTOCOL_VERSION: u16 = 13;
 
 /// Routing id for a task whose result is fetched back.
 ///
@@ -420,6 +420,9 @@ pub enum Task {
     /// Bring what the origin holds into an environment where `stream_id` stands, after every
     /// earlier task.
     EnvironmentMerge(RequestId, StreamId, EnvironmentId, EnvironmentOrigin),
+    /// Remove from an environment what no workload of the server's build loads, where
+    /// `stream_id` stands, after every earlier task.
+    EnvironmentPrune(RequestId, StreamId, EnvironmentId, PruneOptions),
     /// What the session's device is, as its driver states it.
     DeviceDescription(RequestId),
     /// One reading of the counters of the session's device.
@@ -521,6 +524,8 @@ pub enum TaskResponseContent {
     EnvironmentSaved(Result<EnvironmentBundle, EnvironmentError>),
     /// The answer to [`EnvironmentMerge`](Task::EnvironmentMerge).
     EnvironmentMerged(Result<(), EnvironmentError>),
+    /// The answer to [`EnvironmentPrune`](Task::EnvironmentPrune).
+    EnvironmentPruned(Result<Pruned, EnvironmentError>),
     /// The answer to [`DeviceDescription`](Task::DeviceDescription).
     DeviceDescription(Option<DeviceDescription>),
     /// The answer to [`MeasureTelemetry`](Task::MeasureTelemetry).

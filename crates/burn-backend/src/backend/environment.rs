@@ -13,7 +13,10 @@ use alloc::string::{String, ToString};
 use burn_std::ExecutionError;
 use burn_std::environment::EnvironmentError as StorageError;
 
-pub use burn_std::environment::{EnvironmentBundle, EnvironmentId, EnvironmentOrigin};
+pub use burn_std::environment::{
+    EnvironmentBundle, EnvironmentId, EnvironmentOrigin, PruneOptions, PruneTally, Pruned,
+    RecordPruning,
+};
 
 /// Why a compute environment could not be created, activated or saved.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

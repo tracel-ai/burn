@@ -16,7 +16,7 @@ use burn_backend::{
     AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, DeviceDescription,
     DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
     ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
-    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
+    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
 };
 
 /// A captured graph from one of the dispatched backends (see
@@ -274,6 +274,14 @@ impl Backend for Dispatch {
         origin: EnvironmentOrigin,
     ) -> Result<(), EnvironmentError> {
         dispatch_device!(device, |device| B::environment_merge(device, id, origin))
+    }
+
+    fn environment_prune(
+        device: &Self::Device,
+        id: EnvironmentId,
+        options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_prune(device, id, options))
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
