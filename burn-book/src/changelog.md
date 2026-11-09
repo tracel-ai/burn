@@ -662,6 +662,12 @@ backends do). Autodiff composes it from tensor operations.
 `lengths` and `pages`, so remote clients and servers must be upgraded together (protocol
 version 12).
 
+#### Config derivation
+
+- Add opt-in `#[config(into)]` fields to accept convertible values in generated constructors and
+  setters. Unannotated fields retain their exact argument types; stored types and serialization
+  are unchanged.
+
 #### Convolution
 
 - Avoid a full-sized gradient copy in CubeCL FP32 `conv2d` bias backward, while retaining

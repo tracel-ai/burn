@@ -1,5 +1,5 @@
 use super::ConfigAnalyzer;
-use crate::shared::{attribute::AttributeItem, field::FieldTypeAnalyzer};
+use crate::shared::field::FieldTypeAnalyzer;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 
@@ -7,7 +7,8 @@ pub struct ConfigStructAnalyzer {
     name: Ident,
     fields_required: Vec<FieldTypeAnalyzer>,
     fields_option: Vec<FieldTypeAnalyzer>,
-    fields_default: Vec<(FieldTypeAnalyzer, AttributeItem)>,
+    fields_default: Vec<(FieldTypeAnalyzer, syn::Lit)>,
+    fields_into: Vec<Ident>,
 }
 
 impl ConfigStructAnalyzer {
@@ -15,13 +16,28 @@ impl ConfigStructAnalyzer {
         name: Ident,
         fields_required: Vec<FieldTypeAnalyzer>,
         fields_option: Vec<FieldTypeAnalyzer>,
-        fields_default: Vec<(FieldTypeAnalyzer, AttributeItem)>,
+        fields_default: Vec<(FieldTypeAnalyzer, syn::Lit)>,
+        fields_into: Vec<Ident>,
     ) -> Self {
         Self {
             name,
             fields_required,
             fields_option,
             fields_default,
+            fields_into,
+        }
+    }
+
+    fn field_input(&self, field: &FieldTypeAnalyzer) -> (TokenStream, TokenStream) {
+        let name = field.ident();
+        let ty = &field.field.ty;
+        if self.fields_into.contains(&name) {
+            (
+                quote! { impl ::core::convert::Into<#ty> },
+                quote! { ::core::convert::Into::into(#name) },
+            )
+        } else {
+            (quote! { #ty }, quote! { #name })
         }
     }
 
@@ -189,11 +205,11 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
 
         for field in self.fields_required.iter() {
             let name = field.ident();
-            let ty = &field.field.ty;
+            let (ty, value) = self.field_input(field);
             let docs = field.docs();
 
             body.extend(quote! {
-                #name,
+                #name: #value,
             });
             args.push(quote! {
                 #name: #ty
@@ -223,9 +239,8 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
             });
         }
 
-        for (field, attribute) in self.fields_default.iter() {
+        for (field, value) in self.fields_default.iter() {
             let name = field.ident();
-            let value = &attribute.value;
             let docs = field.docs();
 
             match value {
@@ -268,10 +283,9 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
     fn gen_builder_fns(&self) -> TokenStream {
         let mut body = quote! {};
 
-        for (field, attribute) in self.fields_default.iter() {
+        for (field, value) in self.fields_default.iter() {
             let name = field.ident();
-            let ty = &field.field.ty;
-            let value = &attribute.value;
+            let (ty, input) = self.field_input(field);
             let docs = field.docs();
             let default_doc = format!("- Defaults to `{}`", quote!(#value));
             let doc_str = format!(
@@ -288,7 +302,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
             body.extend(quote! {
                 #fn_docs
                 pub fn #fn_name(mut self, #name: #ty) -> Self {
-                    self.#name = #name;
+                    self.#name = #input;
                     self
                 }
             });
@@ -296,7 +310,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
 
         for field in self.fields_option.iter() {
             let name = field.ident();
-            let ty = &field.field.ty;
+            let (ty, input) = self.field_input(field);
             let docs = field.docs();
             let default_doc = "- Defaults to `None`";
             let doc_str = format!(
@@ -313,7 +327,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
             body.extend(quote! {
                 #fn_docs
                 pub fn #fn_name(mut self, #name: #ty) -> Self {
-                    self.#name = #name;
+                    self.#name = #input;
                     self
                 }
             });
