@@ -27,6 +27,7 @@
     - [Kernel Fusion](./performance/good-practices/kernel-fusion.md)
     - [Kernel Selection](./performance/good-practices/kernel-selection.md)
   - [Profiling](./performance/profiling.md)
+  - [Memory Tracing](./performance/memory-tracing.md)
   - [Quantization](./performance/quantization.md)
   - [Distributed Computing](./performance/distributed-computing.md)
 - [Custom Training Loop](./custom-training-loop.md)
