@@ -597,6 +597,12 @@ pub trait Module: Clone + Send + core::fmt::Debug {
 
 /// Module visitor trait for traversing and inspecting module parameters.
 pub trait ModuleVisitor {
+    /// Visitors are commonly used for inspection, not differentiable computation. When the
+    /// visited tensor uses autodiff, remove that association before running reductions, scalar
+    /// reads, or other inspection operations (for example with
+    /// `param.val().without_autodiff()`). Otherwise those operations can append steps to an
+    /// autodiff graph that will never be passed to `backward()`.
+    ///
     /// Visit a float parameter in the module.
     ///
     /// # Parameters
