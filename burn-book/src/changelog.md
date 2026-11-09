@@ -91,6 +91,10 @@ conflicts with it (E0119); delete the handwritten one.
   [#6199](https://github.com/tracel-ai/burn/pull/6199),
   [#6246](https://github.com/tracel-ai/burn/pull/6246),
   [#6273](https://github.com/tracel-ai/burn/pull/6273)) [@louisfd](https://github.com/louisfd)
+- Read a quantized matmul input with a per-tensor scale (NVFP4) packed instead of dequantizing it
+  first, also through a transposed view, as a tied embedding reaches the vocabulary head. The fused matmul runs a matmul's element-wise tail in the product's kernel when the
+  product is reshaped before the tail reads it, as a projection that flattens its batches into
+  rows does, and when an operand is stored in tiles. ([#6440](https://github.com/tracel-ai/burn/pull/6440)) [@louisfd](https://github.com/louisfd)
 
 #### Device descriptions and measurements
 
