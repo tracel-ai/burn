@@ -76,4 +76,12 @@ impl MultiBackendBridge for ShardBridge {
     ) -> TensorData {
         tensor.convert_dtype(out_dtype.into())
     }
+
+    fn change_backend_quantized(
+        tensor: TensorData,
+        _shape: Shape,
+        _target: &ShardedComputeDevice,
+    ) -> TensorData {
+        tensor
+    }
 }

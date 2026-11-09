@@ -490,6 +490,13 @@ impl MultiBackendBridge for CaptureBridge {
     ) -> TensorData {
         tensor.convert_dtype(out_dtype.into())
     }
+    fn change_backend_quantized(
+        tensor: TensorData,
+        _shape: Shape,
+        _target: &Self::Device,
+    ) -> TensorData {
+        tensor
+    }
 }
 
 #[derive(Debug)]

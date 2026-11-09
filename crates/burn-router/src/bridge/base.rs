@@ -29,5 +29,10 @@ pub trait MultiBackendBridge: Send + Sync + 'static {
         out_dtype: BoolDType,
     ) -> Self::TensorHandle;
 
-    // TODO: change_backend_quantized
+    /// Change the backend of the given quantized tensor.
+    fn change_backend_quantized(
+        tensor: Self::TensorHandle,
+        shape: Shape,
+        target_device: &Self::Device,
+    ) -> Self::TensorHandle;
 }
