@@ -1,4 +1,4 @@
-use burn_backend::ops::{BoolTensorOps, FloatTensorOps, IntTensorOps};
+use burn_backend::ops::{BoolTensorOps, FloatTensorOps, IntTensorOps, QTensorOps};
 use burn_backend::{DType, FloatDType, IntDType};
 use burn_dispatch::Dispatch;
 
@@ -31,7 +31,10 @@ impl<const D: usize> Cast<D, Float> for FloatDType {
             }
             Tensor::new(float_cast_impl(tensor.primitive, dtype))
         } else {
-            panic!("Should be Float primitive kind");
+            Tensor::new(BridgeTensor::float(Dispatch::dequantize(
+                tensor.primitive.into(),
+                dtype,
+            )))
         }
     }
 }

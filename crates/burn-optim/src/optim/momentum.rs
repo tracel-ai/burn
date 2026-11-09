@@ -26,6 +26,10 @@ pub struct MomentumState<const D: usize> {
     velocity: Tensor<D>,
 }
 
+crate::optim::precision::state::impl_optimizer_state!(MomentumState {
+    tensors { velocity: Signed }
+});
+
 /// Momentum implementation that transforms gradients.
 #[derive(Clone)]
 pub struct Momentum {

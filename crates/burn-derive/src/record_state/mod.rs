@@ -134,7 +134,9 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                     out.push_tensor(prefix, #leaf, self.#ident.clone().into_data());
                 });
                 unflatten.push(quote! {
-                    let #ident = <#ty>::from_data(src.take_tensor(prefix, #leaf)?, device);
+                    let __data = src.take_tensor(prefix, #leaf)?;
+                    let __dtype = __data.dtype();
+                    let #ident = <#ty>::from_data(__data, (device, __dtype));
                 });
             }
             FieldKind::OptionTensor(inner) => {
@@ -146,7 +148,10 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                 unflatten.push(quote! {
                     let #ident = src
                         .take_tensor(prefix, #leaf)
-                        .map(|data| <#inner>::from_data(data, device));
+                        .map(|data| {
+                            let dtype = data.dtype();
+                            <#inner>::from_data(data, (device, dtype))
+                        });
                 });
             }
             FieldKind::VecTensor(inner) => {
@@ -170,10 +175,9 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                         let mut __items = ::alloc::vec::Vec::with_capacity(__len);
                         for __index in 0..__len {
                             let __leaf = crate::join_index(#leaf, __index);
-                            __items.push(<#inner>::from_data(
-                                src.take_tensor(prefix, &__leaf)?,
-                                device,
-                            ));
+                            let __data = src.take_tensor(prefix, &__leaf)?;
+                            let __dtype = __data.dtype();
+                            __items.push(<#inner>::from_data(__data, (device, __dtype)));
                         }
                         __items
                     };

@@ -63,6 +63,10 @@ pub struct AdamWState<const D: usize> {
     pub momentum: AdaptiveMomentumState<D>,
 }
 
+crate::optim::precision::state::impl_optimizer_state!(AdamWState {
+    nested { momentum }
+});
+
 impl Optimizer for AdamW {
     type State<const D: usize> = AdamWState<D>;
 

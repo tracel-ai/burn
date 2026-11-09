@@ -38,6 +38,10 @@ pub struct SgdState<const D: usize> {
     pub momentum: Option<MomentumState<D>>,
 }
 
+crate::optim::precision::state::impl_optimizer_state!(SgdState {
+    optional { momentum }
+});
+
 impl SgdConfig {
     /// Build a [`Sgd`] from the config.
     ///

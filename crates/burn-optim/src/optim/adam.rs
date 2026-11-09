@@ -56,6 +56,10 @@ pub struct AdamState<const D: usize> {
     pub momentum: AdaptiveMomentumState<D>,
 }
 
+crate::optim::precision::state::impl_optimizer_state!(AdamState {
+    nested { momentum }
+});
+
 impl Optimizer for Adam {
     type State<const D: usize> = AdamState<D>;
 
@@ -136,6 +140,10 @@ pub struct AdaptiveMomentumState<const D: usize> {
     #[new(default)]
     pub max_moment_2: Option<Tensor<D>>,
 }
+
+crate::optim::precision::state::impl_optimizer_state!(AdaptiveMomentumState {
+    tensors { moment_1: Signed, moment_2: NonNegative, max_moment_2: FullPrecision }
+});
 
 #[derive(Clone)]
 struct AdaptiveMomentum {

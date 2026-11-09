@@ -22,6 +22,26 @@ fn get_q_params(data: TensorData) -> DecodedScales {
 }
 
 #[test]
+fn cast_quantized_directly_to_f32_preserves_small_values() {
+    let device = Device::default();
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_tensor(ScaleDtype::F32);
+    let data = TensorData::quantized(vec![-127i8, -64, 0, 127], [4], scheme, &[1e-10], None);
+    let quantized = TestTensor::<1>::from_data(data, (&device, DType::QFloat(scheme)));
+    let decoded = quantized.cast(burn_tensor::FloatDType::F32);
+    assert_eq!(decoded.dtype(), DType::F32);
+    // The f16 test target catches an accidental intermediate decode through the device default.
+    decoded.into_data().assert_approx_eq::<f32>(
+        &TensorData::from([-1.27e-8_f32, -6.4e-9, 0.0, 1.27e-8]),
+        Tolerance::absolute(1e-14),
+    );
+}
+
+#[test]
 fn should_support_quantize_symmetric_int8() {
     // Strict equality was based on full precision
     if !matches!(FloatElem::dtype(), DType::F32) {

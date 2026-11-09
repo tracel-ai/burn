@@ -78,6 +78,13 @@ where
 }
 
 impl ModuleOptimizer {
+    /// Discard all optimizer statistics and master weights, preserving group configuration.
+    ///
+    /// Call this after replacing model parameters without loading their matching optimizer state.
+    pub fn reset_state(&mut self) {
+        self.param_context.clear();
+    }
+
     /// Check if the optimizer has gradient clipping.
     /// If there are multiple optimizers, checks if any group has gradient clipping.
     pub fn has_gradient_clipping(&self) -> bool {
@@ -243,7 +250,7 @@ impl ModuleOptimizer {
     /// State tensors are materialized on the default device; no device argument is needed because
     /// each parameter's state is migrated to that parameter's (gradient's) device on the next
     /// [`step`](ModuleOptimizer::step) — see the `to_device` call in the step path. The load device
-    /// is therefore irrelevant to correctness.
+    /// must support the recorded dtypes; loading preserves them rather than casting to its defaults.
     pub fn load_record(mut self, record: OptimizerRecord) -> Self {
         let device = Device::default();
         let mut ranks: BTreeMap<u64, usize> = BTreeMap::new();
@@ -450,6 +457,10 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
                 device,
                 "The gradient is on the provided device"
             );
+            let grad = match optim.gradient_dtype(tensor.dtype().into()) {
+                Some(dtype) => grad.cast(dtype),
+                None => grad,
+            };
             let clipped_grad: Tensor<D> = if let Some(g_clipping) = grad_clipping.as_ref() {
                 g_clipping.clip_gradient(grad)
             } else {

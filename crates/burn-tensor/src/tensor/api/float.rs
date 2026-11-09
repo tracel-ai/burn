@@ -348,6 +348,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// (e.g., `IntDType::I64` to produce an int tensor).
     ///
     /// This is a no-op when casting to the current dtype within the same kind.
+    /// Quantized tensors cast to a [`crate::FloatDType`] are dequantized directly into that
+    /// dtype, without first rounding through the device's default floating dtype.
     ///
     /// # Example
     ///

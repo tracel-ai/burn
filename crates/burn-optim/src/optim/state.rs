@@ -183,6 +183,30 @@ mod tests {
     }
 
     #[test]
+    fn tensor_fields_preserve_recorded_dtypes() {
+        use burn::tensor::{DType, FloatDType};
+        let state = Full::<1> {
+            t: tensor(&[0.25]).cast(FloatDType::BF16),
+            opt_tensor: Some(tensor(&[0.125]).cast(FloatDType::F16)),
+            history: vec![tensor(&[0.5]).cast(FloatDType::BF16), tensor(&[1e-10])],
+            count: 2,
+            opt_scalar: None,
+            nested: Inner {
+                weight: tensor(&[0.75]).cast(FloatDType::F16),
+                step: 3,
+            },
+            opt_nested: None,
+        };
+        let restored = round_trip(&state).unwrap();
+        assert_eq!(restored.t.dtype(), DType::BF16);
+        assert_eq!(restored.opt_tensor.unwrap().dtype(), DType::F16);
+        assert_eq!(restored.history[0].dtype(), DType::BF16);
+        assert_eq!(restored.history[1].dtype(), DType::F32);
+        assert_eq!(data(&restored.history[1]), vec![1e-10]);
+        assert_eq!(restored.nested.weight.dtype(), DType::F16);
+    }
+
+    #[test]
     fn all_field_kinds_round_trip() {
         let state = Full::<1> {
             t: tensor(&[1.0, 2.0]),

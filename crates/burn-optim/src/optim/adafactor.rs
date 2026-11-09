@@ -80,6 +80,10 @@ pub struct AdafactorState<const D: usize> {
     pub column_second_moment: Option<Tensor<D>>,
 }
 
+crate::optim::precision::state::impl_optimizer_state!(AdafactorState {
+    tensors { second_moment: NonNegative, column_second_moment: NonNegative }
+});
+
 impl AdafactorConfig {
     /// Build the per-parameter Adafactor optimizer.
     ///

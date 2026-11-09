@@ -46,6 +46,10 @@ pub struct LionState<const D: usize> {
     pub momentum: Tensor<D>,
 }
 
+crate::optim::precision::state::impl_optimizer_state!(LionState {
+    tensors { momentum: Signed }
+});
+
 impl LionConfig {
     /// Build a [`Lion`] from the config.
     ///

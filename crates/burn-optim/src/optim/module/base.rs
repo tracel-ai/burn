@@ -1,12 +1,15 @@
 use alloc::sync::Arc;
 use core::any::Any;
 
-use crate::{RecordState, StateSink, StateSource};
+use crate::{
+    OptimizerPrecisionConfig, OptimizerState, PrecisionOptimizer, RecordState, StateSink,
+    StateSource,
+};
 use burn_core as burn;
 use burn_core::tensor::kind::BridgeTensor;
 
 use crate::LearningRate;
-use burn::tensor::{Device, Tensor};
+use burn::tensor::{Device, FloatDType, Tensor};
 
 /// An opinionated trait to simplify the process of implementing an optimizer.
 ///
@@ -16,9 +19,23 @@ use burn::tensor::{Device, Tensor};
 pub trait Optimizer: Send + Sync + Clone + 'static {
     /// The state of the optimizer for a single parameter of rank `D`.
     ///
-    /// It implements [`RecordState`] (which itself requires `Send + Sync + 'static`) so it can be
-    /// decomposed into named tensors and scalars for the burnpack format.
-    type State<const D: usize>: Clone + RecordState;
+    /// It supports on-device tensor traversal and serialization through [`OptimizerState`].
+    type State<const D: usize>: OptimizerState;
+
+    /// Apply shared precision policies to this optimizer.
+    fn with_precision(self, config: OptimizerPrecisionConfig) -> PrecisionOptimizer<Self>
+    where
+        Self: Sized,
+    {
+        PrecisionOptimizer::new(self, config)
+    }
+
+    /// Gradient dtype required before clipping, or `None` to preserve the incoming dtype.
+    ///
+    /// Direct callers remain responsible for unscaling gradients before clipping or stepping.
+    fn gradient_dtype(&self, _parameter_dtype: FloatDType) -> Option<FloatDType> {
+        None
+    }
 
     /// The optimizer step is performed for one tensor at a time with its gradient and state.
     ///
@@ -131,6 +148,11 @@ macro_rules! dispatch_rank {
 /// Object-safe view over an [`Optimizer`], allowing [`ModuleOptimizer`](crate::optim::ModuleOptimizer)
 /// to stay non-generic. Rank-generic operations are dispatched on a runtime rank.
 pub trait DynOptimizer: Send + Sync {
+    /// Gradient dtype required before clipping, or `None` to preserve the incoming dtype.
+    fn gradient_dtype(&self, _parameter_dtype: FloatDType) -> Option<FloatDType> {
+        None
+    }
+
     /// Perform an optimizer step for a single parameter of the given `rank`.
     fn step_dyn(
         &self,
@@ -162,6 +184,10 @@ pub trait DynOptimizer: Send + Sync {
 }
 
 impl<O: Optimizer> DynOptimizer for O {
+    fn gradient_dtype(&self, parameter_dtype: FloatDType) -> Option<FloatDType> {
+        Optimizer::gradient_dtype(self, parameter_dtype)
+    }
+
     fn step_dyn(
         &self,
         rank: usize,

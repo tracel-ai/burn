@@ -155,12 +155,20 @@ pub struct RmsPropState<const D: usize> {
     pub momentum: Option<RmsPropMomentumState<D>>,
 }
 
+crate::optim::precision::state::impl_optimizer_state!(RmsPropState {
+    nested { square_avg, centered } optional { momentum }
+});
+
 /// Exponential moving average of squared gradients used by [`RmsProp`].
 #[derive(RecordState, Clone, new)]
 pub struct SquareAvgState<const D: usize> {
     /// Current exponential moving average of squared gradients.
     pub square_avg: Tensor<D>,
 }
+
+crate::optim::precision::state::impl_optimizer_state!(SquareAvgState {
+    tensors { square_avg: FullPrecision }
+});
 
 impl<const D: usize> SquareAvgState<D> {
     /// Update the exponential moving average of squared gradients.
@@ -203,6 +211,10 @@ pub struct CenteredState<const D: usize> {
     /// Estimated gradient variance when centered, or mean square otherwise.
     pub avg: Tensor<D>,
 }
+
+crate::optim::precision::state::impl_optimizer_state!(CenteredState {
+    tensors { grad_avg: FullPrecision, avg: FullPrecision }
+});
 
 impl<const D: usize> CenteredState<D> {
     /// Update the gradient normalization statistics for the selected RMSProp variant.
@@ -304,6 +316,10 @@ impl RmsPropMomentum {
 pub struct RmsPropMomentumState<const D: usize> {
     buf: Tensor<D>,
 }
+
+crate::optim::precision::state::impl_optimizer_state!(RmsPropMomentumState {
+    tensors { buf: Signed }
+});
 
 impl<const D: usize> RmsPropMomentumState<D> {
     /// Moves the state to a device.

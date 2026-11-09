@@ -359,6 +359,10 @@ pub struct MuonState<const D: usize> {
     pub momentum: MomentumState<D>,
 }
 
+crate::optim::precision::state::impl_optimizer_state!(MuonState {
+    nested { momentum }
+});
+
 impl Optimizer for Muon {
     type State<const D: usize> = MuonState<D>;
 

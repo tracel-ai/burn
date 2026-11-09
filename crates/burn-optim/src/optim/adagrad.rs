@@ -39,6 +39,10 @@ pub struct AdaGradState<const D: usize> {
     lr_decay: LrDecayState<D>,
 }
 
+crate::optim::precision::state::impl_optimizer_state!(AdaGradState {
+    nested { lr_decay }
+});
+
 impl Optimizer for AdaGrad {
     type State<const D: usize> = AdaGradState<D>;
 
@@ -109,6 +113,10 @@ pub struct LrDecayState<const D: usize> {
     time: usize,
     sum: Tensor<D>,
 }
+
+crate::optim::precision::state::impl_optimizer_state!(LrDecayState {
+    tensors { sum: FullPrecision }
+});
 
 #[derive(Clone)]
 struct LrDecay {

@@ -62,6 +62,10 @@ pub struct LambState<const D: usize> {
     pub moment_2: Tensor<D>,
 }
 
+crate::optim::precision::state::impl_optimizer_state!(LambState {
+    tensors { moment_1: Signed, moment_2: NonNegative }
+});
+
 impl Optimizer for Lamb {
     type State<const D: usize> = LambState<D>;
 

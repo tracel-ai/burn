@@ -60,6 +60,10 @@ pub struct AdanState<const D: usize> {
     pub momentum: AdaptiveNesterovMomentumState<D>,
 }
 
+crate::optim::precision::state::impl_optimizer_state!(AdanState {
+    nested { momentum }
+});
+
 impl Optimizer for Adan {
     type State<const D: usize> = AdanState<D>;
 
@@ -147,6 +151,10 @@ pub struct AdaptiveNesterovMomentumState<const D: usize> {
     /// The negated previous gradient.
     pub neg_pre_grad: Tensor<D>,
 }
+
+crate::optim::precision::state::impl_optimizer_state!(AdaptiveNesterovMomentumState {
+    tensors { exp_avg: Signed, exp_avg_sq: NonNegative, exp_avg_diff: Signed, neg_pre_grad: FullPrecision }
+});
 
 #[derive(Clone)]
 struct AdaptiveNesterovMomentum {

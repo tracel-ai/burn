@@ -22,6 +22,9 @@ model = optimizer.step(learning_rate, model, grads);
 - `lr_scheduler`: constant, step, exponential, linear, cosine, Noam, and sequential or composed
   schedules.
 - `grad_clipping`: clipping by value or by norm.
+- Shared optimizer precision: computation dtype, optional master weights, and floating-point
+  state storage through `Optimizer::with_precision`, including parameter groups. See
+  [Optimizer Precision](../../burn-book/src/building-blocks/optimizer.md#optimizer-precision).
 
 See the [optimizer](https://github.com/tracel-ai/burn/blob/main/burn-book/src/building-blocks/optimizer.md) and
 [learning rate scheduler](https://github.com/tracel-ai/burn/blob/main/burn-book/src/building-blocks/lr-scheduler.md) chapters

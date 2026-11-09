@@ -18,6 +18,10 @@ pub struct WeightDecayState<const D: usize> {
     pub(crate) grad_last_step: Tensor<D>,
 }
 
+crate::optim::precision::state::impl_optimizer_state!(WeightDecayState {
+    tensors { grad_last_step: FullPrecision }
+});
+
 /// Weight decay implementation that transforms gradients.
 #[derive(Clone)]
 pub struct WeightDecay {
