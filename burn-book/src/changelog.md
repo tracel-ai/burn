@@ -267,6 +267,16 @@ allow_tf32 = false
 
 See [runtime configuration](./advanced/runtime-configuration.md#cubek-matmul-precision) for details.
 
+#### Memory tracing
+
+Loading a module record (`Module::load_record`) now labels the memory each parameter allocates with
+the parameter's path. With CubeCL's memory tracing turned on (`tracing = "labels"` or
+`"backtraces"` under `[cubecl.memory]` in `burn.toml`, or `CUBECL_MEMORY_TRACING`), the memory
+report of a CubeCL backend lists every live allocation with the code that made it, and a loaded
+model's weights are listed under their paths, such as `conv1.conv.weight`. Allocations made by the
+device's worker threads, which run most tensor operations, are listed by thread for now. Tracing is
+off by default. See [Memory Tracing](./performance/memory-tracing.md).
+
 #### NdArray and LibTorch backend removal
 
 **Breaking:** The deprecated NdArray and LibTorch backends have been removed. Replace `NdArray` or
