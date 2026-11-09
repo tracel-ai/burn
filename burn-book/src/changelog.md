@@ -81,6 +81,7 @@ and saved on any device that reaches its storage, a remote server's included.
   work loaded stays, with the autotune answers; prune from the executable that runs the
   environment. A remote device prunes on its server, so remote clients and servers must be
   upgraded together (protocol version 13).
+  ([#6472](https://github.com/tracel-ai/burn/pull/6472))
 
 #### CubeK tile kernels
 
