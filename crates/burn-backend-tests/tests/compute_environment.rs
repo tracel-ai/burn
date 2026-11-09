@@ -226,7 +226,7 @@ fn an_environment_merged_into_itself_is_unchanged() {
 #[serial]
 fn a_pruned_environment_still_computes_its_work() {
     let device = device();
-    let shape = [37, 53, 29];
+    let shape = [43, 31, 19];
     let (built, before) = built(&device, "pruned", shape);
 
     let pruned = built.prune(PruneOptions::default()).unwrap();
@@ -239,13 +239,15 @@ fn a_pruned_environment_still_computes_its_work() {
     );
     assert_eq!(pruned.records.kept, 0, "{pruned:?}");
     let stored = pruned.kernels.kept + pruned.kernels.removed;
-    match kernels_are_stored() {
-        Some(true) => assert!(
+    match (kernels_are_stored(), stored) {
+        (Some(false), _) => assert_eq!(stored, 0, "{pruned:?}"),
+        // A runtime whose target keeps none of what it compiles, as wgpu's
+        // without SPIR-V, stores none however it is configured.
+        (Some(true), 0) | (None, _) => {}
+        (Some(true), _) => assert!(
             pruned.kernels.kept > 0 && pruned.kernels.removed > 0,
-            "the pick's kernels stay and the rivals' go: {pruned:?}"
+            "the kernels the work loaded stay and those only the race loaded go: {pruned:?}"
         ),
-        Some(false) => assert_eq!(stored, 0, "{pruned:?}"),
-        None => {}
     }
     let previous = built.activate(&device).unwrap();
     let [m, k, n] = shape;

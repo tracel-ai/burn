@@ -1217,18 +1217,12 @@ fn a_prune_is_answered_by_the_servers_backend() {
         location: String::new(),
     };
 
-    let answer = Dispatch::environment_prune(device.as_dispatch(), id, PruneOptions::default());
+    let answer =
+        Dispatch::environment_prune(device.as_dispatch(), id.clone(), PruneOptions::default());
 
     // The server's backend's answer, not the client's own default.
-    let backends_own = <Flex as Backend>::environment_prune(
-        &Default::default(),
-        EnvironmentId {
-            storage: 0,
-            name: "pruned".into(),
-            location: String::new(),
-        },
-        PruneOptions::default(),
-    );
+    let backends_own =
+        <Flex as Backend>::environment_prune(&Default::default(), id, PruneOptions::default());
     assert_eq!(format!("{answer:?}"), format!("{backends_own:?}"));
     assert!(
         matches!(answer, Err(EnvironmentError::Unsupported { .. })),

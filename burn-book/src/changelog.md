@@ -72,13 +72,15 @@ conflicts with it (E0119); delete the handwritten one.
 A `ComputeEnvironment` holds the kernels a device's work compiles and the answers its autotune
 measures, so a later run reuses them: created, forked, loaded from a saved bundle, merged, activated
 and saved on any device that reaches its storage, a remote server's included.
-([#6335](https://github.com/tracel-ai/burn/pull/6335))
+([#6335](https://github.com/tracel-ai/burn/pull/6335),
+[#6373](https://github.com/tracel-ai/burn/pull/6373))
 
 - `ComputeEnvironment::prune` removes the compiled kernels the work never loaded: those only an
   autotune race loaded and those another executable compiled, with the build records
   `PruneOptions::records` does not keep (`RecordPruning::RemoveAll` by default). Every kernel the
   work loaded stays, with the autotune answers; prune from the executable that runs the
-  environment. A remote device prunes on its server.
+  environment. A remote device prunes on its server, so remote clients and servers must be
+  upgraded together (protocol version 13).
 
 #### CubeK tile kernels
 

@@ -25,7 +25,7 @@ use burn_dispatch::Dispatch;
 /// let built = ComputeEnvironment::new(&device, "building")?;
 /// built.activate(&device)?;
 /// // ... compile-only and tune passes ...
-/// // Keep what the workload loads: the tunes' winners, not every candidate they raced.
+/// // Keep the kernels the work loaded; drop those only an autotune race loaded.
 /// built.prune(PruneOptions::default())?;
 /// std::fs::write(path, &*built.save()?.bytes)?;
 /// previous.activate(&device)?;

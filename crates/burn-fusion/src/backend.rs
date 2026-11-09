@@ -218,6 +218,8 @@ impl<B: FusionBackend> Backend for Fusion<B> {
             .map_err(server_error)?
     }
 
+    /// Pruned after the calling stream's queue drains, so what it compiles is
+    /// pruned or kept with the rest.
     fn environment_prune(
         device: &Self::Device,
         id: EnvironmentId,
