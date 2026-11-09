@@ -153,7 +153,9 @@ jobs:
         run: |
           # Killed remote-test children leave empty profiles that llvm-profdata cannot merge.
           find . -type f -name 'burn-*.profraw' -empty -delete
-          cargo xtask coverage generate --ignore "/*,xtask/*,examples/*" --profile debug
+          # Exclude incremental objects and build-script binaries from LLVM export.
+          grcov . --binary-path ./target/debug/deps/ -s . -t lcov -o lcov.info \
+            --branch --ignore-not-existing --keep-only "crates/*"
           # grcov can exit successfully even when profile merging fails.
           if ! grep -q '^SF:crates/' lcov.info; then
             echo '::error::Coverage report contains no workspace crate sources.'
