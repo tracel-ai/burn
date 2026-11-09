@@ -635,7 +635,7 @@ impl IrVisitorMut for MemberShapes<'_> {
 mod tests {
     use burn_backend::ops::{DimSplit, FloatTensorOps, QTensorOps};
     use burn_flex::{Flex, FlexDevice};
-    use burn_ir::CustomOpIr;
+    use burn_ir::{CustomOpIr, SliceOpIr};
     use burn_std::{QuantScheme, QuantStore, QuantValue, ScaleDtype, future::block_on};
 
     use super::*;
@@ -753,6 +753,34 @@ mod tests {
             .unwrap()
             .id;
         (id, value)
+    }
+
+    #[test]
+    fn a_slice_taking_a_replicated_splits_dim_whole_takes_each_shard_whole() {
+        let pairs = Sharding::ReplicatedSplit { dim: 1, groups: 2 };
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice; 4], ShardCustomOps::default()).unwrap();
+        let data = TensorData::new(vec![0f32; 24], [6, 4]);
+        let (id, _) = joined(&mut interpreter, &data, pairs);
+        let tensor = |id, shape: [usize; 2]| TensorIr {
+            id,
+            shape: shape.into(),
+            status: TensorStatus::ReadOnly,
+            dtype: DType::F32,
+        };
+        let rows = Slice::new(1, Some(3), 1);
+        let mut op = OperationIr::BaseFloat(BaseOperationIr::Slice(SliceOpIr {
+            tensor: tensor(id, [6, 4]),
+            ranges: vec![rows, Slice::new(0, Some(4), 1)],
+            out: tensor(TensorId::new(1), [2, 4]),
+        }));
+
+        interpreter.localize_slice_ranges(&mut op);
+
+        let OperationIr::BaseFloat(BaseOperationIr::Slice(slice)) = op else {
+            unreachable!("Localizing keeps the op")
+        };
+        assert_eq!(slice.ranges, [rows, Slice::full()]);
     }
 
     #[test]

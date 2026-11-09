@@ -126,7 +126,7 @@ pub enum ShardingError {
         chunks: usize,
     },
     /// A replicated split's groups must divide the members, and be neither one nor every member.
-    Groups {
+    InvalidGroups {
         /// The groups asked for.
         groups: usize,
         /// The sharded compute device's number of members.
@@ -161,7 +161,7 @@ impl core::fmt::Display for ShardingError {
                 "Dim {dim} of a tensor of shape {shape:?} is shorter than the {chunks} chunks \
                  a split cuts it into, so a member would be left empty"
             ),
-            Self::Groups {
+            Self::InvalidGroups {
                 groups,
                 num_members,
             } => write!(

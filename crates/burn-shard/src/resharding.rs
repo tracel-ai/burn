@@ -121,7 +121,7 @@ impl Resharding {
         if let ReplicatedSplit { groups, .. } = to
             && (groups <= 1 || groups >= num_members || !num_members.is_multiple_of(groups))
         {
-            return Err(ShardingError::Groups {
+            return Err(ShardingError::InvalidGroups {
                 groups,
                 num_members,
             });

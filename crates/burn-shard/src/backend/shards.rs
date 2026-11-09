@@ -93,7 +93,7 @@ impl<B: BackendIr> MemberShards<B> {
                 let num_members = shards.len();
                 let chunks = sharding
                     .num_chunks(num_members)
-                    .filter(|chunks| *chunks > 0 && num_members.is_multiple_of(*chunks))
+                    .filter(|chunks| num_members.is_multiple_of(*chunks))
                     .unwrap_or(num_members);
                 let mut whole = first.clone();
                 if dim < whole.num_dims() {
@@ -226,7 +226,7 @@ mod tests {
 
     #[test]
     fn groups_that_do_not_divide_the_members_or_are_one_or_every_member_are_refused() {
-        for groups in [1, 3, 4] {
+        for groups in [0, 1, 3, 4] {
             let shards = four_floats([[2, 4]; 4]);
 
             assert_eq!(
@@ -234,7 +234,7 @@ mod tests {
                     Sharding::ReplicatedSplit { dim: 0, groups },
                     &[FlexDevice; 4]
                 ),
-                Err(ShardsError::Sharding(ShardingError::Groups {
+                Err(ShardsError::Sharding(ShardingError::InvalidGroups {
                     groups,
                     num_members: 4,
                 })),

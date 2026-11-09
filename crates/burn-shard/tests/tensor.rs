@@ -236,6 +236,52 @@ fn int_and_bool_tensors_split_and_move_back_whole() {
 }
 
 #[test]
+fn int_and_bool_tensors_gather_each_groups_chunk() {
+    let ints = TensorData::from([[1i64, 2, 3, 4], [5, 6, 7, 8]]);
+    let bools = TensorData::from([[true, false, true, true], [false, false, true, false]]);
+    let device = sharded_compute(4);
+    let pairs = ReplicatedSplit { dim: 1, groups: 2 };
+
+    let ints = on_members::<2, Int>(ints, &device, pairs).slice(s![.., 1..3]);
+    let bools = on_members::<2, Bool>(bools, &device, pairs).slice(s![.., 1..3]);
+
+    assert_eq!(ints.sharding(), Some(Replicated));
+    assert_eq!(bools.sharding(), Some(Replicated));
+    ints.into_data()
+        .assert_eq(&TensorData::from([[2i64, 3], [6, 7]]), false);
+    bools
+        .into_data()
+        .assert_eq(&TensorData::from([[false, true], [false, true]]), false);
+}
+
+#[test]
+fn a_replicated_split_is_sliced_and_assigned_along_another_dim() {
+    let (data, update) = (values([3, 4, 5], 1), values([2, 4, 5], 2));
+    let ranges = s![1..3, 0..4, ..];
+    let flex = Device::flex();
+    let whole = Tensor::<3>::from_data(data.clone(), &flex);
+    let expected_slice = whole.clone().slice(ranges).into_data();
+    let expected_assign = whole
+        .slice_assign(ranges, Tensor::from_data(update.clone(), &flex))
+        .into_data();
+
+    let device = sharded_compute(4);
+    let pairs = ReplicatedSplit { dim: 1, groups: 2 };
+    let tensor = sharded::<3>(data, &device, pairs);
+    let sliced = tensor.clone().slice(ranges);
+    let assigned = tensor.slice_assign(ranges, sharded(update, &device, pairs));
+
+    assert_eq!(sliced.sharding(), Some(pairs));
+    assert_eq!(assigned.sharding(), Some(pairs));
+    sliced
+        .into_data()
+        .assert_approx_eq::<f32>(&expected_slice, tolerance());
+    assigned
+        .into_data()
+        .assert_approx_eq::<f32>(&expected_assign, tolerance());
+}
+
+#[test]
 fn a_quantized_weight_split_by_columns_keeps_every_value() {
     let device = sharded_compute(2);
     let weight = block_quantized(values([4, 8], 2));
