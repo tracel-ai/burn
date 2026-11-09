@@ -10,7 +10,7 @@ impl<B: Backend> Backward<B, 1> for SortDim {
     type State = (B::IntTensorPrimitive, Shape, usize);
 
     fn backward(
-        self,
+        &self,
         ops: Ops<Self::State, 1>,
         grads: &mut Gradients,
         _checkpointer: &mut Checkpointer,

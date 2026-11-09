@@ -547,7 +547,7 @@ mod autodiff_gradients {
                 type State = (FloatTensor<B>, FloatTensor<B>);
 
                 fn backward(
-                    self,
+                    &self,
                     ops: Ops<Self::State, 2>,
                     grads: &mut Gradients,
                     _checkpointer: &mut Checkpointer,

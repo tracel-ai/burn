@@ -494,6 +494,14 @@ Capture preserves explicit backend keys. Implicit random operations (`Tensor::ra
 `random_like`) during capture are unsupported and panic; capture does not allocate seeds or
 own a random generator.
 
+#### Retained autodiff graphs
+
+- Add `Tensor::backward_retain`, which computes gradients without consuming the graph so several
+  backward passes can share one forward pass, like PyTorch's `backward(retain_graph=True)`. A final
+  `backward` or dropping the graph's tensors releases it. **Breaking for custom autodiff
+  operations:** `Backward::backward` now takes `&self` instead of `self`. **Breaking for
+  third-party backends:** implement the new required `AutodiffBackend::backward_retain`.
+
 #### Tensor chunking
 
 - Fix `chunk` panicking when the requested number of chunks cannot all be filled. It now returns

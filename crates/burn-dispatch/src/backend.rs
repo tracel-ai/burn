@@ -404,32 +404,12 @@ impl AutodiffBackend for Dispatch {
     type Gradients = Gradients;
 
     fn backward(tensor: DispatchTensor) -> Self::Gradients {
-        let DispatchTensor { kind, .. } = tensor;
-
-        match kind {
-            DispatchTensorKind::Autodiff(tensor) => match *tensor {
-                #[cfg(not(backend_enabled))]
-                DispatchTensorKind::Unavailable(never) => never.unreachable(),
-                #[cfg(cube_backend)]
-                DispatchTensorKind::Cube(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "flex")]
-                DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "remote")]
-                DispatchTensorKind::Remote(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "shard")]
-                DispatchTensorKind::ShardedCompute(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "capture")]
-                DispatchTensorKind::Capture(_) => {
-                    panic!("Capture tensors do not support autodiff")
-                }
-                DispatchTensorKind::Autodiff(_) => {
-                    panic!("Autodiff should not wrap an autodiff tensor.")
-                }
-            },
-            _ => panic!("Requires autodiff tensor."),
-        }
+        autodiff_backward(tensor, false)
     }
 
+    fn backward_retain(tensor: &DispatchTensor) -> Self::Gradients {
+        autodiff_backward(tensor.clone(), true)
+    }
     fn grad(tensor: &DispatchTensor, grads: &Self::Gradients) -> Option<DispatchTensor> {
         let DispatchTensor { kind, .. } = tensor;
         let grad: Option<DispatchTensorKind> = match &kind {
@@ -785,6 +765,49 @@ impl AutodiffBackend for Dispatch {
             },
             _ => panic!("Requires autodiff tensor."),
         }
+    }
+}
+
+/// Runs backward on the autodiff tensor wrapped by `tensor`.
+#[cfg(feature = "autodiff")]
+#[cfg_attr(not(executing_backend), allow(unused_variables, unreachable_code))]
+fn autodiff_backward(tensor: DispatchTensor, retain: bool) -> Gradients {
+    let DispatchTensor { kind, .. } = tensor;
+
+    match kind {
+        DispatchTensorKind::Autodiff(tensor) => match *tensor {
+            #[cfg(not(backend_enabled))]
+            DispatchTensorKind::Unavailable(never) => never.unreachable(),
+            #[cfg(cube_backend)]
+            DispatchTensorKind::Cube(tensor) => run_backward(tensor.autodiff(), retain),
+            #[cfg(feature = "flex")]
+            DispatchTensorKind::Flex(tensor) => run_backward(tensor.autodiff(), retain),
+            #[cfg(feature = "remote")]
+            DispatchTensorKind::Remote(tensor) => run_backward(tensor.autodiff(), retain),
+            #[cfg(feature = "shard")]
+            DispatchTensorKind::ShardedCompute(tensor) => run_backward(tensor.autodiff(), retain),
+            #[cfg(feature = "capture")]
+            DispatchTensorKind::Capture(_) => {
+                panic!("Capture tensors do not support autodiff")
+            }
+            DispatchTensorKind::Autodiff(_) => {
+                panic!("Autodiff should not wrap an autodiff tensor.")
+            }
+        },
+        _ => panic!("Requires autodiff tensor."),
+    }
+}
+
+#[cfg(feature = "autodiff")]
+#[cfg_attr(not(executing_backend), allow(dead_code))]
+fn run_backward<B: Backend>(
+    tensor: burn_backend::tensor::FloatTensor<burn_autodiff::Autodiff<B>>,
+    retain: bool,
+) -> Gradients {
+    if retain {
+        burn_autodiff::Autodiff::<B>::backward_retain(&tensor)
+    } else {
+        burn_autodiff::Autodiff::<B>::backward(tensor)
     }
 }
 
@@ -1155,6 +1178,10 @@ impl AutodiffBackend for Dispatch {
     type Gradients = bool;
 
     fn backward(_tensor: DispatchTensor) -> Self::Gradients {
+        unimplemented!("Requires `autodiff` feature")
+    }
+
+    fn backward_retain(_tensor: &DispatchTensor) -> Self::Gradients {
         unimplemented!("Requires `autodiff` feature")
     }
 

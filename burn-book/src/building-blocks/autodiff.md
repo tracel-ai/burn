@@ -84,13 +84,33 @@ gradient_checkpointing_strategy().is_some() == is_autodiff()
 ## Backward consumes the graph
 
 `backward()` borrows its output tensor but consumes the recorded steps reachable from it. Cloned
-handles share those steps. Calling backward again through a consumed intermediate panics; Burn does
-not provide `retain_graph`. Combine losses sharing intermediates before backward, or recompute the
-forward pass for each backward. Parameter leaves can be reused in fresh forwards.
+handles share those steps. Calling backward again through a consumed intermediate panics. Combine
+losses sharing intermediates before backward, recompute the forward pass for each backward, or
+retain the graph as described below. Parameter leaves can be reused in fresh forwards.
 
 `is_tracked()` reports graph participation, including after backward has consumed the tape. It is
 not a check that another backward will succeed. `detach()` starts a new lineage; it does not restore
 consumed graph steps. Checkpointing does not change this lifetime rule.
+
+## Retaining the graph
+
+`backward_retain()` computes the same gradients as `backward()` but leaves the graph in place, like
+PyTorch's `backward(retain_graph=True)`. Use it when several backward passes share one forward pass,
+such as computing a Jacobian one output at a time:
+
+```rust, ignore
+let x = Tensor::<1>::from_floats([3.0, 4.0], &device).require_grad();
+let y = x.clone() * x.clone();
+
+let grads_0 = y.clone().slice([0..1]).sum().backward_retain();
+let grads_1 = y.slice([1..2]).sum().backward(); // the last pass consumes the graph
+
+let row_0 = x.grad(&grads_0).unwrap(); // [6.0, 0.0]
+let row_1 = x.grad(&grads_1).unwrap(); // [0.0, 8.0]
+```
+
+A retained graph keeps the activations saved for backward in memory. They are released when a final
+`backward()` consumes the graph, or when every tensor referencing it is dropped.
 
 ## Difference with PyTorch
 

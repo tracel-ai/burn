@@ -93,7 +93,7 @@ pub(crate) struct RootStep {
 }
 
 impl Step for RootStep {
-    fn step(self: Box<Self>, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
+    fn step_retained(&self, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
         // Nothing to do
     }
 
@@ -120,7 +120,7 @@ struct DistributedRootStep {
 
 #[cfg(feature = "std")]
 impl Step for DistributedRootStep {
-    fn step(self: Box<Self>, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
+    fn step_retained(&self, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
         // Root steps have no gradient computation.
     }
 
@@ -243,11 +243,23 @@ impl<B: Backend> AutodiffTensor<B> {
         self
     }
 
-    #[cfg(not(feature = "std"))]
+    /// Runs backward and consumes the graph.
     pub fn backward(self) -> Gradients {
+        self.run_backward(false)
+    }
+
+    /// Runs backward and keeps the graph registered, so later backward passes can reuse it.
+    ///
+    /// The graph is freed by a final [`backward`](Self::backward) or once its tensors are dropped.
+    pub fn backward_retain(&self) -> Gradients {
+        self.clone().run_backward(true)
+    }
+
+    #[cfg(not(feature = "std"))]
+    fn run_backward(self, retain: bool) -> Gradients {
         let client = self.node.client.clone();
 
-        AutodiffClient::backward::<B>(&client, self, BackwardMode::default())
+        AutodiffClient::backward::<B>(&client, self, BackwardMode::default(), retain)
     }
 
     pub fn grad(&self, grads: &Gradients) -> Option<B::FloatTensorPrimitive> {
@@ -286,7 +298,7 @@ impl<B: Backend> AutodiffTensor<B> {
 
 #[cfg(feature = "std")]
 impl<B: Backend> AutodiffTensor<B> {
-    pub fn backward(self) -> Gradients {
+    fn run_backward(self, retain: bool) -> Gradients {
         let device = self.primitive.device();
         let device_cloned = device.clone();
         let client = self.node.client.clone();
@@ -305,7 +317,7 @@ impl<B: Backend> AutodiffTensor<B> {
             }
         }));
 
-        let grads = AutodiffClient::backward::<B>(&client, self, mode);
+        let grads = AutodiffClient::backward::<B>(&client, self, mode, retain);
         // A backward that registered nothing has no gradient to wait for.
         if registered.get() {
             B::submit_sync_collective(&device);
