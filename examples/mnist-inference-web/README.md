@@ -51,12 +51,12 @@ results from earlier drawings.
 Layers:
 
 1. Input Image (28,28, 1ch)
-2. `Conv2d`(3x3, 64ch), `BatchNorm2d`, `Gelu`, `MaxPool`(2x2)
-3. `Conv2d`(3x3, 16ch), `BatchNorm2d`, `Gelu`, `MaxPool`(2x2)
-4. `Linear`(1600, 128), `Relu`
-4. `Linear`(128, 128), `Relu`
-5. `Linear`(128, 10)
-6. Softmax Output
+2. `Conv2d`(3x3, 64ch), `nn::BatchNorm`, `ReLU`, `MaxPool`(2x2)
+3. `Conv2d`(3x3, 64ch), `nn::BatchNorm`, `ReLU`, `MaxPool`(2x2)
+4. `Linear`(1600, 128), `GELU`
+5. `Linear`(128, 128), `GELU`
+6. `Linear`(128, 10)
+7. Output
 
 The total number of parameters is 260,810.
 
