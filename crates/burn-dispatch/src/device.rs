@@ -5,22 +5,17 @@ use crate::devices::*;
 
 #[cfg(feature = "capture")]
 use burn_capture::CaptureDevice;
-#[cfg(feature = "group")]
-use burn_group::{GroupDevice, GroupError};
+#[cfg(feature = "shard")]
+use burn_shard::{ShardCustomOps, ShardError, ShardedComputeDevice};
 
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
-
-// Throughput types come from `burn-backend` (which re-exports them from cubecl),
-// so `burn-dispatch` needs no direct `cubecl` dependency.
-#[cfg(feature = "cubecl")]
 use alloc::vec::Vec;
+
+// The capabilities come from `burn-backend` (which takes them from cubecl), so
+// `burn-dispatch` needs no direct `cubecl` dependency.
 #[cfg(feature = "cubecl")]
-use burn_backend::cubecl::{DeviceIdentity, ThroughputError, ThroughputKey, ThroughputValue};
-// `cubecl` without a runtime feature gives the throughput *types* but no `Cube` device to
-// measure, so the measurement itself follows `cube_backend` rather than the feature.
-#[cfg(cube_backend)]
-use burn_backend::cubecl::measure_peak_throughput;
+pub use burn_backend::cubecl::CubeCapabilities;
 
 /// Represents a device for the [`Dispatch`](crate::Dispatch).
 ///
@@ -60,71 +55,45 @@ pub enum DispatchDevice {
     #[cfg(feature = "capture")]
     Capture(CaptureDevice),
 
-    /// A [group of devices](crate::backends::Group) that a tensor can be split over.
-    #[cfg(feature = "group")]
-    Group(GroupDevice),
+    /// A [sharded compute device](crate::backends::ShardedCompute) that a tensor can be split over.
+    #[cfg(feature = "shard")]
+    ShardedCompute(ShardedComputeDevice),
 
     /// The [autodiff enabled backend](crate::backends::Autodiff) device.
     #[cfg(feature = "autodiff")]
     Autodiff(AutodiffDevice),
 }
 
+/// The device query a server answers a device's [`CubeCapabilities`] with: a remote device's
+/// capabilities are its server's device's.
+#[cfg(feature = "cubecl")]
+pub const CAPABILITIES_QUERY: &str = "burn.cubecl.capabilities";
+
 #[cfg(feature = "cubecl")]
 impl DispatchDevice {
-    /// Who this device is, `None` for a backend that does not report one. An autodiff device
-    /// answers for the device it wraps. Opens the device.
-    pub fn identity(&self) -> Option<DeviceIdentity> {
+    /// What the cubecl device behind this one can do, opening it: its features, limits, memory,
+    /// identity and compile target. An autodiff device answers for the device it wraps, a remote
+    /// device with what its server's device reports. `None` for a device on no cubecl runtime,
+    /// and for a server that does not answer.
+    pub fn capabilities(&self) -> Option<CubeCapabilities> {
         match self {
-            #[cfg(cube_backend)]
-            DispatchDevice::Cube(device) => Some(device.client().properties().identity.clone()),
-            #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(device) => device.inner.identity(),
-            #[allow(unreachable_patterns)]
-            _ => None,
-        }
-    }
-
-    /// Measure peak throughput for this device against the given `keys`.
-    ///
-    /// Only cubecl-backed devices can measure throughput; other backends
-    /// (remote, ...) return an empty vector. An autodiff
-    /// device reports the peaks of the device it wraps. Each returned result
-    /// corresponds positionally to the key at the same index, and carries a
-    /// [`ThroughputError`] where the device has no peak for that key.
-    // With `cubecl` on but no runtime compiled in, every arm below ignores `keys`.
-    #[cfg_attr(not(cube_backend), allow(unused_variables))]
-    pub fn performance_stats(
-        &self,
-        keys: &[ThroughputKey],
-    ) -> Vec<Result<ThroughputValue, ThroughputError>> {
-        // No catch-all arm: a new backend must fail to compile here rather
-        // than silently report no peaks.
-        match self {
-            #[cfg(not(backend_enabled))]
-            Self::Unavailable(never) => never.unreachable(),
             #[cfg(cube_backend)]
             DispatchDevice::Cube(device) => {
                 let client = device.client();
-                keys.iter()
-                    .map(|key| measure_peak_throughput(&client, *key))
-                    .collect()
+                Some(CubeCapabilities {
+                    properties: client.properties().clone(),
+                    target: client.target_properties().clone(),
+                })
             }
-            // Autodiff does not change the hardware, so measure the wrapped device.
             #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(device) => device.performance_stats(keys),
-
-            // Not cubecl-backed, so there are no kernels to measure.
-            #[cfg(feature = "flex")]
-            DispatchDevice::Flex(_) => Vec::new(),
-
-            // The kernels run on the server, which this local API cannot reach.
-            #[cfg(feature = "remote")]
-            DispatchDevice::Remote(_) => Vec::new(),
-            // A group's peaks are its members', measured on them.
-            #[cfg(feature = "group")]
-            DispatchDevice::Group(_) => Vec::new(),
-            #[cfg(feature = "capture")]
-            DispatchDevice::Capture(_) => Vec::new(),
+            DispatchDevice::Autodiff(device) => device.inner.capabilities(),
+            #[cfg(all(feature = "remote", not(target_family = "wasm")))]
+            DispatchDevice::Remote(device) => {
+                let answer = device.query(CAPABILITIES_QUERY).ok()?;
+                rmp_serde::from_slice(&answer).ok()
+            }
+            #[allow(unreachable_patterns)]
+            _ => None,
         }
     }
 }
@@ -214,8 +183,8 @@ impl core::fmt::Debug for DispatchDevice {
             Self::Flex(device) => f.debug_tuple("Flex").field(device).finish(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => f.debug_tuple("Remote").field(device).finish(),
-            #[cfg(feature = "group")]
-            Self::Group(device) => f.debug_tuple("Group").field(device).finish(),
+            #[cfg(feature = "shard")]
+            Self::ShardedCompute(device) => f.debug_tuple("ShardedCompute").field(device).finish(),
             #[cfg(feature = "capture")]
             Self::Capture(device) => f.debug_tuple("Capture").field(device).finish(),
             #[cfg(feature = "autodiff")]
@@ -266,11 +235,18 @@ impl Default for DispatchDevice {
                     }
                     "metal" => {
                         #[cfg(feature = "metal")]
+                        return Self::Cube(CubeDevice::Metal(Default::default()));
+                        panic!(
+                            "BURN_DEVICE=metal requested, but the 'metal' feature is not enabled."
+                        );
+                    }
+                    "wgpu-msl" => {
+                        #[cfg(feature = "wgpu-msl")]
                         return Self::Cube(CubeDevice::Wgpu(
                             WgpuDevice::default().on(WgpuBackend::Metal),
                         ));
                         panic!(
-                            "BURN_DEVICE=metal requested, but the 'metal' feature is not enabled."
+                            "BURN_DEVICE=wgpu-msl requested, but the 'wgpu-msl' feature is not enabled."
                         );
                     }
                     "vulkan" => {
@@ -331,6 +307,9 @@ impl Default for DispatchDevice {
         return Self::Cube(CubeDevice::Cuda(Default::default()));
 
         #[cfg(feature = "metal")]
+        return Self::Cube(CubeDevice::Metal(Default::default()));
+
+        #[cfg(feature = "wgpu-msl")]
         return Self::Cube(CubeDevice::Wgpu(Default::default()));
 
         #[cfg(feature = "rocm")]
@@ -385,8 +364,8 @@ impl PartialEq for DispatchDevice {
             (Self::Flex(a), Self::Flex(b)) => a == b,
             #[cfg(feature = "remote")]
             (Self::Remote(a), Self::Remote(b)) => a == b,
-            #[cfg(feature = "group")]
-            (Self::Group(a), Self::Group(b)) => a == b,
+            #[cfg(feature = "shard")]
+            (Self::ShardedCompute(a), Self::ShardedCompute(b)) => a == b,
             #[cfg(feature = "capture")]
             (Self::Capture(a), Self::Capture(b)) => a == b,
             #[allow(unreachable_patterns)]
@@ -406,60 +385,93 @@ impl DispatchDevice {
         Self::Capture(CaptureDevice::default())
     }
 
-    /// A new group of `devices`, its members, that a tensor can be split over, apart from every
-    /// other group.
+    /// A new sharded compute device of `devices`, its members, that a tensor can be split over, apart from every
+    /// other sharded compute device.
     ///
-    /// Make a group once and reuse it, as any device: each call registers a new group for the
+    /// Make a sharded compute device once and reuse it, as any device: each call registers a new sharded compute device for the
     /// rest of the process.
     ///
     /// Each of its default dtypes is the first of the members' configured ones, in member order,
-    /// that every member supports.
+    /// that every member supports. Every member runs the handlers of `custom_ops`.
     ///
     /// # Errors
     ///
     /// When `devices` is empty or mixes backends, when they are not Cube or Flex devices, when no
-    /// member's default for a dtype runs on every member, or when the members quantize
-    /// differently. An autodiff group is a group of plain devices made autodiff afterwards.
+    /// member's default for a dtype runs on every member, when the members quantize
+    /// differently, or when `custom_ops` are another backend's. An autodiff sharded compute device
+    /// is made of plain devices, then made autodiff.
     ///
     /// # Panics
     ///
-    /// When the process already has 65,536 groups.
-    #[cfg(feature = "group")]
-    pub fn group(devices: alloc::vec::Vec<DispatchDevice>) -> Result<Self, GroupError> {
+    /// When the process already has 65,536 sharded compute devices.
+    #[cfg(feature = "shard")]
+    pub fn shard(
+        devices: alloc::vec::Vec<DispatchDevice>,
+        custom_ops: ShardCustomOps,
+    ) -> Result<Self, ShardError> {
         if let Some(error) = devices.iter().find_map(Self::refused_as_member) {
             return Err(error);
         }
-        let group = match devices.first() {
+        let device = match devices.first() {
             #[cfg(cube_backend)]
             Some(Self::Cube(_)) => {
-                let members = group_members!(devices, Cube)?;
-                GroupDevice::with_member_settings::<crate::backends::Cube>(&members)
+                let members = shard_members!(devices, Cube)?;
+                ShardedComputeDevice::with_member_settings::<crate::backends::Cube>(
+                    &members, custom_ops,
+                )
             }
             #[cfg(feature = "flex")]
             Some(Self::Flex(_)) => {
-                let members = group_members!(devices, Flex)?;
-                GroupDevice::with_member_settings::<crate::backends::Flex>(&members)
+                let members = shard_members!(devices, Flex)?;
+                ShardedComputeDevice::with_member_settings::<crate::backends::Flex>(
+                    &members, custom_ops,
+                )
             }
             Some(other) => unreachable!("{other:?} was refused as a member"),
-            None => Err(GroupError::NoDevices),
+            None => Err(ShardError::NoDevices),
         }?;
-        Ok(Self::Group(group))
+        Ok(Self::ShardedCompute(device))
     }
 
-    /// Why this device cannot be a group's member, or `None` when it can.
-    #[cfg(feature = "group")]
-    fn refused_as_member(&self) -> Option<GroupError> {
+    /// The members of this sharded compute device, in member order, or `None` when it is not
+    /// one. They are plain devices, an autodiff sharded compute device's included.
+    #[cfg(feature = "shard")]
+    // Without a member backend no members can be read, which leaves `device` unread.
+    #[cfg_attr(not(any(cube_backend, feature = "flex")), allow(unused_variables))]
+    pub fn shard_members(&self) -> Option<alloc::vec::Vec<DispatchDevice>> {
+        match self {
+            Self::ShardedCompute(device) => {
+                #[cfg(cube_backend)]
+                if let Some(members) = device.members::<crate::backends::Cube>() {
+                    return Some(members.into_iter().map(Self::Cube).collect());
+                }
+                #[cfg(feature = "flex")]
+                if let Some(members) = device.members::<crate::backends::Flex>() {
+                    return Some(members.into_iter().map(Self::Flex).collect());
+                }
+                unreachable!("A sharded compute device's members are Cube or Flex devices")
+            }
+            #[cfg(feature = "autodiff")]
+            Self::Autodiff(device) => device.inner.shard_members(),
+            #[allow(unreachable_patterns)]
+            _ => None,
+        }
+    }
+
+    /// Why this device cannot be a sharded compute device's member, or `None` when it can.
+    #[cfg(feature = "shard")]
+    fn refused_as_member(&self) -> Option<ShardError> {
         match self {
             #[cfg(cube_backend)]
             Self::Cube(_) => None,
             #[cfg(feature = "flex")]
             Self::Flex(_) => None,
             #[cfg(feature = "autodiff")]
-            Self::Autodiff(_) => Some(GroupError::AutodiffMember),
+            Self::Autodiff(_) => Some(ShardError::AutodiffMember),
             #[cfg(feature = "remote")]
-            Self::Remote(_) => Some(GroupError::RemoteMember),
+            Self::Remote(_) => Some(ShardError::RemoteMember),
             #[allow(unreachable_patterns)]
-            other => Some(GroupError::UnsupportedBackend {
+            other => Some(ShardError::UnsupportedBackend {
                 device: alloc::format!("{other:?}"),
             }),
         }
@@ -482,23 +494,36 @@ impl DispatchDevice {
         DispatchDevice::Autodiff(AutodiffDevice::new(device, checkpointing))
     }
 
-    /// The id of the worker this device's fusion server runs on, or `None` when its operations do
-    /// not go through one.
+    /// The ids of the workers this device's fusion servers run on: one for a fused device, one per
+    /// member, in member order, for a sharded compute device whose members fuse, and none when its
+    /// operations do not go through a fusion server.
     ///
-    /// This is the runtime device's own id, not the one this device reports through
+    /// Each is the runtime device's own id, not the one this device reports through
     /// [`Device::to_id`](burn_backend::Device::to_id), which encodes the dispatch variant into its
     /// type. A [`DeviceHandle`](burn_backend::DeviceHandle) opened with it shares the fusion
     /// server's queue, so a task submitted there runs between the operations registered before
-    /// and after it. An autodiff device answers for the device it wraps. A device group answers
-    /// `None`: each of its members has a fusion server of its own.
-    pub fn fusion_worker(&self) -> Option<DeviceId> {
+    /// and after it. An autodiff device answers for the device it wraps.
+    pub fn fusion_workers(&self) -> Vec<DeviceId> {
         match self {
             #[cfg(cube_backend)]
-            DispatchDevice::Cube(device) => burn_cubecl::FUSED.then(|| device.to_id()),
+            DispatchDevice::Cube(device) => burn_cubecl::FUSED
+                .then(|| device.to_id())
+                .into_iter()
+                .collect(),
+            #[cfg(all(cube_backend, feature = "shard"))]
+            DispatchDevice::ShardedCompute(device) => match burn_cubecl::FUSED {
+                true => device
+                    .members::<crate::backends::Cube>()
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|member| member.to_id())
+                    .collect(),
+                false => Vec::new(),
+            },
             #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(device) => device.inner.fusion_worker(),
+            DispatchDevice::Autodiff(device) => device.inner.fusion_workers(),
             #[allow(unreachable_patterns)]
-            _ => None,
+            _ => Vec::new(),
         }
     }
 
@@ -523,8 +548,8 @@ impl DispatchDevice {
             Self::Flex(_) => DispatchDeviceId::Flex,
             #[cfg(feature = "remote")]
             Self::Remote(_) => DispatchDeviceId::Remote,
-            #[cfg(feature = "group")]
-            Self::Group(_) => DispatchDeviceId::Group,
+            #[cfg(feature = "shard")]
+            Self::ShardedCompute(_) => DispatchDeviceId::ShardedCompute,
             #[cfg(feature = "capture")]
             Self::Capture(_) => DispatchDeviceId::Capture,
             #[cfg(feature = "autodiff")]
@@ -563,7 +588,7 @@ pub enum DispatchDeviceId {
     // 6 was NdArray; keep the other backend IDs stable.
     Remote = 10,
     Capture = 11,
-    Group = 12,
+    ShardedCompute = 12,
 }
 
 impl From<DispatchDeviceId> for u16 {
@@ -583,8 +608,8 @@ impl TryFrom<u16> for DispatchDeviceId {
             4 => Ok(Self::Flex),
             #[cfg(feature = "remote")]
             10 => Ok(Self::Remote),
-            #[cfg(feature = "group")]
-            12 => Ok(Self::Group),
+            #[cfg(feature = "shard")]
+            12 => Ok(Self::ShardedCompute),
             #[cfg(feature = "capture")]
             11 => Ok(Self::Capture),
             _ => Err(()),
@@ -603,8 +628,8 @@ impl DeviceOps for DispatchDevice {
             Self::Flex(device) => device.defaults(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => device.defaults(),
-            #[cfg(feature = "group")]
-            Self::Group(device) => device.defaults(),
+            #[cfg(feature = "shard")]
+            Self::ShardedCompute(device) => device.defaults(),
             #[cfg(feature = "capture")]
             Self::Capture(device) => device.defaults(),
             #[cfg(feature = "autodiff")]
@@ -626,8 +651,10 @@ impl burn_backend::Device for DispatchDevice {
             DispatchDeviceId::Flex => Self::Flex(FlexDevice::from_id(device_id)),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Self::Remote(RemoteDevice::from_id(device_id)),
-            #[cfg(feature = "group")]
-            DispatchDeviceId::Group => Self::Group(GroupDevice::from_id(device_id)),
+            #[cfg(feature = "shard")]
+            DispatchDeviceId::ShardedCompute => {
+                Self::ShardedCompute(ShardedComputeDevice::from_id(device_id))
+            }
             #[cfg(feature = "capture")]
             DispatchDeviceId::Capture => Self::Capture(CaptureDevice::from_id(device_id)),
             _ => unreachable!("No backend feature enabled."),
@@ -644,8 +671,8 @@ impl burn_backend::Device for DispatchDevice {
             Self::Flex(device) => device.to_id(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => device.to_id(),
-            #[cfg(feature = "group")]
-            Self::Group(device) => device.to_id(),
+            #[cfg(feature = "shard")]
+            Self::ShardedCompute(device) => device.to_id(),
             #[cfg(feature = "capture")]
             Self::Capture(device) => device.to_id(),
             #[cfg(feature = "autodiff")]
@@ -688,9 +715,16 @@ impl From<RocmDevice> for DispatchDevice {
     }
 }
 
+#[cfg(feature = "metal")]
+impl From<MetalDevice> for DispatchDevice {
+    fn from(device: MetalDevice) -> Self {
+        DispatchDevice::Cube(CubeDevice::Metal(device))
+    }
+}
+
 #[cfg(any(
     feature = "wgpu",
-    feature = "metal",
+    feature = "wgpu-msl",
     feature = "vulkan",
     feature = "webgpu"
 ))]
@@ -707,10 +741,10 @@ impl From<FlexDevice> for DispatchDevice {
     }
 }
 
-#[cfg(feature = "group")]
-impl From<GroupDevice> for DispatchDevice {
-    fn from(device: GroupDevice) -> Self {
-        DispatchDevice::Group(device)
+#[cfg(feature = "shard")]
+impl From<ShardedComputeDevice> for DispatchDevice {
+    fn from(device: ShardedComputeDevice) -> Self {
+        DispatchDevice::ShardedCompute(device)
     }
 }
 

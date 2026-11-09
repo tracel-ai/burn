@@ -10,7 +10,7 @@ use burn_std::{DType, Shape};
 
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Cube: cfg(any(feature = "wgpu", feature = "webgpu", feature = "vulkan",
+    Cube: cfg(any(feature = "wgpu", feature = "webgpu", feature = "vulkan", feature = "wgpu-msl",
         feature = "metal", feature = "cuda", feature = "rocm", feature = "cpu")),
     Fusion: cfg(feature = "fusion")
 )]
@@ -43,6 +43,7 @@ mod tests {
             feature = "wgpu",
             feature = "webgpu",
             feature = "vulkan",
+            feature = "wgpu-msl",
             feature = "metal",
             feature = "cuda",
             feature = "rocm",

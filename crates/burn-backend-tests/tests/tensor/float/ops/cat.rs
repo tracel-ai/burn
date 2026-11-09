@@ -148,7 +148,7 @@ fn should_support_cat_all_empty_tensors() {
 }
 
 // Skip on metal - F64 not supported
-#[cfg(not(feature = "metal"))]
+#[cfg(not(any(feature = "wgpu-msl", feature = "metal")))]
 #[test]
 fn should_keep_dtype_on_cat_all_empty_tensors() {
     let device = Default::default();
@@ -162,7 +162,7 @@ fn should_keep_dtype_on_cat_all_empty_tensors() {
 }
 
 // Skip on metal - F64 not supported
-#[cfg(not(feature = "metal"))]
+#[cfg(not(any(feature = "wgpu-msl", feature = "metal")))]
 #[test]
 fn should_keep_dtype_on_cat_with_empty_tensors() {
     let device = Default::default();

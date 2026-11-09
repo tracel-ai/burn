@@ -1,4 +1,4 @@
-use burn_backend::tensor::Device;
+use burn_backend::{DTypeUsageSet, tensor::Device};
 use burn_ir::BackendIr;
 use burn_router::{CustomOpRegistry, TensorInterpreter};
 use std::{
@@ -8,12 +8,14 @@ use std::{
 use tokio::sync::{Mutex, mpsc};
 
 use crate::metrics::{MetricSide, logger_task};
+use crate::server::DeviceCaptureLock;
+use crate::server::DeviceQueries;
 use crate::server::local_comm::LocalCommService;
 use crate::server::service::{SessionChannels, SessionService};
 use crate::server::spawn::spawn_detached;
 use crate::server::transfer::TensorTransfer;
-use crate::server::worker::SessionHandler;
-use crate::shared::{SessionId, Task, TaskResponse};
+use crate::server::worker::{SessionHandler, SessionServices};
+use crate::shared::{HANDSHAKE_DTYPES, SessionId, Task, TaskResponse};
 use crate::telemetry::{TelemetryEvent, TelemetryProbe};
 
 /// Capacity for the per-session response queue.
@@ -43,16 +45,24 @@ where
 {
     /// All devices this server hosts, indexed by the device index the client selects at
     /// session init. `devices[0]` is the default device (`DeviceIndex::Default`).
-    devices: Vec<Device<B>>,
+    devices: Vec<HostedDevice<B>>,
     pub(crate) transfer: Arc<T>,
     /// Rendezvous registry for same-host tensor transfers between this server's sessions.
     pub(crate) local_comm: Arc<LocalCommService<B>>,
     /// Custom-op handlers shared (read-only) with every session's interpreter.
     custom_ops: CustomOpRegistry<B>,
+    /// Device-query handlers shared (read-only) with every session.
+    queries: DeviceQueries<B>,
     sessions: Mutex<HashMap<SessionId, Session>>,
     probe: TelemetryProbe,
     /// Spawns the telemetry logger once, on the first session.
     logger: Once,
+}
+
+/// A device this server hosts, with the lock its sessions' graph captures share.
+struct HostedDevice<B: BackendIr> {
+    device: Device<B>,
+    capture_lock: DeviceCaptureLock,
 }
 
 struct Session {
@@ -73,9 +83,16 @@ where
         );
         Self {
             local_comm: Arc::new(LocalCommService::new(devices.len())),
-            devices,
+            devices: devices
+                .into_iter()
+                .map(|device| HostedDevice {
+                    device,
+                    capture_lock: DeviceCaptureLock::default(),
+                })
+                .collect(),
             transfer,
             custom_ops: CustomOpRegistry::default(),
+            queries: DeviceQueries::default(),
             sessions: Mutex::new(HashMap::new()),
             probe: TelemetryProbe::disabled(),
             logger: Once::new(),
@@ -85,6 +102,12 @@ where
     /// Register custom-op handlers, shared read-only with every session's interpreter.
     pub fn with_custom_ops(mut self, custom_ops: CustomOpRegistry<B>) -> Self {
         self.custom_ops = custom_ops;
+        self
+    }
+
+    /// Register device-query handlers, shared read-only with every session.
+    pub fn with_device_queries(mut self, queries: DeviceQueries<B>) -> Self {
+        self.queries = queries;
         self
     }
 
@@ -110,15 +133,17 @@ where
     /// device 0 — for a collective that would reduce a device against itself and silently corrupt
     /// the result instead of producing a clear failure.
     pub(crate) fn device(&self, device_index: u32) -> Device<B> {
-        self.devices
-            .get(device_index as usize)
-            .cloned()
-            .unwrap_or_else(|| {
-                panic!(
-                    "Requested device index {device_index} but server hosts only {} device(s)",
-                    self.devices.len()
-                )
-            })
+        self.hosted(device_index).device.clone()
+    }
+
+    /// The hosted device at `device_index`, failing as [`device`](Self::device) does.
+    fn hosted(&self, device_index: u32) -> &HostedDevice<B> {
+        self.devices.get(device_index as usize).unwrap_or_else(|| {
+            panic!(
+                "Requested device index {device_index} but server hosts only {} device(s)",
+                self.devices.len()
+            )
+        })
     }
 
     async fn with_session<R>(
@@ -143,9 +168,13 @@ where
                 session_id,
                 runner,
                 sender,
-                self.transfer.clone(),
-                self.local_comm.clone(),
-                self.probe.clone(),
+                SessionServices {
+                    transfer: self.transfer.clone(),
+                    local_comm: self.local_comm.clone(),
+                    queries: self.queries.clone(),
+                    probe: self.probe.clone(),
+                },
+                self.hosted(device_index).capture_lock.clone(),
             );
             self.probe.emit(|| TelemetryEvent::SessionOpened {
                 session: session_id,
@@ -194,6 +223,14 @@ where
     /// it can enumerate every device behind the address (see [`RemoteDevice::enumerate`]).
     fn device_count(&self) -> u32 {
         self.devices.len() as u32
+    }
+
+    fn dtype_usage(&self, device_index: u32) -> Vec<(burn_std::DType, DTypeUsageSet)> {
+        let device = self.device(device_index);
+        HANDSHAKE_DTYPES
+            .into_iter()
+            .map(|dtype| (dtype, B::dtype_usage(&device, dtype)))
+            .collect()
     }
 
     /// Drop the session, detaching its handler. Removing the map entry drops the inbound task

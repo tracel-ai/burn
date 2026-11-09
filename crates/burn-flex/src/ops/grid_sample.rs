@@ -8,7 +8,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::element::cast::ToElement;
-use burn_backend::ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode};
+use burn_backend::ops::{GridSampleMode, GridSampleOptions, GridSamplePaddingMode};
 use burn_backend::{DType, Element};
 use burn_std::{Bytes, Shape, bf16, f16};
 
@@ -26,11 +26,6 @@ pub fn grid_sample_2d(
     grid: FlexTensor,
     options: GridSampleOptions,
 ) -> FlexTensor {
-    match options.mode {
-        InterpolateMode::Bilinear | InterpolateMode::Nearest => {}
-        other => panic!("grid_sample_2d: {:?} mode is not supported", other),
-    }
-
     let tensor = tensor.to_contiguous();
     let grid = grid.to_contiguous();
 
@@ -149,7 +144,7 @@ where
                     let t_base = b * t_stride_n + c * t_stride_c;
                     let o_idx = b * o_stride_n + c * o_stride_c + y * o_stride_h + x;
 
-                    let val = if matches!(options.mode, InterpolateMode::Nearest) {
+                    let val = if matches!(options.mode, GridSampleMode::Nearest) {
                         // Ties round to even, like PyTorch's `nearbyint`.
                         let xi = libm::roundeven(px) as i64;
                         let yi = libm::roundeven(py) as i64;

@@ -496,46 +496,29 @@ fn gather<C: Numeric, N: Size>(
     let stride_input_dim = global_stride(inputs, dim, pos_input);
 
     let mut index = 0;
+    let mut index_offset = 0;
     let mut result = Vector::<C, N>::empty();
 
-    if comptime![dim > 0] {
-        let index_before = global_offset(
-            inputs,
-            &*outputs,
-            &*locals,
-            write_pos,
-            input.clone(),
-            comptime![Some((0, dim))],
-            config,
-        );
-        index += index_before;
+    // Gather's output has the indices' shape, even when the source is larger or the
+    // output is broadcast by another fused operation. Both indexed inputs are scalar.
+    let offset_ref = write_pos * vector_size;
+    #[unroll]
+    for axis in 0..config.rank {
+        let coordinate =
+            offset_ref / locals.ref_strides[axis] % global_shape(inputs, axis, pos_indices);
+        index_offset += coordinate * global_stride(inputs, axis, pos_indices);
+        if axis != dim {
+            index += coordinate * global_stride(inputs, axis, pos_input);
+        }
     }
 
-    if comptime![dim + 1 < config.rank] {
-        let index_after = global_offset(
-            inputs,
-            &*outputs,
-            &*locals,
-            write_pos,
-            input,
-            comptime![Some((dim + 1, config.rank))],
-            config,
-        );
-        index += index_after;
-    }
-
-    let index_offset = global_offset(
-        inputs,
-        &*outputs,
-        &*locals,
-        write_pos,
-        indices,
-        comptime![Some((0, config.rank))],
-        config,
+    // A singleton gather output repeats across vector lanes when an epilogue broadcasts it.
+    let broadcast_vector = global_shape(inputs, config.rank - 1, pos_indices) == 1;
+    let stride_indices_vector = select(
+        broadcast_vector,
+        0usize,
+        global_stride(inputs, config.rank - 1, pos_indices),
     );
-
-    // TODO: new IR to differentiate between Gather and GatherBroadcasted at comptime?
-    let stride_indices_vector = global_stride(inputs, config.rank - 1, pos_indices);
 
     if comptime![dim == config.rank - 1] {
         // Per-element indexing (along the dimension)
@@ -563,7 +546,11 @@ fn gather<C: Numeric, N: Size>(
             result.insert(i, input.extract(0usize));
         }
     } else {
-        let stride_input_vector = global_stride(inputs, config.rank - 1, pos_input);
+        let stride_input_vector = select(
+            broadcast_vector,
+            0usize,
+            global_stride(inputs, config.rank - 1, pos_input),
+        );
 
         #[unroll]
         for i in 0..vector_size {

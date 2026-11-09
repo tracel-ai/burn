@@ -12,7 +12,7 @@ members = [
 
 exclude = [
     "examples/notebook",
-    "examples/dqn-agent",         # gym-rs
+    "examples/dqn-agent", # gym-rs
 ]
 
 [workspace.package]
@@ -121,7 +121,9 @@ turso = { version = "0.8.2", default-features = false }
 branches = { version = "0.4.6", default-features = false, features = ["std"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-zip = { version = "9.0.4", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip = { version = "9.0.4", default-features = false, features = [
+    "deflate-flate2-zlib-rs",
+] }
 
 # Persist related
 memmap2 = { version = "0.9" }
@@ -150,7 +152,7 @@ half = { version = "2.7.1", features = [
     "num-traits",
     "serde",
 ], default-features = false }
-macerator = { version = "0.5.1" }
+macerator = { version = "0.5.2" }
 ndarray = { version = "0.17.2", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
@@ -199,7 +201,7 @@ burn-dispatch = { path = "crates/burn-dispatch", version = "0.23.0-pre.1", defau
 burn-einsum = { path = "crates/burn-einsum", version = "0.23.0-pre.1", default-features = false }
 burn-flex = { path = "crates/burn-flex", version = "0.23.0-pre.1", default-features = false }
 burn-fusion = { path = "crates/burn-fusion", version = "0.23.0-pre.1", default-features = false }
-burn-group = { path = "crates/burn-group", version = "0.23.0-pre.1", default-features = false }
+burn-shard = { path = "crates/burn-shard", version = "0.23.0-pre.1", default-features = false }
 burn-instrument = { path = "crates/burn-instrument", version = "0.23.0-pre.1", default-features = false }
 burn-instrument-report = { path = "crates/burn-instrument-report", version = "0.23.0-pre.1", default-features = false }
 burn-instrument-macros = { path = "crates/burn-instrument-macros", version = "0.23.0-pre.1", default-features = false }
@@ -223,11 +225,11 @@ burn-wgpu = { path = "crates/burn-wgpu", version = "0.23.0-pre.1", default-featu
 pytorch-reader = { path = "crates/pytorch-reader", version = "0.23.0-pre.1" }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "afba3cc8803111f09fd6307afbb77fc15cb3dd4c" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "afba3cc8803111f09fd6307afbb77fc15cb3dd4c" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "afba3cc8803111f09fd6307afbb77fc15cb3dd4c" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "afba3cc8803111f09fd6307afbb77fc15cb3dd4c" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "28295c0e75f9ff2462b2305d380de25354783591" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ea6fd78d908ffe6a5b7843a1e4365ca34d6f30dc" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ea6fd78d908ffe6a5b7843a1e4365ca34d6f30dc" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ea6fd78d908ffe6a5b7843a1e4365ca34d6f30dc" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ea6fd78d908ffe6a5b7843a1e4365ca34d6f30dc" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "2a19416cb60bbd45ae36c44992b43ea78b468f28" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -240,6 +242,9 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 # cubecl-environment = { version = "0.12.0-pre.1", default-features = false }
 # cubecl-zspace = { version = "0.12.0-pre.1", default-features = false }
 # cubek = { version = "0.4.0-pre.1", default-features = false }
+
+# cubecl at cubecl dev (the flip pin plus cubecl#2025's tiled metadata), until cubek pins a
+# cubecl holding #2025. The host differs from the pin's so cargo takes it as a patch.
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.

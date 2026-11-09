@@ -1,4 +1,5 @@
 use burn_core::data::dataloader::Progress;
+use burn_optim::lr_scheduler::module_lr_scheduler::ModuleLearningRate;
 
 use crate::{EventProcessorTraining, Interrupter, LearnerEvent, TrainingItem};
 
@@ -55,6 +56,20 @@ impl<P> WorkerEventProcessor<P> {
             self.processor
                 .process_train(LearnerEvent::ProcessedItem(item)),
         );
+    }
+
+    /// All workers apply the same update; only worker zero publishes its rates.
+    pub fn optimizer_step<T, V>(&mut self, worker: usize, learning_rate: ModuleLearningRate)
+    where
+        P: EventProcessorTraining<LearnerEvent<T>, LearnerEvent<V>>,
+    {
+        if worker == 0 {
+            self.interrupter.fail_on_error(self.processor.process_train(
+                LearnerEvent::OptimizerStep(crate::metric::optimizer::OptimizerStepOutput::new(
+                    learning_rate,
+                )),
+            ));
+        }
     }
 
     pub fn end_train(&mut self, worker: usize, progress: Progress) {
@@ -228,10 +243,14 @@ mod tests {
         let processor = RecordingProcessor::default();
         let mut reporting = WorkerEventProcessor::new(processor, vec![None; 2], Interrupter::new());
         reporting.start_epoch(3);
+        reporting.optimizer_step(1, 0.1.into());
+        reporting.optimizer_step(0, 0.1.into());
         reporting.train(1, item(3));
         reporting.end_train(1, Progress::new(3, 3, None));
         reporting.train(0, item(2));
         reporting.end_train(0, Progress::new(2, 2, None));
+        reporting.optimizer_step(1, 0.05.into());
+        reporting.optimizer_step(0, 0.05.into());
         reporting.finish_train(3);
         reporting.end_epoch(3);
         // An empty epoch must neither retain prior counts nor fabricate an iteration.
@@ -244,14 +263,17 @@ mod tests {
         let events = reporting.into_inner().events;
         assert!(matches!(events.as_slice(), [
             LearnerEvent::StartSplit { epoch_number: 3, .. },
+            LearnerEvent::OptimizerStep(first_output),
             LearnerEvent::ProcessedItem(first),
             LearnerEvent::ProcessedItem(second),
+            LearnerEvent::OptimizerStep(last_output),
             LearnerEvent::EndSplit { epoch: 3, progress: final_progress },
             LearnerEvent::EndEpoch(3),
             LearnerEvent::StartSplit { epoch_number: 4, progress },
             LearnerEvent::EndSplit { epoch: 4, progress: empty },
             LearnerEvent::EndEpoch(4),
-        ] if first.iteration == Some(1) && first.progress.items_processed == 3
+        ] if first_output.learning_rate().base() == 0.1 && last_output.learning_rate().base() == 0.05
+            && first.iteration == Some(1) && first.progress.items_processed == 3
             && second.iteration == Some(2) && second.progress.items_processed == 5
             && final_progress.total == Some(5)
             && progress.items_processed == 0 && empty.total == Some(0)

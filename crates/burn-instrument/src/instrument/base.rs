@@ -62,7 +62,7 @@ impl Instrument {
     pub fn new(device: &Device) -> Self {
         #[cfg(not(feature = "fusion"))]
         assert!(
-            device.as_dispatch().fusion_worker().is_none(),
+            device.as_dispatch().fusion_workers().is_empty(),
             "the device fuses, so instrumenting it needs burn-instrument's `fusion` feature"
         );
         Self {

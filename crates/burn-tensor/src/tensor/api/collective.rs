@@ -19,6 +19,9 @@ impl<const D: usize, K: Numeric> Tensor<D, K> {
     /// A [`ReduceOperation::Mean`] over integers divides by the member count, truncating toward
     /// zero.
     ///
+    /// Under autodiff the outputs share one backward step: combine their losses and call `backward`
+    /// once.
+    ///
     /// # Panics
     ///
     /// - If `tensors` is empty.
@@ -56,6 +59,9 @@ impl<const D: usize, K: Numeric> Tensor<D, K> {
     ///
     /// A [`ReduceOperation::Mean`] over integers divides by the member count, truncating toward
     /// zero.
+    ///
+    /// Under autodiff the outputs share one backward step: combine their losses and call `backward`
+    /// once.
     ///
     /// # Panics
     ///
@@ -100,6 +106,9 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
     /// one shape and dtype. The outputs are in member order, each on its member's device. The
     /// dimension supports negative indexing.
     ///
+    /// Under autodiff the outputs share one backward step: combine their losses and call `backward`
+    /// once.
+    ///
     /// # Panics
     ///
     /// - If `tensors` is empty.
@@ -136,6 +145,9 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
     /// Member `i` is position `i` of `tensors`, each on its own member's device and every one of
     /// one shape and dtype. Chunks are as even as possible, with the first members holding one
     /// more. Both dimensions support negative indexing.
+    ///
+    /// Under autodiff the outputs share one backward step: combine their losses and call `backward`
+    /// once.
     ///
     /// # Panics
     ///

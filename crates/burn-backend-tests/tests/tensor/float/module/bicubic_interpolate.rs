@@ -2,9 +2,7 @@ use super::*;
 use burn_tensor::Shape;
 use burn_tensor::Tolerance;
 use burn_tensor::module::interpolate;
-use burn_tensor::ops::{
-    CoordinateTransformMode, CubicOptions, InterpolateMode, InterpolateOptions,
-};
+use burn_tensor::ops::{CoordinateTransformMode, InterpolateMode, InterpolateOptions};
 
 #[test]
 fn test_upsample_interpolation() {
@@ -101,7 +99,11 @@ fn test_1d_bicubic() {
 
     let output = interpolate(
         input,
-        InterpolateOptions::new(InterpolateMode::Bicubic).with_output_size([1, 9]),
+        InterpolateOptions::new(InterpolateMode::Bicubic {
+            coordinate_transform: CoordinateTransformMode::AlignCorners,
+            a: -0.75,
+        })
+        .with_output_size([1, 9]),
     );
 
     assert_eq!(output.dims(), [1, 1, 1, 9]);
@@ -148,9 +150,15 @@ impl InterpolateTestCase {
         );
         let output = interpolate(
             x,
-            InterpolateOptions::new(InterpolateMode::Bicubic)
-                .with_align_corners(align_corners)
-                .with_output_size([self.height_out, self.width_out]),
+            InterpolateOptions::new(InterpolateMode::Bicubic {
+                coordinate_transform: if align_corners {
+                    CoordinateTransformMode::AlignCorners
+                } else {
+                    CoordinateTransformMode::HalfPixel
+                },
+                a: -0.75,
+            })
+            .with_output_size([self.height_out, self.width_out]),
         );
 
         let tolerance = Tolerance::permissive();
@@ -207,106 +215,14 @@ fn test_bicubic_non_default_spline_parameter() {
     // At coordinate 1.5 the two outer weights are a/8, giving 40 * (-0.5/8).
     let output = interpolate(
         input,
-        InterpolateOptions::new(InterpolateMode::Bicubic)
-            .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
-            .with_cubic_options(CubicOptions {
-                a: -0.5,
-                exclude_outside: false,
-            })
-            .with_output_size([1, 1]),
+        InterpolateOptions::new(InterpolateMode::Bicubic {
+            coordinate_transform: CoordinateTransformMode::HalfPixel,
+            a: -0.5,
+        })
+        .with_output_size([1, 1]),
     );
     output.into_data().assert_approx_eq::<FloatElem>(
         &burn_tensor::TensorData::from([[[[-2.5]]]]),
         Tolerance::default(),
-    );
-}
-
-#[test]
-fn test_bicubic_exclude_outside() {
-    let device = Default::default();
-    if !format!("{device:?}").to_lowercase().contains("flex") {
-        return;
-    }
-    let input = TestTensor::<4>::from_data([[[[10., 20., 30.]]]], &device);
-    let output = interpolate(
-        input,
-        InterpolateOptions::new(InterpolateMode::Bicubic)
-            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
-            .with_cubic_options(CubicOptions {
-                a: -0.75,
-                exclude_outside: true,
-            })
-            .with_scale_factor([1.0, 2.0]),
-    );
-    // At coordinate 0.5 the retained weights normalize to [19, 19, -3] / 35.
-    output
-        .slice([0..1, 0..1, 0..1, 1..2])
-        .into_data()
-        .assert_approx_eq::<FloatElem>(
-            &burn_tensor::TensorData::from([[[[96.0 / 7.0]]]]),
-            Tolerance::default(),
-        );
-}
-
-#[test]
-fn test_bicubic_exclude_outside_skips_nan_zero_weight_taps() {
-    let device = Default::default();
-    if !format!("{device:?}").to_lowercase().contains("flex") {
-        return;
-    }
-    let input = TestTensor::<4>::from_data([[[[f32::NAN, 23., 37.]]]], &device);
-
-    let output = interpolate(
-        input,
-        InterpolateOptions::new(InterpolateMode::Bicubic)
-            .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
-            .with_cubic_options(CubicOptions {
-                a: -0.75,
-                exclude_outside: true,
-            })
-            .with_output_size([1, 3]),
-    );
-
-    // Out-of-bounds taps use index zero as a placeholder; their NaN must be skipped.
-    output
-        .slice([0..1, 0..1, 0..1, 2..3])
-        .into_data()
-        .assert_eq(
-            &burn_tensor::TensorData::from([[[[37.]]]]).convert::<FloatElem>(),
-            false,
-        );
-}
-
-#[test]
-fn test_bicubic_negative_retained_weight_sum_normalization() {
-    // Both retained weights are -0.5, summing to -1.
-    assert_bicubic_weight_sum_normalization(8.0);
-}
-
-#[test]
-fn test_bicubic_small_nonzero_weight_sum_normalization() {
-    // Both retained weights are equal and nonzero, with a sum below 1e-6.
-    assert_bicubic_weight_sum_normalization(3.999999);
-}
-
-fn assert_bicubic_weight_sum_normalization(a: f32) {
-    let device = Default::default();
-    if !format!("{device:?}").to_lowercase().contains("flex") {
-        return;
-    }
-    let input = TestTensor::<4>::from_data([[[[10., 20.]]]], &device);
-    let output = interpolate(
-        input,
-        InterpolateOptions::new(InterpolateMode::Bicubic)
-            .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
-            .with_cubic_options(CubicOptions {
-                a,
-                exclude_outside: true,
-            })
-            .with_output_size([1, 1]),
-    );
-    output.into_data().assert_eq(
-        &burn_tensor::TensorData::from([[[[15.]]]]).convert::<FloatElem>(),
-        false,
     );
 }

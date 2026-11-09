@@ -258,6 +258,11 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     logger.start_split(Split::Train.into(), &progress);
                 }
             }
+            LearnerEvent::OptimizerStep(output) => {
+                let (update, failed) = self.metrics.update_optimizer(&output);
+                failures.extend(failed);
+                self.handle_train_metrics_update(update);
+            }
             LearnerEvent::ProcessedItem(item) => {
                 let item = match item.sync() {
                     Ok(item) => item,
@@ -284,6 +289,9 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 let (update, failed) = self.metrics.end_epoch_train();
                 self.handle_train_metrics_update(update);
                 failures.extend(failed);
+                let (update, failed) = self.metrics.end_epoch_optimizer();
+                failures.extend(failed);
+                self.handle_train_metrics_update(update);
 
                 self.store
                     .add_event_train(crate::metric::store::Event::EndEpoch(EpochSummary::new(
@@ -316,7 +324,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
     fn process_valid(&mut self, event: LearnerEvent<V>) -> Result<(), EventProcessorError> {
         let mut failures = Vec::new();
         match event {
-            LearnerEvent::Start { .. } => {} // no-op: valid has no separate start event
+            LearnerEvent::Start { .. } | LearnerEvent::OptimizerStep(_) => {} // training only
             LearnerEvent::StartSplit {
                 epoch_number,
                 progress,

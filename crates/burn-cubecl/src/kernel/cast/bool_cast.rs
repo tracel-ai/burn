@@ -8,7 +8,7 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_std::DType;
 use cubecl::{
     CubeDim, calculate_cube_count_elemwise,
-    num_traits::One,
+    num_traits::Zero,
     prelude::*,
     std::tensor::layout::linear::{LinearView, LinearViewMut},
 };
@@ -25,16 +25,13 @@ fn bool_cast_kernel<B: Int, T: Numeric, N: Size>(
 
     output.write(
         ABSOLUTE_POS,
-        Vector::cast_from(input.read(ABSOLUTE_POS) & Vector::one()),
+        Vector::cast_from(input.read(ABSOLUTE_POS) != Vector::zero()),
     );
 }
 
 /// Cast a bool tensor to the given element type.
 ///
-/// This alternative to cast is necessary because bool are represented as u32 or u8
-/// where any non-zero value means true. Depending how it was created
-/// it may hold an uncanny bit combination. Naively casting it would not
-/// necessarily yield 0 or 1.
+/// Any nonzero U8 or U32 value represents true, so normalize to 0 or 1 before casting.
 pub fn bool_cast(tensor: CubeTensor, out_dtype: DType) -> CubeTensor {
     let output = empty_device_dtype(
         tensor.client.clone(),

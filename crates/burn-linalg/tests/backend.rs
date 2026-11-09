@@ -3,6 +3,7 @@
     feature = "wgpu",
     feature = "webgpu",
     feature = "vulkan",
+    feature = "wgpu-msl",
     feature = "metal",
     feature = "cuda",
     feature = "rocm",

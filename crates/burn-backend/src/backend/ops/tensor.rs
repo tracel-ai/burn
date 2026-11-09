@@ -2,6 +2,7 @@ use super::cat::cat_with_slice_assign;
 use super::grid_sample::float_grid_sample_2d_ref;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
+use crate::RandomKey;
 use crate::ops::GridSampleOptions;
 use crate::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{Backend, Distribution, TensorData, get_or_init_device_settings};
@@ -32,15 +33,21 @@ pub trait FloatTensorOps<B: Backend> {
     /// * `distribution` - The distribution to sample from.
     /// * `device` - The device to create the tensor on.
     /// * `dtype` - The target data type.
+    /// * `key` - Explicit randomness for this operation.
     ///
     /// # Returns
     ///
     /// The tensor with the given shape and random values.
+    ///
+    /// This must use only the supplied key without reading or changing the backend's implicit
+    /// RNG state. Deferred backends retain the key so scheduling and later reseeding cannot
+    /// affect the draw.
     fn float_random(
         shape: Shape,
         distribution: Distribution,
         device: &Device<B>,
         dtype: FloatDType,
+        key: RandomKey,
     ) -> FloatTensor<B>;
 
     /// Creates a new tensor with zeros.

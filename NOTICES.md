@@ -483,3 +483,34 @@ Except as contained in this notice, the name of a copyright holder shall
 not be used in advertising or otherwise to promote the sale, use or other
 dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
+
+## FreeBSD msun (via the libm crate)
+
+**Source**: https://github.com/freebsd/freebsd-src/tree/main/lib/msun/src
+(`e_logf.c` and `s_erff.c`), as ported in https://github.com/rust-lang/compiler-builtins/tree/main/libm
+
+The f32 `ln` and `erf` SIMD kernels in `crates/burn-flex/src/simd/portable.rs` are adapted
+from these routines.
+
+```text
+Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+
+Developed at SunPro, a Sun Microsystems, Inc. business.
+Permission to use, copy, modify, and distribute this
+software is freely granted, provided that this notice
+is preserved.
+```
+
+## Cephes Math Library
+
+**Source**: https://www.netlib.org/cephes/
+
+Polynomial coefficients for several f32 SIMD kernels in `crates/burn-flex/src/simd/portable.rs`
+come from the Cephes Math Library by Stephen L. Moshier.
+
+```text
+Some software in this archive may be from the book _Methods and Programs for Mathematical Functions_
+(Prentice-Hall or Simon & Schuster International, 1989) or from the Cephes Mathematical Library, a
+commercial product. In either event, it is copyrighted by the author. What you see here may be used
+freely but it comes with no support or guarantee.
+```

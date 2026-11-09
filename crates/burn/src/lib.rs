@@ -82,7 +82,8 @@
 //! | CUDA                    | `cuda`   | `Device::cuda(0)`                    |
 //! | ROCm                    | `rocm`   | `Device::rocm(0)`                    |
 //! | wgpu (any graphics API) | `wgpu`   | `Device::wgpu(Default::default())`   |
-//! | Metal                   | `metal`  | `Device::metal(Default::default())`  |
+//! | Metal                   | `metal`  | `Device::metal()`                    |
+//! | Metal through wgpu      | `wgpu-msl` | `Device::wgpu_msl(Default::default())` |
 //! | Vulkan                  | `vulkan` | `Device::vulkan(Default::default())` |
 //! | WebGPU                  | `webgpu` | `Device::webgpu(Default::default())` |
 //! | CubeCL CPU              | `cpu`    | `Device::cpu()`                      |
@@ -124,7 +125,8 @@
 //!   - `wgpu`: Makes available the WGPU backend, on whichever graphics API the platform provides
 //!   - `webgpu`: Adds `Device::webgpu`, pinned to WebGPU (implies `wgpu`)
 //!   - `vulkan`: Adds `Device::vulkan`, pinned to Vulkan (implies `wgpu`)
-//!   - `metal`: Adds `Device::metal`, pinned to Metal with native MSL (implies `wgpu`)
+//!   - `metal`: Adds `Device::metal`, cubecl's own Metal runtime (no wgpu)
+//!   - `wgpu-msl`: Adds `Device::wgpu_msl`, wgpu pinned to Metal compiling MSL (implies `wgpu`)
 //!   - `cuda`: Makes available the CUDA backend
 //!   - `rocm`: Makes available the ROCm backend
 //!   - `cpu`: Makes available the CubeCL CPU backend
@@ -154,9 +156,11 @@
 //!   - `pytorch`: Enables PyTorch checkpoint import (implies `store`)
 //! - Others:
 //!   - `std`: Activates the standard library (deactivate for no_std)
-//!   - `linalg`: Enables linear algebra operations
+//!   - `linalg`: Enables linear algebra operations, and the `burn::nn` items built on them
+//!     (orthogonal initialization, cosine similarity and pairwise distance modules, cosine
+//!     embedding and triplet margin losses)
 //!   - `capture`: Makes the non-executing graph capture backend available.
-//!   - `group`: Makes the experimental `Device::group_options` available, to make a device whose
+//!   - `shard`: Makes the experimental `Device::shard_options` available, to make a device whose
 //!     tensors can be split over several devices for tensor parallelism.
 //!   - `ir`: Makes Burn's operation intermediate representation available.
 //!   - `cubecl`: Re-exports CubeCL as `burn::cubecl` for writing custom kernels.
@@ -222,12 +226,12 @@ pub mod rl {
     pub use burn_rl::*;
 }
 
-#[cfg(feature = "group")]
-pub use burn_core::tensor::group;
 #[cfg(feature = "remote")]
 pub use burn_core::tensor::remote;
 #[cfg(feature = "remote-server")]
 pub use burn_core::tensor::server;
+#[cfg(feature = "shard")]
+pub use burn_core::tensor::shard;
 
 /// Model storage and serialization: the non-generic record system (always available), plus,
 /// with the `store` feature, the snapshot tooling and burnpack stores. The `safetensors` and

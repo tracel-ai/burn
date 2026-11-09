@@ -242,6 +242,10 @@ fn into_u8_pixels(item: ImageDatasetItem) -> Vec<u8> {
 // ...
 // root/cat/cat1.png
 let dataset = ImageFolderDataset::new_classification("path/to/dataset/root").unwrap();
+
+// Labels are assigned to the class folders in sorted order. The name of a label can be looked
+// up, for example to display a prediction.
+assert_eq!(dataset.class_name(0), Some("cat"));
 ```
 
 ```rust, ignore
@@ -362,6 +366,11 @@ let dataloader = DataLoaderBuilder::new(batcher)
     .prefetch(2)
     .build(dataset);
 ```
+
+By default, the dataloader keeps the last batch even if it is smaller than the configured batch
+size. Set `.drop_last(true)` when your model requires full batches. With multiple workers, only
+the dataset's final incomplete batch is dropped. `expected_num_items()` and iterator progress
+exclude dropped samples; `num_items()` still reports the input dataset size.
 
 Dataloader iterators yield `Result<Batch, DatasetError>`. Handle each result before using the batch.
 For example, this helper stops at the first retrieval error and returns it to the caller:

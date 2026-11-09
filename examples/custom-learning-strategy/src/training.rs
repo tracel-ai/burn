@@ -171,6 +171,11 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MyCustomLearningStrategy
                 let progress = iterator.progress();
                 let item = learner.train_step(item);
                 learner.optimizer_step(item.grads);
+                interrupter.fail_on_error(event_processor.process_train(
+                    LearnerEvent::OptimizerStep(burn::train::metric::OptimizerStepOutput::new(
+                        learner.lr_current(),
+                    )),
+                ));
 
                 let item = TrainingItem::new(
                     item.item,

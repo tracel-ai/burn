@@ -2,7 +2,10 @@ use alloc::vec::Vec;
 
 use burn_tensor::Device;
 
-use super::{DistributedLayer, LayerParallelism, LayerPlacement, LayerSequence, LayerStage};
+use super::{
+    DistributedLayer, HiddenSignal, InputSignal, LayerParallelism, LayerPlacement, LayerSequence,
+    LayerStage, OutputSignal,
+};
 use crate::module::{Devices, Module, ModuleMapper, ModuleVisitor};
 
 /// A [`LayerParallelism`] model split across devices, holding where each of its layers runs so
@@ -37,10 +40,7 @@ impl<M: LayerParallelism> DistributedLayeredModel<M> {
     }
 
     /// Run each layer on its device, moving what passes between them.
-    pub fn forward(
-        &self,
-        input: <M::InputLayer as DistributedLayer>::Input,
-    ) -> <M::OutputLayer as DistributedLayer>::Output {
+    pub fn forward(&self, input: InputSignal<M>) -> OutputSignal<M> {
         let placement = &self.placement;
         let mut signal = self
             .model
@@ -172,12 +172,31 @@ pub struct StagedLayers<M: LayerParallelism> {
 }
 
 /// One stage's hidden layers and the device they run on.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct HeldStage<M: LayerParallelism> {
     /// The device every layer of the stage runs on.
     pub device: Device,
     /// The stage's hidden layers, in forward order.
     pub layers: Vec<M::HiddenLayer>,
+}
+
+impl<M: LayerParallelism> HeldStage<M> {
+    /// Run the stage's layers in order on its device, `signal` moved there first.
+    pub fn forward(&self, signal: HiddenSignal<M>) -> HiddenSignal<M> {
+        self.layers
+            .iter()
+            .fold(signal.to_device(&self.device), |signal, layer| {
+                layer.forward(signal)
+            })
+    }
+
+    /// A copy whose layers record no graph, for evaluation.
+    pub fn valid(&self) -> Self {
+        Self {
+            device: self.device.clone(),
+            layers: self.layers.iter().map(Module::valid).collect(),
+        }
+    }
 }
 
 /// `layers` as stage `index`, checked to be on the stage's device.
@@ -346,6 +365,14 @@ mod tests {
                 input: self.input,
                 hidden: self.hidden,
                 output: self.output,
+            }
+        }
+
+        fn from_layers(layers: LayerSequence<Self>) -> Self {
+            Self {
+                input: layers.input,
+                hidden: layers.hidden,
+                output: layers.output,
             }
         }
     }

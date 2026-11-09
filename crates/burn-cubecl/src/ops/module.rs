@@ -9,10 +9,10 @@ use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_backend::{
     TensorMetadata,
     ops::{
-        AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
-        DeformConvOptions, FloatTensorOps, InterpolateOptions, MaxPool2dBackward,
-        MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
-        attention::AttentionShapes,
+        AttentionCache, AttentionModuleOptions, ConvOptions, ConvTransposeOptions,
+        DeformConv2dBackward, DeformConvOptions, FloatTensorOps, InterpolateOptions,
+        MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices,
+        ModuleOps,
     },
 };
 use burn_std::{DType, FloatDType, IntDType};
@@ -466,43 +466,25 @@ impl ModuleOps<Self> for CubeBackend {
         value: FloatTensor<Self>,
         mask: Option<BoolTensor<Self>>,
         attn_bias: Option<FloatTensor<Self>>,
+        cache: Option<AttentionCache<Self>>,
         options: AttentionModuleOptions,
     ) -> FloatTensor<Self> {
-        let shapes = AttentionShapes::new(&query.shape(), &key.shape(), &value.shape());
-
-        // Fall back to naive attention for features the flash kernel doesn't support.
-        // Grouped K/V heads are supported by the kernel.
-        if kernel::attention::flash_unsupported_options(
-            &options,
-            attn_bias.is_some(),
-            shapes.seq_q,
-            shapes.seq_k,
-        )
-        .is_some()
-        {
-            return burn_backend::ops::attention::attention_fallback::<Self>(
-                query, key, value, mask, attn_bias, options,
-            );
-        }
-
         kernel::attention::attention(
             query,
             key,
             value,
             mask,
             attn_bias,
+            cache,
             options,
             Default::default(),
         )
-        .expect("Kernel to never fail")
     }
 
-    #[cfg(feature = "attention-backward")]
     fn has_attention_backward() -> bool {
         true
     }
 
-    #[cfg(feature = "attention-backward")]
     fn attention_with_logsumexp(
         query: FloatTensor<Self>,
         key: FloatTensor<Self>,
@@ -511,7 +493,7 @@ impl ModuleOps<Self> for CubeBackend {
     ) -> (FloatTensor<Self>, FloatTensor<Self>) {
         // What the kernels do not serve, a softcap or a causal mask anchored at the top left, is
         // composed.
-        if !kernel::attention::backward_serves(&query.shape(), &key.shape(), &options) {
+        if !kernel::attention::backward_serves(&query, &key, &value, &options) {
             return burn_backend::ops::attention::attention_with_logsumexp_default::<Self>(
                 query, key, value, options,
             );
@@ -519,7 +501,6 @@ impl ModuleOps<Self> for CubeBackend {
         kernel::attention::attention_with_logsumexp(query, key, value, options)
     }
 
-    #[cfg(feature = "attention-backward")]
     fn attention_backward(
         query: FloatTensor<Self>,
         key: FloatTensor<Self>,
@@ -529,7 +510,7 @@ impl ModuleOps<Self> for CubeBackend {
         out_grad: FloatTensor<Self>,
         options: AttentionModuleOptions,
     ) -> burn_backend::ops::AttentionBackward<Self> {
-        if !kernel::attention::backward_serves(&query.shape(), &key.shape(), &options) {
+        if !kernel::attention::backward_serves(&query, &key, &value, &options) {
             return burn_backend::ops::attention::attention_backward_default::<Self>(
                 query, key, value, out, logsumexp, out_grad, options,
             );

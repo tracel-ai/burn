@@ -78,8 +78,8 @@ fn sync_between_ops_splits_into_separate_kernels() {
         let exp = matchers::is_exp(dtype);
         for report in &reports {
             for block in &report.blocks {
-                let has_add = block.operations.iter().any(|op| add(op));
-                let has_exp = block.operations.iter().any(|op| exp(op));
+                let has_add = block.operations.iter().any(&add);
+                let has_exp = block.operations.iter().any(&exp);
                 assert!(
                     !(has_add && has_exp),
                     "add and exp should not share a fused block after sync: {:#?}",
@@ -88,16 +88,12 @@ fn sync_between_ops_splits_into_separate_kernels() {
             }
         }
 
-        let saw_add = reports.iter().any(|r| {
-            r.blocks
-                .iter()
-                .any(|b| b.operations.iter().any(|op| add(op)))
-        });
-        let saw_exp = reports.iter().any(|r| {
-            r.blocks
-                .iter()
-                .any(|b| b.operations.iter().any(|op| exp(op)))
-        });
+        let saw_add = reports
+            .iter()
+            .any(|r| r.blocks.iter().any(|b| b.operations.iter().any(&add)));
+        let saw_exp = reports
+            .iter()
+            .any(|r| r.blocks.iter().any(|b| b.operations.iter().any(&exp)));
         assert!(
             saw_add && saw_exp,
             "expected both ops to appear; got {reports:#?}"
@@ -261,7 +257,7 @@ fn lone_view_is_not_fused_into_kernel() {
             reports
                 .iter()
                 .flat_map(|r| r.fused_blocks())
-                .all(|blk| !blk.operations.iter().any(|op| is_swap(op))),
+                .all(|blk| !blk.operations.iter().any(&is_swap)),
             "swap_dims must not be fused (view fix):\n\n{tables}",
         );
 
@@ -270,7 +266,7 @@ fn lone_view_is_not_fused_into_kernel() {
             reports
                 .iter()
                 .flat_map(|r| r.unfused_blocks())
-                .any(|blk| blk.operations.iter().any(|op| is_swap(op))),
+                .any(|blk| blk.operations.iter().any(&is_swap)),
             "swap_dims should run eagerly in an un-fused block:\n\n{tables}",
         );
     });

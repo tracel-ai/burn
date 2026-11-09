@@ -143,7 +143,7 @@ and separated storage layouts.
 > operations. The quantized speedups reflect the difference between simulated and native execution,
 > not equivalent algorithms running at different speeds.
 
-See [BENCHMARKS.md](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/BENCHMARKS.md) for the full breakdown.
+See [BENCHMARKS.md in `release/0.22`](https://github.com/tracel-ai/burn/blob/release/0.22/crates/burn-flex/BENCHMARKS.md) for the full breakdown.
 
 ### Performance vs candle-core (Apple M3 Max, pure-Rust, no BLAS)
 
@@ -195,7 +195,7 @@ as fast or faster on every operation category.
 - [COMPARISON.md](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/COMPARISON.md) - Comprehensive comparison with burn-ndarray
 - [ARCHITECTURE.md](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/ARCHITECTURE.md) - Design decisions, memory strategy, and implementation
   patterns
-- [BENCHMARKS.md](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/BENCHMARKS.md) - Full benchmark results (Flex vs NdArray)
+- [BENCHMARKS.md](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/BENCHMARKS.md) - Full benchmark results, compared with April 2026
 - [ACKNOWLEDGMENTS.md](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/ACKNOWLEDGMENTS.md) - Projects that influenced burn-flex
 
 <!-- burn-crate-footer -->

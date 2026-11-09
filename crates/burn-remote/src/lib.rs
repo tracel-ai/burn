@@ -28,6 +28,7 @@ pub use credential::Credential;
 
 pub use burn_ir as ir;
 pub use burn_router::RouterClient;
+pub use shared::DeviceQueryId;
 
 /// Network-traffic savings metric for op-graph caching, shared by the client device service and the
 /// server session worker.
@@ -68,7 +69,7 @@ mod __client {
 
     #[doc(hidden)]
     pub use client::HostSpec;
-    pub use client::{ConnectError, CustomOpClient, RemoteChannel, RemoteDevice};
+    pub use client::{ConnectError, CustomOpClient, DeviceQueryError, RemoteChannel, RemoteDevice};
 }
 #[cfg(feature = "client")]
 pub use __client::*;

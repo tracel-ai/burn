@@ -5,7 +5,7 @@ use quote::{format_ident, quote};
 use syn::{Block, GenericArgument, Ident, PathArguments, Type};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TensorKind {
+pub enum TensorKind {
     Float,
     Int,
     Bool,
@@ -13,7 +13,7 @@ pub(crate) enum TensorKind {
 }
 
 impl TensorKind {
-    pub(crate) fn from_type(ty: &Type) -> Option<Self> {
+    pub fn from_type(ty: &Type) -> Option<Self> {
         match ty {
             Type::Path(path) => match path.path.segments.last()?.ident.to_string().as_str() {
                 "Float" | "FloatTensor" | "FloatTensorPrimitive" => Some(Self::Float),
@@ -30,17 +30,17 @@ impl TensorKind {
         }
     }
 
-    pub(crate) fn variant(self) -> Ident {
+    pub fn variant(self) -> Ident {
         format_ident!("{self:?}")
     }
 
-    pub(crate) fn accessor(self) -> Ident {
+    pub fn accessor(self) -> Ident {
         format_ident!("{}", format!("{self:?}").to_lowercase())
     }
 }
 
 #[derive(Clone)]
-pub(crate) enum InputKind {
+pub enum InputKind {
     Tensor { kind: TensorKind, borrowed: bool },
     OptionTensor(TensorKind),
     VecTensor(TensorKind),
@@ -50,20 +50,20 @@ pub(crate) enum InputKind {
 }
 
 #[derive(Clone)]
-pub(crate) struct OperationInput {
-    pub(crate) name: Ident,
-    pub(crate) kind: InputKind,
+pub struct OperationInput {
+    pub name: Ident,
+    pub kind: InputKind,
 }
 
 impl OperationInput {
-    pub(crate) fn dispatch(name: Ident, ty: &Type) -> Option<Self> {
+    pub fn dispatch(name: Ident, ty: &Type) -> Option<Self> {
         let kind = InputKind::dispatch(ty)?;
         Some(Self { name, kind })
     }
 }
 
 impl InputKind {
-    pub(crate) fn owned_tensor(ty: &Type) -> Option<Self> {
+    pub fn owned_tensor(ty: &Type) -> Option<Self> {
         TensorKind::from_type(ty).map(|kind| Self::Tensor {
             kind,
             borrowed: false,
@@ -97,7 +97,7 @@ impl InputKind {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum OperationOutput {
+pub enum OperationOutput {
     Tensor(TensorKind),
     Option(Box<OperationOutput>),
     Vec(Box<OperationOutput>),
@@ -107,7 +107,7 @@ pub(crate) enum OperationOutput {
 }
 
 impl OperationOutput {
-    pub(crate) fn dispatch(ty: &Type) -> syn::Result<Self> {
+    pub fn dispatch(ty: &Type) -> syn::Result<Self> {
         if let Some(kind) = TensorKind::from_type(ty) {
             return Ok(Self::Tensor(kind));
         }
@@ -135,7 +135,7 @@ impl OperationOutput {
         Ok(Self::Plain)
     }
 
-    pub(crate) fn extension(ty: &Type) -> Self {
+    pub fn extension(ty: &Type) -> Self {
         if let Some(kind) = TensorKind::from_type(ty) {
             return Self::Tensor(kind);
         }
@@ -155,7 +155,7 @@ impl OperationOutput {
         }
     }
 
-    pub(crate) fn contains_float(&self) -> bool {
+    pub fn contains_float(&self) -> bool {
         match self {
             Self::Tensor(TensorKind::Float) | Self::Extension(_) => true,
             Self::Option(inner) | Self::Vec(inner) => inner.contains_float(),
@@ -166,7 +166,7 @@ impl OperationOutput {
 }
 
 #[derive(Clone)]
-pub(crate) enum Invocation {
+pub enum Invocation {
     Body(Block),
     Trait {
         trait_name: Ident,
@@ -177,21 +177,21 @@ pub(crate) enum Invocation {
 }
 
 #[derive(Clone)]
-pub(crate) struct Operation {
-    pub(crate) name: Ident,
-    pub(crate) inputs: Vec<OperationInput>,
-    pub(crate) output: OperationOutput,
-    pub(crate) invocation: Invocation,
+pub struct Operation {
+    pub name: Ident,
+    pub inputs: Vec<OperationInput>,
+    pub output: OperationOutput,
+    pub invocation: Invocation,
 }
 
 #[derive(Clone)]
-pub(crate) struct Backend {
-    pub(crate) ident: Ident,
-    pub(crate) cfg_attr: Option<TokenStream>,
+pub struct Backend {
+    pub ident: Ident,
+    pub cfg_attr: Option<TokenStream>,
 }
 
 /// Rewrite a type's final generic argument to `param`, e.g. `Ty<Self>` to `Ty<Wgpu>`.
-pub(crate) fn with_backend(ty: &Type, param: TokenStream) -> TokenStream {
+pub fn with_backend(ty: &Type, param: TokenStream) -> TokenStream {
     if let Type::Path(type_path) = ty {
         let mut path = type_path.path.clone();
         if let Some(last) = path.segments.last_mut()
@@ -230,7 +230,7 @@ fn type_is(ty: &Type, name: &str) -> bool {
         .is_some_and(|segment| segment.ident == name)
 }
 
-pub(crate) fn type_contains_self(ty: &Type) -> bool {
+pub fn type_contains_self(ty: &Type) -> bool {
     match ty {
         Type::Path(path) if path.path.is_ident("Self") => true,
         Type::Path(path) => path.path.segments.iter().any(|segment| {

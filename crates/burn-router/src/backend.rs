@@ -1,8 +1,11 @@
-use super::{RouterChannel, RouterClient, RouterTensor, get_client};
-use alloc::{format, string::String};
+use super::{RouterChannel, RouterClient, RouterGraph, RouterTensor, get_client};
+use alloc::{format, string::String, vec::Vec};
+use burn_backend::RandomKey;
 use burn_backend::{
-    Backend, BackendTypes, DType, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
-    profile_with_tokens,
+    Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceTelemetry,
+    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
+    ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
+    ProfileDuration, ProfileOptions, ProfileToken, profile_with_tokens,
 };
 use core::marker::PhantomData;
 
@@ -37,7 +40,7 @@ impl<R: RouterChannel> BackendTypes for BackendRouter<R> {
     type BoolTensorPrimitive = RouterTensor<R::Client>;
     type QuantizedTensorPrimitive = RouterTensor<R::Client>;
 
-    type GraphPrimitive = burn_backend::GraphUnsupported;
+    type GraphPrimitive = RouterGraph<R::Client>;
 }
 
 impl<R: RouterChannel> Backend for BackendRouter<R> {
@@ -48,6 +51,10 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
     fn seed(device: &Self::Device, seed: u64) {
         let client = get_client::<R>(device);
         client.seed(seed);
+    }
+
+    fn next_random_key(device: &Self::Device) -> RandomKey {
+        get_client::<R>(device).next_random_key()
     }
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
@@ -84,6 +91,84 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
         client.profile_abandon(token);
     }
 
+    fn execution_mode_open(
+        device: &Self::Device,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        let client = get_client::<R>(device);
+        client.execution_mode_open(mode)
+    }
+
+    fn execution_mode_statistics(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let client = get_client::<R>(device);
+        client.execution_mode_statistics(token)
+    }
+
+    fn execution_mode_close(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let client = get_client::<R>(device);
+        client.execution_mode_close(token)
+    }
+
+    fn environment_create(
+        device: &Self::Device,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        let client = get_client::<R>(device);
+        client.environment_create(name, origin)
+    }
+
+    fn environment_activate(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        let client = get_client::<R>(device);
+        client.environment_activate(id)
+    }
+
+    fn environment_active(device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
+        let client = get_client::<R>(device);
+        client.environment_active()
+    }
+
+    fn environment_save(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        let client = get_client::<R>(device);
+        client.environment_save(id)
+    }
+
+    fn environment_merge(
+        device: &Self::Device,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        get_client::<R>(device).environment_merge(id, origin)
+    }
+
+    fn device_description(device: &Self::Device) -> Option<DeviceDescription> {
+        get_client::<R>(device).device_description()
+    }
+
+    fn measure_telemetry(device: &Self::Device) -> DeviceTelemetry {
+        get_client::<R>(device).measure_telemetry()
+    }
+
+    fn measure_memory(device: &Self::Device) -> Option<MemoryReport> {
+        get_client::<R>(device).measure_memory()
+    }
+
+    fn measure_peaks(device: &Self::Device, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        get_client::<R>(device).measure_peaks(keys)
+    }
+
     fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
         let client = get_client::<R>(device);
         client.dtype_usage(dtype)
@@ -96,7 +181,32 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
 
     fn flush(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = get_client::<R>(device);
-        client.flush();
-        Ok(())
+        client.flush()
+    }
+
+    fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = get_client::<R>(device);
+        client.graph_prepare()
+    }
+
+    // The interpreter records the graph on its own backend, so the capture opens and closes
+    // there, in order with the operations around it.
+    fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = get_client::<R>(device);
+        client.graph_start_capture()
+    }
+
+    fn graph_stop_capture(device: &Self::Device) -> Result<BackendGraph<Self>, ExecutionError> {
+        let client = get_client::<R>(device);
+        let id = client.graph_stop_capture()?;
+        Ok(RouterGraph::new(id, client))
+    }
+
+    unsafe fn graph_replay(
+        _device: &Self::Device,
+        graph: &BackendGraph<Self>,
+    ) -> Result<(), ExecutionError> {
+        // Safety: forwarded verbatim from this method's own contract.
+        unsafe { graph.replay() }
     }
 }

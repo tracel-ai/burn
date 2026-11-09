@@ -5,6 +5,7 @@ use crate::checkpoint::{
 use crate::learner::EarlyStoppingStrategy;
 use crate::learner::base::Interrupter;
 use crate::logger::{FileMetricLogger, MetricLogger, TrainingProgressLogger};
+use crate::metric::optimizer::{LearningRateGroupMetric, LearningRateMetric, OptimizerStepOutput};
 use crate::metric::processor::{
     AsyncProcessorTraining, FullEventProcessorTraining, MetricsTraining,
 };
@@ -55,6 +56,7 @@ pub struct SupervisedTraining<M: LearnerModel> {
     grad_checkpointing: bool,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     metrics: MetricsTraining<TrainingModelOutput<M>, InferenceModelOutput<M>>,
+    learning_rate_metric: bool,
     event_store: LogEventStore,
     interrupter: Interrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
@@ -93,6 +95,7 @@ impl<M: LearnerModel> SupervisedTraining<M> {
             grad_accumulation: None,
             grad_checkpointing: false,
             metrics: MetricsTraining::default(),
+            learning_rate_metric: false,
             event_store: LogEventStore::default(),
             renderer: None,
             interrupter: Interrupter::new(),
@@ -183,12 +186,16 @@ impl<M: LearnerModel> SupervisedTraining<M> {
         self
     }
 
-    /// Register all metrics as numeric for the training and validation set.
+    /// Register metrics that consume model outputs for training and validation,
+    /// and metrics that consume optimizer-step values for training.
+    /// Accepts a single metric or a tuple, such as `(LossMetric::new(), LearningRateMetric::new())`.
+    /// Associate custom metrics with optimizer updates using [`OnOptimizerStep::with`].
     pub fn metrics<Me: MetricRegistration<M>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
-    /// Register all metrics as text for the training and validation set.
+    /// Register text metrics for training and validation, or only optimizer updates when
+    /// associated through [`OnOptimizerStep::with`]. Accepts a single metric or a tuple.
     pub fn metrics_text<Me: TextMetricRegistration<M>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
@@ -368,6 +375,11 @@ impl<M: LearnerModel> SupervisedTraining<M> {
 impl<M: LearnerModel> SupervisedTraining<M> {
     /// Launch this training with the given [Learner](Learner).
     pub fn launch(mut self, learner: Learner<M>) -> LearningResult<M> {
+        if self.learning_rate_metric {
+            for group in 0..learner.lr_num_groups() {
+                self = self.metrics(OnOptimizerStep::with(LearningRateGroupMetric::new(group)));
+            }
+        }
         if self.tracing_logger.is_some()
             && let Err(e) = self.tracing_logger.as_ref().unwrap().install()
         {
@@ -514,52 +526,148 @@ fn autodiff_device(mut device: Device, grad_checkpointing: bool) -> Device {
     device
 }
 
-/// Trait to fake variadic generics.
+/// Associates one metric or a tuple with applied optimizer updates.
+///
+/// Register through [`SupervisedTraining::metrics`] or [`SupervisedTraining::metrics_text`].
+/// Inputs are adapted from [`OptimizerStepOutput`]; metadata includes learning rates and counts
+/// optimizer updates within the training split.
+///
+/// Metrics are finalized and cleared at split end, including interrupted or failed splits.
+/// Finalization is skipped when no optimizer-step events were received.
+#[derive(Debug)]
+pub struct OnOptimizerStep<T> {
+    metrics: T,
+}
+
+impl<T> OnOptimizerStep<T> {
+    /// Associate a single metric or a tuple of up to six metrics with optimizer-step events.
+    pub fn with(metrics: T) -> Self {
+        Self { metrics }
+    }
+}
+
+/// Registers one metric or a tuple of metrics with their respective event sources.
 pub trait MetricRegistration<M: LearnerModel>: Sized {
     /// Register the metrics.
     fn register(self, builder: SupervisedTraining<M>) -> SupervisedTraining<M>;
 }
 
-/// Trait to fake variadic generics.
+impl<M, Me> MetricRegistration<M> for Me
+where
+    M: LearnerModel,
+    Me: Metric + Numeric + 'static,
+    TrainingModelOutput<M>: Adaptor<Me::Input>,
+    InferenceModelOutput<M>: Adaptor<Me::Input>,
+{
+    fn register(self, builder: SupervisedTraining<M>) -> SupervisedTraining<M> {
+        builder
+            .metric_train_numeric(self.clone())
+            .metric_valid_numeric(self)
+    }
+}
+
+impl<M: LearnerModel> MetricRegistration<M> for LearningRateMetric {
+    fn register(self, mut builder: SupervisedTraining<M>) -> SupervisedTraining<M> {
+        builder.learning_rate_metric = true;
+        builder
+    }
+}
+
+impl<M, Me> MetricRegistration<M> for OnOptimizerStep<Me>
+where
+    M: LearnerModel,
+    Me: Metric + Numeric + 'static,
+    OptimizerStepOutput: Adaptor<Me::Input>,
+{
+    fn register(self, mut builder: SupervisedTraining<M>) -> SupervisedTraining<M> {
+        builder
+            .summary_metrics
+            .insert(self.metrics.name().to_string());
+        builder
+            .metrics
+            .register_optimizer_metric_numeric(self.metrics);
+        builder
+    }
+}
+
+/// Registers text metrics with their respective event sources.
 pub trait TextMetricRegistration<M: LearnerModel>: Sized {
     /// Register the metrics.
     fn register(self, builder: SupervisedTraining<M>) -> SupervisedTraining<M>;
 }
 
+impl<M, Me> TextMetricRegistration<M> for Me
+where
+    M: LearnerModel,
+    Me: Metric + 'static,
+    TrainingModelOutput<M>: Adaptor<Me::Input>,
+    InferenceModelOutput<M>: Adaptor<Me::Input>,
+{
+    fn register(self, builder: SupervisedTraining<M>) -> SupervisedTraining<M> {
+        builder.metric_train(self.clone()).metric_valid(self)
+    }
+}
+
+impl<M, Me> TextMetricRegistration<M> for OnOptimizerStep<Me>
+where
+    M: LearnerModel,
+    Me: Metric + 'static,
+    OptimizerStepOutput: Adaptor<Me::Input>,
+{
+    fn register(self, mut builder: SupervisedTraining<M>) -> SupervisedTraining<M> {
+        builder.metrics.register_optimizer_metric(self.metrics);
+        builder
+    }
+}
+
 macro_rules! gen_tuple {
-    ($($M:ident),*) => {
-        impl<$($M,)* M: LearnerModel> TextMetricRegistration<M> for ($($M,)*)
+    ($($Me:ident),*) => {
+        impl<$($Me,)* M: LearnerModel> TextMetricRegistration<M> for ($($Me,)*)
         where
-            $(TrainingModelOutput<M>: Adaptor<$M::Input>,)*
-            $(InferenceModelOutput<M>: Adaptor<$M::Input>,)*
-            $($M: Metric + 'static,)*
+            $($Me: TextMetricRegistration<M>,)*
         {
             #[allow(non_snake_case)]
-            fn register(
-                self,
-                builder: SupervisedTraining<M>,
-            ) -> SupervisedTraining<M> {
-                let ($($M,)*) = self;
-                $(let builder = builder.metric_train($M.clone());)*
-                $(let builder = builder.metric_valid($M);)*
+            fn register(self, builder: SupervisedTraining<M>) -> SupervisedTraining<M> {
+                let ($($Me,)*) = self;
+                $(let builder = TextMetricRegistration::register($Me, builder);)*
                 builder
             }
         }
 
-        impl<$($M,)* M: LearnerModel> MetricRegistration<M> for ($($M,)*)
+        impl<$($Me,)* M: LearnerModel> MetricRegistration<M> for ($($Me,)*)
         where
-            $(TrainingModelOutput<M>: Adaptor<$M::Input>,)*
-            $(InferenceModelOutput<M>: Adaptor<$M::Input>,)*
-            $($M: Metric + Numeric + 'static,)*
+            $($Me: MetricRegistration<M>,)*
         {
             #[allow(non_snake_case)]
-            fn register(
-                self,
-                builder: SupervisedTraining<M>,
-            ) -> SupervisedTraining<M> {
-                let ($($M,)*) = self;
-                $(let builder = builder.metric_train_numeric($M.clone());)*
-                $(let builder = builder.metric_valid_numeric($M);)*
+            fn register(self, builder: SupervisedTraining<M>) -> SupervisedTraining<M> {
+                let ($($Me,)*) = self;
+                $(let builder = MetricRegistration::register($Me, builder);)*
+                builder
+            }
+        }
+
+        impl<$($Me,)* M: LearnerModel> MetricRegistration<M> for OnOptimizerStep<($($Me,)*)>
+        where
+            $($Me: Metric + Numeric + 'static,)*
+            $(OptimizerStepOutput: Adaptor<$Me::Input>,)*
+        {
+            #[allow(non_snake_case)]
+            fn register(self, builder: SupervisedTraining<M>) -> SupervisedTraining<M> {
+                let ($($Me,)*) = self.metrics;
+                $(let builder = MetricRegistration::register(OnOptimizerStep::with($Me), builder);)*
+                builder
+            }
+        }
+
+        impl<$($Me,)* M: LearnerModel> TextMetricRegistration<M> for OnOptimizerStep<($($Me,)*)>
+        where
+            $($Me: Metric + 'static,)*
+            $(OptimizerStepOutput: Adaptor<$Me::Input>,)*
+        {
+            #[allow(non_snake_case)]
+            fn register(self, builder: SupervisedTraining<M>) -> SupervisedTraining<M> {
+                let ($($Me,)*) = self.metrics;
+                $(let builder = TextMetricRegistration::register(OnOptimizerStep::with($Me), builder);)*
                 builder
             }
         }

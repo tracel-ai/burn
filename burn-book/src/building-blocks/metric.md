@@ -13,6 +13,9 @@ throughout the training process. We currently offer a restricted range of metric
 | FBetaScore          | Calculate F<sub>β </sub>score in percentage                                                 |
 | AUROC               | Calculate the area under curve of ROC in percentage                                         |
 | AUC-PR              | Calculate the area under the precision-recall curve (average precision) in percentage       |
+| MSE                 | Calculate the Mean Squared Error for regression tasks                                       |
+| MAE                 | Calculate the Mean Absolute Error for regression tasks                                      |
+| R2Score             | Calculate the Coefficient of Determination (R²) for regression tasks                        |
 | Loss                | Output the loss used for the backward pass                                                  |
 | CharErrorRate (CER) | Calculate Character Error Rate in percentage                                                |
 | WordErrorRate (WER) | Calculate Word Error Rate in percentage                                                     |
@@ -36,11 +39,24 @@ throughout the training process. We currently offer a restricted range of metric
 | PSNR          | Computes the Peak Signal-to-Noise Ratio (PSNR) for image quality assessment                          |
 | SSIM          | Computes the Structural Similarity index measure (SSIM) for image quality assessment                 |
 
+## Optimizer-step metrics
+
+Register `LearningRateMetric` with `.metrics(LearningRateMetric::new())` to record each applied
+update, including partial accumulation windows, with one series per scheduler parameter group.
+Epoch summaries use the last applied rate.
+
+Custom metrics use the standard `Metric` and `Numeric` traits. Associate one metric or a tuple
+with `OnOptimizerStep::with(...)`, then register through `.metrics(...)` or `.metrics_text(...)`.
+Implement `Adaptor<YourInput>` for `OptimizerStepOutput` to supply their inputs.
+
+Custom strategies emit `LearnerEvent::OptimizerStep(OptimizerStepOutput::new(rates))` after each
+update.
+
 ## Using Metrics with the Learner
 
-In order to use a metric, the output of your training step must implement the `Adaptor` trait from 
-`burn-train::metric` for each metric's corresponding input type. The `Adaptor` trait simply converts 
-your output struct into the input type the metric expects.
+For metrics that consume model outputs, the output of your training step must implement the
+`Adaptor` trait from `burn-train::metric` for each metric's corresponding input type. The `Adaptor`
+trait simply converts your output struct into the input type the metric expects.
 
 Burn provides four built-in output structs that cover common tasks. Each one already implements 
 `Adaptor` for a set of metrics, so in many cases you can use them directly without writing any 
@@ -57,11 +73,15 @@ adaptor code yourself.
 - `RegressionOutput`:
     - Use case: Regression tasks
     - Fields: `loss: Tensor<1>`, `output: Tensor<2>`, `targets: Tensor<2>`
-    - Adapted metrics: Loss
+    - Adapted metrics: MSE, MAE, R2Score, Loss
 - `SequenceOutput`:
     - Use case: Sequence prediction
     - Fields: `loss: Tensor<1>`, `logits: Tensor<3>`, `predictions: Option<Tensor<2, Int>>`, `targets: Tensor<2, Int>`
     - Adapted metrics: Accuracy, TopKAccuracy, Perplexity, CER, WER, Loss
+
+MSE and MAE average errors across all samples and target columns. R² computes a
+score per target column and averages those scores uniformly, using statistics
+accumulated over the whole epoch rather than averaging batch scores.
 
 \* Precision, Recall, FBetaScore, AUROC, and AUC-PR all use `ConfusionStatsInput` as their input type so these 
 metrics are automatically (implicitly) adapted since `ConfusionStatsInput` is adapted.
