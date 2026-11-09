@@ -477,8 +477,9 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// Apply QLoRA to the module: quantize the (frozen) base tensor parameters and attach trainable
     /// LoRA adapters to 2-D weights.
     ///
-    /// Dense effective weights can still materialize during training, even with fusion enabled.
-    /// See [`QLora`'s memory limitations](QLora#memory-limitations) before sizing a training run.
+    /// Layers that read an adapted weight through [`Param::val`] still materialize a dense
+    /// effective weight during training; `burn_nn::Linear` does not. See
+    /// [`QLora`'s memory limitations](QLora#memory-limitations) before sizing a training run.
     ///
     /// Module-owned control flags are preserved. Call [`freeze`](Module::freeze) before this
     /// method if the base module's control behavior and running statistics should also be frozen.
