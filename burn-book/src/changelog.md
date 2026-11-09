@@ -454,6 +454,12 @@ whose tensors are split over `devices` (crate `burn-shard`).
   [#6062](https://github.com/tracel-ai/burn/pull/6062),
   [#6069](https://github.com/tracel-ai/burn/pull/6069))
 
+#### Integer arithmetic overflow
+
+- Wrap `i64` and `u64` `add`, `sub` and `mul` (and their scalar forms) on overflow on Flex, as
+  release builds and CubeCL backends already did. Debug builds used to panic.
+  ([#6455](https://github.com/tracel-ai/burn/pull/6455))
+
 #### Quantization
 
 - **Breaking:** Remove `burn_std::quantization::pack_i8s_to_u32s`. For manual word packing, pad bytes
