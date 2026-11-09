@@ -2,12 +2,18 @@ use burn_core as burn;
 
 use burn::{
     Tensor,
-    tensor::{Device, Gradients, container::TensorContainer},
+    tensor::{Device, FloatDType, Gradients, container::TensorContainer},
 };
+
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
 
 use burn::module::{Module, ParamId};
 
-use super::visitor::{GradientsParamsChangeDevice, GradientsParamsConverter};
+use super::visitor::{
+    GradientsParamsChangeDevice, GradientsParamsConverter, GradientsParamsScale,
+    GradientsParamsSquaredNorms,
+};
 
 /// Data type that contains gradients for parameters.
 #[derive(Default, Debug)]
@@ -82,6 +88,29 @@ impl GradientsParams {
         self.len() == 0
     }
 
+    /// Scales every gradient of `module` by one shared factor so that their combined L2 norm is at
+    /// most `max_norm`, and returns that norm before clipping. This matches PyTorch's
+    /// `clip_grad_norm_`; call it before [`step`](crate::optim::ModuleOptimizer::step).
+    ///
+    /// [`GradientClipping::Norm`](crate::grad_clipping::GradientClipping::Norm) instead clips each
+    /// parameter's gradient by its own norm, so a model with many parameters can pass a much larger
+    /// update overall. Returns `None` when no gradient is registered for `module`.
+    pub fn clip_norm<M: Module>(&mut self, module: &M, max_norm: f32) -> Option<Tensor<1>> {
+        let mut squares = Vec::new();
+        module.visit(&mut GradientsParamsSquaredNorms::<M>::new(
+            self,
+            &mut squares,
+        ));
+        let device = squares.first()?.device();
+        let squares: Vec<_> = squares.into_iter().map(|s| s.to_device(&device)).collect();
+        let norm = Tensor::cat(squares, 0).sum().sqrt();
+
+        let min_positive = FloatDType::F32.finfo().min_positive;
+        let scale = (norm.clone().add_scalar(min_positive).recip() * max_norm).clamp_max(1.0);
+        module.visit(&mut GradientsParamsScale::<M>::new(self, &scale));
+        Some(norm)
+    }
+
     /// Change the device of each tensor gradients registered for the given [module](Module).
     pub fn to_device<M: Module>(mut self, device: &Device, module: &M) -> Self {
         let mut visitor = GradientsParamsChangeDevice::<M>::new(device, &mut self);
@@ -94,7 +123,7 @@ impl GradientsParams {
 mod tests {
     use super::*;
     use burn::module::{Module, ParamGroup};
-    use burn::tensor::Distribution;
+    use burn::tensor::{Distribution, TensorData, Tolerance};
     use burn_nn::{Linear, LinearConfig};
 
     #[test]
@@ -126,6 +155,79 @@ mod tests {
         grads.register(layer.weight.id, Tensor::<2>::zeros([20, 20], &device));
 
         let _ = grads.get::<1>(layer.weight.id);
+    }
+
+    #[test]
+    fn clip_norm_scales_all_gradients_by_their_combined_norm() {
+        let device = Device::default();
+        let layer = LinearConfig::new(2, 2).init(&device);
+        let bias = layer.bias.as_ref().unwrap();
+        let mut grads = GradientsParams::new();
+        grads.register(
+            layer.weight.id,
+            Tensor::<2>::from_data([[3.0, 0.0], [0.0, 0.0]], &device),
+        );
+        grads.register(bias.id, Tensor::<1>::from_data([4.0, 0.0], &device));
+
+        let norm = grads.clip_norm(&layer, 1.0).unwrap();
+
+        // The combined norm is 5. Clipping each tensor alone would leave [1, 0] and [1, 0].
+        norm.into_data()
+            .assert_approx_eq::<f32>(&TensorData::from([5.0]), Tolerance::default());
+        grads
+            .get::<2>(layer.weight.id)
+            .unwrap()
+            .into_data()
+            .assert_approx_eq::<f32>(
+                &TensorData::from([[0.6, 0.0], [0.0, 0.0]]),
+                Tolerance::default(),
+            );
+        grads
+            .get::<1>(bias.id)
+            .unwrap()
+            .into_data()
+            .assert_approx_eq::<f32>(&TensorData::from([0.8, 0.0]), Tolerance::default());
+    }
+
+    #[test]
+    fn clip_norm_leaves_small_gradients_unchanged() {
+        let device = Device::default();
+        let layer = LinearConfig::new(2, 2).with_bias(false).init(&device);
+        let mut grads = GradientsParams::new();
+        grads.register(
+            layer.weight.id,
+            Tensor::<2>::from_data([[0.3, 0.4], [0.0, 0.0]], &device),
+        );
+
+        grads.clip_norm(&layer, 1.0).unwrap();
+
+        grads
+            .get::<2>(layer.weight.id)
+            .unwrap()
+            .into_data()
+            .assert_approx_eq::<f32>(
+                &TensorData::from([[0.3, 0.4], [0.0, 0.0]]),
+                Tolerance::default(),
+            );
+        assert!(GradientsParams::new().clip_norm(&layer, 1.0).is_none());
+    }
+
+    #[test]
+    fn clip_norm_reaches_lora_factors() {
+        let device = Device::default().autodiff();
+        let layer = layer(&device).apply_lora(burn::module::Lora::new(2, 4.0));
+        let loss = layer.forward(random_tensor(&device)).sum();
+        let mut grads = GradientsParams::from_grads(loss.backward(), &layer);
+        let adapter = layer.weight.adapter().unwrap();
+        let before = grads.get::<2>(adapter.b.id).unwrap();
+
+        let norm = grads.clip_norm(&layer, 1e-3).unwrap().into_scalar::<f32>();
+
+        assert!(norm > 1e-3, "the adapter has gradients to clip");
+        let after = grads.get::<2>(adapter.b.id).unwrap();
+        (before * (1e-3 / norm))
+            .into_data()
+            .assert_approx_eq::<f32>(&after.into_data(), Tolerance::default());
     }
 
     fn layer(device: &Device) -> Linear {

@@ -887,6 +887,14 @@ For example, update custom progress logger implementations:
 - Add `ImageFolderDataset::class_name` to look up the class name of a label.
   ([#6310](https://github.com/tracel-ai/burn/pull/6310))
 
+#### Gradient clipping
+
+`GradientsParams::clip_norm` scales all of a module's gradients by one factor so their combined L2
+norm is at most a limit, like PyTorch's `clip_grad_norm_`, and returns the norm before clipping.
+`GradientClippingConfig::Norm` keeps clipping each parameter's gradient on its own, which lets a
+model with many parameters through at a much larger total norm; its docs now say so.
+([#6466](https://github.com/tracel-ai/burn/pull/6466))
+
 #### LBFGS optimizer
 
 - Keep LBFGS parameter updates aligned when some parameters have no gradients, including when
