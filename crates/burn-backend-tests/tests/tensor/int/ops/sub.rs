@@ -53,3 +53,41 @@ fn test_int_sub_flipped() {
         .into_data()
         .assert_eq(&TensorData::from([39, 28, 17, 6]), false);
 }
+
+#[test]
+fn should_wrap_sub_i64_on_overflow() {
+    let device = burn_tensor::Device::default();
+    if !device.supports_dtype(burn_tensor::DType::I64) {
+        return;
+    }
+    let lhs =
+        TestTensorInt::<1>::from_data([i64::MIN, i64::MAX, 3], (&device, burn_tensor::DType::I64));
+    let rhs = TestTensorInt::<1>::from_data([1i64, -1, 2], (&device, burn_tensor::DType::I64));
+
+    lhs.clone()
+        .sub(rhs)
+        .into_data()
+        .assert_eq(&TensorData::from([i64::MAX, i64::MIN, 1]), false);
+    lhs.sub_scalar(1)
+        .into_data()
+        .assert_eq(&TensorData::from([i64::MAX, i64::MAX - 1, 2]), false);
+}
+
+#[test]
+fn should_wrap_sub_u64_on_overflow() {
+    let device = burn_tensor::Device::default();
+    if !device.supports_dtype(burn_tensor::DType::U64) {
+        return;
+    }
+    // Values on both sides of 2^63 also cover backends that compute u64 through i64.
+    let lhs = TestTensorInt::<1>::from_data([1u64 << 63, 0, 3], (&device, burn_tensor::DType::U64));
+    let rhs = TestTensorInt::<1>::from_data([1u64, 1, 2], (&device, burn_tensor::DType::U64));
+
+    lhs.clone()
+        .sub(rhs)
+        .into_data()
+        .assert_eq(&TensorData::from([i64::MAX as u64, u64::MAX, 1]), false);
+    lhs.sub_scalar(1)
+        .into_data()
+        .assert_eq(&TensorData::from([i64::MAX as u64, u64::MAX, 2]), false);
+}
