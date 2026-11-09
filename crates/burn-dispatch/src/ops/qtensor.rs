@@ -233,7 +233,7 @@ impl QTensorOps<Self> for Dispatch {
             quantized,
             tensor,
             device,
-            q_to_device,
+            q_to_device(),
             |inner, device| {
                 let data =
                     burn_backend::read_sync(B1::q_into_data(inner)).expect("Should read data");

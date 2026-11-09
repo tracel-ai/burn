@@ -81,11 +81,15 @@ impl<R: RouterChannel> BoolTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn bool_to_device(tensor: BoolTensor<Self>, device: &Device<Self>) -> BoolTensor<Self> {
-        if &tensor.client.device() == device {
+    fn bool_to_device(
+        tensor: BoolTensor<Self>,
+        device: &Device<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        if &tensor.client.device() == device && tensor.dtype == out_dtype.into() {
             return tensor;
         }
-        R::change_client_backend(tensor, device)
+        R::change_client_backend(tensor, device, out_dtype.into())
     }
 
     fn bool_reshape(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {

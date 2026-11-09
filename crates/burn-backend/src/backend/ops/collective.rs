@@ -206,7 +206,7 @@ impl<B: Backend> EmulatedCollectives<B> {
 
     /// See [`CollectiveOps::bool_all_gather`].
     pub fn bool_all_gather(tensors: Vec<BoolTensor<B>>, dim: usize) -> Vec<BoolTensor<B>> {
-        Self::all_gather(tensors, dim, B::bool_to_device, B::bool_cat)
+        Self::all_gather(tensors, dim, Self::bool_to_device, B::bool_cat)
     }
 
     /// See [`CollectiveOps::bool_all_to_all`].
@@ -219,7 +219,7 @@ impl<B: Backend> EmulatedCollectives<B> {
             tensors,
             split_dim,
             concat_dim,
-            B::bool_to_device,
+            Self::bool_to_device,
             B::bool_slice,
             B::bool_cat,
         )
@@ -227,7 +227,12 @@ impl<B: Backend> EmulatedCollectives<B> {
 
     /// See [`CollectiveOps::bool_broadcast`].
     pub fn bool_broadcast(tensor: BoolTensor<B>, devices: &[Device<B>]) -> Vec<BoolTensor<B>> {
-        Self::broadcast(tensor, devices, B::bool_to_device)
+        Self::broadcast(tensor, devices, Self::bool_to_device)
+    }
+
+    fn bool_to_device(tensor: BoolTensor<B>, device: &Device<B>) -> BoolTensor<B> {
+        let dtype = tensor.dtype().into();
+        B::bool_to_device(tensor, device, dtype)
     }
 
     /// Reduces once on the first member and broadcasts the result, so each tensor crosses a link

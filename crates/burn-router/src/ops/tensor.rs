@@ -115,7 +115,8 @@ impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
         if &tensor.client.device() == device {
             return tensor;
         }
-        R::change_client_backend(tensor, device)
+        let dtype = tensor.dtype;
+        R::change_client_backend(tensor, device, dtype)
     }
 
     fn float_into_int(tensor: FloatTensor<Self>, out_dtype: IntDType) -> IntTensor<Self> {

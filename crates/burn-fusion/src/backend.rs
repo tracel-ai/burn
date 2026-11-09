@@ -1,5 +1,5 @@
 use crate::{
-    FusionTensor,
+    Collective, CollectivePart, FusionTensor,
     client::GlobalFusionClient,
     stream::{Context, OrderedExecution},
 };
@@ -8,7 +8,7 @@ use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceOps, DeviceTelemetry,
     EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
     ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
-    ProfileDuration, ProfileOptions, ProfileToken, profile_with_tokens,
+    ProfileDuration, ProfileOptions, ProfileToken, Shape, profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -524,6 +524,18 @@ pub trait FusionBackend:
     /// mode instead (see the `Backend` impl). Defaults to a no-op for
     /// backends without allocation modes.
     fn memory_persistent(_device: &Self::Device, _enabled: bool) {}
+
+    /// Each member's part of `collective` over members on `devices` of `shape` and `dtype`,
+    /// member `i` at position `i`, when each member's device runs its own part natively.
+    ///
+    /// Fusion queues each part on its member's stream, so the caller never waits for the members.
+    /// `None` when the members cannot run it so, which Fusion then runs on the caller.
+    fn collective_parts(
+        devices: &[Self::Device],
+        shape: &Shape,
+        dtype: DType,
+        collective: Collective,
+    ) -> Option<Vec<Box<dyn CollectivePart<Self>>>>;
 }
 
 // Fusion implements `BackendIr` to enable router backend usage.

@@ -1,4 +1,3 @@
-use super::attribute::AttributeAnalyzer;
 use proc_macro2::Ident;
 use syn::{Field, Type, TypePath};
 
@@ -72,13 +71,5 @@ impl FieldTypeAnalyzer {
             .attrs
             .iter()
             .filter(|attr| attr.path().is_ident("doc"))
-    }
-
-    pub fn attributes(&self) -> impl Iterator<Item = AttributeAnalyzer> {
-        self.field
-            .attrs
-            .clone()
-            .into_iter()
-            .map(AttributeAnalyzer::new)
     }
 }
