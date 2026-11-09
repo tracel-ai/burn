@@ -166,17 +166,17 @@ impl ComputeEnvironment {
     /// the same picks and compiles nothing it ran before. A [save](Self::save)
     /// after it holds no space the removed entries took.
     ///
-    /// Prune from the executable that runs the environment, the server's for
-    /// a remote one: the kernels any other executable compiled are removed.
-    /// An environment the work never ran in keeps every kernel this one
-    /// compiled.
+    /// Prune once the work has run with its tunes settled: a work launch made
+    /// while a key is still untuned records the candidate it ran, which the
+    /// prune then keeps. Prune from the executable that runs the environment,
+    /// the server's for a remote one: the kernels any other executable
+    /// compiled are removed. An environment the work never ran in keeps every
+    /// kernel this executable compiled.
     ///
     /// # Errors
     ///
-    /// [`Unsupported`](EnvironmentError::Unsupported) when the device's backend
-    /// keeps no compute environment, an incompatible-device error when the
-    /// environment lives in a storage the device does not reach, and a storage
-    /// error when the storage refused the write.
+    /// The device keeps no compute environment, the storage refused the
+    /// write, or the device could not be reached.
     pub fn prune(&self, options: PruneOptions) -> Result<Pruned, EnvironmentError> {
         Dispatch::environment_prune(self.home.as_dispatch(), self.id.clone(), options)
     }
