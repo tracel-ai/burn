@@ -367,30 +367,9 @@ fn reduction_sum_should_match_reference_backend_64bit() {
 }
 
 #[test]
-fn reduction_extrema_with_indices_over_a_long_axis_should_match_reference_backend() {
+fn reduction_extrema_over_a_long_axis_should_match_reference_backend() {
     // Few outputs over a long axis take the cube routine; ties (every value repeats) check that
     // the first index is still the one reported.
-    let device = Default::default();
-    let ref_device = ReferenceDevice::new();
-    let length = 70_000;
-    let values: Vec<f32> = (0..3 * length)
-        .map(|i| ((i * 7919) % 1000) as f32)
-        .collect();
-    let tensor =
-        TestTensor::<2>::from_data(burn_tensor::TensorData::new(values, [3, length]), &device);
-    let tensor_ref = TestTensor::<2>::from_data(tensor.to_data(), &ref_device);
-    let (max, max_at) = tensor.clone().max_dim_with_indices(1);
-    let (max_ref, max_at_ref) = tensor_ref.clone().max_dim_with_indices(1);
-    max.into_data().assert_eq(&max_ref.into_data(), false);
-    max_at.into_data().assert_eq(&max_at_ref.into_data(), false);
-    let (min, min_at) = tensor.min_dim_with_indices(1);
-    let (min_ref, min_at_ref) = tensor_ref.min_dim_with_indices(1);
-    min.into_data().assert_eq(&min_ref.into_data(), false);
-    min_at.into_data().assert_eq(&min_at_ref.into_data(), false);
-}
-
-#[test]
-fn reduction_extrema_over_a_long_axis_should_match_reference_backend() {
     let device = Default::default();
     let ref_device = ReferenceDevice::new();
     let length = 70_000;
@@ -400,6 +379,14 @@ fn reduction_extrema_over_a_long_axis_should_match_reference_backend() {
     let tensor =
         TestTensor::<2>::from_data(burn_tensor::TensorData::new(values, [3, length]), &device);
     let tensor_ref = TestTensor::<2>::from_data(tensor.to_data(), &ref_device);
+    let (max, max_at) = tensor.clone().max_dim_with_indices(1);
+    let (max_ref, max_at_ref) = tensor_ref.clone().max_dim_with_indices(1);
+    max.into_data().assert_eq(&max_ref.into_data(), false);
+    max_at.into_data().assert_eq(&max_at_ref.into_data(), false);
+    let (min, min_at) = tensor.clone().min_dim_with_indices(1);
+    let (min_ref, min_at_ref) = tensor_ref.clone().min_dim_with_indices(1);
+    min.into_data().assert_eq(&min_ref.into_data(), false);
+    min_at.into_data().assert_eq(&min_at_ref.into_data(), false);
     tensor
         .clone()
         .max_dim(1)
