@@ -26,26 +26,6 @@ use burn_tensor::{
 };
 use serial_test::serial;
 
-/// The default device, its environments kept in a directory of this run's.
-///
-/// The runtime's configuration places the environments when it first loads,
-/// so the device is touched before the directory is set, or the load would
-/// move it back.
-fn device() -> Device {
-    let device = Device::default();
-    #[cfg(feature = "cube")]
-    {
-        static ROOT: std::sync::Once = std::sync::Once::new();
-        ROOT.call_once(|| {
-            TestTensor::<1>::from_data([0.0], &device).into_data();
-            let root = std::env::temp_dir()
-                .join(format!("burn-compute-environment-{}", std::process::id()));
-            cubek::cubecl::environment::set_root(root);
-        });
-    }
-    device
-}
-
 /// What the device tunes while an environment is active lands in it, is in
 /// its save, and is in an environment created from that save.
 #[test]
@@ -156,18 +136,6 @@ fn a_bundle_that_does_not_read_replaces_nothing() {
     assert_eq!(kept.save().unwrap().bytes.len(), held);
 }
 
-/// An environment the device's work wrote into, with its save's size.
-fn built(device: &Device, name: &str, [m, k, n]: [usize; 3]) -> (ComputeEnvironment, usize) {
-    let built = ComputeEnvironment::new(device, name).unwrap();
-    let previous = built.activate(device).unwrap();
-    let lhs = TestTensor::<2>::ones([m, k], device);
-    let rhs = TestTensor::<2>::ones([k, n], device);
-    lhs.matmul(rhs).into_data();
-    previous.activate(device).unwrap();
-    let size = built.save().unwrap().bytes.len();
-    (built, size)
-}
-
 /// A merge brings what another environment holds in beside what this one
 /// already held, and leaves the other as it was.
 #[test]
@@ -259,6 +227,56 @@ fn a_pruned_environment_still_computes_its_work() {
     product.assert_eq(&expected.into_data(), false);
 }
 
+/// A prune that keeps the build records removes none of them, and the build
+/// left some to keep.
+#[test]
+#[serial]
+fn a_prune_keeping_the_records_removes_none() {
+    let device = device();
+    let (built, _) = built(&device, "pruned-with-records", [41, 17, 23]);
+
+    let pruned = built
+        .prune(PruneOptions {
+            records: RecordPruning::KeepAll,
+        })
+        .unwrap();
+
+    assert_eq!(pruned.records.removed, 0, "{pruned:?}");
+    assert!(pruned.records.kept > 0, "{pruned:?}");
+}
+
+/// The default device, its environments kept in a directory of this run's.
+///
+/// The runtime's configuration places the environments when it first loads,
+/// so the device is touched before the directory is set, or the load would
+/// move it back.
+fn device() -> Device {
+    let device = Device::default();
+    #[cfg(feature = "cube")]
+    {
+        static ROOT: std::sync::Once = std::sync::Once::new();
+        ROOT.call_once(|| {
+            TestTensor::<1>::from_data([0.0], &device).into_data();
+            let root = std::env::temp_dir()
+                .join(format!("burn-compute-environment-{}", std::process::id()));
+            cubek::cubecl::environment::set_root(root);
+        });
+    }
+    device
+}
+
+/// An environment the device's work wrote into, with its save's size.
+fn built(device: &Device, name: &str, [m, k, n]: [usize; 3]) -> (ComputeEnvironment, usize) {
+    let built = ComputeEnvironment::new(device, name).unwrap();
+    let previous = built.activate(device).unwrap();
+    let lhs = TestTensor::<2>::ones([m, k], device);
+    let rhs = TestTensor::<2>::ones([k, n], device);
+    lhs.matmul(rhs).into_data();
+    previous.activate(device).unwrap();
+    let size = built.save().unwrap().bytes.len();
+    (built, size)
+}
+
 /// Whether the runtime keeps the kernels it compiles, so an environment holds
 /// some for a prune to tell apart; `None` when the environments are a remote
 /// server's, configured where it runs.
@@ -278,22 +296,4 @@ fn kernels_are_stored() -> Option<bool> {
     {
         None
     }
-}
-
-/// A prune that keeps the build records removes none of them, and the build
-/// left some to keep.
-#[test]
-#[serial]
-fn a_prune_keeping_the_records_removes_none() {
-    let device = device();
-    let (built, _) = built(&device, "pruned-with-records", [41, 17, 23]);
-
-    let pruned = built
-        .prune(PruneOptions {
-            records: RecordPruning::KeepAll,
-        })
-        .unwrap();
-
-    assert_eq!(pruned.records.removed, 0, "{pruned:?}");
-    assert!(pruned.records.kept > 0, "{pruned:?}");
 }
