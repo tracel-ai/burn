@@ -826,8 +826,8 @@ impl RemoteService {
         )
     }
 
-    /// Remove from the environment `id` what no workload of the server's build loads, where
-    /// `stream_id` stands, after every task sent before.
+    /// Remove from the environment `id` the compiled kernels the server's work never loaded,
+    /// where `stream_id` stands, after every task sent before.
     pub fn environment_prune(
         &mut self,
         stream_id: StreamId,

@@ -204,8 +204,8 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
         Err(environment_unsupported())
     }
 
-    /// Remove from the environment `id` of the interpreter's backend what no
-    /// workload of its build loads — see
+    /// Remove from the environment `id` of the interpreter's backend the
+    /// compiled kernels the work never loaded — see
     /// [`Backend::environment_prune`](burn_backend::Backend::environment_prune).
     fn environment_prune(
         &self,

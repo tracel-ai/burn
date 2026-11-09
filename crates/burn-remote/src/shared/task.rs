@@ -420,7 +420,7 @@ pub enum Task {
     /// Bring what the origin holds into an environment where `stream_id` stands, after every
     /// earlier task.
     EnvironmentMerge(RequestId, StreamId, EnvironmentId, EnvironmentOrigin),
-    /// Remove from an environment what no workload of the server's build loads, where
+    /// Remove from an environment the compiled kernels the server's work never loaded, where
     /// `stream_id` stands, after every earlier task.
     EnvironmentPrune(RequestId, StreamId, EnvironmentId, PruneOptions),
     /// What the session's device is, as its driver states it.

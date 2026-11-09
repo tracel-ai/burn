@@ -457,13 +457,13 @@ pub trait Backend:
         Err(EnvironmentError::unsupported())
     }
 
-    /// Remove from the compute environment `id` what no workload of this build
-    /// loads, after every operation registered so far on the calling stream:
-    /// the compiled kernels only a losing autotune candidate launched, those
-    /// another build compiled, and the build records `options` does not keep.
-    /// The autotune answers, the winners' kernels and every kernel no tune
-    /// raced stay. A [save](Self::environment_save) after it holds no space
-    /// the removed entries took.
+    /// Remove from the compute environment `id` the compiled kernels the work
+    /// never loaded, after every operation registered so far on the calling
+    /// stream: those only an autotune race loaded, those another executable
+    /// compiled, and the build records `options` does not keep. What the work
+    /// loaded and the autotune answers stay. A
+    /// [save](Self::environment_save) after it holds no space the removed
+    /// entries took.
     ///
     /// # Errors
     ///

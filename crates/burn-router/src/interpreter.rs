@@ -2570,7 +2570,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
         B::environment_merge(&self.device, id, origin)
     }
 
-    /// Remove from the environment `id` of the backend what no workload of its build loads.
+    /// Remove from the environment `id` of the backend the compiled kernels the work never
+    /// loaded, where the calling stream stands.
     pub fn environment_prune(
         &self,
         id: EnvironmentId,

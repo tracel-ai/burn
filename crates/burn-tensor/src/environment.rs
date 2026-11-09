@@ -157,20 +157,26 @@ impl ComputeEnvironment {
         self.merge_from(EnvironmentOrigin::Bundle(bundle))
     }
 
-    /// Remove what no workload of this build loads, after every operation
-    /// registered so far on the calling stream: the compiled kernels only a
-    /// losing autotune candidate launched, those another build compiled, and
-    /// the build records `options` does not keep. The autotune answers, the
-    /// winners' kernels and every kernel no tune raced stay, so the workloads
-    /// that built the environment run from it as before. A [save](Self::save)
+    /// Remove the compiled kernels the work never loaded, after every
+    /// operation registered so far on the calling stream: those only an
+    /// autotune race loaded, to measure a candidate or gather its kernels,
+    /// those another executable compiled, and the build records `options` does
+    /// not keep. Every kernel the work loaded stays, whatever shape it ran,
+    /// with the autotune answers, so the work runs from the environment with
+    /// the same picks and compiles nothing it ran before. A [save](Self::save)
     /// after it holds no space the removed entries took.
     ///
-    /// Run once the build is done: a candidate a tune still has to race is
-    /// compiled again if its kernels were pruned.
+    /// Prune from the executable that runs the environment, the server's for
+    /// a remote one: the kernels any other executable compiled are removed.
+    /// An environment the work never ran in keeps every kernel this one
+    /// compiled.
     ///
     /// # Errors
     ///
-    /// The storage refused the write, or the device could not be reached.
+    /// [`Unsupported`](EnvironmentError::Unsupported) when the device's backend
+    /// keeps no compute environment, an incompatible-device error when the
+    /// environment lives in a storage the device does not reach, and a storage
+    /// error when the storage refused the write.
     pub fn prune(&self, options: PruneOptions) -> Result<Pruned, EnvironmentError> {
         Dispatch::environment_prune(self.home.as_dispatch(), self.id.clone(), options)
     }

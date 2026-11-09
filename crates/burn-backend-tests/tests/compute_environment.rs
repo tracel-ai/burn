@@ -30,20 +30,8 @@ use serial_test::serial;
 ///
 /// The runtime's configuration places the environments when it first loads,
 /// so the device is touched before the directory is set, or the load would
-/// move it back. It is installed first with the compiled kernels kept, so an
-/// environment holds kernels for a prune to tell apart.
+/// move it back.
 fn device() -> Device {
-    #[cfg(feature = "cube")]
-    {
-        use cubek::cubecl::config::{CubeClRuntimeConfig, RuntimeConfig};
-
-        static CONFIG: std::sync::Once = std::sync::Once::new();
-        CONFIG.call_once(|| {
-            let mut config = CubeClRuntimeConfig::from_current_dir();
-            config.compilation.cache = true;
-            CubeClRuntimeConfig::try_set(config);
-        });
-    }
     let device = Device::default();
     #[cfg(feature = "cube")]
     {
@@ -230,11 +218,13 @@ fn an_environment_merged_into_itself_is_unchanged() {
     assert_eq!(itself.save().unwrap().bytes.len(), size);
 }
 
-/// A prune removes what the work's tunes measured and did not pick, and the
-/// build records; the save is no larger, and the work runs from it as before.
+/// A prune removes the build records and, where the runtime keeps compiled
+/// kernels, those only the matmul's tune raced, keeping the ones its work
+/// ran; the save shrinks by what went, and the work computes the same from
+/// what is left.
 #[test]
 #[serial]
-fn a_pruned_environment_still_runs_its_work() {
+fn a_pruned_environment_still_computes_its_work() {
     let device = device();
     let shape = [37, 53, 29];
     let (built, before) = built(&device, "pruned", shape);
@@ -242,25 +232,54 @@ fn a_pruned_environment_still_runs_its_work() {
     let pruned = built.prune(PruneOptions::default()).unwrap();
     let after = built.save().unwrap().bytes.len();
 
+    let removed = pruned.kernels.removed + pruned.records.removed;
     assert!(
-        after <= before,
+        removed == 0 || after < before,
         "{pruned:?}: {after} bytes, {before} before"
     );
     assert_eq!(pruned.records.kept, 0, "{pruned:?}");
-    // A runtime that stores compiled kernels stored every candidate the
-    // matmul's tune raced, and only the pick's stay.
     let stored = pruned.kernels.kept + pruned.kernels.removed;
-    assert!(stored == 0 || pruned.kernels.removed > 0, "{pruned:?}");
+    match kernels_are_stored() {
+        Some(true) => assert!(
+            pruned.kernels.kept > 0 && pruned.kernels.removed > 0,
+            "the pick's kernels stay and the rivals' go: {pruned:?}"
+        ),
+        Some(false) => assert_eq!(stored, 0, "{pruned:?}"),
+        None => {}
+    }
     let previous = built.activate(&device).unwrap();
     let [m, k, n] = shape;
     let product =
         TestTensor::<2>::ones([m, k], &device).matmul(TestTensor::<2>::ones([k, n], &device));
-    let expected = TestTensor::<2>::full([m, n], k as f32, &device);
-    product.into_data().assert_eq(&expected.into_data(), false);
+    let product = product.into_data();
     previous.activate(&device).unwrap();
+    let expected = TestTensor::<2>::full([m, n], k as f32, &device);
+    product.assert_eq(&expected.into_data(), false);
 }
 
-/// A prune that keeps the build records removes none of them.
+/// Whether the runtime keeps the kernels it compiles, so an environment holds
+/// some for a prune to tell apart; `None` when the environments are a remote
+/// server's, configured where it runs.
+///
+/// This binary's harness loads the runtime's configuration in a constructor,
+/// before any test could ask it to keep them, so it keeps them only when the
+/// configuration file says so: the kernels a prune keeps and removes are
+/// cubecl's tests' to prove, on a runtime that keeps them.
+fn kernels_are_stored() -> Option<bool> {
+    #[cfg(feature = "cube")]
+    {
+        use cubek::cubecl::config::{CubeClRuntimeConfig, RuntimeConfig};
+
+        Some(CubeClRuntimeConfig::get().compilation.cache)
+    }
+    #[cfg(not(feature = "cube"))]
+    {
+        None
+    }
+}
+
+/// A prune that keeps the build records removes none of them, and the build
+/// left some to keep.
 #[test]
 #[serial]
 fn a_prune_keeping_the_records_removes_none() {
@@ -274,4 +293,5 @@ fn a_prune_keeping_the_records_removes_none() {
         .unwrap();
 
     assert_eq!(pruned.records.removed, 0, "{pruned:?}");
+    assert!(pruned.records.kept > 0, "{pruned:?}");
 }
