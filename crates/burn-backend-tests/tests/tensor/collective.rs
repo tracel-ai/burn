@@ -340,6 +340,16 @@ mod nccl {
         group.autodiff().gradients();
     }
 
+    /// A member's output moved to another member right after a collective, while a peer may
+    /// still be on its way into it: the move waits for every member to reach the collective
+    /// rather than for a device already waiting in it.
+    #[test]
+    #[serial]
+    fn should_move_a_member_right_after_a_collective() {
+        let Some(group) = group() else { return };
+        group.moved_right_after_a_collective();
+    }
+
     /// Even chunks, so every collective runs over NCCL except broadcast and an all-to-all across
     /// two dimensions, which are emulated.
     fn group() -> Option<Group> {
@@ -379,6 +389,19 @@ impl Group {
         self.reduce_scatter();
         self.all_to_all();
         self.broadcast();
+    }
+
+    #[cfg(feature = "distributed")]
+    fn moved_right_after_a_collective(&self) {
+        let sum = Grid::sum(&self.every_value()).float();
+        let last = self.devices.len() - 1;
+        for _ in 0..32 {
+            let mut outputs = TestTensor::all_reduce(self.float(), ReduceOperation::Sum);
+            let moved = outputs.swap_remove(last).to_device(&self.devices[0]);
+            moved
+                .into_data()
+                .assert_approx_eq::<f32>(&sum, Tolerance::default());
+        }
     }
 
     fn all_reduce(&self) {

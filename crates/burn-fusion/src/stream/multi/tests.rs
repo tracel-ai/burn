@@ -22,7 +22,7 @@ use burn_ir::{
 use burn_std::{BoolDType, FloatDType, IntDType, device::Device};
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
 #[derive(Debug)]
@@ -1040,6 +1040,57 @@ fn a_failing_operation_errors_the_tensor_it_was_going_to_write() {
         !setup.handles.has_errors(),
         "the failure is released with the tensor the read consumed"
     );
+}
+
+/// An operation whose input a failure claims does not run, but its
+/// `skipped` does, once: an operation other devices wait on joins them there.
+#[test]
+fn an_operation_skipped_over_a_failed_input_hears_that_it_was() {
+    let mut setup = TestSetup::new();
+    let (t0, t1, t2) = (TensorId::new(0), TensorId::new(1), TensorId::new(2));
+    let skipped = Arc::new(AtomicUsize::new(0));
+
+    setup.handles.register_handle(t0, TestHandle);
+    setup.streams.register(
+        setup.id,
+        exp_op(t0, t1),
+        UnfusedOp::new(PanicOp, setup.id),
+        &mut setup.handles,
+    );
+    setup.streams.register(
+        setup.id,
+        exp_op(t1, t2),
+        UnfusedOp::new(
+            SkipCountingOp {
+                skipped: skipped.clone(),
+            },
+            setup.id,
+        ),
+        &mut setup.handles,
+    );
+    setup.streams.drain(&mut setup.handles, setup.id);
+
+    assert_eq!(skipped.load(Ordering::Relaxed), 1);
+    assert!(
+        setup.handles.error(&t2).is_some(),
+        "its output still carries the failure"
+    );
+}
+
+/// Counts its [`skipped`](Operation::skipped) calls, and fails if it runs.
+#[derive(Debug)]
+struct SkipCountingOp {
+    skipped: Arc<AtomicUsize>,
+}
+
+impl Operation<TestRuntime> for SkipCountingOp {
+    fn execute(&self, _handles: &mut HandleContainer<TestHandle>) -> Result<(), ExecutionError> {
+        panic!("an operation over a failed input must not run");
+    }
+
+    fn skipped(&self) {
+        self.skipped.fetch_add(1, Ordering::Relaxed);
+    }
 }
 
 /// A read that does not consume the tensor leaves the failure in place:
