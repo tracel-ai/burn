@@ -25,8 +25,8 @@ pub struct MyModuleConfig {
 }
 ```
 
-The derive also adds useful `with_` methods for every attribute of your config, similar to a builder
-pattern, along with a `save` method.
+The derive also adds `with_` methods for optional fields and fields with explicit defaults, similar
+to a builder pattern, along with a `save` method.
 
 ```rust, ignore
 fn main() {
@@ -40,6 +40,38 @@ fn main() {
     config.save("config.json").unwrap();
 }
 ```
+
+## Converting arguments
+
+Add `#[config(into)]` to a field to let its generated constructor argument or setter accept
+`impl Into<FieldType>`. For example, a `String` field can accept `&str`, and a `Vec<usize>` field
+can accept an array:
+
+```rust, ignore
+use burn::config::Config;
+
+#[derive(Config, Debug)]
+pub struct ModelConfig {
+    #[config(into)]
+    name: String,
+    width: usize,
+    #[config(default = "Vec::new()", into)]
+    hidden_sizes: Vec<usize>,
+}
+
+let config = ModelConfig::new("model", 128).with_hidden_sizes([64, 32]);
+```
+
+You can also write `#[config(into)]` and `#[config(default = ...)]` as separate attributes.
+The field's stored type, default expression and serialized representation stay the same.
+For an `Option<T>` field, the input must convert to the whole `Option<T>`; conversions are not
+automatically applied to its contents. For example, `Into<Option<String>>` accepts `String`,
+`Some(String)` or `None`, but not `&str`.
+
+Opt in where conversion improves call sites. Unannotated fields retain their exact argument
+types and type inference, so `width` above still accepts an unsuffixed integer literal. Opting in
+can require removing existing `.into()` calls or adding types to `.collect()` and
+`Default::default()` calls.
 
 ## Good practices
 
