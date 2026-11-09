@@ -28,6 +28,27 @@ fn should_gather_1d_dim0_bool() {
         .assert_eq(&TensorData::from([false, false, true, false, false]), false);
 }
 
+#[test]
+fn should_keep_bool_dtype_on_gather() {
+    let device = Default::default();
+    let tensor =
+        TestTensorBool::<2>::from_data([[true, false, true], [false, true, false]], &device);
+    let dtype = tensor.dtype();
+    let indices = TestTensorInt::from_data([[2, 0], [1, 2]], &device);
+
+    let output = tensor.gather(1, indices);
+
+    assert_eq!(output.dtype(), dtype);
+    let data = output.clone().into_data();
+    assert_eq!(data.dtype(), dtype);
+    data.assert_eq(&TensorData::from([[true, true], [true, false]]), false);
+    // Bool ops on the output must accept its dtype.
+    output
+        .bool_not()
+        .into_data()
+        .assert_eq(&TensorData::from([[false, false], [false, true]]), false);
+}
+
 /// Scatters into `[true, true, false, false]` so each position pairs a distinct
 /// (current, update) combination: (T, T), (T, F), (F, T), (F, F).
 fn scatter_bool_truth_table(update: IndexingUpdateOp) -> TensorData {
