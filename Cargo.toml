@@ -225,11 +225,11 @@ burn-wgpu = { path = "crates/burn-wgpu", version = "0.23.0-pre.2", default-featu
 pytorch-reader = { path = "crates/pytorch-reader", version = "0.23.0-pre.2" }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a7d6f91b77be521273cae068dcc54750cad41773" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a7d6f91b77be521273cae068dcc54750cad41773" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a7d6f91b77be521273cae068dcc54750cad41773" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a7d6f91b77be521273cae068dcc54750cad41773" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "a3439d734040b5dfd61f500e316947ebbfb3dc52" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "997405efc6272b016c0a9145a7f1dae67169f414" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "997405efc6272b016c0a9145a7f1dae67169f414" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "997405efc6272b016c0a9145a7f1dae67169f414" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "997405efc6272b016c0a9145a7f1dae67169f414" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "3b7de2dd21289ffe79108a4069d0bf1effe5de8f" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -242,31 +242,6 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 # cubecl-environment = { version = "=0.12.0-pre.2", default-features = false }
 # cubecl-zspace = { version = "=0.12.0-pre.2", default-features = false }
 # cubek = { version = "=0.4.0-pre.2", default-features = false }
-
-# Local: cubecl at the pin plus environment pruning, until it lands upstream.
-[patch."https://github.com/tracel-ai/cubecl"]
-cubecl = { path = "../cubecl-prune-pin/crates/cubecl" }
-cubecl-common = { path = "../cubecl-prune-pin/crates/cubecl-common" }
-cubecl-core = { path = "../cubecl-prune-pin/crates/cubecl-core" }
-cubecl-cpp = { path = "../cubecl-prune-pin/crates/cubecl-cpp" }
-cubecl-cpu = { path = "../cubecl-prune-pin/crates/cubecl-cpu" }
-cubecl-cuda = { path = "../cubecl-prune-pin/crates/cubecl-cuda" }
-cubecl-environment = { path = "../cubecl-prune-pin/crates/cubecl-environment" }
-cubecl-hip = { path = "../cubecl-prune-pin/crates/cubecl-hip" }
-cubecl-ir = { path = "../cubecl-prune-pin/crates/cubecl-ir" }
-cubecl-llvm = { path = "../cubecl-prune-pin/crates/cubecl-llvm" }
-cubecl-macros = { path = "../cubecl-prune-pin/crates/cubecl-macros" }
-cubecl-macros-internal = { path = "../cubecl-prune-pin/crates/cubecl-macros-internal" }
-cubecl-metal = { path = "../cubecl-prune-pin/crates/cubecl-metal" }
-cubecl-monitoring = { path = "../cubecl-prune-pin/crates/cubecl-monitoring" }
-cubecl-opt = { path = "../cubecl-prune-pin/crates/cubecl-opt" }
-cubecl-runtime = { path = "../cubecl-prune-pin/crates/cubecl-runtime" }
-cubecl-server = { path = "../cubecl-prune-pin/crates/cubecl-server" }
-cubecl-spirv = { path = "../cubecl-prune-pin/crates/cubecl-spirv" }
-cubecl-std = { path = "../cubecl-prune-pin/crates/cubecl-std" }
-cubecl-tile = { path = "../cubecl-prune-pin/crates/cubecl-tile" }
-cubecl-wgpu = { path = "../cubecl-prune-pin/crates/cubecl-wgpu" }
-cubecl-zspace = { path = "../cubecl-prune-pin/crates/cubecl-zspace" }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
