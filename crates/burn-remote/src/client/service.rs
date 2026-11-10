@@ -817,7 +817,7 @@ impl RemoteService {
         id: EnvironmentId,
     ) -> Result<EnvironmentSummary, EnvironmentError> {
         self.environment_request(
-            |request| Task::EnvironmentSummary(request, id),
+            |request| Task::EnvironmentSummarize(request, id),
             |answer| match answer {
                 TaskResponseContent::EnvironmentSummarized(res) => Ok(res),
                 other => Err(other),

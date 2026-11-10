@@ -104,27 +104,11 @@ pub use execution::*;
 mod environment;
 pub use environment::*;
 
-// Where the compute environments are kept in files, as cubecl keeps them.
-#[cfg(all(
-    feature = "persistence",
-    any(
-        target_os = "windows",
-        target_os = "linux",
-        target_os = "macos",
-        target_os = "android"
-    )
-))]
-mod environment_bundle;
-#[cfg(all(
-    feature = "persistence",
-    any(
-        target_os = "windows",
-        target_os = "linux",
-        target_os = "macos",
-        target_os = "android"
-    )
-))]
-pub use environment_bundle::*;
+burn_std::native_persistence! {
+    // Reading a saved compute environment's file.
+    mod environment_bundle;
+    pub use environment_bundle::*;
+}
 
 /// Configure a wgpu runtime or share an application's existing wgpu setup.
 #[cfg(feature = "wgpu")]

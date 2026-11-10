@@ -599,7 +599,7 @@ where
                 self.send_response(request_id, TaskResponseContent::EnvironmentSaved(res))
                     .await
             }
-            Task::EnvironmentSummary(request_id, id) => {
+            Task::EnvironmentSummarize(request_id, id) => {
                 let res = self.runner.environment_summary(id);
                 self.send_response(request_id, TaskResponseContent::EnvironmentSummarized(res))
                     .await

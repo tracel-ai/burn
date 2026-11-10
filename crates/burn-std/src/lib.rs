@@ -83,6 +83,41 @@ pub use cubecl_environment::bytes::*;
 pub use cubecl_environment::future::reader;
 pub use cubecl_environment::{backtrace, future, rand, stream, sync};
 
+/// Keeps the items it is given only where compute environments are kept in
+/// files: with the `persistence` feature, on the targets cubecl-environment
+/// persists to files. The one statement of that condition, which every crate
+/// whose environment calls read or write files compiles them under; on any
+/// other target the backends answer those calls as unsupported.
+#[cfg(all(
+    feature = "persistence",
+    any(
+        target_os = "windows",
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "android"
+    )
+))]
+#[macro_export]
+macro_rules! native_persistence {
+    ($($items:tt)*) => { $($items)* };
+}
+
+/// Keeps the items it is given only where compute environments are kept in
+/// files: never on this build.
+#[cfg(not(all(
+    feature = "persistence",
+    any(
+        target_os = "windows",
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "android"
+    )
+)))]
+#[macro_export]
+macro_rules! native_persistence {
+    ($($items:tt)*) => {};
+}
+
 /// Compute environment values, kept by the cubecl runtimes and carried by every backend.
 pub mod environment {
     pub use cubecl_environment::environment::{
@@ -90,16 +125,9 @@ pub mod environment {
         EnvironmentSummary, PruneOptions, PruneTally, Pruned, RecordPruning, SaveOptions,
     };
 
-    #[cfg(all(
-        feature = "persistence",
-        any(
-            target_os = "windows",
-            target_os = "linux",
-            target_os = "macos",
-            target_os = "android"
-        )
-    ))]
-    pub use cubecl_environment::environment::ReadBundle;
+    native_persistence! {
+        pub use cubecl_environment::environment::BundleDescription;
+    }
 }
 
 pub use half::{bf16, f16};

@@ -418,7 +418,7 @@ pub enum Task {
     /// Serialize an environment where `stream_id` stands, after every earlier task.
     EnvironmentSave(RequestId, StreamId, EnvironmentId, SaveOptions),
     /// Count what an environment of the server's backend holds as it stands.
-    EnvironmentSummary(RequestId, EnvironmentId),
+    EnvironmentSummarize(RequestId, EnvironmentId),
     /// Bring what the origin holds into an environment where `stream_id` stands, after every
     /// earlier task.
     EnvironmentMerge(RequestId, StreamId, EnvironmentId, EnvironmentOrigin),
@@ -528,7 +528,7 @@ pub enum TaskResponseContent {
     EnvironmentMerged(Result<(), EnvironmentError>),
     /// The answer to [`EnvironmentPrune`](Task::EnvironmentPrune).
     EnvironmentPruned(Result<Pruned, EnvironmentError>),
-    /// The answer to [`EnvironmentSummary`](Task::EnvironmentSummary).
+    /// The answer to [`EnvironmentSummary`](Task::EnvironmentSummarize).
     EnvironmentSummarized(Result<EnvironmentSummary, EnvironmentError>),
     /// The answer to [`DeviceDescription`](Task::DeviceDescription).
     DeviceDescription(Option<DeviceDescription>),
