@@ -423,7 +423,7 @@ macro_rules! map_kind {
 impl ModuleMapper for ModuleRecordMapper {
     fn enter_module(&mut self, name: &str, _container_type: &str) {
         self.path.push(name.to_string());
-        self.labels.push(AllocationLabel::enter(name));
+        self.labels.push(AllocationLabel::push(name));
     }
 
     fn exit_module(&mut self, _name: &str, _container_type: &str) {

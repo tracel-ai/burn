@@ -43,7 +43,7 @@ allocation made inside `"model"` and then `"weights"` is listed under `["model",
 ```rust, ignore
 use burn::cubecl::allocation_label::AllocationLabel;
 
-let _label = AllocationLabel::enter("weights");
+let _label = AllocationLabel::push("weights");
 // allocations made on this thread are listed under "weights"
 ```
 
