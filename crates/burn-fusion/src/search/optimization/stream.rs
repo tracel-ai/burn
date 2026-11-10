@@ -276,27 +276,18 @@ impl<O: NumOperations> StreamOptimizer<O> {
         for (i, block) in self.blocks.iter_mut().enumerate() {
             block.seed_constituent(i);
         }
-        let all_blocks = self.blocks.iter().collect::<Vec<_>>();
-        let guard = Dag::new(&all_blocks).reachability();
+        let guard = Dag::new(&self.blocks).reachability();
 
-        let blocks_to_merge = self
-            .blocks
+        let blocks_to_merge = block_merges
             .iter()
-            .enumerate()
-            .filter_map(|(i, g)| match block_merges.contains(&i) {
-                true => Some(g),
-                false => None,
-            })
+            .map(|&index| &self.blocks[index])
             .collect::<Vec<_>>();
 
         let merged = merge_blocks(&blocks_to_merge, false, &guard);
 
         let mut clear_blocks = || {
-            let mut indices = block_merges.to_vec();
-            indices.sort();
-
-            for g in indices.into_iter().rev() {
-                self.blocks.remove(g);
+            for &index in block_merges.iter().rev() {
+                self.blocks.remove(index);
             }
         };
 
