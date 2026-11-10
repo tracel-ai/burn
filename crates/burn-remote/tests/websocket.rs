@@ -1242,6 +1242,34 @@ fn a_prune_is_answered_by_the_servers_backend() {
     rt.shutdown_background();
 }
 
+/// A summary is answered by the server's backend, as a prune is: one that
+/// keeps no environment says so in its own words.
+#[test]
+fn a_summary_is_answered_by_the_servers_backend() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
+    let id = EnvironmentId {
+        storage: 0,
+        name: "counted".into(),
+        location: String::new(),
+    };
+
+    let answer = Dispatch::environment_summary(device.as_dispatch(), id.clone());
+
+    // The server's backend's answer, not the client's own default.
+    let backends_own = <Flex as Backend>::environment_summary(&Default::default(), id);
+    assert_eq!(format!("{answer:?}"), format!("{backends_own:?}"));
+    assert!(
+        matches!(answer, Err(EnvironmentError::Unsupported { .. })),
+        "{answer:?}"
+    );
+    rt.shutdown_background();
+}
+
 /// The server's backend has no device clock, so it opens no profiling window and the client
 /// measures between two syncs instead.
 #[test]

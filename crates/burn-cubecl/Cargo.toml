@@ -59,7 +59,7 @@ tracing = [
 ]
 
 # Compile persistent caches; runtime configuration controls which caches are used.
-persistence = ["cubecl/persistence"]
+persistence = ["cubecl/persistence", "burn-std/persistence"]
 autotune = ["burn-cubecl-fusion?/autotune"]
 autotune-checks = [
     "autotune",

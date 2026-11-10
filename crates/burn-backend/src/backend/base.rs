@@ -17,7 +17,8 @@ use super::DeviceOps;
 use super::profile::profile_unsupported;
 use super::{DeviceDescription, DeviceTelemetry, MemoryReport, Peak, PeakError, PeakKey};
 use super::{
-    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, PruneOptions, Pruned,
+    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
+    PruneOptions, Pruned, SaveOptions,
 };
 use super::{ExecutionMode, ExecutionModeToken, ExecutionStatistics, UnknownExecutionMode};
 use super::{ProfileDuration, ProfileOptions, ProfileToken, profile_system_time};
@@ -425,7 +426,9 @@ pub trait Backend:
 
     /// Serialize the compute environment `id` whole, after every operation
     /// registered so far on the calling stream, so what that work compiled
-    /// and tuned is in it.
+    /// and tuned is in it. The bundle carries the name `options` gives it and
+    /// the [stamp](super::BuildStamp) of the executable that saved it, the
+    /// server's for a remote device.
     ///
     /// # Errors
     ///
@@ -434,7 +437,23 @@ pub trait Backend:
     fn environment_save(
         _device: &Self::Device,
         _id: EnvironmentId,
+        _options: SaveOptions,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
+        Err(EnvironmentError::unsupported())
+    }
+
+    /// Count what the compute environment `id` holds as it stands, without
+    /// saving it and without waiting on the operations registered before:
+    /// cheap enough to ask after every step of a build.
+    ///
+    /// # Errors
+    ///
+    /// The backend keeps no compute environment, `id` lives in a storage
+    /// `device` does not reach, or the storage refused the read.
+    fn environment_summary(
+        _device: &Self::Device,
+        _id: EnvironmentId,
+    ) -> Result<EnvironmentSummary, EnvironmentError> {
         Err(EnvironmentError::unsupported())
     }
 

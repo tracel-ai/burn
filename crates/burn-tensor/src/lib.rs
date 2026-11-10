@@ -104,6 +104,12 @@ pub use execution::*;
 mod environment;
 pub use environment::*;
 
+burn_std::native_persistence! {
+    // Reading a saved compute environment's file.
+    mod environment_bundle;
+    pub use environment_bundle::*;
+}
+
 /// Configure a wgpu runtime or share an application's existing wgpu setup.
 #[cfg(feature = "wgpu")]
 pub mod wgpu;

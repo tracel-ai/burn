@@ -14,8 +14,8 @@ use burn_std::ExecutionError;
 use burn_std::environment::EnvironmentError as StorageError;
 
 pub use burn_std::environment::{
-    EnvironmentBundle, EnvironmentId, EnvironmentOrigin, PruneOptions, PruneTally, Pruned,
-    RecordPruning,
+    BuildStamp, EnvironmentBundle, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
+    PruneOptions, PruneTally, Pruned, RecordPruning, SaveOptions,
 };
 
 /// Why a compute environment could not be created, activated or saved.
