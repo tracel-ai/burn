@@ -88,8 +88,16 @@ and saved on any device that reaches its storage, a remote server's included.
   `PruneOptions::records` does not keep (`RecordPruning::RemoveAll` by default). Every kernel the
   work loaded stays, with the autotune answers; prune from the executable that runs the
   environment. A remote device prunes on its server, so remote clients and servers must be
-  upgraded together (protocol version 13).
+  upgraded together (protocol version 14).
   ([#6472](https://github.com/tracel-ai/burn/pull/6472))
+- A saved `EnvironmentBundle` says what it is without being loaded: `EnvironmentBundle::read` opens
+  a saved file, and `name`, `saved_at`, `saved_by` (the `BuildStamp` of the executable that saved
+  it, compared with `BuildStamp::current()`) and `summary` (an `EnvironmentSummary` of its kernels,
+  autotune answers and records) read it in place. `ComputeEnvironment::save_named` names the bundle, and
+  `ComputeEnvironment::summary` counts an environment as it stands, without saving it.
+  **Breaking:** `Backend::environment_save` takes `SaveOptions`, and backends gain
+  `environment_summary`; a remote device saves and counts on its server, so remote clients and
+  servers must be upgraded together (protocol version 14).
 
 #### CubeK tile kernels
 
@@ -547,7 +555,7 @@ Backend implementors must provide `Backend::next_random_key` and accept a `Rando
 implicit generator. `Tensor::random` and `random_like` reserve keys at the tensor bridge;
 direct backend callers must supply a key. Use `RandomKey::split` to derive child keys.
 Router clients must also implement `next_random_key`; random-operation IR now carries a key
-scalar, so remote clients and servers must be upgraded together (protocol version 13).
+scalar, so remote clients and servers must be upgraded together (protocol version 14).
 Remote clients reserve keys locally without waiting for queued service work.
 
 Capture preserves explicit backend keys. Implicit random operations (`Tensor::random` and
@@ -720,7 +728,7 @@ backends do). Autodiff composes it from tensor operations.
 **Breaking:** `attention` and `ModuleOps::attention` take the cache as a new argument before
 `options`; pass `None` for an attention over the key and value as given. `AttentionOpIr` gains
 `lengths` and `pages`, so remote clients and servers must be upgraded together (protocol
-version 13).
+version 14).
 
 #### Config derivation
 

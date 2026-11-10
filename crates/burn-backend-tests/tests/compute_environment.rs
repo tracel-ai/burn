@@ -21,8 +21,8 @@ mod backend;
 
 use backend::*;
 use burn_tensor::{
-    Bytes, ComputeEnvironment, Device, EnvironmentBundle, EnvironmentError, PruneOptions,
-    RecordPruning, TensorData,
+    Bytes, ComputeEnvironment, Device, EnvironmentBundle, EnvironmentError, EnvironmentSummary,
+    PruneOptions, RecordPruning, TensorData,
 };
 use serial_test::serial;
 
@@ -270,6 +270,60 @@ fn a_prune_keeping_the_records_removes_none() {
 
     assert_eq!(pruned.records.removed, 0, "{pruned:?}");
     assert!(pruned.records.kept > 0, "{pruned:?}");
+}
+
+/// An environment is counted as it stands, without saving it: empty when
+/// created, then holding what the work tuned, which its save holds too.
+#[test]
+#[serial]
+fn an_environment_is_counted_as_it_stands() {
+    let device = device();
+    let counted = ComputeEnvironment::new(&device, "counted").unwrap();
+    assert_eq!(counted.summary().unwrap(), EnvironmentSummary::default());
+
+    let previous = counted.activate(&device).unwrap();
+    product_of_ones(&device, [47, 13, 31]).into_data();
+    let summary = counted.summary().unwrap();
+    previous.activate(&device).unwrap();
+
+    assert!(summary.autotune_answers > 0, "{summary:?}");
+    assert!(summary.records > 0, "{summary:?}");
+    assert_eq!(counted.summary().unwrap(), summary);
+}
+
+/// A bundle saved under a name reads back from its file without being
+/// loaded: the name, the executable that saved it, and what the environment
+/// held when it was saved.
+#[test]
+#[serial]
+#[cfg(feature = "persistence")]
+fn a_named_save_reads_back_its_name_stamp_and_counts() {
+    let device = device();
+    let (built, _) = built(&device, "named", [29, 41, 17]);
+    let path = std::env::temp_dir().join(format!(
+        "burn-compute-environment-{}-named.cubecl",
+        std::process::id()
+    ));
+
+    std::fs::write(
+        &path,
+        &*built.save_named("built for this device").unwrap().bytes,
+    )
+    .unwrap();
+    let read = EnvironmentBundle::read(&path).unwrap();
+
+    assert_eq!(read.name().unwrap(), "built for this device");
+    assert!(read.saved_at().unwrap().is_some());
+    assert_eq!(read.summary().unwrap(), built.summary().unwrap());
+    let saved_by = read.saved_by().unwrap();
+    match KernelStorage::new() {
+        // A remote environment is saved by the server's executable.
+        KernelStorage::OnServer => assert!(saved_by.is_some()),
+        KernelStorage::Kept | KernelStorage::NotKept => {
+            assert_eq!(saved_by, Some(burn_tensor::BuildStamp::current()))
+        }
+    }
+    std::fs::remove_file(&path).unwrap();
 }
 
 /// The default device, its environments kept in a directory of this run's.

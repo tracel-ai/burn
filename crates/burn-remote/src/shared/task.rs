@@ -1,8 +1,8 @@
 use burn_backend::{
     DTypeUsageSet, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
-    EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken,
-    ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey, ProfileOptions, ProfileToken,
-    PruneOptions, Pruned, TensorData,
+    EnvironmentId, EnvironmentOrigin, EnvironmentSummary, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
+    ProfileOptions, ProfileToken, PruneOptions, Pruned, SaveOptions, TensorData,
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
@@ -25,7 +25,7 @@ use crate::{
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 13;
+pub const PROTOCOL_VERSION: u16 = 14;
 
 /// Routing id for a task whose result is fetched back.
 ///
@@ -416,7 +416,9 @@ pub enum Task {
     /// The environment of the server's backend.
     EnvironmentActive(RequestId),
     /// Serialize an environment where `stream_id` stands, after every earlier task.
-    EnvironmentSave(RequestId, StreamId, EnvironmentId),
+    EnvironmentSave(RequestId, StreamId, EnvironmentId, SaveOptions),
+    /// Count what an environment of the server's backend holds as it stands.
+    EnvironmentSummary(RequestId, EnvironmentId),
     /// Bring what the origin holds into an environment where `stream_id` stands, after every
     /// earlier task.
     EnvironmentMerge(RequestId, StreamId, EnvironmentId, EnvironmentOrigin),
@@ -526,6 +528,8 @@ pub enum TaskResponseContent {
     EnvironmentMerged(Result<(), EnvironmentError>),
     /// The answer to [`EnvironmentPrune`](Task::EnvironmentPrune).
     EnvironmentPruned(Result<Pruned, EnvironmentError>),
+    /// The answer to [`EnvironmentSummary`](Task::EnvironmentSummary).
+    EnvironmentSummarized(Result<EnvironmentSummary, EnvironmentError>),
     /// The answer to [`DeviceDescription`](Task::DeviceDescription).
     DeviceDescription(Option<DeviceDescription>),
     /// The answer to [`MeasureTelemetry`](Task::MeasureTelemetry).
