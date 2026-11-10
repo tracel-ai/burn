@@ -6,8 +6,8 @@ use burn_backend::RandomKey;
 use burn_backend::{
     DType, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId,
     EnvironmentOrigin, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
-    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, TensorData,
-    UnknownExecutionMode,
+    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
+    TensorData, UnknownExecutionMode,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
@@ -201,6 +201,18 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
         origin: EnvironmentOrigin,
     ) -> Result<(), EnvironmentError> {
         let _ = (id, origin);
+        Err(environment_unsupported())
+    }
+
+    /// Remove from the environment `id` of the interpreter's backend the
+    /// compiled kernels the work never loaded — see
+    /// [`Backend::environment_prune`](burn_backend::Backend::environment_prune).
+    fn environment_prune(
+        &self,
+        id: EnvironmentId,
+        options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        let _ = (id, options);
         Err(environment_unsupported())
     }
 

@@ -16,7 +16,9 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 use super::DeviceOps;
 use super::profile::profile_unsupported;
 use super::{DeviceDescription, DeviceTelemetry, MemoryReport, Peak, PeakError, PeakKey};
-use super::{EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin};
+use super::{
+    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, PruneOptions, Pruned,
+};
 use super::{ExecutionMode, ExecutionModeToken, ExecutionStatistics, UnknownExecutionMode};
 use super::{ProfileDuration, ProfileOptions, ProfileToken, profile_system_time};
 
@@ -452,6 +454,26 @@ pub trait Backend:
         _id: EnvironmentId,
         _origin: EnvironmentOrigin,
     ) -> Result<(), EnvironmentError> {
+        Err(EnvironmentError::unsupported())
+    }
+
+    /// Remove from the compute environment `id` the compiled kernels the work
+    /// never loaded, after every operation registered so far on the calling
+    /// stream: those only an autotune race loaded, those another executable
+    /// compiled, and the build records `options` does not keep. What the work
+    /// loaded and the autotune answers stay. A
+    /// [save](Self::environment_save) after it holds no space the removed
+    /// entries took.
+    ///
+    /// # Errors
+    ///
+    /// The backend keeps no compute environment, `id` lives in a storage
+    /// `device` does not reach, or the storage refused the write.
+    fn environment_prune(
+        _device: &Self::Device,
+        _id: EnvironmentId,
+        _options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
         Err(EnvironmentError::unsupported())
     }
 

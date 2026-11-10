@@ -20,28 +20,11 @@ pub type IntElem = i32;
 mod backend;
 
 use backend::*;
-use burn_tensor::{Bytes, ComputeEnvironment, Device, EnvironmentBundle, EnvironmentError};
+use burn_tensor::{
+    Bytes, ComputeEnvironment, Device, EnvironmentBundle, EnvironmentError, PruneOptions,
+    RecordPruning, TensorData,
+};
 use serial_test::serial;
-
-/// The default device, its environments kept in a directory of this run's.
-///
-/// The runtime's configuration places the environments when it first loads,
-/// so the device is touched before the directory is set, or the load would
-/// move it back.
-fn device() -> Device {
-    let device = Device::default();
-    #[cfg(feature = "cube")]
-    {
-        static ROOT: std::sync::Once = std::sync::Once::new();
-        ROOT.call_once(|| {
-            TestTensor::<1>::from_data([0.0], &device).into_data();
-            let root = std::env::temp_dir()
-                .join(format!("burn-compute-environment-{}", std::process::id()));
-            cubek::cubecl::environment::set_root(root);
-        });
-    }
-    device
-}
 
 /// What the device tunes while an environment is active lands in it, is in
 /// its save, and is in an environment created from that save.
@@ -153,18 +136,6 @@ fn a_bundle_that_does_not_read_replaces_nothing() {
     assert_eq!(kept.save().unwrap().bytes.len(), held);
 }
 
-/// An environment the device's work wrote into, with its save's size.
-fn built(device: &Device, name: &str, [m, k, n]: [usize; 3]) -> (ComputeEnvironment, usize) {
-    let built = ComputeEnvironment::new(device, name).unwrap();
-    let previous = built.activate(device).unwrap();
-    let lhs = TestTensor::<2>::ones([m, k], device);
-    let rhs = TestTensor::<2>::ones([k, n], device);
-    lhs.matmul(rhs).into_data();
-    previous.activate(device).unwrap();
-    let size = built.save().unwrap().bytes.len();
-    (built, size)
-}
-
 /// A merge brings what another environment holds in beside what this one
 /// already held, and leaves the other as it was.
 #[test]
@@ -213,4 +184,170 @@ fn an_environment_merged_into_itself_is_unchanged() {
     itself.merge(&itself).unwrap();
 
     assert_eq!(itself.save().unwrap().bytes.len(), size);
+}
+
+/// A prune removes the build records and, where the runtime keeps compiled
+/// kernels, those only the tune's race loaded, keeping those its work loaded;
+/// the save shrinks by what went. The autotune answers stay: the work run
+/// again from what is left computes the same without tuning again, so the
+/// environment does not grow.
+#[test]
+#[serial]
+fn a_pruned_environment_still_computes_its_work() {
+    let device = device();
+    let shape = [43, 31, 19];
+    let (built, before) = built(&device, "pruned", shape);
+
+    let pruned = built.prune(PruneOptions::default()).unwrap();
+    let after = built.save().unwrap().bytes.len();
+
+    assert!(pruned.records.removed > 0, "{pruned:?}");
+    assert_eq!(pruned.records.kept, 0, "{pruned:?}");
+    assert!(after < before, "{pruned:?}: {after} bytes, {before} before");
+    let stored = pruned.kernels.total();
+    match (KernelStorage::new(), stored) {
+        (KernelStorage::NotKept, _) => assert_eq!(stored, 0, "{pruned:?}"),
+        // A runtime whose target keeps none of what it compiles, as wgpu's
+        // without SPIR-V, stores none however it is configured.
+        (KernelStorage::Kept, 0) | (KernelStorage::OnServer, _) => {}
+        (KernelStorage::Kept, _) => assert!(
+            pruned.kernels.kept > 0 && pruned.kernels.removed > 0,
+            "the kernels the work loaded stay and those only the race loaded go: {pruned:?}"
+        ),
+    }
+
+    // Activating the pruned environment resets the tuner, so an answer the
+    // prune removed would be tuned again and written back.
+    let previous = built.activate(&device).unwrap();
+    let product = product_of_ones(&device, shape).into_data();
+    previous.activate(&device).unwrap();
+
+    assert_product_of_ones(product, shape, &device);
+    assert_eq!(
+        built.save().unwrap().bytes.len(),
+        after,
+        "the work ran again from what the prune kept, and wrote nothing"
+    );
+}
+
+/// A prune waits for the work queued before it, read back or not: what that
+/// work tunes lands in the environment before the prune, rather than in the
+/// pruned environment after it, and the result reads the same once pruned.
+#[test]
+#[serial]
+fn a_prune_takes_the_work_queued_before_it() {
+    let device = device();
+    let shape = [37, 23, 29];
+    let queued = ComputeEnvironment::new(&device, "pruned-queued").unwrap();
+    let previous = queued.activate(&device).unwrap();
+
+    let product = product_of_ones(&device, shape);
+    let pruned = queued.prune(PruneOptions::default());
+    let product = product.into_data();
+    previous.activate(&device).unwrap();
+
+    let pruned = pruned.unwrap();
+    assert!(
+        pruned.records.removed > 0,
+        "the queued work's tune is recorded before the prune: {pruned:?}"
+    );
+    assert_product_of_ones(product, shape, &device);
+}
+
+/// A prune that keeps the build records removes none of them, and the build
+/// left some to keep.
+#[test]
+#[serial]
+fn a_prune_keeping_the_records_removes_none() {
+    let device = device();
+    let (built, _) = built(&device, "pruned-with-records", [41, 17, 23]);
+
+    let pruned = built
+        .prune(PruneOptions {
+            records: RecordPruning::KeepAll,
+        })
+        .unwrap();
+
+    assert_eq!(pruned.records.removed, 0, "{pruned:?}");
+    assert!(pruned.records.kept > 0, "{pruned:?}");
+}
+
+/// The default device, its environments kept in a directory of this run's.
+///
+/// The runtime's configuration places the environments when it first loads,
+/// so the device is touched before the directory is set, or the load would
+/// move it back.
+fn device() -> Device {
+    let device = Device::default();
+    #[cfg(feature = "cube")]
+    {
+        static ROOT: std::sync::Once = std::sync::Once::new();
+        ROOT.call_once(|| {
+            TestTensor::<1>::from_data([0.0], &device).into_data();
+            let root = std::env::temp_dir()
+                .join(format!("burn-compute-environment-{}", std::process::id()));
+            cubek::cubecl::environment::set_root(root);
+        });
+    }
+    device
+}
+
+/// An environment the device's work wrote into, with its save's size.
+fn built(device: &Device, name: &str, shape: [usize; 3]) -> (ComputeEnvironment, usize) {
+    let built = ComputeEnvironment::new(device, name).unwrap();
+    let previous = built.activate(device).unwrap();
+    product_of_ones(device, shape).into_data();
+    previous.activate(device).unwrap();
+    let size = built.save().unwrap().bytes.len();
+    (built, size)
+}
+
+/// The work the tests tune: the product of an `m`×`k` and a `k`×`n` matrix
+/// of ones, registered and not yet read.
+fn product_of_ones(device: &Device, [m, k, n]: [usize; 3]) -> TestTensor<2> {
+    TestTensor::<2>::ones([m, k], device).matmul(TestTensor::<2>::ones([k, n], device))
+}
+
+/// `product` is what [`product_of_ones`] computes for `shape`: `k` everywhere.
+fn assert_product_of_ones(product: TensorData, [m, k, n]: [usize; 3], device: &Device) {
+    let expected = TestTensor::<2>::full([m, n], k as f32, device);
+    product.assert_eq(&expected.into_data(), false);
+}
+
+/// Whether the runtime keeps the kernels it compiles, so an environment holds
+/// some for a prune to tell apart.
+///
+/// This binary's harness loads the runtime's configuration in a constructor,
+/// before any test could ask it to keep them, so it keeps them only when the
+/// configuration file says so: the kernels a prune keeps and removes are
+/// cubecl's tests' to prove, on a runtime that keeps them.
+#[allow(
+    dead_code,
+    reason = "a build constructs only the variants its backend can answer"
+)]
+enum KernelStorage {
+    /// The runtime keeps the kernels it compiles.
+    Kept,
+    /// The runtime's configuration keeps none.
+    NotKept,
+    /// The environments are a remote server's, configured where it runs.
+    OnServer,
+}
+
+impl KernelStorage {
+    fn new() -> Self {
+        #[cfg(feature = "cube")]
+        {
+            use cubek::cubecl::config::{CubeClRuntimeConfig, RuntimeConfig};
+
+            match CubeClRuntimeConfig::get().compilation.cache {
+                true => Self::Kept,
+                false => Self::NotKept,
+            }
+        }
+        #[cfg(not(feature = "cube"))]
+        {
+            Self::OnServer
+        }
+    }
 }

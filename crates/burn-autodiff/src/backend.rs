@@ -12,7 +12,7 @@ use burn_backend::{
         AutodiffBackend, Backend, BackendTypes, DeviceDescription, DeviceTelemetry,
         EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
         ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError,
-        PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
+        PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
     },
     tensor::{BoolTensor, IntTensor, QuantizedTensor},
 };
@@ -143,6 +143,14 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         origin: EnvironmentOrigin,
     ) -> Result<(), EnvironmentError> {
         B::environment_merge(device, id, origin)
+    }
+
+    fn environment_prune(
+        device: &Self::Device,
+        id: EnvironmentId,
+        options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        B::environment_prune(device, id, options)
     }
 
     fn memory_persistent_allocations<

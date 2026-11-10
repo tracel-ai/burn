@@ -5,7 +5,7 @@ use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceTelemetry,
     EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
     ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
-    ProfileDuration, ProfileOptions, ProfileToken, profile_with_tokens,
+    ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned, profile_with_tokens,
 };
 use core::marker::PhantomData;
 
@@ -151,6 +151,14 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
         origin: EnvironmentOrigin,
     ) -> Result<(), EnvironmentError> {
         get_client::<R>(device).environment_merge(id, origin)
+    }
+
+    fn environment_prune(
+        device: &Self::Device,
+        id: EnvironmentId,
+        options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        get_client::<R>(device).environment_prune(id, options)
     }
 
     fn device_description(device: &Self::Device) -> Option<DeviceDescription> {
