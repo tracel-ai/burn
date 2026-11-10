@@ -180,8 +180,19 @@ impl CollectivePlan {
         {
             return Err(Emulation::UnlikeMembers);
         }
+        let transported = tensors
+            .iter()
+            .all(|tensor| tensor.client.has_device_transport());
         let clients = tensors.iter().map(|tensor| tensor.client.clone()).collect();
-        let group = NativeGroup::new(clients, shape, dtype)?;
+        // cubecl checks the order before the transport, so a missing transport is named here.
+        let group = NativeGroup::new(clients, shape, dtype).map_err(|error| match error {
+            ClientGroupError::NotAscending { .. } if !transported => {
+                ClientGroupError::NoDeviceTransport {
+                    runtime: first.client.name(),
+                }
+            }
+            error => error,
+        })?;
         exchange.check(&group)?;
         Ok(group)
     }
