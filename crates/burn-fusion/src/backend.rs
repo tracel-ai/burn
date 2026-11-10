@@ -207,8 +207,9 @@ impl<B: FusionBackend> Backend for Fusion<B> {
             .map_err(server_error)?
     }
 
-    /// Counted without draining the calling stream's queue: a count is asked
-    /// while the work runs, and waiting on it would stall what it counts.
+    /// Counted without draining the calling stream's queue: the count is of
+    /// what has compiled and tuned so far, and work queued but not yet
+    /// executed is not in it.
     fn environment_summary(
         device: &Self::Device,
         id: EnvironmentId,

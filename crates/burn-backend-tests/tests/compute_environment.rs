@@ -263,9 +263,7 @@ fn a_prune_keeping_the_records_removes_none() {
     let (built, _) = built(&device, "pruned-with-records", [41, 17, 23]);
 
     let pruned = built
-        .prune(PruneOptions {
-            records: RecordPruning::KeepAll,
-        })
+        .prune(PruneOptions::new().records(RecordPruning::KeepAll))
         .unwrap();
 
     assert_eq!(pruned.records.removed, 0, "{pruned:?}");
@@ -273,7 +271,7 @@ fn a_prune_keeping_the_records_removes_none() {
 }
 
 /// An environment is counted as it stands, without saving it: empty when
-/// created, then holding what the work tuned, which its save holds too.
+/// created, then holding what the work compiled and tuned, active or not.
 #[test]
 #[serial]
 fn an_environment_is_counted_as_it_stands() {
@@ -288,52 +286,93 @@ fn an_environment_is_counted_as_it_stands() {
 
     assert!(summary.autotune_answers > 0, "{summary:?}");
     assert!(summary.records > 0, "{summary:?}");
-    assert_eq!(counted.summary().unwrap(), summary);
+    match KernelStorage::new() {
+        KernelStorage::Kept => assert!(summary.kernels > 0, "{summary:?}"),
+        KernelStorage::NotKept => assert_eq!(summary.kernels, 0, "{summary:?}"),
+        // Whether the server keeps them is its configuration's to say.
+        KernelStorage::OnServer => {}
+    }
+    assert_eq!(
+        counted.summary().unwrap(),
+        summary,
+        "counted while inactive"
+    );
 }
 
 /// A bundle saved under a name reads back from its file without being
 /// loaded: the name, when and by which executable it was saved, and what the
-/// environment held then; a file that is not there fails as every other
-/// environment call does.
+/// environment held then, which is what it holds as it stands.
 #[test]
 #[serial]
 #[cfg(feature = "persistence")]
 fn a_named_save_reads_back_its_name_stamp_and_counts() {
-    use burn_tensor::ReadBundle;
+    use burn_tensor::{BuildStamp, ReadBundle};
 
     let device = device();
     let (built, _) = built(&device, "named", [29, 41, 17]);
-    let path = std::env::temp_dir().join(format!(
-        "burn-compute-environment-{}-named.cubecl",
-        std::process::id()
-    ));
+    let file = BundleFile::new("named");
 
     std::fs::write(
-        &path,
+        &file.path,
         &*built.save_named("built for this device").unwrap().bytes,
     )
     .unwrap();
-    let read = EnvironmentBundle::read(&path).unwrap();
+    let description = EnvironmentBundle::read(&file.path)
+        .unwrap()
+        .describe()
+        .unwrap();
 
-    assert_eq!(read.name().unwrap(), "built for this device");
-    assert!(read.saved_at().unwrap().is_some());
-    assert_eq!(read.summary().unwrap(), built.summary().unwrap());
-    let saved_by = read.saved_by().unwrap();
+    assert_eq!(description.name, "built for this device");
+    assert!(description.saved_at.is_some());
+    assert_ne!(description.summary, EnvironmentSummary::default());
+    assert_eq!(description.summary, built.summary().unwrap());
     match KernelStorage::new() {
         // A remote environment is saved by the server's executable.
-        KernelStorage::OnServer => assert!(saved_by.is_some()),
+        KernelStorage::OnServer => assert!(description.saved_by.is_some()),
         KernelStorage::Kept | KernelStorage::NotKept => {
-            assert_eq!(saved_by, Some(burn_tensor::BuildStamp::current()))
+            assert_eq!(description.saved_by, Some(BuildStamp::current()))
         }
     }
-    std::fs::remove_file(&path).unwrap();
-    assert!(
-        matches!(
-            EnvironmentBundle::read(&path),
-            Err(EnvironmentError::Storage { .. })
-        ),
-        "a missing file answers with the error every environment call answers with"
-    );
+}
+
+/// A bundle file that is not there fails to read with the error every other
+/// environment call answers with.
+#[test]
+#[cfg(feature = "persistence")]
+fn a_missing_bundle_file_fails_with_a_storage_error() {
+    use burn_tensor::ReadBundle;
+
+    let file = BundleFile::new("missing");
+
+    assert!(matches!(
+        EnvironmentBundle::read(&file.path),
+        Err(EnvironmentError::Storage { .. })
+    ));
+}
+
+/// A bundle file under this run's directory, removed when dropped.
+#[cfg(feature = "persistence")]
+struct BundleFile {
+    path: std::path::PathBuf,
+}
+
+#[cfg(feature = "persistence")]
+impl BundleFile {
+    fn new(name: &str) -> Self {
+        let directory =
+            std::env::temp_dir().join(format!("burn-compute-environment-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        Self {
+            path: directory.join(format!("{name}.cubecl")),
+        }
+    }
+}
+
+#[cfg(feature = "persistence")]
+impl Drop for BundleFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
 }
 
 /// The default device, its environments kept in a directory of this run's.

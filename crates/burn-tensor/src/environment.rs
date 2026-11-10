@@ -32,9 +32,9 @@ use burn_dispatch::Dispatch;
 /// previous.activate(&device)?;
 ///
 /// // Later, or elsewhere: run in what the build kept, if this executable built it.
-/// // Reading a saved bundle takes [`ReadBundle`], with the `persistence` feature.
+/// // Reading a saved bundle's file takes `ReadBundle`, with the `persistence` feature.
 /// let bundle = EnvironmentBundle::read(path)?;
-/// if bundle.saved_by()? == Some(BuildStamp::current()) {
+/// if bundle.describe()?.saved_by == Some(BuildStamp::current()) {
 ///     ComputeEnvironment::load(&device, "model", bundle.clone())?.activate(&device)?;
 /// }
 ///
@@ -132,12 +132,12 @@ impl ComputeEnvironment {
     ///
     /// The storage refused the read, or the device could not be reached.
     pub fn save(&self) -> Result<EnvironmentBundle, EnvironmentError> {
-        self.save_with(SaveOptions::default())
+        self.save_with(SaveOptions::new())
     }
 
     /// [Save](Self::save) the environment into a bundle whose manifest calls
-    /// it `name`, for a person reading the bundle back with
-    /// [`EnvironmentBundle::name`].
+    /// it `name`, for a person reading the bundle back (`ReadBundle::name`,
+    /// with the `persistence` feature).
     ///
     /// # Errors
     ///
@@ -146,9 +146,7 @@ impl ComputeEnvironment {
         &self,
         name: impl Into<String>,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
-        self.save_with(SaveOptions {
-            name: Some(name.into()),
-        })
+        self.save_with(SaveOptions::new().name(name))
     }
 
     /// What the environment holds now, counted, without saving it and

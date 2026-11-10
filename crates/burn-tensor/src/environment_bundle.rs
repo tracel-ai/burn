@@ -1,80 +1,89 @@
 use crate::{BuildStamp, EnvironmentBundle, EnvironmentError, EnvironmentSummary};
 use alloc::string::String;
-use burn_std::environment::ReadBundle as ReadStoredBundle;
 use std::path::Path;
 use std::time::SystemTime;
 
+pub use burn_std::environment::BundleDescription;
+
 /// What a saved [`EnvironmentBundle`] says of itself, read without loading
 /// it, under the error every other compute environment call answers with.
+///
+/// [`describe`](Self::describe) reads every answer in one opening of the
+/// bundle; each other reader is a view of it, for a caller that wants one.
 ///
 /// ```rust,ignore
 /// use burn::tensor::{BuildStamp, EnvironmentBundle, ReadBundle};
 ///
 /// let bundle = EnvironmentBundle::read(path)?;
-/// let ours = bundle.saved_by()? == Some(BuildStamp::current());
-/// println!("{} holds {:?}", bundle.name()?, bundle.summary()?);
+/// let description = bundle.describe()?;
+/// let ours = description.saved_by == Some(BuildStamp::current());
+/// println!("{} holds {:?}", description.name, description.summary);
 /// ```
 pub trait ReadBundle: Sized {
-    /// The bundle saved at `path`. Its bytes are read from the file when
-    /// something uses them, and the readers below open the file in place, so
-    /// the file must stay as it is while the bundle is held.
+    /// The bundle saved at `path`. The file is opened now and held, and its
+    /// bytes read when something uses them: a file renamed over `path`
+    /// meanwhile is not the one read.
     ///
     /// # Errors
     ///
-    /// [`Storage`](EnvironmentError::Storage): the file cannot be read.
+    /// [`Storage`](EnvironmentError::Storage): the file does not open.
     fn read(path: impl AsRef<Path>) -> Result<Self, EnvironmentError>;
+
+    /// What the bundle says of itself: its name, which executable saved it
+    /// and when, and its counts.
+    ///
+    /// # Errors
+    ///
+    /// [`Storage`](EnvironmentError::Storage): the bytes do not read, they
+    /// are not a bundle, or its entries cannot be counted.
+    fn describe(&self) -> Result<BundleDescription, EnvironmentError>;
 
     /// The name the bundle's manifest gives it, as
     /// [`save_named`](crate::ComputeEnvironment::save_named) set it.
     ///
     /// # Errors
     ///
-    /// [`Storage`](EnvironmentError::Storage): the bytes are not a bundle, or
-    /// do not read.
-    fn name(&self) -> Result<String, EnvironmentError>;
+    /// As [`describe`](Self::describe).
+    fn name(&self) -> Result<String, EnvironmentError> {
+        Ok(self.describe()?.name)
+    }
 
     /// The executable that saved the bundle, when its manifest names one:
     /// [`BuildStamp::current`] when this executable did.
     ///
     /// # Errors
     ///
-    /// As [`name`](Self::name).
-    fn saved_by(&self) -> Result<Option<BuildStamp>, EnvironmentError>;
+    /// As [`describe`](Self::describe).
+    fn saved_by(&self) -> Result<Option<BuildStamp>, EnvironmentError> {
+        Ok(self.describe()?.saved_by)
+    }
 
     /// When the bundle was saved, when its manifest says.
     ///
     /// # Errors
     ///
-    /// As [`name`](Self::name).
-    fn saved_at(&self) -> Result<Option<SystemTime>, EnvironmentError>;
+    /// As [`describe`](Self::describe).
+    fn saved_at(&self) -> Result<Option<SystemTime>, EnvironmentError> {
+        Ok(self.describe()?.saved_at)
+    }
 
     /// What the bundle holds, counted.
     ///
     /// # Errors
     ///
-    /// As [`name`](Self::name).
-    fn summary(&self) -> Result<EnvironmentSummary, EnvironmentError>;
+    /// As [`describe`](Self::describe).
+    fn summary(&self) -> Result<EnvironmentSummary, EnvironmentError> {
+        Ok(self.describe()?.summary)
+    }
 }
 
 /// The storage's reads, each error taken into this crate's.
 impl ReadBundle for EnvironmentBundle {
     fn read(path: impl AsRef<Path>) -> Result<Self, EnvironmentError> {
-        Ok(<Self as ReadStoredBundle>::read(path)?)
+        Ok(Self::open(path)?)
     }
 
-    fn name(&self) -> Result<String, EnvironmentError> {
-        Ok(ReadStoredBundle::name(self)?)
-    }
-
-    fn saved_by(&self) -> Result<Option<BuildStamp>, EnvironmentError> {
-        Ok(ReadStoredBundle::saved_by(self)?)
-    }
-
-    fn saved_at(&self) -> Result<Option<SystemTime>, EnvironmentError> {
-        Ok(ReadStoredBundle::saved_at(self)?)
-    }
-
-    fn summary(&self) -> Result<EnvironmentSummary, EnvironmentError> {
-        Ok(ReadStoredBundle::summary(self)?)
+    fn describe(&self) -> Result<BundleDescription, EnvironmentError> {
+        Ok(self.read_description()?)
     }
 }
