@@ -187,11 +187,11 @@ impl CollectivePlan {
     }
 }
 
-/// How collectives between devices run, whatever tensors they are given.
+/// Whether the devices have a transport that runs collectives between them. A collective over
+/// devices that have one can still be emulated, for its tensors' dtype, shape or member order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CollectiveTransport {
-    /// Natively, by the transport between `runtime`'s devices, such as NCCL on CUDA. A reduction
-    /// in a dtype outside `reduces` is still emulated.
+    /// The transport between `runtime`'s devices, such as NCCL on CUDA.
     Native {
         /// The runtime's name, as cubecl gives it.
         runtime: &'static str,
