@@ -1,4 +1,6 @@
-pub use burn_backend::{EnvironmentBundle, EnvironmentError};
+pub use burn_backend::{
+    EnvironmentBundle, EnvironmentError, PruneOptions, PruneTally, Pruned, RecordPruning,
+};
 
 use crate::Device;
 use alloc::string::String;
@@ -23,6 +25,8 @@ use burn_dispatch::Dispatch;
 /// let built = ComputeEnvironment::new(&device, "building")?;
 /// built.activate(&device)?;
 /// // ... compile-only and tune passes ...
+/// // Keep the kernels the work loaded; drop those only an autotune race loaded.
+/// built.prune(PruneOptions::default())?;
 /// std::fs::write(path, &*built.save()?.bytes)?;
 /// previous.activate(&device)?;
 ///
@@ -151,6 +155,30 @@ impl ComputeEnvironment {
     /// could not be reached.
     pub fn merge_bundle(&self, bundle: EnvironmentBundle) -> Result<(), EnvironmentError> {
         self.merge_from(EnvironmentOrigin::Bundle(bundle))
+    }
+
+    /// Remove the compiled kernels the work never loaded, after every
+    /// operation registered so far on the calling stream: those only an
+    /// autotune race loaded, to measure a candidate or gather its kernels,
+    /// those another executable compiled, and the build records `options` does
+    /// not keep. Every kernel the work loaded stays, whatever shape it ran,
+    /// with the autotune answers, so the work runs from the environment with
+    /// the same picks and compiles nothing it ran before. A [save](Self::save)
+    /// after it holds no space the removed entries took.
+    ///
+    /// Prune once the work has run with its tunes settled: a work launch made
+    /// while a key is still untuned records the candidate it ran, which the
+    /// prune then keeps. Prune from the executable that runs the environment,
+    /// the server's for a remote one: the kernels any other executable
+    /// compiled are removed. An environment the work never ran in keeps every
+    /// kernel this executable compiled.
+    ///
+    /// # Errors
+    ///
+    /// The device keeps no compute environment, the storage refused the
+    /// write, or the device could not be reached.
+    pub fn prune(&self, options: PruneOptions) -> Result<Pruned, EnvironmentError> {
+        Dispatch::environment_prune(self.home.as_dispatch(), self.id.clone(), options)
     }
 
     /// The environment's name in the storage it lives in.

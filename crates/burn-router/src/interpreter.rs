@@ -15,8 +15,8 @@ use burn_backend::{
     Backend, BackendGraph, DType, DeviceDescription, DeviceOps, DeviceTelemetry, EnvironmentBundle,
     EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode,
     ExecutionModeToken, ExecutionStatistics, FloatDType, MemoryReport, Peak, PeakError, PeakKey,
-    ProfileDuration, ProfileOptions, ProfileToken, Shape, TensorData, TensorMetadata,
-    TensorPrimitive, ops::TransactionPrimitive,
+    ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned, Shape, TensorData,
+    TensorMetadata, TensorPrimitive, ops::TransactionPrimitive,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
@@ -2568,6 +2568,16 @@ impl<B: BackendIr> TensorInterpreter<B> {
         origin: EnvironmentOrigin,
     ) -> Result<(), EnvironmentError> {
         B::environment_merge(&self.device, id, origin)
+    }
+
+    /// Remove from the environment `id` of the backend the compiled kernels the work never
+    /// loaded, where the calling stream stands.
+    pub fn environment_prune(
+        &self,
+        id: EnvironmentId,
+        options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        B::environment_prune(&self.device, id, options)
     }
 
     /// What the backend's device is, as its driver states it.

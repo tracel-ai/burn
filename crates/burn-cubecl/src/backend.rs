@@ -9,9 +9,13 @@ use burn_backend::{
     ProfileToken, SlicedPoolReport, TensorData, profile_with_tokens,
 };
 #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
-use burn_backend::{EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin};
+use burn_backend::{
+    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, PruneOptions, Pruned,
+};
 use burn_std::{BoolStore, DType, id::StreamId, quantization::quantizable};
 use cubecl::device::DeviceId;
+#[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+use cubecl::prune::Prune;
 use cubecl::{
     MemoryPoolKind, MemoryScope,
     client::{Client, ProfileWindow},
@@ -278,6 +282,21 @@ impl Backend for CubeBackend {
     ) -> Result<(), EnvironmentError> {
         device.client().flush().map_err(server_err)?;
         Ok(id.merge(origin)?)
+    }
+
+    /// The kernels a compile-only pass queued are compiled and the launches
+    /// the calling stream's client still buffers flushed first, so what they
+    /// compile is pruned or kept with the rest rather than stored after it.
+    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+    fn environment_prune(
+        device: &Self::Device,
+        id: EnvironmentId,
+        options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        let client = device.client();
+        client.compile_queued();
+        client.flush().map_err(server_err)?;
+        Ok(id.prune(options)?)
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

@@ -75,6 +75,22 @@ conflicts with it (E0119); delete the handwritten one.
   ([#6188](https://github.com/tracel-ai/burn/pull/6188),
   [CubeCL #1856](https://github.com/tracel-ai/cubecl/pull/1856))
 
+#### Compute environments
+
+A `ComputeEnvironment` holds the kernels a device's work compiles and the answers its autotune
+measures, so a later run reuses them: created, forked, loaded from a saved bundle, merged, activated
+and saved on any device that reaches its storage, a remote server's included.
+([#6335](https://github.com/tracel-ai/burn/pull/6335),
+[#6373](https://github.com/tracel-ai/burn/pull/6373))
+
+- `ComputeEnvironment::prune` removes the compiled kernels the work never loaded: those only an
+  autotune race loaded and those another executable compiled, with the build records
+  `PruneOptions::records` does not keep (`RecordPruning::RemoveAll` by default). Every kernel the
+  work loaded stays, with the autotune answers; prune from the executable that runs the
+  environment. A remote device prunes on its server, so remote clients and servers must be
+  upgraded together (protocol version 13).
+  ([#6472](https://github.com/tracel-ai/burn/pull/6472))
+
 #### CubeK tile kernels
 
 - Run matmul, fused matmul and attention on CubeCL backends through CubeK's tile routines, chosen
@@ -531,7 +547,7 @@ Backend implementors must provide `Backend::next_random_key` and accept a `Rando
 implicit generator. `Tensor::random` and `random_like` reserve keys at the tensor bridge;
 direct backend callers must supply a key. Use `RandomKey::split` to derive child keys.
 Router clients must also implement `next_random_key`; random-operation IR now carries a key
-scalar, so remote clients and servers must be upgraded together (protocol version 12).
+scalar, so remote clients and servers must be upgraded together (protocol version 13).
 Remote clients reserve keys locally without waiting for queued service work.
 
 Capture preserves explicit backend keys. Implicit random operations (`Tensor::random` and
@@ -704,7 +720,7 @@ backends do). Autodiff composes it from tensor operations.
 **Breaking:** `attention` and `ModuleOps::attention` take the cache as a new argument before
 `options`; pass `None` for an attention over the key and value as given. `AttentionOpIr` gains
 `lengths` and `pages`, so remote clients and servers must be upgraded together (protocol
-version 12).
+version 13).
 
 #### Config derivation
 

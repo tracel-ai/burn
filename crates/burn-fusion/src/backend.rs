@@ -8,7 +8,8 @@ use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceOps, DeviceTelemetry,
     EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
     ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
-    ProfileDuration, ProfileOptions, ProfileToken, Shape, profile_with_tokens,
+    ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned, Shape,
+    profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -214,6 +215,20 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         let device = device.clone();
         client
             .try_sync(move || B::environment_merge(&device, id, origin))
+            .map_err(server_error)?
+    }
+
+    /// Pruned after the calling stream's queue drains, so what it compiles is
+    /// pruned or kept with the rest.
+    fn environment_prune(
+        device: &Self::Device,
+        id: EnvironmentId,
+        options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::environment_prune(&device, id, options))
             .map_err(server_error)?
     }
 

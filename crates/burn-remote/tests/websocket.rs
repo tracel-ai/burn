@@ -2,7 +2,10 @@
 
 mod common;
 
-use burn_backend::{distributed::ReduceOperation, ops::CollectiveOps};
+use burn_backend::{
+    Backend, EnvironmentError, EnvironmentId, PruneOptions, distributed::ReduceOperation,
+    ops::CollectiveOps,
+};
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_flex::Flex;
 use burn_remote::{
@@ -1206,6 +1209,36 @@ fn a_device_query_is_answered_by_its_handler() {
     let doubled = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
     assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
 
+    rt.shutdown_background();
+}
+
+/// A prune is answered by the server's backend: one that keeps no environment
+/// says so in its own words, which only the round trip to it can carry back.
+#[test]
+fn a_prune_is_answered_by_the_servers_backend() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
+    let id = EnvironmentId {
+        storage: 0,
+        name: "pruned".into(),
+        location: String::new(),
+    };
+
+    let answer =
+        Dispatch::environment_prune(device.as_dispatch(), id.clone(), PruneOptions::default());
+
+    // The server's backend's answer, not the client's own default.
+    let backends_own =
+        <Flex as Backend>::environment_prune(&Default::default(), id, PruneOptions::default());
+    assert_eq!(format!("{answer:?}"), format!("{backends_own:?}"));
+    assert!(
+        matches!(answer, Err(EnvironmentError::Unsupported { .. })),
+        "{answer:?}"
+    );
     rt.shutdown_background();
 }
 
