@@ -4,7 +4,7 @@
 
 use burn_backend::{
     DType, DeviceOps, Shape,
-    cubecl::{dtype_to_elem_type, reduce_operation_to_cubecl},
+    cubecl::{dtype_to_elem_type, reduce_operation_to_cubecl, try_elem_type_to_dtype},
     distributed::ReduceOperation,
     ops::{CollectiveOps, EmulatedCollectives},
     tensor::{BoolTensor, FloatTensor, IntTensor},
@@ -13,6 +13,7 @@ use core::{cmp::Ordering, fmt};
 use cubecl::{
     client::{Client, ClientGroup, ClientGroupError, GroupMember, MemberBuffers},
     ir::ElemType,
+    server::TransportProvider,
 };
 use std::sync::{Mutex, PoisonError};
 
@@ -202,11 +203,11 @@ impl CollectivePlan {
 /// devices that have one can still be emulated, for its tensors' dtype, shape or member order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CollectiveTransport {
-    /// The transport between `runtime`'s devices, such as NCCL on CUDA.
+    /// The transport cubecl runs between the devices.
     Native {
-        /// The runtime's name, as cubecl gives it.
-        runtime: &'static str,
-        /// The dtypes the transport reduces.
+        /// What runs it, such as NCCL on CUDA.
+        provider: TransportProvider,
+        /// The dtypes it reduces.
         reduces: Vec<DType>,
     },
     /// Emulated, since cubecl forms no group of the devices.
@@ -214,35 +215,22 @@ pub enum CollectiveTransport {
 }
 
 impl CollectiveTransport {
-    /// The dtypes a reduction can be asked to run in.
-    const REDUCIBLE: [DType; 13] = [
-        DType::F64,
-        DType::F32,
-        DType::Flex32,
-        DType::F16,
-        DType::BF16,
-        DType::I64,
-        DType::I32,
-        DType::I16,
-        DType::I8,
-        DType::U64,
-        DType::U32,
-        DType::U16,
-        DType::U8,
-    ];
-
     /// The transport between `devices`, which a collective groups in ascending device order.
     pub fn new(devices: &[CubeDevice]) -> Self {
         let mut ranked = devices.to_vec();
         ranked.sort_by_key(|device| device.id());
         match ClientGroup::new(ranked.iter().map(CubeDevice::client).collect()) {
-            Ok(group) => Self::Native {
-                runtime: group.clients()[0].name(),
-                reduces: Self::REDUCIBLE
-                    .into_iter()
-                    .filter(|dtype| group.reduces(dtype_to_elem_type(*dtype)))
-                    .collect(),
-            },
+            Ok(group) => {
+                let transport = group.transport();
+                Self::Native {
+                    provider: transport.provider,
+                    reduces: transport
+                        .reduces
+                        .iter()
+                        .filter_map(|elem| try_elem_type_to_dtype(*elem))
+                        .collect(),
+                }
+            }
             Err(error) => Self::Emulated(error),
         }
     }
@@ -844,11 +832,11 @@ mod tests {
     /// The transport sorts the devices as a collective does, so their order cannot make it emulated.
     #[test]
     #[ignore = "needs two CUDA devices and NCCL"]
-    fn devices_in_any_order_name_their_runtime_and_what_it_reduces() {
+    fn devices_in_any_order_name_their_provider_and_what_it_reduces() {
         let devices = [1, 0].map(|index| CubeDevice::Cuda(CudaDevice { index }));
         match CollectiveTransport::new(&devices) {
-            CollectiveTransport::Native { runtime, reduces } => {
-                assert_eq!(runtime, "cuda");
+            CollectiveTransport::Native { provider, reduces } => {
+                assert_eq!(provider, TransportProvider::Nccl);
                 assert!(reduces.contains(&DType::F32), "{reduces:?}");
                 assert!(!reduces.contains(&DType::I16), "{reduces:?}");
             }
