@@ -273,9 +273,9 @@ Loading a module record (`Module::load_record`) now labels the memory each param
 the parameter's path. With CubeCL's memory tracing turned on (`tracing = "labels"` or
 `"backtraces"` under `[cubecl.memory]` in `burn.toml`, or `CUBECL_MEMORY_TRACING`), the memory
 report of a CubeCL backend lists every live allocation with the code that made it, and a loaded
-model's weights are listed under their paths, such as `conv1.conv.weight`. Allocations made by the
-device's worker threads, which run most tensor operations, are listed by thread for now. Tracing is
-off by default. See [Memory Tracing](./performance/memory-tracing.md).
+model's weights are listed under their paths, such as `conv1.conv.weight`. A tensor operation keeps
+the labels in effect when it was queued, so the memory the device's worker threads allocate for it,
+fused or not, is listed under them too. Tracing is off by default. See [Memory Tracing](./performance/memory-tracing.md).
 
 #### NdArray and LibTorch backend removal
 

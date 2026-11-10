@@ -47,13 +47,13 @@ let _label = AllocationLabel::push("weights");
 // allocations made on this thread are listed under "weights"
 ```
 
-A label only reaches allocations made on the thread that created it. Most tensor operations do not
-allocate on your thread: Burn hands them to the device's worker threads (named `DSU-…` and
-`DSD-…`), and with kernel fusion it runs them later, when a result is read. Their allocations are
-listed under the worker's thread name, without your labels, and their call stack ends inside Burn.
-Loading a record allocates on your thread, which is why its labels reach the weights. So for now,
-labels and call stacks name the weights of a loaded model and what your own thread allocates, and
-the rest is grouped by worker thread.
+A label also follows the work your thread hands over. Most tensor operations do not run on your
+thread: Burn queues them for the device's worker threads (named `DSU-…` and `DSD-…`), and with
+kernel fusion it runs them later, when a result is read. Each operation keeps the labels in effect
+when it was queued, and the memory it allocates is listed under them wherever and whenever it runs.
+A fused kernel replaces several operations and allocates under the labels of its first one. Call
+stacks do not follow the work the same way: an allocation made on a worker thread has a stack that
+ends inside Burn.
 
 ## Reading the allocations
 
