@@ -2336,3 +2336,44 @@ fn a_stall_consumes_the_block_it_was_going_to_run() {
     over.consume_stalled(4);
     assert_eq!(over.finish().num_executed, 1, "clamped to what is held");
 }
+
+/// Records the allocation labels in effect when it runs.
+#[derive(Debug)]
+struct LabelsSeenOp {
+    seen: Arc<std::sync::Mutex<Vec<String>>>,
+}
+
+impl Operation<TestRuntime> for LabelsSeenOp {
+    fn execute(&self, _handles: &mut HandleContainer<TestHandle>) -> Result<(), ExecutionError> {
+        use burn_std::allocation_label::AllocationLabel;
+
+        *self.seen.lock().unwrap() = AllocationLabel::current()
+            .iter()
+            .map(|label| label.to_string())
+            .collect();
+        Ok(())
+    }
+}
+
+/// An operation runs under the labels it was registered under, even run later on
+/// another thread that has labels of its own.
+#[test]
+fn an_operation_runs_under_the_labels_it_was_registered_under() {
+    use burn_std::allocation_label::{AllocationLabel, set_recording};
+
+    set_recording(true);
+    let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let op = {
+        let _step = AllocationLabel::push("step 3");
+        UnfusedOp::<TestRuntime>::new(LabelsSeenOp { seen: seen.clone() }, StreamId::current())
+    };
+    std::thread::spawn(move || {
+        let _worker = AllocationLabel::push("worker");
+        op.execute(&mut HandleContainer::new()).unwrap();
+    })
+    .join()
+    .unwrap();
+    set_recording(false);
+
+    assert_eq!(*seen.lock().unwrap(), ["step 3"]);
+}

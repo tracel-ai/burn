@@ -263,10 +263,22 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         // holds the context it writes through.
         let this = &*self;
         let block = BlockOperations::new(&this.ir, &ordering);
+        // A fused kernel replaces operations that may have been registered
+        // under different allocation labels: what it allocates goes under its
+        // first operation's.
+        let labels = ordering
+            .first()
+            .map(|first| this.operations[*first].labels().clone())
+            .unwrap_or_default();
         let outcome = observe_block(block, || {
-            WriteScope::over_block(&this.ir, &ordering, context).run(OnPanic::Catch, |context| {
-                optimization.execute(context, this);
-                Ok(())
+            labels.apply(|| {
+                WriteScope::over_block(&this.ir, &ordering, context).run(
+                    OnPanic::Catch,
+                    |context| {
+                        optimization.execute(context, this);
+                        Ok(())
+                    },
+                )
             })
         });
 

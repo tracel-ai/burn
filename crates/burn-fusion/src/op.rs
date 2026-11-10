@@ -1,5 +1,6 @@
 use burn_backend::{ExecutionError, StreamId};
 use burn_ir::HandleContainer;
+use burn_std::allocation_label::AllocationLabelStack;
 use burn_std::arena::ReservedMemory;
 use std::{cell::RefCell, sync::Arc};
 
@@ -21,11 +22,16 @@ std::thread_local! {
 pub struct UnfusedOp<R: FusionRuntime> {
     kind: UnfusedOpKind<R>,
     stream_id: StreamId,
+    /// The allocation labels in effect where the operation was registered,
+    /// applied where it runs: later, on the device's thread, under whatever
+    /// work happened to flush the queue.
+    labels: AllocationLabelStack,
 }
 
 impl<R: FusionRuntime> UnfusedOp<R> {
     /// Creates a new unfused [operation](Operation) that will execute on the given [StreamId].
     pub fn new<O: Operation<R> + 'static>(op: O, stream_id: StreamId) -> Self {
+        let labels = AllocationLabelStack::current();
         let arena_item = match Arena::accept::<O>() {
             true => ARENA.with_borrow_mut(|arena| arena.reserve()),
             false => None,
@@ -37,6 +43,7 @@ impl<R: FusionRuntime> UnfusedOp<R> {
                 return UnfusedOp {
                     kind: UnfusedOpKind::Alloc(Arc::new(op)),
                     stream_id,
+                    labels,
                 };
             }
         };
@@ -49,6 +56,7 @@ impl<R: FusionRuntime> UnfusedOp<R> {
                 ptr_skipped: shim_skipped::<R, O>,
             }),
             stream_id,
+            labels,
         }
     }
 
@@ -57,10 +65,17 @@ impl<R: FusionRuntime> UnfusedOp<R> {
         &self,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) -> Result<(), ExecutionError> {
-        self.stream_id.executes(|| match &self.kind {
-            UnfusedOpKind::Arena(o) => o.execute(handles),
-            UnfusedOpKind::Alloc(o) => o.execute(handles),
+        self.labels.apply(|| {
+            self.stream_id.executes(|| match &self.kind {
+                UnfusedOpKind::Arena(o) => o.execute(handles),
+                UnfusedOpKind::Alloc(o) => o.execute(handles),
+            })
         })
+    }
+
+    /// The allocation labels in effect where the operation was registered.
+    pub fn labels(&self) -> &AllocationLabelStack {
+        &self.labels
     }
 
     /// Runs the [operation](Operation)'s [`skipped`](Operation::skipped) in place of its
@@ -127,6 +142,7 @@ impl<R: FusionRuntime> Clone for UnfusedOp<R> {
         Self {
             kind: self.kind.clone(),
             stream_id: self.stream_id,
+            labels: self.labels.clone(),
         }
     }
 }
