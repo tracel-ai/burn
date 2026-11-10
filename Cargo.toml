@@ -245,3 +245,27 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
+
+[patch."https://github.com/tracel-ai/cubecl"]
+cubecl = { path = "../cubecl-bundle-readers-pin/crates/cubecl" }
+cubecl-common = { path = "../cubecl-bundle-readers-pin/crates/cubecl-common" }
+cubecl-core = { path = "../cubecl-bundle-readers-pin/crates/cubecl-core" }
+cubecl-cpp = { path = "../cubecl-bundle-readers-pin/crates/cubecl-cpp" }
+cubecl-cpu = { path = "../cubecl-bundle-readers-pin/crates/cubecl-cpu" }
+cubecl-cuda = { path = "../cubecl-bundle-readers-pin/crates/cubecl-cuda" }
+cubecl-environment = { path = "../cubecl-bundle-readers-pin/crates/cubecl-environment" }
+cubecl-hip = { path = "../cubecl-bundle-readers-pin/crates/cubecl-hip" }
+cubecl-ir = { path = "../cubecl-bundle-readers-pin/crates/cubecl-ir" }
+cubecl-llvm = { path = "../cubecl-bundle-readers-pin/crates/cubecl-llvm" }
+cubecl-macros = { path = "../cubecl-bundle-readers-pin/crates/cubecl-macros" }
+cubecl-macros-internal = { path = "../cubecl-bundle-readers-pin/crates/cubecl-macros-internal" }
+cubecl-metal = { path = "../cubecl-bundle-readers-pin/crates/cubecl-metal" }
+cubecl-monitoring = { path = "../cubecl-bundle-readers-pin/crates/cubecl-monitoring" }
+cubecl-opt = { path = "../cubecl-bundle-readers-pin/crates/cubecl-opt" }
+cubecl-runtime = { path = "../cubecl-bundle-readers-pin/crates/cubecl-runtime" }
+cubecl-server = { path = "../cubecl-bundle-readers-pin/crates/cubecl-server" }
+cubecl-spirv = { path = "../cubecl-bundle-readers-pin/crates/cubecl-spirv" }
+cubecl-std = { path = "../cubecl-bundle-readers-pin/crates/cubecl-std" }
+cubecl-tile = { path = "../cubecl-bundle-readers-pin/crates/cubecl-tile" }
+cubecl-wgpu = { path = "../cubecl-bundle-readers-pin/crates/cubecl-wgpu" }
+cubecl-zspace = { path = "../cubecl-bundle-readers-pin/crates/cubecl-zspace" }
