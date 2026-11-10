@@ -552,7 +552,7 @@ pub(crate) fn handle_command(
             let no_std_test_crates: Vec<&str> = NO_STD_CRATES
                 .iter()
                 .copied()
-                .filter(|&c| c != "burn-flex")
+                .filter(|&c| c != "burn-flex" && c != "burn-optim")
                 .collect();
             ["Default"].iter().try_for_each(|test_target| {
                 let mut test_args = vec!["--no-default-features"];
