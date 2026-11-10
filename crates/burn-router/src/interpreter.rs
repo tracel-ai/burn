@@ -13,10 +13,10 @@ use alloc::{
 };
 use burn_backend::{
     Backend, BackendGraph, DType, DeviceDescription, DeviceOps, DeviceTelemetry, EnvironmentBundle,
-    EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode,
-    ExecutionModeToken, ExecutionStatistics, FloatDType, MemoryReport, Peak, PeakError, PeakKey,
-    ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned, Shape, TensorData,
-    TensorMetadata, TensorPrimitive, ops::TransactionPrimitive,
+    EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary, ExecutionError,
+    ExecutionMode, ExecutionModeToken, ExecutionStatistics, FloatDType, MemoryReport, Peak,
+    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
+    SaveOptions, Shape, TensorData, TensorMetadata, TensorPrimitive, ops::TransactionPrimitive,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
@@ -2557,8 +2557,17 @@ impl<B: BackendIr> TensorInterpreter<B> {
     pub fn environment_save(
         &self,
         id: EnvironmentId,
+        options: SaveOptions,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
-        B::environment_save(&self.device, id)
+        B::environment_save(&self.device, id, options)
+    }
+
+    /// Count what the environment `id` of the backend holds as it stands.
+    pub fn environment_summary(
+        &self,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentSummary, EnvironmentError> {
+        B::environment_summary(&self.device, id)
     }
 
     /// Bring what `origin` holds into the environment `id` of the backend.

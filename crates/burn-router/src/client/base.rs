@@ -5,9 +5,9 @@ use alloc::vec::Vec;
 use burn_backend::RandomKey;
 use burn_backend::{
     DType, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId,
-    EnvironmentOrigin, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
-    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
-    TensorData, UnknownExecutionMode,
+    EnvironmentOrigin, EnvironmentSummary, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
+    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
+    PruneOptions, Pruned, SaveOptions, TensorData, UnknownExecutionMode,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
@@ -187,7 +187,22 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
 
     /// Serialize the compute environment `id`, after every operation
     /// registered so far on the calling stream.
-    fn environment_save(&self, id: EnvironmentId) -> Result<EnvironmentBundle, EnvironmentError> {
+    fn environment_save(
+        &self,
+        id: EnvironmentId,
+        options: SaveOptions,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        let _ = (id, options);
+        Err(environment_unsupported())
+    }
+
+    /// Count what the environment `id` of the interpreter's backend holds as
+    /// it stands — see
+    /// [`Backend::environment_summary`](burn_backend::Backend::environment_summary).
+    fn environment_summary(
+        &self,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentSummary, EnvironmentError> {
         let _ = id;
         Err(environment_unsupported())
     }

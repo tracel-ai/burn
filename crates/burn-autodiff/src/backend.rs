@@ -10,9 +10,10 @@ use core::marker::PhantomData;
 use burn_backend::{
     backend::{
         AutodiffBackend, Backend, BackendTypes, DeviceDescription, DeviceTelemetry,
-        EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
-        ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError,
-        PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
+        EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
+        ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
+        PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
+        SaveOptions,
     },
     tensor::{BoolTensor, IntTensor, QuantizedTensor},
 };
@@ -133,8 +134,16 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     fn environment_save(
         device: &Self::Device,
         id: EnvironmentId,
+        options: SaveOptions,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
-        B::environment_save(device, id)
+        B::environment_save(device, id, options)
+    }
+
+    fn environment_summary(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentSummary, EnvironmentError> {
+        B::environment_summary(device, id)
     }
 
     fn environment_merge(

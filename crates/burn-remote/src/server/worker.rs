@@ -594,9 +594,14 @@ where
                 self.send_response(request_id, TaskResponseContent::Environment(res))
                     .await
             }
-            Task::EnvironmentSave(request_id, stream_id, id) => {
-                let res = self.on_stream(stream_id, |runner| runner.environment_save(id));
+            Task::EnvironmentSave(request_id, stream_id, id, options) => {
+                let res = self.on_stream(stream_id, |runner| runner.environment_save(id, options));
                 self.send_response(request_id, TaskResponseContent::EnvironmentSaved(res))
+                    .await
+            }
+            Task::EnvironmentSummary(request_id, id) => {
+                let res = self.runner.environment_summary(id);
+                self.send_response(request_id, TaskResponseContent::EnvironmentSummarized(res))
                     .await
             }
             Task::EnvironmentMerge(request_id, stream_id, id, origin) => {
