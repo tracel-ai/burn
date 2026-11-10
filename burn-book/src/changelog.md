@@ -98,6 +98,8 @@ and saved on any device that reaches its storage, a remote server's included.
   **Breaking:** `Backend::environment_save` takes `SaveOptions`, and backends gain
   `environment_summary`; a remote device saves and counts on its server, so remote clients and
   servers must be upgraded together (protocol version 14).
+  ([#6485](https://github.com/tracel-ai/burn/pull/6485),
+  [CubeCL #2144](https://github.com/tracel-ai/cubecl/pull/2144))
 
 #### CubeK tile kernels
 
