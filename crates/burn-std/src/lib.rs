@@ -89,6 +89,17 @@ pub mod environment {
         BuildStamp, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
         EnvironmentSummary, PruneOptions, PruneTally, Pruned, RecordPruning, SaveOptions,
     };
+
+    #[cfg(all(
+        feature = "persistence",
+        any(
+            target_os = "windows",
+            target_os = "linux",
+            target_os = "macos",
+            target_os = "android"
+        )
+    ))]
+    pub use cubecl_environment::environment::ReadBundle;
 }
 
 pub use half::{bf16, f16};

@@ -32,6 +32,7 @@ use burn_dispatch::Dispatch;
 /// previous.activate(&device)?;
 ///
 /// // Later, or elsewhere: run in what the build kept, if this executable built it.
+/// // Reading a saved bundle takes [`ReadBundle`], with the `persistence` feature.
 /// let bundle = EnvironmentBundle::read(path)?;
 /// if bundle.saved_by()? == Some(BuildStamp::current()) {
 ///     ComputeEnvironment::load(&device, "model", bundle.clone())?.activate(&device)?;

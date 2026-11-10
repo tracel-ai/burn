@@ -292,12 +292,15 @@ fn an_environment_is_counted_as_it_stands() {
 }
 
 /// A bundle saved under a name reads back from its file without being
-/// loaded: the name, the executable that saved it, and what the environment
-/// held when it was saved.
+/// loaded: the name, when and by which executable it was saved, and what the
+/// environment held then; a file that is not there fails as every other
+/// environment call does.
 #[test]
 #[serial]
 #[cfg(feature = "persistence")]
 fn a_named_save_reads_back_its_name_stamp_and_counts() {
+    use burn_tensor::ReadBundle;
+
     let device = device();
     let (built, _) = built(&device, "named", [29, 41, 17]);
     let path = std::env::temp_dir().join(format!(
@@ -324,6 +327,13 @@ fn a_named_save_reads_back_its_name_stamp_and_counts() {
         }
     }
     std::fs::remove_file(&path).unwrap();
+    assert!(
+        matches!(
+            EnvironmentBundle::read(&path),
+            Err(EnvironmentError::Storage { .. })
+        ),
+        "a missing file answers with the error every environment call answers with"
+    );
 }
 
 /// The default device, its environments kept in a directory of this run's.

@@ -90,11 +90,12 @@ and saved on any device that reaches its storage, a remote server's included.
   environment. A remote device prunes on its server, so remote clients and servers must be
   upgraded together (protocol version 14).
   ([#6472](https://github.com/tracel-ai/burn/pull/6472))
-- A saved `EnvironmentBundle` says what it is without being loaded: `EnvironmentBundle::read` opens
-  a saved file, and `name`, `saved_at`, `saved_by` (the `BuildStamp` of the executable that saved
-  it, compared with `BuildStamp::current()`) and `summary` (an `EnvironmentSummary` of its kernels,
-  autotune answers and records) read it in place. `ComputeEnvironment::save_named` names the bundle, and
-  `ComputeEnvironment::summary` counts an environment as it stands, without saving it.
+- A saved `EnvironmentBundle` says what it is without being loaded, through `ReadBundle` (with
+  `persistence`): `EnvironmentBundle::read` opens a saved file, and `name`, `saved_at`, `saved_by`
+  (the `BuildStamp` of the executable that saved it, compared with `BuildStamp::current()`) and
+  `summary` (an `EnvironmentSummary` of its kernels, autotune answers and records) read it in
+  place, each failing with `EnvironmentError`. `ComputeEnvironment::save_named` names the bundle,
+  and `ComputeEnvironment::summary` counts an environment as it stands, without saving it.
   **Breaking:** `Backend::environment_save` takes `SaveOptions`, and backends gain
   `environment_summary`; a remote device saves and counts on its server, so remote clients and
   servers must be upgraded together (protocol version 14).
