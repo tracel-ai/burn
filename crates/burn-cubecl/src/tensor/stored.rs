@@ -42,7 +42,8 @@ impl CubeTensor {
     }
 }
 
-#[cfg(test)]
+// Quantizes on a device: the Linux runners have no GPU for the test runtime's wgpu.
+#[cfg(all(test, any(feature = "cuda", feature = "vulkan", feature = "metal")))]
 mod tests {
     use burn_backend::{
         TensorData,
