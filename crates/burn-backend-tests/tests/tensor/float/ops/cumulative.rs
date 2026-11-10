@@ -239,3 +239,25 @@ fn test_cummin_and_cummax_nan_at_start() {
         assert!(data[2].is_nan());
     }
 }
+
+// A half-precision scan summed in its own type stops growing once `sum + 1` rounds back to `sum`:
+// at 2048 for f16 and 256 for bf16. Both totals below are exact in their type.
+#[test]
+fn should_cumsum_half_precision_without_stalling() {
+    let device = burn_tensor::Device::default();
+    for (dtype, n) in [
+        (burn_tensor::DType::F16, 4096),
+        (burn_tensor::DType::BF16, 512),
+    ] {
+        if !device.supports_dtype(dtype) {
+            continue;
+        }
+        let ones = TestTensor::<1>::ones([n], &device).cast(dtype);
+
+        let output = ones.cumsum(0).into_data().convert::<f32>();
+        let values = output.as_slice::<f32>().unwrap();
+
+        assert_eq!(values[n - 1], n as f32, "{dtype:?}");
+        assert_eq!(values[n / 2 - 1], (n / 2) as f32, "{dtype:?}");
+    }
+}
