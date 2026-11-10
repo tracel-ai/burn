@@ -653,6 +653,17 @@ own a random generator.
   including gradient lookups.
   ([#5971](https://github.com/tracel-ai/burn/pull/5971)) [@tandede](https://github.com/tandede)
 
+- **Breaking:** `TensorContainer::get`, `get_mut_ref`, and `remove` return
+  `Result<T, TensorContainerError>` instead of panicking on a type mismatch. A missing ID returns
+  `TensorContainerError::NotFound`; a failed downcast returns `TensorContainerError::TypeMismatch`
+  with the requested type name, and `remove` keeps the tensor registered in that case.
+  ([#2924](https://github.com/tracel-ai/burn/issues/2924))
+
+**API migration:** `container.get::<T>(&id).ok()` recovers the old `Option` behavior;
+`Err(TensorContainerError::NotFound)` replaces `None`. `Gradients` and `GradientsParams` keep their
+`Option` API, and a type mismatch there still panics, now with the `TensorContainerError` message.
+([#2924](https://github.com/tracel-ai/burn/issues/2924))
+
 #### Tolerance accessors
 
 - Add `Tolerance::get_relative()` and `get_absolute()` accessors.
