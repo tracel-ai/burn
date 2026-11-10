@@ -51,7 +51,9 @@ A label also follows the work your thread hands over. Most tensor operations do 
 thread: Burn queues them for the device's worker threads (named `DSU-…` and `DSD-…`), and with
 kernel fusion it runs them later, when a result is read. Each operation keeps the labels in effect
 when it was queued, and the memory it allocates is listed under them wherever and whenever it runs.
-A fused kernel replaces several operations and allocates under the labels of its first one. Call
+A fused kernel replaces several operations and allocates under the labels of its first one. A
+parameter a module declares lazily, as `init` does, keeps the labels in effect where it was declared
+too, and its memory, made when the parameter is first read, goes under them. Call
 stacks do not follow the work the same way: an allocation made on a worker thread has a stack that
 ends inside Burn.
 

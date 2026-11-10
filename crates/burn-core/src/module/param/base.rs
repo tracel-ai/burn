@@ -9,6 +9,7 @@ use super::sync_once_cell::SyncOnceCell;
 use alloc::format;
 
 use alloc::boxed::Box;
+use burn_std::allocation_label::AllocationLabelStack;
 use burn_std::sync::{Arc, RwLock};
 use burn_tensor::{Device, Shape};
 use core::ops::Deref;
@@ -270,6 +271,9 @@ pub(crate) struct Uninitialized<P: ParameterValue> {
     /// The shape of the tensor parameter.
     /// Used by `lazy_shape()` to provide shape information without triggering initialization.
     pub(crate) shape: Shape,
+    /// The allocation labels in effect where the parameter was declared: its memory is made
+    /// when it is first read, possibly far from there, and goes under them.
+    labels: AllocationLabelStack,
 }
 
 impl<P: ParameterValue> Uninitialized<P> {
@@ -279,10 +283,14 @@ impl<P: ParameterValue> Uninitialized<P> {
     /// The function receives the stored device and effective gradient requirement. On a plain
     /// device the requirement is false; the configured training state is preserved for `train()`.
     fn initialize(self) -> P {
-        (self.init)(
-            &self.device,
-            self.is_require_grad && self.device.is_autodiff(),
-        )
+        let Self {
+            init,
+            device,
+            is_require_grad,
+            labels,
+            ..
+        } = self;
+        labels.apply(|| init(&device, is_require_grad && device.is_autodiff()))
     }
 }
 
@@ -403,6 +411,7 @@ impl<T: Parameter> Param<T> {
                 device,
                 is_require_grad,
                 shape,
+                labels: AllocationLabelStack::current(),
             }),
             param_mapper: Default::default(),
             is_active: is_require_grad,
@@ -481,6 +490,8 @@ impl<T: Parameter> Param<T> {
                 let device = value.device.clone();
                 let is_require_grad = value.is_require_grad;
                 let shape = value.shape.clone();
+                // The mapped parameter is the same parameter, declared where `base` was.
+                let labels = value.labels.clone();
                 core::mem::drop(init);
 
                 let mut base = self;
@@ -508,6 +519,7 @@ impl<T: Parameter> Param<T> {
                         device,
                         is_require_grad,
                         shape,
+                        labels,
                     }),
                 }
             }
@@ -735,6 +747,44 @@ mod tests {
         _assert_parameter_value::<crate::module::Flag>();
         _assert_parameter_value::<Tensor<1>>();
         _assert_parameter::<Tensor<1>>();
+    }
+
+    /// A lazy parameter's memory is made where it is first read, but goes under the allocation
+    /// labels in effect where it was declared.
+    #[cfg(feature = "std")]
+    #[test]
+    fn lazy_initialization_runs_under_the_labels_it_was_declared_under() {
+        use alloc::string::{String, ToString};
+        use alloc::vec::Vec;
+        use burn_std::allocation_label::{AllocationLabel, set_recording};
+        use burn_std::sync::Mutex;
+
+        set_recording(true);
+        let seen: Arc<Mutex<Vec<String>>> = Default::default();
+        let param: Param<Tensor<2>> = {
+            let _declared = AllocationLabel::push("model init");
+            let seen = seen.clone();
+            Param::uninitialized(
+                ParamId::new(),
+                move |device, _require_grad| {
+                    *seen.lock() = AllocationLabel::current()
+                        .iter()
+                        .map(|label| label.to_string())
+                        .collect();
+                    Tensor::zeros([2, 3], device)
+                },
+                Default::default(),
+                false,
+                [2, 3].into(),
+            )
+        };
+        {
+            let _read = AllocationLabel::push("read");
+            let _ = param.val();
+        }
+        set_recording(false);
+
+        assert_eq!(*seen.lock(), ["model init"]);
     }
 
     /// Concurrent lazy initialization must not panic.

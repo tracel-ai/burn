@@ -275,7 +275,8 @@ the parameter's path. With CubeCL's memory tracing turned on (`tracing = "labels
 report of a CubeCL backend lists every live allocation with the code that made it, and a loaded
 model's weights are listed under their paths, such as `conv1.conv.weight`. A tensor operation keeps
 the labels in effect when it was queued, so the memory the device's worker threads allocate for it,
-fused or not, is listed under them too. Tracing is off by default. See [Memory Tracing](./performance/memory-tracing.md).
+fused or not, is listed under them too, and a lazily initialized parameter keeps the labels in effect
+where it was declared. Tracing is off by default. See [Memory Tracing](./performance/memory-tracing.md).
 
 #### NdArray and LibTorch backend removal
 
