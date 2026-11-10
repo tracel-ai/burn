@@ -198,7 +198,7 @@ pub enum CollectiveTransport {
         /// The dtypes the transport reduces.
         reduces: Vec<DType>,
     },
-    /// Emulated through the host, since cubecl forms no group of the devices.
+    /// Emulated, since cubecl forms no group of the devices.
     Emulated(ClientGroupError),
 }
 
@@ -266,9 +266,21 @@ impl Emulation {
         }
         log::log!(
             self.level(),
-            "{collective} is emulated through the host, which is much slower than natively: {self}"
+            "{collective} is emulated {}, which is slower than natively: {self}",
+            self.path()
         );
         reported.push((collective, self));
+    }
+
+    /// How the emulation moves data. Only devices without a transport between them stage
+    /// through the host; otherwise the transfers stay between devices.
+    fn path(&self) -> &'static str {
+        match self {
+            Self::Ungrouped(
+                ClientGroupError::MixedRuntimes | ClientGroupError::NoDeviceTransport { .. },
+            ) => "through the host",
+            _ => "by separate transfers and kernels",
+        }
     }
 
     fn level(&self) -> log::Level {

@@ -344,8 +344,8 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   `FusionBackend::collective_parts`, returning `None` to keep a collective on the caller.
   ([#6421](https://github.com/tracel-ai/burn/pull/6421))
 
-- A collective that CubeCL backends emulate through the host, though the members share a runtime
-  with a transport, logs a warning once per collective and reason: a dtype the transport does not
+- A collective that CubeCL backends emulate, though the members share a runtime with a
+  transport, logs a warning once per collective and reason: a dtype the transport does not
   reduce, an uneven split, or devices out of order. `burn_cubecl::ops::CollectiveTransport::new`
   says how collectives between some devices run: natively, by which runtime and reducing which
   dtypes, or emulated and why.
