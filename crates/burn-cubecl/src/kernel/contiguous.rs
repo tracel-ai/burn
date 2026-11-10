@@ -416,7 +416,8 @@ mod storage_tiled {
         );
     }
 
-    /// The same tensors through fusion: every fused kernel reads them laid back in rows.
+    /// The same tensors through fusion: every fused kernel reads them laid back in rows, but the
+    /// fused matmul, which reads a weight's tiles as stored.
     #[cfg(feature = "fusion")]
     mod fused {
         use super::{assert_close, tensor, tiled, values};
@@ -490,6 +491,48 @@ mod storage_tiled {
                 &values(resolve(view(fusion_tensor(&rows, &device)))),
                 "3 wᵀ",
             );
+        }
+
+        /// A product and its element-wise tail run as one fused matmul on a weight stored in
+        /// tiles, which the fused product reads as stored, and agree with the same on the weight in
+        /// rows. Run three times, as a tuned fused matmul is: the first run settles the matmul's
+        /// autotune, the second races the fused run against the fallback, the third runs the
+        /// winner.
+        #[cfg(feature = "autotune")]
+        #[test]
+        fn a_tiled_weight_runs_in_the_fused_matmul() {
+            use burn_fusion::inspect::{BlockKind, FusionInspector, matchers};
+
+            let device = CubeDevice::default();
+            let (m, k, n) = (8, 256, 512);
+            let (lhs, rhs) = (tensor(&[m, k], &device, 1), tensor(&[k, n], &device, 2));
+            let addend = tensor(&[m, n], &device, 3);
+            let projection = |weight| {
+                let product = Fused::float_matmul(fusion_tensor(&lhs, &device), weight);
+                let sum = Fused::float_add(product, fusion_tensor(&addend, &device));
+                values(resolve(Fused::float_mul_scalar(sum, Scalar::from(0.5f32))))
+            };
+            let plain = projection(fusion_tensor(&rhs, &device));
+
+            let inspector = FusionInspector::install(StreamId::current());
+            for _ in 0..3 {
+                let from_tiles = projection(stored_in_tiles(fusion_tensor(&rhs, &device)));
+                assert_close(&from_tiles, &plain, "(x · w + a) / 2, w in tiles");
+            }
+            let reports = inspector.drain();
+            let products = reports
+                .iter()
+                .flat_map(|report| report.blocks.iter())
+                .filter(|block| block.operations.iter().any(matchers::is_matmul()))
+                .collect::<Vec<_>>();
+            assert!(!products.is_empty(), "no block holds a matmul");
+            for block in products {
+                assert!(
+                    matches!(block.kind, BlockKind::Fused { name: "Matmul", .. }),
+                    "a product ran outside a fused matmul: {:?}",
+                    block.kind
+                );
+            }
         }
 
         /// Stores a tensor in `(16, 32)` tiles inside the fusion stream, as a backend extension

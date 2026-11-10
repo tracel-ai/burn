@@ -344,6 +344,11 @@ pub mod matchers {
         })
     }
 
+    /// Matches a matmul, whatever its inputs' and output's dtypes.
+    pub fn is_matmul() -> OpMatcher {
+        Box::new(|op| matches!(op, OperationIr::Float(_, FloatOperationIr::Matmul(_))))
+    }
+
     /// Matches a float multiply (`a * b`) on the given dtype.
     pub fn is_mul_float(dtype: DType) -> OpMatcher {
         Box::new(move |op| {

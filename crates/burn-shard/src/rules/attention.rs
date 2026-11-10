@@ -26,6 +26,17 @@ impl AttentionRule {
     /// The shardings of the query, key and value: a split along the heads picks the heads when
     /// their groups split together, else a split along the batch picks the batch.
     pub fn new(inputs: [Sharding; 3], shapes: &AttentionShapes, num_members: usize) -> Self {
+        Self::of_heads(inputs, shapes.q_heads, shapes.kv_heads, num_members)
+    }
+
+    /// As [`new`](Self::new), from the query's and the key's head counts alone: for an attention
+    /// over a key/value cache, whose pools are not laid out as a key.
+    pub fn of_heads(
+        inputs: [Sharding; 3],
+        q_heads: usize,
+        kv_heads: usize,
+        num_members: usize,
+    ) -> Self {
         let split_on = |dim| inputs.contains(&Split { dim });
         if let [
             Split { dim: 1 },
@@ -33,10 +44,10 @@ impl AttentionRule {
             value,
         ] = inputs
             && value == kv
-            && Self::heads_shared_by_groups(shapes, groups, num_members)
+            && Self::heads_shared_by_groups(q_heads, kv_heads, groups, num_members)
         {
             Self::SharedHeads { groups }
-        } else if split_on(1) && Self::heads_split_together(shapes, num_members) {
+        } else if split_on(1) && Self::heads_split_together(q_heads, kv_heads, num_members) {
             Self::Heads
         } else if split_on(0) {
             Self::Batch
@@ -69,14 +80,19 @@ impl AttentionRule {
     /// Each member's query heads read only its own chunk of the key and value heads when no group
     /// of query heads sharing one is cut: one query head per group, one key and value head kept
     /// whole by every member, or key and value heads that split evenly.
-    fn heads_split_together(shapes: &AttentionShapes, num_members: usize) -> bool {
-        shapes.groups() == 1 || shapes.kv_heads == 1 || shapes.kv_heads.is_multiple_of(num_members)
+    fn heads_split_together(q_heads: usize, kv_heads: usize, num_members: usize) -> bool {
+        q_heads == kv_heads || kv_heads == 1 || kv_heads.is_multiple_of(num_members)
     }
 
     /// Each group's one key and value head is read by exactly the query heads its members hold:
     /// the query heads split evenly, so every member's run of them sits inside one head's.
-    fn heads_shared_by_groups(shapes: &AttentionShapes, groups: usize, num_members: usize) -> bool {
-        shapes.kv_heads == groups && shapes.q_heads.is_multiple_of(num_members)
+    fn heads_shared_by_groups(
+        q_heads: usize,
+        kv_heads: usize,
+        groups: usize,
+        num_members: usize,
+    ) -> bool {
+        kv_heads == groups && q_heads.is_multiple_of(num_members)
     }
 }
 
