@@ -58,6 +58,7 @@ fn a_sharded_compute_device_lists_its_members_in_order() {
     let device = sharded_compute(3);
 
     assert_eq!(device.members::<Flex>(), Some(vec![FlexDevice; 3]));
+    assert_eq!(device.num_members(), 3);
 }
 
 #[test]
@@ -188,6 +189,9 @@ fn layout_ops_match_one_device_for_every_sharding() {
         check_unary!(num_members, &input, [ranges: [Slice; 3]] |B, a| B::float_slice(a, &ranges));
         check_binary!(num_members, &input, &data([4, 2, 5], 3), [ranges: [Slice; 3]] |B, a, b| {
             B::float_slice_assign(a, &ranges, b)
+        });
+        check_binary!(num_members, &input, &data([4, 2, 5], 4), |B, a, b| {
+            B::float_cat(vec![a, b], 1)
         });
     }
 }

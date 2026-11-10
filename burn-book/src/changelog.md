@@ -41,6 +41,14 @@ conflicts with it (E0119); delete the handwritten one.
   `ShardError` has a new `CustomOpsBackend` variant.
   ([#6395](https://github.com/tracel-ai/burn/pull/6395))
 
+- A `CustomOpRule` can plan `CustomOpPlan::Sharded`, naming each input's and output's sharding,
+  so each member runs the op's own handler on its shards: an op that runs per head, or has
+  several outputs, stays split without a collective handler. `ShardedComputeDevice::num_members`
+  counts its members whichever backend they run.
+
+- `cat` along a dim its inputs are not split on keeps their split on a sharded compute device, and
+  partial sums stay partial, instead of gathering every input.
+
 #### Compilation and autotuning
 
 - Include the preceding `CompileOnly` pass's statistics in the following
@@ -83,6 +91,10 @@ conflicts with it (E0119); delete the handwritten one.
   [#6199](https://github.com/tracel-ai/burn/pull/6199),
   [#6246](https://github.com/tracel-ai/burn/pull/6246),
   [#6273](https://github.com/tracel-ai/burn/pull/6273)) [@louisfd](https://github.com/louisfd)
+- Read a quantized matmul input with a per-tensor scale (NVFP4) packed instead of dequantizing it
+  first, also through a transposed view, as a tied embedding reaches the vocabulary head. The fused matmul runs a matmul's element-wise tail in the product's kernel when the
+  product is reshaped before the tail reads it, as a projection that flattens its batches into
+  rows does, and when an operand is stored in tiles. ([#6440](https://github.com/tracel-ai/burn/pull/6440)) [@louisfd](https://github.com/louisfd)
 
 #### Device descriptions and measurements
 
@@ -412,6 +424,11 @@ whose tensors are split over `devices` (crate `burn-shard`).
   tensor-parallel transformer layer communicates only in its all-reduces.
   ([#6372](https://github.com/tracel-ai/burn/pull/6372))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- An attention over a key/value cache, contiguous or paged, split on its heads keeps the split
+  instead of gathering the cache before every call: each member attends its own heads, with the
+  lengths and page table whole on every member. Split on the batch, it still gathers.
+  ([#6432](https://github.com/tracel-ai/burn/pull/6432))
 
 - Elementwise ops, reductions, and softmax, cumsum, sort and topk on a sharded compute device keep
   their input's split or partial sum where the math allows, instead of gathering it.

@@ -3,7 +3,7 @@ use smallvec::smallvec;
 
 use crate::{
     OpSharding,
-    Sharding::{self, PartialSum, Replicated},
+    Sharding::{self, PartialSum, Replicated, Split},
 };
 
 /// An op that only moves dims or repeats along them: a split follows its dim, and a whole value
@@ -85,6 +85,35 @@ impl LayoutRule {
         }
     }
 
+    /// Concatenating along `dim` keeps a split of another dim, which every input then takes, each
+    /// member laying its own shards end to end. Partial sums all stay one, the concatenation
+    /// being linear in its inputs together; anything else, a split of `dim` included, gathers.
+    pub fn concat(inputs: &[Sharding], dim: usize) -> Self {
+        let split = inputs
+            .iter()
+            .copied()
+            .find(|sharding| matches!(sharding, Split { .. }));
+        let compatible = |split: Sharding| {
+            inputs
+                .iter()
+                .all(|sharding| *sharding == split || *sharding == Replicated)
+        };
+        let sharding = match split {
+            Some(Split { dim: split_dim })
+                if split_dim != dim && compatible(Split { dim: split_dim }) =>
+            {
+                Split { dim: split_dim }
+            }
+            Some(_) => Replicated,
+            None if inputs.iter().all(|sharding| *sharding == PartialSum) => PartialSum,
+            None => Replicated,
+        };
+        Self {
+            input: sharding,
+            output: sharding,
+        }
+    }
+
     fn takes_whole(range: Option<&Slice>, len: usize) -> bool {
         range.is_none_or(|range| range.step == 1 && range.to_range(len) == (0..len))
     }
@@ -102,6 +131,36 @@ impl LayoutRule {
 mod tests {
     use super::*;
     use crate::Sharding::{ReplicatedSplit, Split};
+
+    #[test]
+    fn a_concat_along_another_dim_keeps_the_split_and_splits_whole_inputs_alike() {
+        let rule = LayoutRule::concat(&[Split { dim: 1 }, Replicated], 3);
+
+        assert_eq!(rule.sharding(2).inputs.as_slice(), [Split { dim: 1 }; 2]);
+        assert_eq!(rule.sharding(2).output, Split { dim: 1 });
+    }
+
+    #[test]
+    fn a_concat_along_the_split_dim_or_of_two_splits_gathers() {
+        for inputs in [
+            [Split { dim: 3 }, Split { dim: 3 }],
+            [Split { dim: 1 }, Split { dim: 2 }],
+            [Split { dim: 1 }, PartialSum],
+        ] {
+            assert_eq!(
+                LayoutRule::concat(&inputs, 3).sharding(2).output,
+                Replicated,
+                "{inputs:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_concat_of_partial_sums_stays_partial() {
+        let rule = LayoutRule::concat(&[PartialSum, PartialSum], 0);
+
+        assert_eq!(rule.sharding(2).output, PartialSum);
+    }
 
     #[test]
     fn heads_split_moves_with_its_dim_when_heads_go_outward() {
