@@ -60,6 +60,8 @@ pub trait RouterChannel: Clone + Send + Sync + 'static + Sized {
         } else if desc.dtype.is_bool() {
             handle =
                 Self::Bridge::change_backend_bool(handle, desc.shape.clone(), device, dtype.into());
+        } else if matches!(desc.dtype, DType::QFloat(_)) {
+            handle = Self::Bridge::change_backend_quantized(handle, desc.shape.clone(), device);
         } else {
             unimplemented!("moving a {:?} tensor to another router client", desc.dtype)
         }

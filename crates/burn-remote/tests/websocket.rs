@@ -288,7 +288,7 @@ fn a_dial_waits_for_a_websocket_server_that_starts_late() {
     rt.shutdown_background();
 }
 
-/// A `transfer_client` process, killed when dropped.
+/// A `transfer_client` process, killed when dropped if still running.
 struct TransferClient {
     index: usize,
     child: std::process::Child,
@@ -331,6 +331,15 @@ impl TransferClient {
     fn start_round(&mut self) {
         std::io::Write::write_all(&mut self.rounds, b"go\n").unwrap();
     }
+
+    fn wait(&mut self) {
+        let status = self.child.wait().unwrap();
+        assert!(
+            status.success(),
+            "transfer client {} stopped with {status}",
+            self.index
+        );
+    }
 }
 
 impl Drop for TransferClient {
@@ -365,6 +374,8 @@ fn two_clients_keep_their_own_transfers() {
                 .iter_mut()
                 .for_each(|client| client.wait_for(TRANSFER_CLIENT_DONE));
         }
+        // Let clients finish teardown and flush coverage before Drop's forced cleanup.
+        clients.iter_mut().for_each(TransferClient::wait);
     });
     rt.shutdown_background();
 }

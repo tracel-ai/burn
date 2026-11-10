@@ -31,8 +31,49 @@ pub enum Sharding {
         /// The dim the value is split along.
         dim: usize,
     },
+    /// Balanced chunks, one per group of members: the members form `groups` contiguous groups,
+    /// and every member of group `i` holds chunk `i` along `dim`, cut as [`Split`](Self::Split)
+    /// cuts one over `groups` members. Which members pair up is chosen by their order on the
+    /// sharded compute device.
+    ReplicatedSplit {
+        /// The dim the value is split along.
+        dim: usize,
+        /// How many chunks the value is cut into. It divides the number of members, and is
+        /// neither one, which is [`Replicated`](Self::Replicated), nor every member, which is
+        /// [`Split`](Self::Split).
+        groups: usize,
+    },
     /// The global value is the sum of the shards.
     PartialSum,
+}
+
+impl Sharding {
+    /// The dim a split cuts, or `None` when the value is not split.
+    pub fn split_dim(self) -> Option<usize> {
+        match self {
+            Self::Split { dim } | Self::ReplicatedSplit { dim, .. } => Some(dim),
+            Self::Replicated | Self::PartialSum => None,
+        }
+    }
+
+    /// The same sharding split along `dim` instead, or unchanged when it is not split.
+    pub fn on_dim(self, dim: usize) -> Self {
+        match self {
+            Self::Split { .. } => Self::Split { dim },
+            Self::ReplicatedSplit { groups, .. } => Self::ReplicatedSplit { dim, groups },
+            sharding => sharding,
+        }
+    }
+
+    /// How many chunks a split cuts the value into over `num_members` members, or `None` when it
+    /// is not split.
+    pub fn num_chunks(self, num_members: usize) -> Option<usize> {
+        match self {
+            Self::Split { .. } => Some(num_members),
+            Self::ReplicatedSplit { groups, .. } => Some(groups),
+            Self::Replicated | Self::PartialSum => None,
+        }
+    }
 }
 
 /// One tensor of a sharded compute device as its shards: one per member, in member order, and how
@@ -65,8 +106,8 @@ pub enum ShardingError {
         dim: usize,
         /// The tensor's shape.
         shape: Shape,
-        /// The sharded compute device's number of members.
-        num_members: usize,
+        /// The chunks the split cuts: the members, or a replicated split's groups.
+        chunks: usize,
     },
     /// The split dim is not one of the tensor's.
     MissingDim {
@@ -75,12 +116,19 @@ pub enum ShardingError {
         /// The tensor's shape.
         shape: Shape,
     },
-    /// Fewer indices than members along the split dim would leave a member empty.
-    DimShorterThanMembers {
+    /// Fewer indices than chunks along the split dim would leave a member empty.
+    DimShorterThanChunks {
         /// The dim asked for.
         dim: usize,
         /// The tensor's shape.
         shape: Shape,
+        /// The chunks the split cuts: the members, or a replicated split's groups.
+        chunks: usize,
+    },
+    /// A replicated split's groups must divide the members, and be neither one nor every member.
+    InvalidGroups {
+        /// The groups asked for.
+        groups: usize,
         /// The sharded compute device's number of members.
         num_members: usize,
     },
@@ -100,26 +148,26 @@ pub enum ShardingError {
 impl core::fmt::Display for ShardingError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::QuantizedSplit {
-                dim,
-                shape,
-                num_members,
-            } => write!(
+            Self::QuantizedSplit { dim, shape, chunks } => write!(
                 f,
-                "Splitting dim {dim} of a quantized tensor of shape {shape:?} over \
-                 {num_members} members would cut its quantization blocks or packed words"
+                "Splitting dim {dim} of a quantized tensor of shape {shape:?} into {chunks} \
+                 chunks would cut its quantization blocks or packed words"
             ),
             Self::MissingDim { dim, shape } => {
                 write!(f, "A tensor of shape {shape:?} has no dim {dim} to split")
             }
-            Self::DimShorterThanMembers {
-                dim,
-                shape,
+            Self::DimShorterThanChunks { dim, shape, chunks } => write!(
+                f,
+                "Dim {dim} of a tensor of shape {shape:?} is shorter than the {chunks} chunks \
+                 a split cuts it into, so a member would be left empty"
+            ),
+            Self::InvalidGroups {
+                groups,
                 num_members,
             } => write!(
                 f,
-                "Dim {dim} of a tensor of shape {shape:?} is shorter than the sharded compute device's \
-                 {num_members} members, so a split would leave a member empty"
+                "{groups} groups do not make a replicated split over {num_members} members: \
+                 they must divide the members, and be neither one nor every member"
             ),
             Self::QuantizedScales { shard } => write!(
                 f,

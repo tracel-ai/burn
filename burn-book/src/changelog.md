@@ -255,7 +255,7 @@ Reports also include the measured cost of a kernel launch.
   on its stream. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
 
 - `capture` works on a sharded compute device: each member records its own graph, collectives
-  included, and a replay runs every member's. ([#6429](https://github.com/tracel-ai/burn/pull/6429))
+  included, and a replay launches every member's at once. ([#6429](https://github.com/tracel-ai/burn/pull/6429))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Matrix multiplication
@@ -446,6 +446,23 @@ whose tensors are split over `devices` (crate `burn-shard`).
   [#6408](https://github.com/tracel-ai/burn/pull/6408))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- A quantized tensor moves between two sharded compute devices, its codes and scales unchanged,
+  instead of panicking in the router. **Breaking:** `MultiBackendBridge` implementers must add
+  `change_backend_quantized`. ([#6474](https://github.com/tracel-ai/burn/pull/6474))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- `Sharding::ReplicatedSplit { dim, groups }` splits a tensor into `groups` chunks, each held by a
+  contiguous group of members, for key and value heads that pairs of members share when a model
+  has fewer of them than members. The members' order on the device picks the pairs. Attention
+  splits its query heads over every member against such keys and values, and the matmul,
+  elementwise, layout, reshape and along-dim ops, and reductions over other dims, keep it.
+  **Breaking (experimental):** `Sharding` has a new variant, `ShardingError` a new `InvalidGroups`
+  variant for groups that do not divide the members or are one or every member,
+  `DimShorterThanMembers` is renamed `DimShorterThanChunks`, and its and `QuantizedSplit`'s
+  `num_members` field is now `chunks`.
+  ([#6418](https://github.com/tracel-ai/burn/pull/6418))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 ### Tensors
 
 #### Boolean indexing
@@ -463,12 +480,22 @@ whose tensors are split over `devices` (crate `burn-shard`).
   target; the updates are now applied with atomic stores.
   ([#6215](https://github.com/tracel-ai/burn/pull/6215))
 
+- Fix boolean `gather` and `select` on Flex returning a tensor with `U8` dtype instead of the input's
+  boolean dtype, which made later boolean ops on the result panic.
+  ([#6456](https://github.com/tracel-ai/burn/pull/6456))
+
 #### Flex32 tensor data
 
 - Preserve the Flex32 dtype during tensor uploads, `TensorData` conversions, and filled-data
   construction. ([#6056](https://github.com/tracel-ai/burn/pull/6056),
   [#6062](https://github.com/tracel-ai/burn/pull/6062),
   [#6069](https://github.com/tracel-ai/burn/pull/6069))
+
+#### Integer arithmetic overflow
+
+- Wrap `i64` and `u64` `add`, `sub` and `mul` (and their scalar forms) on overflow on Flex, as
+  release builds and CubeCL backends already did. Debug builds used to panic.
+  ([#6455](https://github.com/tracel-ai/burn/pull/6455))
 
 #### Quantization
 
@@ -677,6 +704,12 @@ backends do). Autodiff composes it from tensor operations.
 `options`; pass `None` for an attention over the key and value as given. `AttentionOpIr` gains
 `lengths` and `pages`, so remote clients and servers must be upgraded together (protocol
 version 13).
+
+#### Config derivation
+
+- Add opt-in `#[config(into)]` fields to accept convertible values in generated constructors and
+  setters. Unannotated fields retain their exact argument types; stored types and serialization
+  are unchanged.
 
 #### Convolution
 

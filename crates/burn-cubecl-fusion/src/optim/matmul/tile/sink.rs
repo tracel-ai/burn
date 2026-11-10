@@ -108,6 +108,8 @@ impl Destination for TraceSink {
         )
         .tile::<E>(comptime!(partitioning.levels().to_vec()))
     }
+
+    fn finish<E: Numeric>(_arg: &TraceSinkArg) {}
 }
 
 impl DestinationLaunch for TraceSink {
