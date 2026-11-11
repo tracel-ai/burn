@@ -354,6 +354,7 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
 - While a CubeCL `CommunicationSkipGuard` holds a member's device, a collective on CubeCL backends
   runs nothing: each member receives a tensor of the shape and dtype it would, whose values are
   wrong. It is for timing a run as if communication were free. `broadcast` still transfers.
+  ([#6497](https://github.com/tracel-ai/burn/pull/6497))
 
 #### Distributed data parallel training
 
