@@ -48,28 +48,23 @@ pub struct CubeCapabilities {
 ///
 /// Panics if the cubecl type has no direct burn equivalent (e.g. `TF32`).
 pub fn elem_type_to_dtype(value: ElemType) -> DType {
-    try_elem_type_to_dtype(value)
-        .unwrap_or_else(|| panic!("{value:?} is not a valid DType for tensors."))
-}
-
-/// The burn [`DType`] corresponding to a cubecl [`ElemType`], or `None` when it has no direct
-/// burn equivalent, such as `TF32` or an FP8 format.
-pub fn try_elem_type_to_dtype(value: ElemType) -> Option<DType> {
-    Some(match value {
+    match value {
         ElemType::Float(float_kind) => match float_kind {
             FloatKind::F16 => DType::F16,
             FloatKind::BF16 => DType::BF16,
             FloatKind::Flex32 => DType::Flex32,
             FloatKind::F32 => DType::F32,
             FloatKind::F64 => DType::F64,
-            FloatKind::TF32
-            | FloatKind::E2M1
+            FloatKind::TF32 => panic!("Not a valid DType for tensors."),
+            FloatKind::E2M1
             | FloatKind::E2M1x2
             | FloatKind::E2M3
             | FloatKind::E3M2
             | FloatKind::E4M3
             | FloatKind::E5M2
-            | FloatKind::UE8M0 => return None,
+            | FloatKind::UE8M0 => {
+                unimplemented!("Not yet supported, will be used for quantization")
+            }
         },
         ElemType::Int(int_kind) => match int_kind {
             IntKind::I8 => DType::I8,
@@ -83,8 +78,8 @@ pub fn try_elem_type_to_dtype(value: ElemType) -> Option<DType> {
             UIntKind::U32 => DType::U32,
             UIntKind::U64 => DType::U64,
         },
-        _ => return None,
-    })
+        _ => panic!("Not a valid DType for tensors."),
+    }
 }
 
 /// Convert a burn [`DType`] into the corresponding cubecl [`ElemType`].

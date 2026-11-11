@@ -4,7 +4,7 @@
 
 use burn_backend::{
     DType, DeviceOps, Shape,
-    cubecl::{dtype_to_elem_type, reduce_operation_to_cubecl, try_elem_type_to_dtype},
+    cubecl::{dtype_to_elem_type, reduce_operation_to_cubecl},
     distributed::ReduceOperation,
     ops::{CollectiveOps, EmulatedCollectives},
     tensor::{BoolTensor, FloatTensor, IntTensor},
@@ -15,7 +15,10 @@ use cubecl::{
     ir::ElemType,
     server::TransportProvider,
 };
-use std::sync::{Mutex, PoisonError};
+use std::{
+    collections::BTreeSet,
+    sync::{Mutex, PoisonError},
+};
 
 use crate::{
     CubeBackend, CubeDevice,
@@ -158,7 +161,7 @@ impl CollectivePlan {
     /// Native when the members' tensors are alike and their devices form a group that runs
     /// `exchange`, emulated otherwise.
     fn new(tensors: Vec<CubeTensor>, exchange: Exchange) -> Self {
-        match Self::native_group(&tensors, exchange) {
+        match Self::try_native(&tensors, exchange) {
             Ok(group) => Self::Native(NativeCollective {
                 group,
                 exchange,
@@ -172,14 +175,17 @@ impl CollectivePlan {
     }
 
     /// The group that runs `exchange` natively over `tensors`, or why none does.
-    fn native_group(tensors: &[CubeTensor], exchange: Exchange) -> Result<NativeGroup, Emulation> {
+    fn try_native(
+        tensors: &[CubeTensor],
+        exchange: Exchange,
+    ) -> Result<NativeGroup, EmulationReason> {
         let first = &tensors[0];
         let (shape, dtype) = (first.meta.shape().clone(), first.dtype);
         if tensors
             .iter()
             .any(|tensor| *tensor.meta.shape() != shape || tensor.dtype != dtype)
         {
-            return Err(Emulation::UnlikeMembers);
+            return Err(EmulationReason::UnlikeMembers);
         }
         let transported = tensors
             .iter()
@@ -207,8 +213,8 @@ pub enum CollectiveTransport {
     Native {
         /// What runs it, such as NCCL on CUDA.
         provider: TransportProvider,
-        /// The dtypes it reduces.
-        reduces: Vec<DType>,
+        /// The element types it reduces.
+        reduces: BTreeSet<ElemType>,
     },
     /// Emulated, since cubecl forms no group of the devices.
     Emulated(ClientGroupError),
@@ -224,11 +230,7 @@ impl CollectiveTransport {
                 let transport = group.transport();
                 Self::Native {
                     provider: transport.provider,
-                    reduces: transport
-                        .reduces
-                        .iter()
-                        .filter_map(|elem| try_elem_type_to_dtype(*elem))
-                        .collect(),
+                    reduces: transport.reduces.clone(),
                 }
             }
             Err(error) => Self::Emulated(error),
@@ -238,7 +240,7 @@ impl CollectiveTransport {
 
 /// Why a collective is emulated rather than run by the transport between the members' devices.
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Emulation {
+enum EmulationReason {
     /// The members' tensors differ in shape or dtype.
     UnlikeMembers,
     /// cubecl forms no group of the members' devices.
@@ -251,15 +253,15 @@ enum Emulation {
     TwoDimensions,
 }
 
-impl Emulation {
+impl EmulationReason {
     /// Logs that `exchange` is emulated, once per process for each collective and reason.
     fn report(self, exchange: Exchange) {
-        static REPORTED: Mutex<Vec<(&str, Emulation)>> = Mutex::new(Vec::new());
+        static REPORTED: Mutex<Vec<(&str, EmulationReason)>> = Mutex::new(Vec::new());
         let collective = exchange.name();
         let mut reported = REPORTED.lock().unwrap_or_else(PoisonError::into_inner);
         if reported
             .iter()
-            .any(|(reported, emulation)| *reported == collective && *emulation == self)
+            .any(|(reported, reason)| *reported == collective && *reason == self)
         {
             return;
         }
@@ -284,15 +286,15 @@ impl Emulation {
 
     fn level(&self) -> log::Level {
         match self {
-            // A group that never forms is a choice of runtimes or of build, and cubecl warns on
-            // its own when NCCL or RCCL is missing.
+            // cubecl warns on its own when NCCL or RCCL is missing.
             Self::Ungrouped(
-                ClientGroupError::MixedRuntimes
-                | ClientGroupError::NoDeviceTransport { .. }
+                ClientGroupError::NoDeviceTransport { .. }
                 | ClientGroupError::BlockingDeviceHandle
                 | ClientGroupError::Empty,
             ) => log::Level::Info,
-            Self::Ungrouped(ClientGroupError::NotAscending { .. })
+            Self::Ungrouped(
+                ClientGroupError::NotAscending { .. } | ClientGroupError::MixedRuntimes,
+            )
             | Self::UnlikeMembers
             | Self::NotReduced(_)
             | Self::UnevenSplit
@@ -301,7 +303,7 @@ impl Emulation {
     }
 }
 
-impl fmt::Display for Emulation {
+impl fmt::Display for EmulationReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnlikeMembers => f.write_str("the members' tensors differ in shape or dtype"),
@@ -315,7 +317,7 @@ impl fmt::Display for Emulation {
     }
 }
 
-impl From<ClientGroupError> for Emulation {
+impl From<ClientGroupError> for EmulationReason {
     fn from(error: ClientGroupError) -> Self {
         Self::Ungrouped(error)
     }
@@ -396,21 +398,21 @@ impl Exchange {
     }
 
     /// Whether `group` runs this collective natively, or why it does not.
-    fn check(self, group: &NativeGroup) -> Result<(), Emulation> {
+    fn check(self, group: &NativeGroup) -> Result<(), EmulationReason> {
         let reduced = || match group.reduces() {
             true => Ok(()),
-            false => Err(Emulation::NotReduced(group.dtype)),
+            false => Err(EmulationReason::NotReduced(group.dtype)),
         };
         let split = |dim| match group.splits_evenly(dim) {
             true => Ok(()),
-            false => Err(Emulation::UnevenSplit),
+            false => Err(EmulationReason::UnevenSplit),
         };
         match self {
             Self::AllReduce { .. } => reduced(),
             Self::AllGather { .. } => Ok(()),
             Self::ReduceScatter { dim, .. } => reduced().and_then(|()| split(dim)),
             Self::AllToAll { dim, concat_dim } if dim != concat_dim => {
-                Err(Emulation::TwoDimensions)
+                Err(EmulationReason::TwoDimensions)
             }
             Self::AllToAll { dim, .. } => split(dim),
         }
@@ -748,7 +750,10 @@ mod tests {
     use crate::CubeDevice;
     use burn_backend::DType;
     use burn_std::Shape;
-    use cubecl::cuda::CudaDevice;
+    use cubecl::{
+        cuda::CudaDevice,
+        ir::{FloatKind, IntKind},
+    };
 
     /// A collective runs natively only where a group forms, reduces the type and splits evenly;
     /// anything else must be emulated, and a plan that silently stopped holding would pass every
@@ -769,7 +774,7 @@ mod tests {
                 .collect()
         };
         let emulation = |tensors: Vec<CubeTensor>, exchange| {
-            CollectivePlan::native_group(&tensors, exchange).err()
+            CollectivePlan::try_native(&tensors, exchange).err()
         };
         const SUM: Exchange = Exchange::AllReduce {
             op: ReduceOperation::Sum,
@@ -787,28 +792,33 @@ mod tests {
         assert_eq!(emulation(even(), Exchange::all_to_all(1, 1)), None);
         assert_eq!(
             emulation(even(), Exchange::all_to_all(0, 1)),
-            Some(Emulation::TwoDimensions)
+            Some(EmulationReason::TwoDimensions)
         );
 
         let uneven = || members([0, 1], [3, 3], DType::F32);
         assert_eq!(emulation(uneven(), gather), None);
-        assert_eq!(emulation(uneven(), SCATTER), Some(Emulation::UnevenSplit));
+        assert_eq!(
+            emulation(uneven(), SCATTER),
+            Some(EmulationReason::UnevenSplit)
+        );
         assert_eq!(
             emulation(uneven(), Exchange::all_to_all(0, 0)),
-            Some(Emulation::UnevenSplit)
+            Some(EmulationReason::UnevenSplit)
         );
 
         let unreduced = || members([0, 1], [2, 2], DType::I16);
         assert_eq!(emulation(unreduced(), gather), None);
         assert_eq!(
             emulation(unreduced(), SUM),
-            Some(Emulation::NotReduced(DType::I16))
+            Some(EmulationReason::NotReduced(DType::I16))
         );
 
         let descending = || members([1, 0], [2, 2], DType::F32);
         assert!(matches!(
             emulation(descending(), SUM),
-            Some(Emulation::Ungrouped(ClientGroupError::NotAscending { .. }))
+            Some(EmulationReason::Ungrouped(
+                ClientGroupError::NotAscending { .. }
+            ))
         ));
         let mut sorted = descending();
         let order = DeviceOrder::sort(&mut sorted);
@@ -821,11 +831,13 @@ mod tests {
         assert_eq!(restored, [devices[1].clone(), devices[0].clone()]);
         assert!(matches!(
             emulation(members([0, 0], [2, 2], DType::F32), gather),
-            Some(Emulation::Ungrouped(ClientGroupError::NotAscending { .. }))
+            Some(EmulationReason::Ungrouped(
+                ClientGroupError::NotAscending { .. }
+            ))
         ));
         assert_eq!(
             emulation(members([0, 1], [2, 3], DType::F32), gather),
-            Some(Emulation::UnlikeMembers)
+            Some(EmulationReason::UnlikeMembers)
         );
     }
 
@@ -837,8 +849,14 @@ mod tests {
         match CollectiveTransport::new(&devices) {
             CollectiveTransport::Native { provider, reduces } => {
                 assert_eq!(provider, TransportProvider::Nccl);
-                assert!(reduces.contains(&DType::F32), "{reduces:?}");
-                assert!(!reduces.contains(&DType::I16), "{reduces:?}");
+                assert!(
+                    reduces.contains(&ElemType::Float(FloatKind::F32)),
+                    "{reduces:?}"
+                );
+                assert!(
+                    !reduces.contains(&ElemType::Int(IntKind::I16)),
+                    "{reduces:?}"
+                );
             }
             emulated => panic!("{emulated:?}"),
         }

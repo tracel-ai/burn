@@ -348,8 +348,7 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   transport, logs a warning once per collective and reason: a dtype the transport does not
   reduce, an uneven split, or devices out of order. `burn_cubecl::ops::CollectiveTransport::new`
   says how collectives between some devices run: natively, by which library (NCCL or RCCL) and
-  reducing which dtypes, or emulated and why. `burn_backend::cubecl::try_elem_type_to_dtype` is
-  `elem_type_to_dtype` returning `None` for a type with no `DType`.
+  reducing which element types, or emulated and why.
 
 #### Distributed data parallel training
 
