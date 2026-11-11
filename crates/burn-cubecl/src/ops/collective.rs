@@ -817,7 +817,7 @@ mod skipped_tests {
     use super::*;
     use crate::ops::{from_data, into_data_sync};
     use burn_backend::TensorData;
-    use cubecl::benchmark::CommunicationSkip;
+    use cubecl::benchmark::CommunicationSkipGuard;
 
     /// One device twice is never a cubecl group, so every collective here is emulated, and with
     /// the device skipping communication each member gets the shape it would receive and the
@@ -854,7 +854,7 @@ mod skipped_tests {
 
         let emulated = collectives();
         let summed = reduced(members().into());
-        let skip = CommunicationSkip::new(&[device.client()]);
+        let skip = CommunicationSkipGuard::enter(&[device.client()]);
         let skipped = collectives();
         let kept = reduced(members().into());
         drop(skip);
