@@ -351,6 +351,10 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   reducing which element types, or emulated and why.
   ([#6486](https://github.com/tracel-ai/burn/pull/6486))
 
+- While a CubeCL `CommunicationSkip` holds a member's device, a collective on CubeCL backends
+  runs nothing: each member receives a tensor of the shape and dtype it would, whose values are
+  wrong. It is for timing a run as if communication were free. `broadcast` still transfers.
+
 #### Distributed data parallel training
 
 - Fix DDP gradient-synchronization hangs across local and remote devices.
