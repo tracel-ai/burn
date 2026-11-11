@@ -349,6 +349,7 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   reduce, an uneven split, or devices out of order. `burn_cubecl::ops::CollectiveTransport::new`
   says how collectives between some devices run: natively, by which library (NCCL or RCCL) and
   reducing which element types, or emulated and why.
+  ([#6486](https://github.com/tracel-ai/burn/pull/6486))
 
 #### Distributed data parallel training
 

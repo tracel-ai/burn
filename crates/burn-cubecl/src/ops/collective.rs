@@ -257,6 +257,9 @@ impl EmulationReason {
     /// Logs that `exchange` is emulated, once per process for each collective and reason.
     fn report(self, exchange: Exchange) {
         static REPORTED: Mutex<Vec<(&str, EmulationReason)>> = Mutex::new(Vec::new());
+        if !log::log_enabled!(self.level()) {
+            return;
+        }
         let collective = exchange.name();
         let mut reported = REPORTED.lock().unwrap_or_else(PoisonError::into_inner);
         if reported
