@@ -196,6 +196,10 @@ them useful only for data preprocessing or inference-only model implementations.
 focus more on _what_ the model should do, rather than on _how_ to do it. We take the responsibility
 of making your code run as fast as possible during training as well as inference. The same
 principles apply to broadcasting; all operations support broadcasting unless specified otherwise.
+Broadcasting only stretches dimensions of size 1 and never adds dimensions: since the rank is part
+of the tensor type, both operands must have the same rank. For example, `matmul` broadcasts the
+batch dimensions of `[2, 1, M, K]` and `[1, 4, K, N]` to `[2, 4, M, N]`, but a `[M, K]` matrix needs
+`unsqueeze` to become `[1, M, K]` before it can multiply a `[B, K, N]` batch.
 
 Here, we provide a list of all supported operations along with their PyTorch equivalents. Note that
 for the sake of simplicity, we ignore type signatures. For more details, refer to the
