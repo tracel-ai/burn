@@ -888,6 +888,12 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 - Default the F-beta metric to F1 and require a finite, positive beta.
   ([#5965](https://github.com/tracel-ai/burn/pull/5965))
 
+#### Cross-entropy loss
+
+- Add `CrossEntropyLossConfig::ignore_index` to exclude positions by target value, including
+  negative sentinels such as PyTorch's `-100`, from both the loss and its normalizer.
+  [@dundysm](https://github.com/dundysm)
+
 #### CTC loss
 
 - Improve half-precision CTC loss accuracy. Fix CTC execution through router and remote backends
