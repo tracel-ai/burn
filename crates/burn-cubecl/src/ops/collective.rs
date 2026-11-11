@@ -9,14 +9,19 @@ use burn_backend::{
     ops::{CollectiveOps, EmulatedCollectives},
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
-use core::cmp::Ordering;
+use core::{cmp::Ordering, fmt};
 use cubecl::{
-    client::{Client, ClientGroup, GroupMember, MemberBuffers},
+    client::{Client, ClientGroup, ClientGroupError, GroupMember, MemberBuffers},
     ir::ElemType,
+    server::TransportProvider,
+};
+use std::{
+    collections::BTreeSet,
+    sync::{Mutex, PoisonError},
 };
 
 use crate::{
-    CubeBackend,
+    CubeBackend, CubeDevice,
     kernel::{copy_contiguous, into_contiguous},
     ops::{numeric::empty_device_contiguous_dtype, permute},
     tensor::CubeTensor,
@@ -156,24 +161,168 @@ impl CollectivePlan {
     /// Native when the members' tensors are alike and their devices form a group that runs
     /// `exchange`, emulated otherwise.
     fn new(tensors: Vec<CubeTensor>, exchange: Exchange) -> Self {
-        let first = &tensors[0];
-        let (shape, dtype) = (first.meta.shape().clone(), first.dtype);
-        let alike = tensors
-            .iter()
-            .all(|tensor| *tensor.meta.shape() == shape && tensor.dtype == dtype);
-        let clients = tensors.iter().map(|tensor| tensor.client.clone()).collect();
-        match alike
-            .then(|| NativeGroup::new(clients, shape, dtype))
-            .flatten()
-            .filter(|group| exchange.runs_natively(group))
-        {
-            Some(group) => Self::Native(NativeCollective {
+        match Self::try_native(&tensors, exchange) {
+            Ok(group) => Self::Native(NativeCollective {
                 group,
                 exchange,
                 tensors,
             }),
-            None => Self::Emulated(tensors),
+            Err(emulation) => {
+                emulation.report(exchange);
+                Self::Emulated(tensors)
+            }
         }
+    }
+
+    /// The group that runs `exchange` natively over `tensors`, or why none does.
+    fn try_native(
+        tensors: &[CubeTensor],
+        exchange: Exchange,
+    ) -> Result<NativeGroup, EmulationReason> {
+        let first = &tensors[0];
+        let (shape, dtype) = (first.meta.shape().clone(), first.dtype);
+        if tensors
+            .iter()
+            .any(|tensor| *tensor.meta.shape() != shape || tensor.dtype != dtype)
+        {
+            return Err(EmulationReason::UnlikeMembers);
+        }
+        let transported = tensors
+            .iter()
+            .all(|tensor| tensor.client.has_device_transport());
+        let clients = tensors.iter().map(|tensor| tensor.client.clone()).collect();
+        // cubecl checks the order before the transport, so a missing transport is named here.
+        let group = NativeGroup::new(clients, shape, dtype).map_err(|error| match error {
+            ClientGroupError::NotAscending { .. } if !transported => {
+                ClientGroupError::NoDeviceTransport {
+                    runtime: first.client.name(),
+                }
+            }
+            error => error,
+        })?;
+        exchange.check(&group)?;
+        Ok(group)
+    }
+}
+
+/// Whether the devices have a transport that runs collectives between them. A collective over
+/// devices that have one can still be emulated, for its tensors' dtype, shape or member order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CollectiveTransport {
+    /// The transport cubecl runs between the devices.
+    Native {
+        /// What runs it, such as NCCL on CUDA.
+        provider: TransportProvider,
+        /// The element types it reduces.
+        reduces: BTreeSet<ElemType>,
+    },
+    /// Emulated, since cubecl forms no group of the devices.
+    Emulated(ClientGroupError),
+}
+
+impl CollectiveTransport {
+    /// The transport between `devices`, which a collective groups in ascending device order.
+    pub fn new(devices: &[CubeDevice]) -> Self {
+        let mut ranked = devices.to_vec();
+        ranked.sort_by_key(|device| device.id());
+        match ClientGroup::new(ranked.iter().map(CubeDevice::client).collect()) {
+            Ok(group) => {
+                let transport = group.transport();
+                Self::Native {
+                    provider: transport.provider,
+                    reduces: transport.reduces.clone(),
+                }
+            }
+            Err(error) => Self::Emulated(error),
+        }
+    }
+}
+
+/// Why a collective is emulated rather than run by the transport between the members' devices.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum EmulationReason {
+    /// The members' tensors differ in shape or dtype.
+    UnlikeMembers,
+    /// cubecl forms no group of the members' devices.
+    Ungrouped(ClientGroupError),
+    /// The transport does not reduce the members' dtype.
+    NotReduced(DType),
+    /// The collective's dimension does not split evenly across the members.
+    UnevenSplit,
+    /// An all-to-all splits and concatenates along two dimensions, and cubecl's along one.
+    TwoDimensions,
+}
+
+impl EmulationReason {
+    /// Logs that `exchange` is emulated, once per process for each collective and reason.
+    fn report(self, exchange: Exchange) {
+        static REPORTED: Mutex<Vec<(&str, EmulationReason)>> = Mutex::new(Vec::new());
+        if !log::log_enabled!(self.level()) {
+            return;
+        }
+        let collective = exchange.name();
+        let mut reported = REPORTED.lock().unwrap_or_else(PoisonError::into_inner);
+        if reported
+            .iter()
+            .any(|(reported, reason)| *reported == collective && *reason == self)
+        {
+            return;
+        }
+        log::log!(
+            self.level(),
+            "{collective} is emulated {}, which is slower than natively: {self}",
+            self.path()
+        );
+        reported.push((collective, self));
+    }
+
+    /// How the emulation moves data. Only devices without a transport between them stage
+    /// through the host; otherwise the transfers stay between devices.
+    fn path(&self) -> &'static str {
+        match self {
+            Self::Ungrouped(
+                ClientGroupError::MixedRuntimes | ClientGroupError::NoDeviceTransport { .. },
+            ) => "through the host",
+            _ => "by separate transfers and kernels",
+        }
+    }
+
+    fn level(&self) -> log::Level {
+        match self {
+            // cubecl warns on its own when NCCL or RCCL is missing.
+            Self::Ungrouped(
+                ClientGroupError::NoDeviceTransport { .. }
+                | ClientGroupError::BlockingDeviceHandle
+                | ClientGroupError::Empty,
+            ) => log::Level::Info,
+            Self::Ungrouped(
+                ClientGroupError::NotAscending { .. } | ClientGroupError::MixedRuntimes,
+            )
+            | Self::UnlikeMembers
+            | Self::NotReduced(_)
+            | Self::UnevenSplit
+            | Self::TwoDimensions => log::Level::Warn,
+        }
+    }
+}
+
+impl fmt::Display for EmulationReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnlikeMembers => f.write_str("the members' tensors differ in shape or dtype"),
+            Self::Ungrouped(error) => write!(f, "{error}"),
+            Self::NotReduced(dtype) => write!(f, "the transport does not reduce {dtype:?}"),
+            Self::UnevenSplit => {
+                f.write_str("its dimension does not split evenly across the members")
+            }
+            Self::TwoDimensions => f.write_str("it splits and concatenates along two dimensions"),
+        }
+    }
+}
+
+impl From<ClientGroupError> for EmulationReason {
+    fn from(error: ClientGroupError) -> Self {
+        Self::Ungrouped(error)
     }
 }
 
@@ -186,9 +335,9 @@ struct NativeGroup {
 }
 
 impl NativeGroup {
-    /// The group over `clients`, or `None` when cubecl cannot group them.
-    fn new(clients: Vec<Client>, shape: Shape, dtype: DType) -> Option<Self> {
-        ClientGroup::new(clients).ok().map(|clients| Self {
+    /// The group over `clients`, or why cubecl cannot group them.
+    fn new(clients: Vec<Client>, shape: Shape, dtype: DType) -> Result<Self, ClientGroupError> {
+        ClientGroup::new(clients).map(|clients| Self {
             clients,
             shape,
             dtype,
@@ -242,14 +391,33 @@ impl Exchange {
         }
     }
 
-    fn runs_natively(self, group: &NativeGroup) -> bool {
+    fn name(self) -> &'static str {
         match self {
-            Self::AllReduce { .. } => group.reduces(),
-            Self::AllGather { .. } => true,
-            Self::ReduceScatter { dim, .. } => group.reduces() && group.splits_evenly(dim),
-            // cubecl splits and concatenates along one dimension, so two different ones are
-            // emulated.
-            Self::AllToAll { dim, concat_dim } => dim == concat_dim && group.splits_evenly(dim),
+            Self::AllReduce { .. } => "all-reduce",
+            Self::AllGather { .. } => "all-gather",
+            Self::ReduceScatter { .. } => "reduce-scatter",
+            Self::AllToAll { .. } => "all-to-all",
+        }
+    }
+
+    /// Whether `group` runs this collective natively, or why it does not.
+    fn check(self, group: &NativeGroup) -> Result<(), EmulationReason> {
+        let reduced = || match group.reduces() {
+            true => Ok(()),
+            false => Err(EmulationReason::NotReduced(group.dtype)),
+        };
+        let split = |dim| match group.splits_evenly(dim) {
+            true => Ok(()),
+            false => Err(EmulationReason::UnevenSplit),
+        };
+        match self {
+            Self::AllReduce { .. } => reduced(),
+            Self::AllGather { .. } => Ok(()),
+            Self::ReduceScatter { dim, .. } => reduced().and_then(|()| split(dim)),
+            Self::AllToAll { dim, concat_dim } if dim != concat_dim => {
+                Err(EmulationReason::TwoDimensions)
+            }
+            Self::AllToAll { dim, .. } => split(dim),
         }
     }
 
@@ -451,7 +619,7 @@ mod parts {
     //! [`FusionBackend::collective_parts`](burn_fusion::FusionBackend::collective_parts).
 
     use super::*;
-    use crate::{CubeDevice, fusion::CubeFusionHandle, ops::numeric::full_device_dtype};
+    use crate::{fusion::CubeFusionHandle, ops::numeric::full_device_dtype};
     use burn_backend::cubecl::dtype_to_storage_type;
     use burn_fusion::{Collective, CollectivePart};
     use burn_ir::{BackendIr, TensorHandle};
@@ -494,8 +662,8 @@ mod parts {
             },
         };
         let clients = ranked.iter().map(|device| device.client()).collect();
-        let group = NativeGroup::new(clients, shape.clone(), dtype)
-            .filter(|group| exchange.runs_natively(group))?;
+        let group = NativeGroup::new(clients, shape.clone(), dtype).ok()?;
+        exchange.check(&group).ok()?;
         let (members, elem) = (group.members(), group.elem());
         let parts = group
             .clients
@@ -585,7 +753,10 @@ mod tests {
     use crate::CubeDevice;
     use burn_backend::DType;
     use burn_std::Shape;
-    use cubecl::cuda::CudaDevice;
+    use cubecl::{
+        cuda::CudaDevice,
+        ir::{FloatKind, IntKind},
+    };
 
     /// A collective runs natively only where a group forms, reduces the type and splits evenly;
     /// anything else must be emulated, and a plan that silently stopped holding would pass every
@@ -605,77 +776,93 @@ mod tests {
                 })
                 .collect()
         };
-        let native = |plan: CollectivePlan| matches!(plan, CollectivePlan::Native(_));
+        let emulation = |tensors: Vec<CubeTensor>, exchange| {
+            CollectivePlan::try_native(&tensors, exchange).err()
+        };
         const SUM: Exchange = Exchange::AllReduce {
             op: ReduceOperation::Sum,
         };
+        const SCATTER: Exchange = Exchange::ReduceScatter {
+            dim: 0,
+            op: ReduceOperation::Sum,
+        };
+        let gather = Exchange::AllGather { dim: 0 };
 
         let even = || members([0, 1], [2, 2], DType::F32);
-        assert!(native(CollectivePlan::new(even(), SUM)));
-        assert!(native(CollectivePlan::new(
-            even(),
-            Exchange::AllGather { dim: 0 }
-        )));
-        assert!(native(CollectivePlan::new(
-            even(),
-            Exchange::ReduceScatter {
-                dim: 0,
-                op: ReduceOperation::Sum
-            }
-        )));
-        assert!(native(CollectivePlan::new(
-            even(),
-            Exchange::all_to_all(1, 1)
-        )));
-        assert!(!native(CollectivePlan::new(
-            even(),
-            Exchange::all_to_all(0, 1)
-        )));
+        assert_eq!(emulation(even(), SUM), None);
+        assert_eq!(emulation(even(), gather), None);
+        assert_eq!(emulation(even(), SCATTER), None);
+        assert_eq!(emulation(even(), Exchange::all_to_all(1, 1)), None);
+        assert_eq!(
+            emulation(even(), Exchange::all_to_all(0, 1)),
+            Some(EmulationReason::TwoDimensions)
+        );
 
         let uneven = || members([0, 1], [3, 3], DType::F32);
-        assert!(native(CollectivePlan::new(
-            uneven(),
-            Exchange::AllGather { dim: 0 }
-        )));
-        assert!(!native(CollectivePlan::new(
-            uneven(),
-            Exchange::ReduceScatter {
-                dim: 0,
-                op: ReduceOperation::Sum
-            }
-        )));
-        assert!(!native(CollectivePlan::new(
-            uneven(),
-            Exchange::all_to_all(0, 0)
-        )));
+        assert_eq!(emulation(uneven(), gather), None);
+        assert_eq!(
+            emulation(uneven(), SCATTER),
+            Some(EmulationReason::UnevenSplit)
+        );
+        assert_eq!(
+            emulation(uneven(), Exchange::all_to_all(0, 0)),
+            Some(EmulationReason::UnevenSplit)
+        );
 
         let unreduced = || members([0, 1], [2, 2], DType::I16);
-        assert!(native(CollectivePlan::new(
-            unreduced(),
-            Exchange::AllGather { dim: 0 }
-        )));
-        assert!(!native(CollectivePlan::new(unreduced(), SUM)));
+        assert_eq!(emulation(unreduced(), gather), None);
+        assert_eq!(
+            emulation(unreduced(), SUM),
+            Some(EmulationReason::NotReduced(DType::I16))
+        );
 
         let descending = || members([1, 0], [2, 2], DType::F32);
-        assert!(!native(CollectivePlan::new(descending(), SUM)));
+        assert!(matches!(
+            emulation(descending(), SUM),
+            Some(EmulationReason::Ungrouped(
+                ClientGroupError::NotAscending { .. }
+            ))
+        ));
         let mut sorted = descending();
         let order = DeviceOrder::sort(&mut sorted);
-        assert!(native(CollectivePlan::new(sorted.clone(), SUM)));
+        assert_eq!(emulation(sorted.clone(), SUM), None);
         let restored: Vec<_> = order
             .restored(sorted)
             .iter()
             .map(|tensor| tensor.device.clone())
             .collect();
         assert_eq!(restored, [devices[1].clone(), devices[0].clone()]);
-        let gather = Exchange::AllGather { dim: 0 };
-        assert!(!native(CollectivePlan::new(
-            members([0, 0], [2, 2], DType::F32),
-            gather
-        )));
-        assert!(!native(CollectivePlan::new(
-            members([0, 1], [2, 3], DType::F32),
-            gather
-        )));
+        assert!(matches!(
+            emulation(members([0, 0], [2, 2], DType::F32), gather),
+            Some(EmulationReason::Ungrouped(
+                ClientGroupError::NotAscending { .. }
+            ))
+        ));
+        assert_eq!(
+            emulation(members([0, 1], [2, 3], DType::F32), gather),
+            Some(EmulationReason::UnlikeMembers)
+        );
+    }
+
+    /// The transport sorts the devices as a collective does, so their order cannot make it emulated.
+    #[test]
+    #[ignore = "needs two CUDA devices and NCCL"]
+    fn devices_in_any_order_name_their_provider_and_what_it_reduces() {
+        let devices = [1, 0].map(|index| CubeDevice::Cuda(CudaDevice { index }));
+        match CollectiveTransport::new(&devices) {
+            CollectiveTransport::Native { provider, reduces } => {
+                assert_eq!(provider, TransportProvider::Nccl);
+                assert!(
+                    reduces.contains(&ElemType::Float(FloatKind::F32)),
+                    "{reduces:?}"
+                );
+                assert!(
+                    !reduces.contains(&ElemType::Int(IntKind::I16)),
+                    "{reduces:?}"
+                );
+            }
+            emulated => panic!("{emulated:?}"),
+        }
     }
 
     /// A member whose tensor carries a failure still joins its peers, so none of them waits
