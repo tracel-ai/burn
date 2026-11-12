@@ -547,6 +547,12 @@ whose tensors are split over `devices` (crate `burn-shard`).
   implementations through device dispatch instead of dequantizing first.
   ([#6383](https://github.com/tracel-ai/burn/pull/6383))
 
+- Keep the quantized operand packed when a float tensor is multiplied with a quantized one on an
+  autodiff device. The product used to dequantize the quantized operand and hold the dense copy
+  until backward, so every frozen quantized weight in a training graph cost its full float size.
+  Autodiff now keeps the packed tensor and passes it to the backend's quantized `matmul` in both
+  passes.
+
 #### Random operation keys
 
 Random operations now reserve a `RandomKey` when requested, before shard, fusion, or remote queues
