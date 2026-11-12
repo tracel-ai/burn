@@ -306,6 +306,12 @@ pub mod grad_clipping {
     pub use burn_optim::grad_clipping::*;
 }
 
+/// Exponential moving average module.
+#[cfg(feature = "optim")]
+pub mod ema {
+    pub use burn_optim::ema::*;
+}
+
 /// CubeCL module re-export.
 #[cfg(feature = "cubecl")]
 pub mod cubecl {
