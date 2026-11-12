@@ -1,6 +1,14 @@
 use alloc::boxed::Box;
 use burn_backend::{Backend, TensorMetadata, TensorPrimitive, tensor::FloatTensor};
-use burn_std::tensor::container::TensorContainer;
+use burn_std::tensor::container::{TensorContainer, TensorContainerError};
+
+fn unwrap_optional<T>(result: Result<T, TensorContainerError>) -> Option<T> {
+    match result {
+        Ok(tensor) => Some(tensor),
+        Err(TensorContainerError::NotFound) => None,
+        Err(err @ TensorContainerError::TypeMismatch { .. }) => panic!("{err}"),
+    }
+}
 
 use crate::{
     NodeId,
@@ -115,21 +123,25 @@ impl Gradients {
             }
             Requirement::None => panic!("Trying to consume the gradients for an untracked tensor"),
         };
-        tensor.map(|tensor| tensor.tensor())
+        unwrap_optional(tensor).map(|tensor| tensor.tensor())
     }
 
     /// Removes a grad tensor from the container.
     pub fn remove<B: Backend>(&mut self, tensor: &AutodiffTensor<B>) -> Option<FloatTensor<B>> {
-        self.container
-            .remove::<TensorPrimitive<B>>(&tensor.node.id.value)
-            .map(|tensor| tensor.tensor())
+        unwrap_optional(
+            self.container
+                .remove::<TensorPrimitive<B>>(&tensor.node.id.value),
+        )
+        .map(|tensor| tensor.tensor())
     }
 
     /// Gets a grad tensor from the container.
     pub fn get<B: Backend>(&self, tensor: &AutodiffTensor<B>) -> Option<FloatTensor<B>> {
-        self.container
-            .get::<TensorPrimitive<B>>(&tensor.node.id.value)
-            .map(|tensor| tensor.tensor())
+        unwrap_optional(
+            self.container
+                .get::<TensorPrimitive<B>>(&tensor.node.id.value),
+        )
+        .map(|tensor| tensor.tensor())
     }
 
     /// Register a grad tensor in the container.
@@ -138,12 +150,13 @@ impl Gradients {
     ///
     /// If the registered tensor is distributed, launches a syncing operation on the gradients.
     pub fn register<B: Backend>(&mut self, node_id: NodeId, value: FloatTensor<B>) {
-        let out =
-            if let Some(tensor_old) = self.container.remove::<TensorPrimitive<B>>(&node_id.value) {
-                B::float_add(value, tensor_old.tensor())
-            } else {
-                value
-            };
+        let out = if let Some(tensor_old) =
+            unwrap_optional(self.container.remove::<TensorPrimitive<B>>(&node_id.value))
+        {
+            B::float_add(value, tensor_old.tensor())
+        } else {
+            value
+        };
 
         self.container
             .register::<TensorPrimitive<B>>(node_id.value, TensorPrimitive::Float(out));

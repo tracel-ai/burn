@@ -2,10 +2,21 @@ use burn_core as burn;
 
 use burn::{
     Tensor,
-    tensor::{Device, Gradients, container::TensorContainer},
+    tensor::{
+        Device, Gradients,
+        container::{TensorContainer, TensorContainerError},
+    },
 };
 
 use burn::module::{Module, ParamId};
+
+fn unwrap_optional<T>(result: Result<T, TensorContainerError>) -> Option<T> {
+    match result {
+        Ok(tensor) => Some(tensor),
+        Err(TensorContainerError::NotFound) => None,
+        Err(err @ TensorContainerError::TypeMismatch { .. }) => panic!("{err}"),
+    }
+}
 
 use super::visitor::{GradientsParamsChangeDevice, GradientsParamsConverter};
 
@@ -54,12 +65,12 @@ impl GradientsParams {
     /// You should use [remove](GradientsParams::remove) if you want to get the gradients
     /// only one time.
     pub fn get<const D: usize>(&self, id: ParamId) -> Option<Tensor<D>> {
-        self.container.get(&id)
+        unwrap_optional(self.container.get(&id))
     }
 
     /// Remove the gradients for the given [parameter id](ParamId).
     pub fn remove<const D: usize>(&mut self, id: ParamId) -> Option<Tensor<D>> {
-        self.container.remove(&id)
+        unwrap_optional(self.container.remove(&id))
     }
 
     /// Register a gradients tensor for the given [parameter id](ParamId).
