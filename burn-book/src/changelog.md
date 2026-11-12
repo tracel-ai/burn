@@ -818,6 +818,14 @@ enabled. `CosineSimilarity`, `PairwiseDistance`, `CosineEmbeddingLoss`, `Triplet
 `Initializer::Orthogonal` are now behind it. Add `linalg` to your `burn` features (or `burn-nn`
 features) to keep using them. ([#6327](https://github.com/tracel-ai/burn/pull/6327))
 
+#### LoRA initialization
+
+**Breaking:** `Lora` now draws the `A` factor like Hugging Face PEFT, uniform in `±1 / sqrt(d_in)`,
+instead of from `Normal(0, 1 / rank)`. The old default was several times wider for typical layer
+sizes (2.6x for 576 inputs at rank 16), which made a given learning rate act that much stronger
+than the same setting in PEFT. To keep the old behavior, set `lora.init_std = Some(1.0 / rank as f64)`.
+([#6467](https://github.com/tracel-ai/burn/pull/6467))
+
 #### Module derivation
 
 `#[derive(Module)]` now supports generic fields, associated types, and recursive modules. Trait
