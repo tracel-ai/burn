@@ -87,6 +87,12 @@ operations depending on tracked inputs record backward steps. Backward consumes 
 including steps shared by cloned handles. Repeated backward through consumed intermediates is
 rejected; parameter leaves can be reused in fresh forwards.
 
+Autodiff graphs that are never passed to `backward()` are not consumed by a backward cleanup pass.
+Code that only reads or inspects tensors should therefore use the inner backend, for example
+`tensor.without_autodiff()` (or the historical `tensor.inner()`), before reductions or scalar
+conversion. `Backend::memory_cleanup()` concerns allocator caches; it does not clear live autodiff
+graph state.
+
 `#[backend_extension(Autodiff, Cube)]` generates runtime routing for an extension. The author still
 supplies its implementation for `Autodiff<B, C>` (a composition of differentiable operations or a
 custom backward pass). See the

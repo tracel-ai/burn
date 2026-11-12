@@ -157,6 +157,10 @@ pub trait Backend:
     }
 
     /// Manually triggers a memory cleanup on the given device.
+    ///
+    /// This releases allocations that the backend's allocator no longer needs, such as cached
+    /// buffers. It does not consume autodiff graph steps or release allocations still referenced by
+    /// live tensors or an autodiff graph.
     #[allow(unused_variables)]
     fn memory_cleanup(device: &Self::Device) {}
 
@@ -567,7 +571,7 @@ pub trait Backend:
 
 /// Trait that allows a backend to support autodiff.
 pub trait AutodiffBackend: Backend {
-    /// The inner backend type.
+    /// The backend decorated with autodiff.
     type InnerBackend: Backend<Device = Self::Device>;
 
     /// Gradients type.
@@ -628,7 +632,13 @@ pub trait AutodiffBackend: Backend {
         grad: FloatTensor<Self::InnerBackend>,
     );
 
-    /// Returns the tensor with inner backend type.
+    /// Removes the autodiff wrapper from a float tensor.
+    ///
+    /// This consumes the autodiff tensor and returns its primitive on [`Self::InnerBackend`].
+    /// The graph reference held by the wrapper is released with the wrapper, so subsequent
+    /// inspection operations can run without recording autodiff steps. Public tensor code should
+    /// use [`Tensor::without_autodiff`](https://docs.rs/burn/latest/burn/tensor/struct.Tensor.html#method.without_autodiff)
+    /// instead of calling this low-level method directly.
     ///
     /// # Arguments
     ///
@@ -639,7 +649,7 @@ pub trait AutodiffBackend: Backend {
     /// The inner backend tensor.
     fn inner(tensor: FloatTensor<Self>) -> FloatTensor<Self::InnerBackend>;
 
-    /// Returns the tensor with inner backend type.
+    /// Removes the autodiff wrapper from an integer tensor.
     ///
     /// # Arguments
     ///
@@ -650,7 +660,7 @@ pub trait AutodiffBackend: Backend {
     /// The inner backend tensor.
     fn int_inner(tensor: IntTensor<Self>) -> IntTensor<Self::InnerBackend>;
 
-    /// Returns the tensor with inner backend type.
+    /// Removes the autodiff wrapper from a boolean tensor.
     ///
     /// # Arguments
     ///

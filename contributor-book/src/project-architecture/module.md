@@ -19,6 +19,10 @@ for float, integer, and boolean tensors, control flags, and module paths. Repara
 as LoRA have nested parameters that participate in these traversals. `param.base()` reads the stored
 base; `param.val()` materializes the effective value, including a reparameterization.
 
+When a visitor performs read-only tensor work on an autodiff module, it should call
+`param.val().without_autodiff()` before reductions or scalar reads. Otherwise the inspection itself
+can record steps in a graph that will never be backpropagated.
+
 ## Training and validation
 
 `Module` includes the `valid(&self)` and `train(self)` transition hooks; the derive generates both
