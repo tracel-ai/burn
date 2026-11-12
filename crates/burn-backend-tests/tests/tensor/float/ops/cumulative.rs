@@ -239,3 +239,57 @@ fn test_cummin_and_cummax_nan_at_start() {
         assert!(data[2].is_nan());
     }
 }
+
+// A half-precision scan summed in its own type stops growing once `sum + 1` rounds back to `sum`:
+// at 2048 for f16 and 256 for bf16. Both totals below are exact in their type.
+//
+// A device without f16 or bf16 skips that dtype, as the other half-precision tests do. Flex
+// supports both, so the test checks both there.
+#[test]
+fn should_cumsum_half_precision_without_stalling() {
+    let device = burn_tensor::Device::default();
+    for (dtype, n) in [
+        (burn_tensor::DType::F16, 4096),
+        (burn_tensor::DType::BF16, 512),
+    ] {
+        if !device.supports_dtype(dtype) {
+            continue;
+        }
+        let ones = TestTensor::<1>::ones([n], &device).cast(dtype);
+
+        let output = ones.cumsum(0).into_data().convert::<f32>();
+        let values = output.as_slice::<f32>().unwrap();
+
+        assert_eq!(values[n - 1], n as f32, "{dtype:?}");
+        assert_eq!(values[n / 2 - 1], (n / 2) as f32, "{dtype:?}");
+    }
+}
+
+// A product of `1 + e`, the smallest step above 1 in the type, multiplied in its own type loses
+// the `e²` of every step and drifts away from `(1 + e)^n`. Accumulated in f32 and rounded once,
+// the result is the half value nearest to `(1 + e)^n`: about 2.7170 for f16 (n = 1024) and 2.7077
+// for bf16 (n = 128), neither near a rounding tie.
+#[test]
+fn should_cumprod_half_precision_without_drifting() {
+    let device = burn_tensor::Device::default();
+    for (dtype, step, n) in [
+        (burn_tensor::DType::F16, 2f64.powi(-10), 1024),
+        (burn_tensor::DType::BF16, 2f64.powi(-7), 128),
+    ] {
+        if !device.supports_dtype(dtype) {
+            continue;
+        }
+        let factors = TestTensor::<1>::full([n], 1.0 + step, &device).cast(dtype);
+
+        let output = factors.cumprod(0).into_data().convert::<f32>();
+        let values = output.as_slice::<f32>().unwrap();
+
+        let round = |x: f64| match dtype {
+            burn_tensor::DType::F16 => burn_tensor::f16::from_f64(x).to_f32(),
+            _ => burn_tensor::bf16::from_f64(x).to_f32(),
+        };
+        let exact = |count: i32| (1.0 + step).powi(count);
+        assert_eq!(values[n - 1], round(exact(n as i32)), "{dtype:?}");
+        assert_eq!(values[n / 2 - 1], round(exact(n as i32 / 2)), "{dtype:?}");
+    }
+}

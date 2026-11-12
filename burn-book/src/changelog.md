@@ -567,6 +567,13 @@ own a random generator.
   fewer chunks, as documented; for example, 6 elements in 4 chunks give 3 chunks of 2.
   ([#6263](https://github.com/tracel-ai/burn/pull/6263), [@b84330808](https://github.com/b84330808))
 
+#### Tensor cumulative operations
+
+- Accumulate `cumsum`, `cumprod`, `cummin` and `cummax` of f16 and bf16 tensors in f32 on CubeCL
+  backends, rounding each prefix once. A half-precision `cumsum` used to stop growing at 2048 (f16)
+  or 256 (bf16).
+  ([#6482](https://github.com/tracel-ai/burn/pull/6482))
+
 #### Tensor data constructors
 
 - Add dtype-aware `TensorData::random_dtype`, `zeros_dtype`, and `ones_dtype` constructors.
