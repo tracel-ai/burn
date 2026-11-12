@@ -4,7 +4,7 @@ use alloc::vec;
 use burn_backend::Element;
 use burn_std::Bytes;
 use bytemuck::Pod;
-use num_traits::{Bounded, Num};
+use num_traits::{Bounded, Num, One, WrappingAdd, WrappingMul, Zero};
 
 use crate::{FlexTensor, Layout};
 
@@ -19,12 +19,29 @@ pub fn cumsum<E: Element + Pod + Default + Copy + Num>(
     cumulative_op(tensor, dim, E::zero(), |acc, val| acc + val)
 }
 
+/// Cumulative sum of integers along a dimension, wrapping on overflow (two's complement), as
+/// release builds and the CubeCL backends do.
+pub fn cumsum_int<E: Element + Pod + Default + Copy + WrappingAdd + Zero>(
+    tensor: FlexTensor,
+    dim: usize,
+) -> FlexTensor {
+    cumulative_op(tensor, dim, E::zero(), |acc, val| acc.wrapping_add(&val))
+}
+
 /// Cumulative product along a dimension.
 pub fn cumprod<E: Element + Pod + Default + Copy + Num>(
     tensor: FlexTensor,
     dim: usize,
 ) -> FlexTensor {
     cumulative_op(tensor, dim, E::one(), |acc, val| acc * val)
+}
+
+/// Cumulative product of integers along a dimension, wrapping on overflow (two's complement).
+pub fn cumprod_int<E: Element + Pod + Default + Copy + WrappingMul + One>(
+    tensor: FlexTensor,
+    dim: usize,
+) -> FlexTensor {
+    cumulative_op(tensor, dim, E::one(), |acc, val| acc.wrapping_mul(&val))
 }
 
 /// Generic cumulative operation along a dimension.

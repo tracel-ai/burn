@@ -63,11 +63,11 @@ pub fn sum(tensor: FlexTensor) -> FlexTensor {
         DType::I8 => sum_impl_widening::<i8>(&tensor),
         DType::I16 => sum_impl_widening::<i16>(&tensor),
         DType::I32 => sum_impl_widening::<i32>(&tensor),
-        DType::I64 => sum_impl::<i64>(&tensor),
+        DType::I64 => fold_all::<i64>(&tensor, 0, i64::wrapping_add),
         DType::U8 => sum_impl_widening::<u8>(&tensor),
         DType::U16 => sum_impl_widening::<u16>(&tensor),
         DType::U32 => sum_impl_widening::<u32>(&tensor),
-        DType::U64 => sum_impl::<u64>(&tensor),
+        DType::U64 => fold_all::<u64>(&tensor, 0, u64::wrapping_add),
         _ => panic!("sum: unsupported dtype {:?}", tensor.dtype()),
     }
 }
@@ -141,6 +141,27 @@ fn sum_f32_parallel(data: &[f32]) -> f32 {
             }
         })
         .sum()
+}
+
+/// Folds every element into one, for integer sums and products that wrap on overflow
+/// (two's complement), as release builds and the CubeCL backends do.
+fn fold_all<E: Element + bytemuck::Pod + Default>(
+    tensor: &FlexTensor,
+    init: E,
+    fold: impl Fn(E, E) -> E,
+) -> FlexTensor {
+    let data: &[E] = tensor.storage();
+    let result = match tensor.layout().contiguous_offsets() {
+        Some((start, end)) => data[start..end].iter().fold(init, |acc, &x| fold(acc, x)),
+        None => StridedIter::new(tensor.layout()).fold(init, |acc, idx| fold(acc, data[idx])),
+    };
+
+    let bytes = Bytes::from_elems(vec![result]);
+    FlexTensor::new(
+        bytes,
+        Layout::contiguous(Shape::from(vec![1])),
+        tensor.dtype(),
+    )
 }
 
 fn sum_impl<E: Element + bytemuck::Pod + Default + core::iter::Sum>(
@@ -265,11 +286,11 @@ pub fn sum_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
         DType::I8 => reduce_dim_widening::<i8, _>(&tensor, dim, 0, |acc, x| acc.wrapping_add(x)),
         DType::I16 => reduce_dim_widening::<i16, _>(&tensor, dim, 0, |acc, x| acc.wrapping_add(x)),
         DType::I32 => reduce_dim_widening::<i32, _>(&tensor, dim, 0, |acc, x| acc.wrapping_add(x)),
-        DType::I64 => reduce_dim_impl::<i64, _>(&tensor, dim, 0, |acc, x| acc + x),
+        DType::I64 => reduce_dim_impl::<i64, _>(&tensor, dim, 0, |acc, x| acc.wrapping_add(x)),
         DType::U8 => reduce_dim_widening::<u8, _>(&tensor, dim, 0, |acc, x| acc.wrapping_add(x)),
         DType::U16 => reduce_dim_widening::<u16, _>(&tensor, dim, 0, |acc, x| acc.wrapping_add(x)),
         DType::U32 => reduce_dim_widening::<u32, _>(&tensor, dim, 0, |acc, x| acc.wrapping_add(x)),
-        DType::U64 => reduce_dim_impl::<u64, _>(&tensor, dim, 0, |acc, x| acc + x),
+        DType::U64 => reduce_dim_impl::<u64, _>(&tensor, dim, 0, |acc, x| acc.wrapping_add(x)),
         _ => panic!("sum_dim: unsupported dtype {:?}", tensor.dtype()),
     }
 }
@@ -354,11 +375,11 @@ pub fn prod(tensor: FlexTensor) -> FlexTensor {
         DType::I8 => prod_impl_widening::<i8>(&tensor),
         DType::I16 => prod_impl_widening::<i16>(&tensor),
         DType::I32 => prod_impl_widening::<i32>(&tensor),
-        DType::I64 => prod_impl::<i64>(&tensor),
+        DType::I64 => fold_all::<i64>(&tensor, 1, i64::wrapping_mul),
         DType::U8 => prod_impl_widening::<u8>(&tensor),
         DType::U16 => prod_impl_widening::<u16>(&tensor),
         DType::U32 => prod_impl_widening::<u32>(&tensor),
-        DType::U64 => prod_impl::<u64>(&tensor),
+        DType::U64 => fold_all::<u64>(&tensor, 1, u64::wrapping_mul),
         _ => panic!("prod: unsupported dtype {:?}", tensor.dtype()),
     }
 }
@@ -411,11 +432,11 @@ pub fn prod_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
         DType::I8 => reduce_dim_widening::<i8, _>(&tensor, dim, 1, |acc, x| acc.wrapping_mul(x)),
         DType::I16 => reduce_dim_widening::<i16, _>(&tensor, dim, 1, |acc, x| acc.wrapping_mul(x)),
         DType::I32 => reduce_dim_widening::<i32, _>(&tensor, dim, 1, |acc, x| acc.wrapping_mul(x)),
-        DType::I64 => reduce_dim_impl::<i64, _>(&tensor, dim, 1, |acc, x| acc * x),
+        DType::I64 => reduce_dim_impl::<i64, _>(&tensor, dim, 1, |acc, x| acc.wrapping_mul(x)),
         DType::U8 => reduce_dim_widening::<u8, _>(&tensor, dim, 1, |acc, x| acc.wrapping_mul(x)),
         DType::U16 => reduce_dim_widening::<u16, _>(&tensor, dim, 1, |acc, x| acc.wrapping_mul(x)),
         DType::U32 => reduce_dim_widening::<u32, _>(&tensor, dim, 1, |acc, x| acc.wrapping_mul(x)),
-        DType::U64 => reduce_dim_impl::<u64, _>(&tensor, dim, 1, |acc, x| acc * x),
+        DType::U64 => reduce_dim_impl::<u64, _>(&tensor, dim, 1, |acc, x| acc.wrapping_mul(x)),
         _ => panic!("prod_dim: unsupported dtype {:?}", tensor.dtype()),
     }
 }
