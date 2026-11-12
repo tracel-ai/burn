@@ -818,6 +818,14 @@ enabled. `CosineSimilarity`, `PairwiseDistance`, `CosineEmbeddingLoss`, `Triplet
 `Initializer::Orthogonal` are now behind it. Add `linalg` to your `burn` features (or `burn-nn`
 features) to keep using them. ([#6327](https://github.com/tracel-ai/burn/pull/6327))
 
+#### LoRA on linear layers
+
+`Linear` applies a LoRA or QLoRA adapter as `x @ base + scale * ((x @ a) @ b)` instead of composing
+the dense weight `base + scale * (a @ b)` on every forward pass. Training no longer holds a
+weight-sized delta and gradient per adapted projection, and a QLoRA base stays packed inside
+`linear`. Outputs and adapter gradients are unchanged up to float rounding.
+([#6465](https://github.com/tracel-ai/burn/pull/6465))
+
 #### Module derivation
 
 `#[derive(Module)]` now supports generic fields, associated types, and recursive modules. Trait
