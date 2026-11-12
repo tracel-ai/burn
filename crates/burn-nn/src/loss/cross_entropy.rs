@@ -28,6 +28,10 @@ pub struct CrossEntropyLossConfig {
     /// normalizer, together with any `pad_tokens`. Unlike `pad_tokens` it may be negative, so the
     /// `-100` sentinel used by PyTorch and ONNX can be passed as is.
     ///
+    /// Nothing is ignored by default: the sentinel must be set here for its positions to be
+    /// excluded. Without it, a `-100` target is treated like any other out-of-range target, which
+    /// is not validated.
+    ///
     /// An entirely ignored batch returns NaN, since the mean has no valid samples.
     pub ignore_index: Option<i64>,
     /// Create weighted cross-entropy.
