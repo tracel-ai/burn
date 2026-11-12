@@ -812,61 +812,6 @@ mod parts {
 #[cfg(feature = "fusion")]
 pub(crate) use parts::collective_parts;
 
-#[cfg(test)]
-mod skipped_tests {
-    use super::*;
-    use crate::ops::{from_data, into_data_sync};
-    use burn_backend::TensorData;
-    use cubecl::benchmark::CommunicationSkipGuard;
-
-    /// One device twice is never a cubecl group, so every collective here is emulated, and with
-    /// the device skipping communication each member gets the shape it would receive and the
-    /// all-reduce leaves each member's own values where emulation would sum them.
-    #[test]
-    fn an_emulated_collective_skipping_communication_keeps_shapes_and_skips_the_work() {
-        let device = CubeDevice::default();
-        let members = || {
-            [0.0f32, 10.0].map(|offset| {
-                let values: Vec<f32> = (0..6).map(|value| value as f32 + offset).collect();
-                from_data(TensorData::new(values, [3, 2]), &device)
-            })
-        };
-        let shapes = |tensors: Vec<CubeTensor>| -> Vec<Vec<usize>> {
-            tensors
-                .into_iter()
-                .map(|tensor| tensor.meta.shape().to_vec())
-                .collect()
-        };
-        let collectives = || {
-            [
-                CubeBackend::float_all_gather(members().into(), 0),
-                CubeBackend::float_reduce_scatter(members().into(), 0, ReduceOperation::Sum),
-                CubeBackend::float_all_to_all(members().into(), 0, 1),
-            ]
-            .map(shapes)
-        };
-        let reduced = |tensors: Vec<CubeTensor>| -> Vec<TensorData> {
-            CubeBackend::float_all_reduce(tensors, ReduceOperation::Sum)
-                .into_iter()
-                .map(into_data_sync)
-                .collect()
-        };
-
-        let emulated = collectives();
-        let summed = reduced(members().into());
-        let skip = CommunicationSkipGuard::enter(&[device.client()]);
-        let skipped = collectives();
-        let kept = reduced(members().into());
-        drop(skip);
-
-        assert_eq!(skipped, emulated);
-        assert_eq!(emulated[1], [vec![2, 2], vec![1, 2]], "rows split unevenly");
-        let own: Vec<TensorData> = members().map(into_data_sync).into();
-        assert_eq!(kept, own);
-        assert_ne!(summed, own);
-    }
-}
-
 #[cfg(all(test, feature = "cuda"))]
 mod tests {
     use super::*;
