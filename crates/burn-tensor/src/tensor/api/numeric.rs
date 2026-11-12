@@ -841,6 +841,45 @@ where
     /// C = AB
     /// ```
     ///
+    /// The last two dimensions hold the matrices: `[..., M, K] @ [..., K, N]` gives
+    /// `[..., M, N]`. Any dimensions before them are batch dimensions.
+    ///
+    /// # Shapes and broadcasting
+    ///
+    /// - Both tensors must have the same rank `D`, with `D >= 2`. The rank is part of
+    ///   the tensor type, so unlike NumPy or PyTorch, `matmul` does not add missing
+    ///   leading dimensions: use [`unsqueeze`](Tensor::unsqueeze) or
+    ///   [`unsqueeze_dim`](Tensor::unsqueeze_dim) to give both tensors the same rank first.
+    /// - The inner dimensions must match: the last dimension of `self` and the
+    ///   second-to-last dimension of `other`.
+    /// - Each batch dimension must either be equal in both tensors or be `1` in one
+    ///   of them, in which case it is broadcast to the other's size.
+    ///
+    /// # Panics
+    ///
+    /// If the rank is lower than 2, if the inner dimensions differ, if a batch
+    /// dimension can't be broadcast, or if the tensors are on different devices.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// let device = Default::default();
+    ///
+    /// // Batch dimensions of size 1 are broadcast: [2, 1] and [1, 4] give [2, 4].
+    /// let lhs = Tensor::<4>::ones([2, 1, 2, 3], &device);
+    /// let rhs = Tensor::<4>::ones([1, 4, 3, 5], &device);
+    /// assert_eq!(lhs.matmul(rhs).shape(), Shape::new([2, 4, 2, 5]));
+    ///
+    /// // To multiply one matrix by a batch of matrices, add a leading dimension of
+    /// // size 1 to the matrix first.
+    /// let matrix = Tensor::<2>::ones([2, 3], &device);
+    /// let batch = Tensor::<3>::ones([4, 3, 5], &device);
+    /// let product = matrix.unsqueeze::<3>().matmul(batch);
+    /// assert_eq!(product.shape(), Shape::new([4, 2, 5]));
+    /// ```
+    ///
     /// Shapes of the form `[..., B, 1, K] @ [..., 1, K, N]` are reinterpreted as
     /// `[..., 1, B, K] @ [..., 1, K, N]`, turning a batched vec-mat into a general
     /// matmul, which is often faster.
