@@ -572,6 +572,12 @@ own a random generator.
   fewer chunks, as documented; for example, 6 elements in 4 chunks give 3 chunks of 2.
   ([#6263](https://github.com/tracel-ai/burn/pull/6263), [@b84330808](https://github.com/b84330808))
 
+#### Tensor clamping
+
+- Fix `clamp_min` and `clamp_max` ignoring a NaN bound on CubeCL backends. A NaN bound now makes
+  every element NaN, as on Flex and for two-sided `clamp`.
+  ([#6473](https://github.com/tracel-ai/burn/pull/6473))
+
 #### Tensor data constructors
 
 - Add dtype-aware `TensorData::random_dtype`, `zeros_dtype`, and `ones_dtype` constructors.

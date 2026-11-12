@@ -210,8 +210,11 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// The clamped tensor.
+    /// The clamped tensor. A NaN `min` makes every element NaN.
     fn float_clamp_min(tensor: FloatTensor<B>, min: Scalar) -> FloatTensor<B> {
+        if let Some(nan) = nan_bound_fill::<B>(&tensor, min) {
+            return nan;
+        }
         let dtype = get_or_init_device_settings::<B>(&tensor.device()).bool_dtype;
         let mask = Self::float_lower_elem(tensor.clone(), min, dtype);
         B::float_mask_fill(tensor, mask, min)
@@ -226,8 +229,11 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// The clamped tensor.
+    /// The clamped tensor. A NaN `max` makes every element NaN.
     fn float_clamp_max(tensor: FloatTensor<B>, max: Scalar) -> FloatTensor<B> {
+        if let Some(nan) = nan_bound_fill::<B>(&tensor, max) {
+            return nan;
+        }
         let dtype = get_or_init_device_settings::<B>(&tensor.device()).bool_dtype;
         let mask = Self::float_greater_elem(tensor.clone(), max, dtype);
         B::float_mask_fill(tensor, mask, max)
@@ -1997,4 +2003,17 @@ pub trait FloatTensorOps<B: Backend> {
     ) -> FloatTensor<B> {
         super::pad::float_pad::<B>(tensor, padding, mode)
     }
+}
+
+/// A NaN-filled tensor like `tensor` when the clamp `bound` is NaN, as in PyTorch. Every comparison
+/// with NaN is false, so the mask the default one-sided clamps build would keep `tensor` unchanged.
+fn nan_bound_fill<B: Backend>(tensor: &FloatTensor<B>, bound: Scalar) -> Option<FloatTensor<B>> {
+    matches!(bound, Scalar::Float(value) if value.is_nan()).then(|| {
+        B::float_full(
+            tensor.shape(),
+            bound,
+            &tensor.device(),
+            tensor.dtype().into(),
+        )
+    })
 }
