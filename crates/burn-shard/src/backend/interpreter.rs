@@ -520,7 +520,7 @@ impl<B: BackendIr> ShardInterpreter<B> {
             }
             _ => return,
         };
-        if let Sharding::Split { dim } = self.shardings.get(&tensor.id)
+        if let Some(dim) = self.shardings.get(&tensor.id).split_dim()
             && let Some(range) = ranges.get_mut(dim)
         {
             *range = Slice::full();
@@ -635,7 +635,7 @@ impl IrVisitorMut for MemberShapes<'_> {
 mod tests {
     use burn_backend::ops::{DimSplit, FloatTensorOps, QTensorOps};
     use burn_flex::{Flex, FlexDevice};
-    use burn_ir::CustomOpIr;
+    use burn_ir::{CustomOpIr, SliceOpIr};
     use burn_std::{QuantScheme, QuantStore, QuantValue, ScaleDtype, future::block_on};
 
     use super::*;
@@ -721,15 +721,21 @@ mod tests {
         sharding: Sharding,
     ) -> (TensorId, TensorData) {
         let num_members = interpreter.num_members();
-        let chunks: Vec<TensorData> = match sharding {
-            Sharding::Split { dim } => DimSplit {
-                dim,
-                len: data.shape()[dim],
-                members: num_members,
+        let chunks: Vec<TensorData> = match (sharding.split_dim(), sharding.num_chunks(num_members))
+        {
+            (Some(dim), Some(chunks)) => {
+                let cut: Vec<_> = DimSplit {
+                    dim,
+                    len: data.shape()[dim],
+                    members: chunks,
+                }
+                .data_chunks(data)
+                .collect();
+                (0..num_members)
+                    .map(|index| cut[ShardMember { index, num_members }.chunk(chunks)].clone())
+                    .collect()
             }
-            .data_chunks(data)
-            .collect(),
-            Sharding::Replicated | Sharding::PartialSum => vec![data.clone(); num_members],
+            _ => vec![data.clone(); num_members],
         };
         let value = match sharding {
             Sharding::PartialSum => {
@@ -750,38 +756,160 @@ mod tests {
     }
 
     #[test]
+    fn a_slice_taking_a_replicated_splits_dim_whole_takes_each_shard_whole() {
+        let pairs = Sharding::ReplicatedSplit { dim: 1, groups: 2 };
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice; 4], ShardCustomOps::default()).unwrap();
+        let data = TensorData::new(vec![0f32; 24], [6, 4]);
+        let (id, _) = joined(&mut interpreter, &data, pairs);
+        let tensor = |id, shape: [usize; 2]| TensorIr {
+            id,
+            shape: shape.into(),
+            status: TensorStatus::ReadOnly,
+            dtype: DType::F32,
+        };
+        let rows = Slice::new(1, Some(3), 1);
+        let mut op = OperationIr::BaseFloat(BaseOperationIr::Slice(SliceOpIr {
+            tensor: tensor(id, [6, 4]),
+            ranges: vec![rows, Slice::new(0, Some(4), 1)],
+            out: tensor(TensorId::new(1), [2, 4]),
+        }));
+
+        interpreter.localize_slice_ranges(&mut op);
+
+        let OperationIr::BaseFloat(BaseOperationIr::Slice(slice)) = op else {
+            unreachable!("Localizing keeps the op")
+        };
+        assert_eq!(slice.ranges, [rows, Slice::full()]);
+    }
+
+    #[test]
     fn every_sharding_reshards_to_every_other_and_keeps_its_value() {
-        let data = TensorData::new((0..24).map(|i| i as f32).collect::<Vec<_>>(), [4, 6]);
-        let shardings = [
-            Sharding::Replicated,
-            Sharding::PartialSum,
-            Sharding::Split { dim: 0 },
-            Sharding::Split { dim: 1 },
-        ];
-        for num_members in 1..=4 {
+        // Ten rows cut unevenly into three groups, so a group's chunk can be one row longer.
+        let data = TensorData::new((0..60).map(|i| i as f32).collect::<Vec<_>>(), [10, 6]);
+        let tensor = |id, status| TensorIr {
+            id,
+            shape: [10, 6].into(),
+            status,
+            dtype: DType::F32,
+        };
+        for num_members in [1usize, 2, 3, 4, 6] {
+            let mut shardings = vec![
+                Sharding::Replicated,
+                Sharding::PartialSum,
+                Sharding::Split { dim: 0 },
+                Sharding::Split { dim: 1 },
+            ];
+            for groups in (2..num_members).filter(|groups| num_members.is_multiple_of(*groups)) {
+                shardings.extend([0, 1].map(|dim| Sharding::ReplicatedSplit { dim, groups }));
+            }
             let mut interpreter = ShardInterpreter::<Flex>::new(
                 vec![FlexDevice; num_members],
                 ShardCustomOps::default(),
             )
             .unwrap();
-            for from in shardings {
-                for to in shardings {
+            for &from in &shardings {
+                for &to in &shardings {
                     if to == Sharding::PartialSum && from != Sharding::PartialSum {
                         continue;
                     }
                     let (id, value) = joined(&mut interpreter, &data, from);
 
                     let moved = interpreter
-                        .resharded(&whole(id, TensorStatus::ReadWrite), from, to)
+                        .resharded(&tensor(id, TensorStatus::ReadWrite), from, to)
                         .unwrap();
 
                     let case = format!("{num_members} members, {from:?} to {to:?}");
                     assert_eq!(interpreter.sharding(&moved), to, "{case}");
-                    let read = block_on(interpreter.read(whole(moved, TensorStatus::ReadWrite)));
+                    if to != Sharding::PartialSum {
+                        let held = interpreter
+                            .sharded_tensor(&tensor(moved, TensorStatus::ReadOnly), to)
+                            .into_handles();
+                        for (member, handle) in held.into_iter().enumerate() {
+                            let HandleKind::Float(shard) = handle else {
+                                unreachable!("A float tensor's shards are float")
+                            };
+                            let shard = block_on(Flex::float_into_data(shard)).unwrap();
+                            let expected = member_part(&value, to, member, num_members);
+                            assert_eq!(shard, expected, "{case}, member {member}");
+                        }
+                    }
+                    let read = block_on(interpreter.read(tensor(moved, TensorStatus::ReadWrite)));
                     assert_eq!(read.unwrap(), value, "{case}");
                 }
             }
         }
+    }
+
+    /// What `member` of `num_members` holds of `data` as `sharding` lays it, worked out from the
+    /// rows of the whole so it does not share the interpreter's own mapping.
+    fn member_part(
+        data: &TensorData,
+        sharding: Sharding,
+        member: usize,
+        num_members: usize,
+    ) -> TensorData {
+        let (Some(dim), Some(chunks)) = (sharding.split_dim(), sharding.num_chunks(num_members))
+        else {
+            return data.clone();
+        };
+        // Contiguous groups: member `m` of `n` is in group `m * chunks / n`.
+        let chunk = member * chunks / num_members;
+        DimSplit {
+            dim,
+            len: data.shape()[dim],
+            members: chunks,
+        }
+        .data_chunks(data)
+        .nth(chunk)
+        .expect("A member's group is one of the chunks")
+    }
+
+    /// Codes and scales cut by group stay as they are, read back from one member per group, and
+    /// the copies of a group are its chunk.
+    #[test]
+    fn a_quantized_replicated_split_reads_back_unchanged() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native)
+            .per_block([2], ScaleDtype::F32);
+        let codes: Vec<i8> = (0..32).collect();
+        let scales: Vec<f32> = (1..=16).map(|i| i as f32 * 0.1).collect();
+        let data = TensorData::quantized(codes, [4, 8], scheme, &scales, None);
+        let pairs = Sharding::ReplicatedSplit { dim: 0, groups: 2 };
+        let tensor = |id| TensorIr {
+            id,
+            shape: [4, 8].into(),
+            status: TensorStatus::ReadOnly,
+            dtype: data.dtype(),
+        };
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice; 4], ShardCustomOps::default()).unwrap();
+        let replicated = interpreter.register_tensor_data(data.clone());
+
+        let split = interpreter
+            .resharded(&tensor(replicated), Sharding::Replicated, pairs)
+            .unwrap();
+        let held = interpreter
+            .sharded_tensor(&tensor(split), pairs)
+            .into_handles();
+        let gathered = interpreter
+            .resharded(&tensor(split), pairs, Sharding::Replicated)
+            .unwrap();
+
+        for (member, handle) in held.into_iter().enumerate() {
+            let HandleKind::Quantized(shard) = handle else {
+                unreachable!("A quantized tensor's shards are quantized")
+            };
+            let shard = block_on(Flex::q_into_data(shard)).unwrap();
+            assert_eq!(
+                shard,
+                member_part(&data, pairs, member, 4),
+                "member {member}"
+            );
+        }
+        assert_eq!(block_on(interpreter.read(tensor(split))).unwrap(), data);
+        assert_eq!(block_on(interpreter.read(tensor(gathered))).unwrap(), data);
     }
 
     /// Its codes and scales are cut and joined as they are, so the value reads back exactly.
@@ -874,6 +1002,37 @@ mod tests {
 
         assert!(read.is_err());
         assert_eq!(gathered, Err(ShardingError::QuantizedScales { shard: 1 }));
+    }
+
+    /// A group's copies are read from its first member, which the error names.
+    #[test]
+    fn a_group_quantized_with_another_scale_is_named_by_its_first_member() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native);
+        let shard = |scale| {
+            let data = TensorData::quantized(vec![0i8, 1, 2, 3], [2, 2], scheme, &[scale], None);
+            HandleKind::<Flex>::Quantized(Flex::q_from_data(data, &FlexDevice))
+        };
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice; 4], ShardCustomOps::default()).unwrap();
+        let pairs = Sharding::ReplicatedSplit { dim: 0, groups: 2 };
+        let joined = interpreter
+            .register_shards(Box::new(Shards {
+                shards: vec![shard(0.5), shard(0.5), shard(0.25), shard(0.25)],
+                sharding: pairs,
+            }))
+            .unwrap();
+        let tensor = TensorIr {
+            id: joined.id,
+            shape: joined.shape,
+            status: TensorStatus::ReadOnly,
+            dtype: joined.dtype,
+        };
+
+        let gathered = interpreter.resharded(&tensor, pairs, Sharding::Replicated);
+
+        assert_eq!(gathered, Err(ShardingError::QuantizedScales { shard: 2 }));
     }
 
     /// A failed gather reports its cause on repeated reads and releases it on the last use.
@@ -1025,5 +1184,73 @@ mod tests {
         interpreter.register_op(OperationIr::Custom(op));
 
         assert_eq!(interpreter.sharding(&out), Sharding::Replicated);
+    }
+
+    /// Splits its one input on dim 1 and writes two outputs split the same way.
+    struct ShardedRule;
+
+    impl CustomOpRule for ShardedRule {
+        fn plan<'a>(&self, _op: &'a CustomOpIr) -> CustomOpPlan<'a> {
+            let split = Sharding::Split { dim: 1 };
+            CustomOpPlan::Sharded {
+                inputs: vec![split],
+                outputs: vec![split, split],
+            }
+        }
+    }
+
+    /// No kind describes an op of two outputs, so only its rule's shardings keep it split: each
+    /// member runs its own handler on its half, and the halves make up the whole results.
+    #[test]
+    fn a_sharded_op_runs_on_each_members_shards() {
+        use burn_backend::ops::FloatTensorOps;
+
+        let mut handlers = burn_router::CustomOpRegistry::<Flex>::new();
+        handlers.register("double_and_shift", |handles, ir, _device| {
+            assert_eq!(
+                ir.inputs[0].shape,
+                [4, 3].into(),
+                "a member reads its own half"
+            );
+            let x = handles.get_float_tensor::<Flex>(&ir.inputs[0]);
+            let doubled = Flex::float_mul_scalar(x.clone(), 2.0f32.into());
+            let shifted = Flex::float_add_scalar(x, 1.0f32.into());
+            handles.register_float_tensor::<Flex>(&ir.outputs[0].id, doubled);
+            handles.register_float_tensor::<Flex>(&ir.outputs[1].id, shifted);
+        });
+        let custom_ops = ShardCustomOps::default()
+            .with_handlers(handlers)
+            .with_rule("double_and_shift", ShardedRule);
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], custom_ops).unwrap();
+        let values: Vec<f32> = (0..24).map(|value| value as f32).collect();
+        let x = interpreter.register_tensor_data(TensorData::new(values.clone(), [4, 6]));
+        let (doubled, shifted) = (interpreter.new_tensor_id(), interpreter.new_tensor_id());
+        let input = whole(x, TensorStatus::ReadOnly);
+        let output = |id| TensorIr {
+            id,
+            status: TensorStatus::NotInit,
+            ..input.clone()
+        };
+
+        interpreter.register_op(OperationIr::Custom(CustomOpIr {
+            id: "double_and_shift".into(),
+            outputs: vec![output(doubled), output(shifted)],
+            inputs: vec![input.clone()],
+            scalars: Vec::new(),
+        }));
+
+        let read = |interpreter: &mut ShardInterpreter<Flex>, id| {
+            block_on(interpreter.read(whole(id, TensorStatus::ReadOnly)))
+                .unwrap()
+                .try_to_vec::<f32>()
+                .unwrap()
+        };
+        for id in [doubled, shifted] {
+            assert_eq!(interpreter.sharding(&id), Sharding::Split { dim: 1 });
+        }
+        let expected = |f: fn(f32) -> f32| values.iter().copied().map(f).collect::<Vec<_>>();
+        assert_eq!(read(&mut interpreter, doubled), expected(|x| 2.0 * x));
+        assert_eq!(read(&mut interpreter, shifted), expected(|x| x + 1.0));
     }
 }

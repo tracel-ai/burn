@@ -709,7 +709,7 @@ impl IntTensorOps<Flex> for Flex {
     }
 
     fn int_add(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
-        int_binary_op(lhs, rhs, |a, b| a + b)
+        int_binary_op(lhs, rhs, i64::wrapping_add)
     }
 
     fn int_add_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
@@ -718,11 +718,11 @@ impl IntTensorOps<Flex> for Flex {
                 a.wrapping_add(b)
             });
         }
-        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a + b)
+        int_scalar_op(lhs, rhs.to_i64().unwrap(), i64::wrapping_add)
     }
 
     fn int_sub(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
-        int_binary_op(lhs, rhs, |a, b| a - b)
+        int_binary_op(lhs, rhs, i64::wrapping_sub)
     }
 
     fn int_sub_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
@@ -731,11 +731,11 @@ impl IntTensorOps<Flex> for Flex {
                 a.wrapping_sub(b)
             });
         }
-        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a - b)
+        int_scalar_op(lhs, rhs.to_i64().unwrap(), i64::wrapping_sub)
     }
 
     fn int_mul(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
-        int_binary_op(lhs, rhs, |a, b| a * b)
+        int_binary_op(lhs, rhs, i64::wrapping_mul)
     }
 
     fn int_mul_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
@@ -744,7 +744,7 @@ impl IntTensorOps<Flex> for Flex {
                 a.wrapping_mul(b)
             });
         }
-        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a * b)
+        int_scalar_op(lhs, rhs.to_i64().unwrap(), i64::wrapping_mul)
     }
 
     fn int_div(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {

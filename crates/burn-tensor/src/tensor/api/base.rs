@@ -2374,6 +2374,27 @@ where
     }
 
     /// Create a tensor from the given data on the given device.
+    ///
+    /// For `Float` and `Int` tensors, the dtype follows the
+    /// [creation options](TensorCreationOptions). Without an explicit `dtype`, it defaults to the
+    /// [device settings](crate::DeviceSettings), so `Int` tensors created from `i64` data use the
+    /// device's default int dtype unless a dtype is passed explicitly. `Bool` tensors always use
+    /// the device's default bool storage.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{DType, Int, Tensor, TensorData};
+    ///
+    /// let device = Default::default();
+    /// let data = TensorData::new(vec![1i64, 2], [2]);
+    ///
+    /// // The device's default int dtype is used (I32 on Flex), not the data dtype.
+    /// let tensor = Tensor::<1, Int>::from_data(data.clone(), &device);
+    ///
+    /// // Pass the dtype explicitly to create an I64 tensor from the same data.
+    /// let tensor = Tensor::<1, Int>::from_data(data, (&device, DType::I64));
+    /// ```
     pub fn from_data<T>(data: T, options: impl Into<TensorCreationOptions>) -> Self
     where
         T: Into<TensorData>,

@@ -63,6 +63,11 @@ each member's range of that dim and cuts a `TensorData` to it. A tensor made fro
 on the sharded compute device itself is replicated, and a random one is drawn on the first member
 and copied to the others.
 
+`Sharding::ReplicatedSplit { dim, groups }` cuts the dim into `groups` chunks instead, each held
+by a contiguous group of members: two key and value heads over four members are
+`ReplicatedSplit { dim: 1, groups: 2 }`, members 0 and 1 holding the first. Which cards pair up
+is set by the order the members are given to `shard_options`.
+
 <!-- burn-crate-footer -->
 
 ---

@@ -386,7 +386,7 @@ impl BoolTensorOps<Flex> for Flex {
         dim: usize,
         indices: IntTensor<Flex>,
     ) -> BoolTensor<Flex> {
-        crate::ops::gather_scatter::select::<u8>(tensor, dim, indices)
+        crate::ops::gather_scatter::select_bool(tensor, dim, indices)
     }
 
     fn bool_select_assign(

@@ -604,6 +604,11 @@ where
                 self.send_response(request_id, TaskResponseContent::EnvironmentMerged(res))
                     .await
             }
+            Task::EnvironmentPrune(request_id, stream_id, id, options) => {
+                let res = self.on_stream(stream_id, |runner| runner.environment_prune(id, options));
+                self.send_response(request_id, TaskResponseContent::EnvironmentPruned(res))
+                    .await
+            }
             Task::DeviceDescription(request_id) => {
                 let description = self.runner.device_description();
                 self.send_response(

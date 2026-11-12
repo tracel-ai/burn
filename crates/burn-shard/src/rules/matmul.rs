@@ -2,7 +2,7 @@ use smallvec::smallvec;
 
 use crate::{
     OpSharding,
-    Sharding::{self, PartialSum, Replicated, Split},
+    Sharding::{self, PartialSum, Replicated, ReplicatedSplit, Split},
 };
 
 /// Which dim of a matmul is split, named after the dim of the product it splits.
@@ -10,8 +10,9 @@ use crate::{
 pub enum MatmulRule {
     /// Nothing is split: every member computes the whole product.
     Unsplit,
-    /// The rhs columns are split, as in Megatron's column-parallel linear.
-    Columns { dim: usize },
+    /// The rhs columns are split, as in Megatron's column-parallel linear, by `rhs`: a split or a
+    /// replicated split of the columns, which the product's columns keep.
+    Columns { rhs: Sharding },
     /// The contracted dim is split, as in Megatron's row-parallel linear: each member computes
     /// a summand of the product.
     Contraction { lhs_dim: usize, rhs_dim: usize },
@@ -29,7 +30,9 @@ impl MatmulRule {
         };
         match (lhs, rhs) {
             (Replicated, Replicated) => Self::Unsplit,
-            (Replicated, Split { dim }) if dim == cols => Self::Columns { dim },
+            (Replicated, Split { dim } | ReplicatedSplit { dim, .. }) if dim == cols => {
+                Self::Columns { rhs }
+            }
             (Split { dim: l }, Split { dim: r }) if l == cols && r == rows => contraction,
             (Split { dim }, Replicated) if dim == cols => contraction,
             (Replicated, Split { dim }) if dim == rows => contraction,
@@ -43,7 +46,7 @@ impl MatmulRule {
     pub fn sharding(&self) -> OpSharding {
         let (inputs, output) = match *self {
             Self::Unsplit | Self::Gathered => (smallvec![Replicated, Replicated], Replicated),
-            Self::Columns { dim } => (smallvec![Replicated, Split { dim }], Split { dim }),
+            Self::Columns { rhs } => (smallvec![Replicated, rhs], rhs),
             Self::Contraction { lhs_dim, rhs_dim } => (
                 smallvec![Split { dim: lhs_dim }, Split { dim: rhs_dim }],
                 PartialSum,
@@ -62,7 +65,12 @@ mod tests {
         let up = MatmulRule::new(Replicated, Split { dim: 1 }, 2);
         let down = MatmulRule::new(Split { dim: 1 }, Split { dim: 0 }, 2);
 
-        assert_eq!(up, MatmulRule::Columns { dim: 1 });
+        assert_eq!(
+            up,
+            MatmulRule::Columns {
+                rhs: Split { dim: 1 }
+            }
+        );
         assert_eq!(
             down.sharding(),
             OpSharding {
@@ -89,6 +97,24 @@ mod tests {
     #[test]
     fn rows_against_columns_falls_back_to_gathering() {
         let rule = MatmulRule::new(Split { dim: 0 }, Split { dim: 1 }, 2);
+
+        assert_eq!(rule, MatmulRule::Gathered);
+    }
+
+    #[test]
+    fn key_and_value_projections_shared_by_pairs_run_without_a_collective() {
+        let kv = ReplicatedSplit { dim: 1, groups: 2 };
+
+        assert_eq!(MatmulRule::new(Replicated, kv, 2).sharding().output, kv);
+    }
+
+    #[test]
+    fn a_contraction_over_a_replicated_split_falls_back_to_gathering() {
+        let rule = MatmulRule::new(
+            ReplicatedSplit { dim: 1, groups: 2 },
+            ReplicatedSplit { dim: 0, groups: 2 },
+            2,
+        );
 
         assert_eq!(rule, MatmulRule::Gathered);
     }

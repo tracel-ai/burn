@@ -1,9 +1,9 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Mutex, thread};
 
 use burn_backend::{BackendGraph, ExecutionError};
 use burn_ir::{BackendIr, CapturedGraphId};
 use burn_router::TensorInterpreter;
-use burn_std::id::IdGenerator;
+use burn_std::id::{IdGenerator, StreamId};
 
 /// The graphs a sharded compute device captured, one per member under each id.
 ///
@@ -62,8 +62,8 @@ impl<B: BackendIr> MemberGraphs<B> {
         Ok(id)
     }
 
-    /// Replays every member's graph of `id`, in member order, and returns the first member's
-    /// error. A member that fails does not stop the others replaying, whose peers would otherwise
+    /// Replays every member's graph of `id` at once, and returns the error of a member that
+    /// failed. A member that fails does not stop the others replaying, whose peers would otherwise
     /// wait inside a collective for it.
     ///
     /// # Safety
@@ -78,14 +78,23 @@ impl<B: BackendIr> MemberGraphs<B> {
         let graphs = self.graphs.get(&id).ok_or_else(|| {
             ExecutionError::with_context(format!("No graph was captured under {id:?}"))
         })?;
-        let mut first_error = None;
-        for (member, graph) in members.iter().zip(graphs) {
-            // Safety: forwarded verbatim from this method's own contract.
-            if let Err(error) = unsafe { member.graph_replay(graph) } {
-                first_error.get_or_insert(error);
+        let first_error = Mutex::new(None);
+        let stream = StreamId::current();
+        // Launched in turn, members idle at their first collective until the last launch returns,
+        // and a launch may block until its peers have launched.
+        thread::scope(|scope| {
+            for (member, graph) in members.iter().zip(graphs) {
+                let first_error = &first_error;
+                scope.spawn(move || {
+                    // Safety: forwarded verbatim from this method's own contract, on its stream.
+                    let replayed = stream.executes(|| unsafe { member.graph_replay(graph) });
+                    if let Err(error) = replayed {
+                        first_error.lock().unwrap().get_or_insert(error);
+                    }
+                });
             }
-        }
-        first_error.map_or(Ok(()), Err)
+        });
+        first_error.into_inner().unwrap().map_or(Ok(()), Err)
     }
 
     /// Frees every member's graph of `id`.

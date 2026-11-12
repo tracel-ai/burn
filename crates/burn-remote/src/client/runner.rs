@@ -6,7 +6,7 @@ use burn_backend::{
     DeviceDescription, DeviceId, DeviceOps, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
     EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken,
     ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
-    ProfileToken, RouterDeviceType, StreamId, TensorData,
+    ProfileToken, PruneOptions, Pruned, RouterDeviceType, StreamId, TensorData,
 };
 use burn_ir::{CapturedGraphId, TensorIr};
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
@@ -166,6 +166,17 @@ impl RouterClient for RemoteClient {
         let stream_id = StreamId::current();
         self.handle
             .submit_blocking(move |s| s.environment_merge(stream_id, id, origin))
+            .map_err(service_failed)?
+    }
+
+    fn environment_prune(
+        &self,
+        id: EnvironmentId,
+        options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.environment_prune(stream_id, id, options))
             .map_err(service_failed)?
     }
 
@@ -670,6 +681,15 @@ impl MultiBackendBridge for RemoteBridge {
         out_dtype: BoolDType,
     ) -> Self::TensorHandle {
         tensor.change_backend(target_device, out_dtype.into())
+    }
+
+    fn change_backend_quantized(
+        tensor: Self::TensorHandle,
+        _shape: burn_backend::Shape,
+        target_device: &Self::Device,
+    ) -> Self::TensorHandle {
+        let dtype = tensor.tensor.dtype;
+        tensor.change_backend(target_device, dtype)
     }
 }
 

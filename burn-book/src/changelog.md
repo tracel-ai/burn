@@ -41,6 +41,14 @@ conflicts with it (E0119); delete the handwritten one.
   `ShardError` has a new `CustomOpsBackend` variant.
   ([#6395](https://github.com/tracel-ai/burn/pull/6395))
 
+- A `CustomOpRule` can plan `CustomOpPlan::Sharded`, naming each input's and output's sharding,
+  so each member runs the op's own handler on its shards: an op that runs per head, or has
+  several outputs, stays split without a collective handler. `ShardedComputeDevice::num_members`
+  counts its members whichever backend they run.
+
+- `cat` along a dim its inputs are not split on keeps their split on a sharded compute device, and
+  partial sums stay partial, instead of gathering every input.
+
 #### Compilation and autotuning
 
 - Include the preceding `CompileOnly` pass's statistics in the following
@@ -67,6 +75,22 @@ conflicts with it (E0119); delete the handwritten one.
   ([#6188](https://github.com/tracel-ai/burn/pull/6188),
   [CubeCL #1856](https://github.com/tracel-ai/cubecl/pull/1856))
 
+#### Compute environments
+
+A `ComputeEnvironment` holds the kernels a device's work compiles and the answers its autotune
+measures, so a later run reuses them: created, forked, loaded from a saved bundle, merged, activated
+and saved on any device that reaches its storage, a remote server's included.
+([#6335](https://github.com/tracel-ai/burn/pull/6335),
+[#6373](https://github.com/tracel-ai/burn/pull/6373))
+
+- `ComputeEnvironment::prune` removes the compiled kernels the work never loaded: those only an
+  autotune race loaded and those another executable compiled, with the build records
+  `PruneOptions::records` does not keep (`RecordPruning::RemoveAll` by default). Every kernel the
+  work loaded stays, with the autotune answers; prune from the executable that runs the
+  environment. A remote device prunes on its server, so remote clients and servers must be
+  upgraded together (protocol version 13).
+  ([#6472](https://github.com/tracel-ai/burn/pull/6472))
+
 #### CubeK tile kernels
 
 - Run matmul, fused matmul and attention on CubeCL backends through CubeK's tile routines, chosen
@@ -83,6 +107,10 @@ conflicts with it (E0119); delete the handwritten one.
   [#6199](https://github.com/tracel-ai/burn/pull/6199),
   [#6246](https://github.com/tracel-ai/burn/pull/6246),
   [#6273](https://github.com/tracel-ai/burn/pull/6273)) [@louisfd](https://github.com/louisfd)
+- Read a quantized matmul input with a per-tensor scale (NVFP4) packed instead of dequantizing it
+  first, also through a transposed view, as a tied embedding reaches the vocabulary head. The fused matmul runs a matmul's element-wise tail in the product's kernel when the
+  product is reshaped before the tail reads it, as a projection that flattens its batches into
+  rows does, and when an operand is stored in tiles. ([#6440](https://github.com/tracel-ai/burn/pull/6440)) [@louisfd](https://github.com/louisfd)
 
 #### Device descriptions and measurements
 
@@ -239,7 +267,7 @@ Reports also include the measured cost of a kernel launch.
   on its stream. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
 
 - `capture` works on a sharded compute device: each member records its own graph, collectives
-  included, and a replay runs every member's. ([#6429](https://github.com/tracel-ai/burn/pull/6429))
+  included, and a replay launches every member's at once. ([#6429](https://github.com/tracel-ai/burn/pull/6429))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Matrix multiplication
@@ -326,6 +354,18 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   integers and booleans) in its place. Backend implementors provide
   `FusionBackend::collective_parts`, returning `None` to keep a collective on the caller.
   ([#6421](https://github.com/tracel-ai/burn/pull/6421))
+
+- A collective that CubeCL backends emulate, though the members share a runtime with a
+  transport, logs a warning once per collective and reason: a dtype the transport does not
+  reduce, an uneven split, or devices out of order. `burn_cubecl::ops::CollectiveTransport::new`
+  says how collectives between some devices run: natively, by which library (NCCL or RCCL) and
+  reducing which element types, or emulated and why.
+  ([#6486](https://github.com/tracel-ai/burn/pull/6486))
+
+- While a CubeCL `CommunicationSkipGuard` holds a member's device, a collective on CubeCL backends
+  runs nothing: each member receives a tensor of the shape and dtype it would, whose values are
+  wrong. It is for timing a run as if communication were free. `broadcast` still transfers.
+  ([#6497](https://github.com/tracel-ai/burn/pull/6497))
 
 #### Distributed data parallel training
 
@@ -424,6 +464,11 @@ whose tensors are split over `devices` (crate `burn-shard`).
   ([#6372](https://github.com/tracel-ai/burn/pull/6372))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- An attention over a key/value cache, contiguous or paged, split on its heads keeps the split
+  instead of gathering the cache before every call: each member attends its own heads, with the
+  lengths and page table whole on every member. Split on the batch, it still gathers.
+  ([#6432](https://github.com/tracel-ai/burn/pull/6432))
+
 - Elementwise ops, reductions, and softmax, cumsum, sort and topk on a sharded compute device keep
   their input's split or partial sum where the math allows, instead of gathering it.
   ([#6387](https://github.com/tracel-ai/burn/pull/6387))
@@ -439,6 +484,23 @@ whose tensors are split over `devices` (crate `burn-shard`).
   recorded execution error instead of panicking.
   ([#6396](https://github.com/tracel-ai/burn/pull/6396),
   [#6408](https://github.com/tracel-ai/burn/pull/6408))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- A quantized tensor moves between two sharded compute devices, its codes and scales unchanged,
+  instead of panicking in the router. **Breaking:** `MultiBackendBridge` implementers must add
+  `change_backend_quantized`. ([#6474](https://github.com/tracel-ai/burn/pull/6474))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- `Sharding::ReplicatedSplit { dim, groups }` splits a tensor into `groups` chunks, each held by a
+  contiguous group of members, for key and value heads that pairs of members share when a model
+  has fewer of them than members. The members' order on the device picks the pairs. Attention
+  splits its query heads over every member against such keys and values, and the matmul,
+  elementwise, layout, reshape and along-dim ops, and reductions over other dims, keep it.
+  **Breaking (experimental):** `Sharding` has a new variant, `ShardingError` a new `InvalidGroups`
+  variant for groups that do not divide the members or are one or every member,
+  `DimShorterThanMembers` is renamed `DimShorterThanChunks`, and its and `QuantizedSplit`'s
+  `num_members` field is now `chunks`.
+  ([#6418](https://github.com/tracel-ai/burn/pull/6418))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 ### Tensors
@@ -458,12 +520,22 @@ whose tensors are split over `devices` (crate `burn-shard`).
   target; the updates are now applied with atomic stores.
   ([#6215](https://github.com/tracel-ai/burn/pull/6215))
 
+- Fix boolean `gather` and `select` on Flex returning a tensor with `U8` dtype instead of the input's
+  boolean dtype, which made later boolean ops on the result panic.
+  ([#6456](https://github.com/tracel-ai/burn/pull/6456))
+
 #### Flex32 tensor data
 
 - Preserve the Flex32 dtype during tensor uploads, `TensorData` conversions, and filled-data
   construction. ([#6056](https://github.com/tracel-ai/burn/pull/6056),
   [#6062](https://github.com/tracel-ai/burn/pull/6062),
   [#6069](https://github.com/tracel-ai/burn/pull/6069))
+
+#### Integer arithmetic overflow
+
+- Wrap `i64` and `u64` `add`, `sub` and `mul` (and their scalar forms) on overflow on Flex, as
+  release builds and CubeCL backends already did. Debug builds used to panic.
+  ([#6455](https://github.com/tracel-ai/burn/pull/6455))
 
 #### Quantization
 
@@ -498,7 +570,7 @@ Backend implementors must provide `Backend::next_random_key` and accept a `Rando
 implicit generator. `Tensor::random` and `random_like` reserve keys at the tensor bridge;
 direct backend callers must supply a key. Use `RandomKey::split` to derive child keys.
 Router clients must also implement `next_random_key`; random-operation IR now carries a key
-scalar, so remote clients and servers must be upgraded together (protocol version 12).
+scalar, so remote clients and servers must be upgraded together (protocol version 13).
 Remote clients reserve keys locally without waiting for queued service work.
 
 Capture preserves explicit backend keys. Implicit random operations (`Tensor::random` and
@@ -671,7 +743,7 @@ backends do). Autodiff composes it from tensor operations.
 **Breaking:** `attention` and `ModuleOps::attention` take the cache as a new argument before
 `options`; pass `None` for an attention over the key and value as given. `AttentionOpIr` gains
 `lengths` and `pages`, so remote clients and servers must be upgraded together (protocol
-version 12).
+version 13).
 
 #### Config derivation
 
