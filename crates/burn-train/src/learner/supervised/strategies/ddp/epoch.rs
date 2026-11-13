@@ -1,7 +1,8 @@
 use burn_core::data::dataloader::Progress;
 use burn_optim::GradientsAccumulator;
-use std::sync::{Arc, Barrier, Mutex};
+use std::sync::{Arc, Mutex};
 
+use super::barrier::WorkerBarrier;
 use super::step::StepCoordinator;
 use super::strategy::DdpEventProcessor;
 use crate::learner::base::Interrupter;
@@ -106,7 +107,7 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
         processor: Arc<Mutex<DdpEventProcessor<M>>>,
         interrupter: &Interrupter,
         worker_id: usize,
-        barrier: &Barrier,
+        barrier: &WorkerBarrier,
     ) {
         let epoch = global_progress.items_processed;
         log::info!("Executing training step for epoch {}", epoch,);
@@ -125,6 +126,10 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
             let progress = iterator.progress();
 
             let item = learner.train_step(item);
+            // A failed peer closes the gradient sync, so this backward may not have been synced.
+            if interrupter.error().is_some() {
+                break;
+            }
 
             match self.grad_accumulation {
                 Some(accumulation) => {
@@ -163,8 +168,8 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
         }
         processor.lock().unwrap().flush();
         // All workers' metric failures must be visible before any final partial update.
-        barrier.wait();
-        if accumulation_current > 0 && !interrupter.should_stop() {
+        let synced = barrier.wait().is_ok();
+        if synced && accumulation_current > 0 && !interrupter.should_stop() {
             let grads = accumulator.grads();
             learner.lr_step();
             learner.optimizer_step(grads);
