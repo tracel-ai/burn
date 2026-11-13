@@ -13,7 +13,8 @@ use core::{cmp::Ordering, fmt};
 use cubecl::{
     client::{Client, ClientGroup, ClientGroupError, GroupMember, MemberBuffers},
     ir::ElemType,
-    server::TransportProvider,
+    logging::{CollectivePath, Communication, ExecutionScope},
+    server::{Collective, TransportProvider},
 };
 use std::{
     collections::BTreeSet,
@@ -36,8 +37,8 @@ impl CollectiveOps<Self> for CubeBackend {
         let outputs = match CollectivePlan::new(tensors, Exchange::AllReduce { op }) {
             CollectivePlan::Native(native) => native.run(),
             CollectivePlan::Skipped(skipped) => skipped.run(),
-            CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self>::float_all_reduce(tensors, op)
+            CollectivePlan::Emulated(emulated) => {
+                emulated.run(|tensors| EmulatedCollectives::<Self>::float_all_reduce(tensors, op))
             }
         };
         order.restored(outputs)
@@ -47,8 +48,8 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::new(tensors, Exchange::AllGather { dim }) {
             CollectivePlan::Native(native) => native.run(),
             CollectivePlan::Skipped(skipped) => skipped.run(),
-            CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self>::float_all_gather(tensors, dim)
+            CollectivePlan::Emulated(emulated) => {
+                emulated.run(|tensors| EmulatedCollectives::<Self>::float_all_gather(tensors, dim))
             }
         }
     }
@@ -61,9 +62,8 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::new(tensors, Exchange::ReduceScatter { dim, op }) {
             CollectivePlan::Native(native) => native.run(),
             CollectivePlan::Skipped(skipped) => skipped.run(),
-            CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self>::float_reduce_scatter(tensors, dim, op)
-            }
+            CollectivePlan::Emulated(emulated) => emulated
+                .run(|tensors| EmulatedCollectives::<Self>::float_reduce_scatter(tensors, dim, op)),
         }
     }
 
@@ -75,9 +75,9 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::new(tensors, Exchange::all_to_all(split_dim, concat_dim)) {
             CollectivePlan::Native(native) => native.run(),
             CollectivePlan::Skipped(skipped) => skipped.run(),
-            CollectivePlan::Emulated(tensors) => {
+            CollectivePlan::Emulated(emulated) => emulated.run(|tensors| {
                 EmulatedCollectives::<Self>::float_all_to_all(tensors, split_dim, concat_dim)
-            }
+            }),
         }
     }
 
@@ -89,8 +89,8 @@ impl CollectiveOps<Self> for CubeBackend {
         let outputs = match CollectivePlan::new(tensors, Exchange::AllReduce { op }) {
             CollectivePlan::Native(native) => native.run(),
             CollectivePlan::Skipped(skipped) => skipped.run(),
-            CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self>::int_all_reduce(tensors, op)
+            CollectivePlan::Emulated(emulated) => {
+                emulated.run(|tensors| EmulatedCollectives::<Self>::int_all_reduce(tensors, op))
             }
         };
         order.restored(outputs)
@@ -100,8 +100,8 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::new(tensors, Exchange::AllGather { dim }) {
             CollectivePlan::Native(native) => native.run(),
             CollectivePlan::Skipped(skipped) => skipped.run(),
-            CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self>::int_all_gather(tensors, dim)
+            CollectivePlan::Emulated(emulated) => {
+                emulated.run(|tensors| EmulatedCollectives::<Self>::int_all_gather(tensors, dim))
             }
         }
     }
@@ -114,9 +114,8 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::new(tensors, Exchange::ReduceScatter { dim, op }) {
             CollectivePlan::Native(native) => native.run(),
             CollectivePlan::Skipped(skipped) => skipped.run(),
-            CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self>::int_reduce_scatter(tensors, dim, op)
-            }
+            CollectivePlan::Emulated(emulated) => emulated
+                .run(|tensors| EmulatedCollectives::<Self>::int_reduce_scatter(tensors, dim, op)),
         }
     }
 
@@ -128,9 +127,9 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::new(tensors, Exchange::all_to_all(split_dim, concat_dim)) {
             CollectivePlan::Native(native) => native.run(),
             CollectivePlan::Skipped(skipped) => skipped.run(),
-            CollectivePlan::Emulated(tensors) => {
+            CollectivePlan::Emulated(emulated) => emulated.run(|tensors| {
                 EmulatedCollectives::<Self>::int_all_to_all(tensors, split_dim, concat_dim)
-            }
+            }),
         }
     }
 
@@ -138,8 +137,8 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::new(tensors, Exchange::AllGather { dim }) {
             CollectivePlan::Native(native) => native.run(),
             CollectivePlan::Skipped(skipped) => skipped.run(),
-            CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self>::bool_all_gather(tensors, dim)
+            CollectivePlan::Emulated(emulated) => {
+                emulated.run(|tensors| EmulatedCollectives::<Self>::bool_all_gather(tensors, dim))
             }
         }
     }
@@ -152,9 +151,9 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::new(tensors, Exchange::all_to_all(split_dim, concat_dim)) {
             CollectivePlan::Native(native) => native.run(),
             CollectivePlan::Skipped(skipped) => skipped.run(),
-            CollectivePlan::Emulated(tensors) => {
+            CollectivePlan::Emulated(emulated) => emulated.run(|tensors| {
                 EmulatedCollectives::<Self>::bool_all_to_all(tensors, split_dim, concat_dim)
-            }
+            }),
         }
     }
 }
@@ -164,7 +163,7 @@ enum CollectivePlan {
     /// Natively, by cubecl over a group of the members' devices: NCCL on CUDA.
     Native(NativeCollective),
     /// Emulated with transfers between devices, slices, concatenations and additions.
-    Emulated(Vec<CubeTensor>),
+    Emulated(EmulatedCollective),
     /// Not at all, since a member's device skips communication and the collective would be
     /// emulated.
     Skipped(SkippedCollective),
@@ -181,14 +180,18 @@ impl CollectivePlan {
                 exchange,
                 tensors,
             }),
-            Err(emulation) => {
-                emulation.report(exchange);
+            Err(reason) => {
+                reason.report(exchange);
                 let skipped = tensors
                     .iter()
                     .any(|tensor| tensor.client.skips_communication());
                 match skipped {
                     true => Self::Skipped(SkippedCollective { exchange, tensors }),
-                    false => Self::Emulated(tensors),
+                    false => Self::Emulated(EmulatedCollective {
+                        exchange,
+                        reason,
+                        tensors,
+                    }),
                 }
             }
         }
@@ -275,7 +278,7 @@ enum EmulationReason {
 
 impl EmulationReason {
     /// Logs that `exchange` is emulated, once per process for each collective and reason.
-    fn report(self, exchange: Exchange) {
+    fn report(&self, exchange: Exchange) {
         static REPORTED: Mutex<Vec<(&str, EmulationReason)>> = Mutex::new(Vec::new());
         if !log::log_enabled!(self.level()) {
             return;
@@ -284,7 +287,7 @@ impl EmulationReason {
         let mut reported = REPORTED.lock().unwrap_or_else(PoisonError::into_inner);
         if reported
             .iter()
-            .any(|(reported, reason)| *reported == collective && *reason == self)
+            .any(|(reported, reason)| *reported == collective && reason == self)
         {
             return;
         }
@@ -293,7 +296,7 @@ impl EmulationReason {
             "{collective} is emulated {}, which is slower than natively: {self}",
             self.path()
         );
-        reported.push((collective, self));
+        reported.push((collective, self.clone()));
     }
 
     /// How the emulation moves data. Only devices without a transport between them stage
@@ -411,6 +414,15 @@ impl Exchange {
         }
     }
 
+    fn operation(self) -> Collective {
+        match self {
+            Self::AllReduce { .. } => Collective::AllReduce,
+            Self::AllGather { .. } => Collective::AllGather,
+            Self::ReduceScatter { .. } => Collective::ReduceScatter,
+            Self::AllToAll { .. } => Collective::AllToAll,
+        }
+    }
+
     fn name(self) -> &'static str {
         match self {
             Self::AllReduce { .. } => "all-reduce",
@@ -472,6 +484,20 @@ impl Exchange {
     /// The output with the collective's dimension back where it was.
     fn restored(self, output: CubeTensor) -> CubeTensor {
         self.leading().restored(output)
+    }
+
+    /// This collective over the members' `tensors`, as an execution observer is told of it.
+    fn communication(self, tensors: &[CubeTensor], path: CollectivePath) -> Communication {
+        let first = &tensors[0];
+        Communication::Collective {
+            operation: self.operation(),
+            members: tensors
+                .iter()
+                .map(|tensor| tensor.client.service_id())
+                .collect(),
+            bytes: (first.meta.shape().num_elements() * first.elem_size()) as u64,
+            path,
+        }
     }
 
     /// Queues every member's part over `clients`.
@@ -539,6 +565,30 @@ impl NativeCollective {
     }
 }
 
+/// A collective emulated over the members, for `reason`.
+struct EmulatedCollective {
+    exchange: Exchange,
+    reason: EmulationReason,
+    tensors: Vec<CubeTensor>,
+}
+
+impl EmulatedCollective {
+    /// Runs `emulation` under one communication over every member, which an observer sees as the
+    /// parent of each kernel and transfer it issues.
+    fn run(self, emulation: impl FnOnce(Vec<CubeTensor>) -> Vec<CubeTensor>) -> Vec<CubeTensor> {
+        let Self {
+            exchange,
+            reason,
+            tensors,
+        } = self;
+        let _collective = ExecutionScope::communication(|| {
+            let why = reason.to_string();
+            exchange.communication(&tensors, CollectivePath::Emulated { why })
+        });
+        emulation(tensors)
+    }
+}
+
 /// A collective that moves nothing: each member receives a tensor of the shape and dtype it
 /// would, its own where that is the shape and an empty one otherwise.
 struct SkippedCollective {
@@ -549,6 +599,9 @@ struct SkippedCollective {
 impl SkippedCollective {
     fn run(self) -> Vec<CubeTensor> {
         let Self { exchange, tensors } = self;
+        let _skipped = ExecutionScope::communication(|| {
+            exchange.communication(&tensors, CollectivePath::Skipped)
+        });
         let members = tensors.len();
         let chunk = |shape: &Shape, dim: usize, member: usize| {
             let split = DimSplit {

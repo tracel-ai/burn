@@ -356,6 +356,10 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   wrong. It is for timing a run as if communication were free. `broadcast` still transfers.
   ([#6497](https://github.com/tracel-ai/burn/pull/6497))
 
+- A CubeCL `ExecutionObserver` sees a collective that CubeCL backends emulate as one collective
+  over its members, with why it is emulated, and as the parent of the kernels and transfers that
+  run it, so a profile can charge them to it. A skipped one is seen as skipped.
+
 #### Distributed data parallel training
 
 - Fix DDP gradient-synchronization hangs across local and remote devices.
