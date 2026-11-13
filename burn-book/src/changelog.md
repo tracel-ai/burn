@@ -359,6 +359,7 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
 - A CubeCL `ExecutionObserver` sees a collective that CubeCL backends emulate as one collective
   over its members, with why it is emulated, and as the parent of the kernels and transfers that
   run it, so a profile can charge them to it. A skipped one is seen as skipped.
+  ([#6511](https://github.com/tracel-ai/burn/pull/6511))
 
 #### Distributed data parallel training
 
