@@ -22,12 +22,16 @@ mod threading {
 
 #[cfg(not(feature = "std"))]
 mod threading {
-    pub(super) use burn_std::sync::ThreadId;
     pub(super) use hashbrown::HashMap;
+
+    /// Without `std` there is no thread id, and no_std targets are assumed to be single-threaded,
+    /// so every update is recorded under this one key.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub(super) struct ThreadId;
 
     #[inline(always)]
     pub(super) fn get_thread_current_id() -> ThreadId {
-        panic!("Current thread id is not available")
+        ThreadId
     }
 }
 
