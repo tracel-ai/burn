@@ -49,6 +49,7 @@ mod gelu;
 mod gradients;
 mod graph_reuse;
 mod hypot;
+mod interpolate3d;
 mod linear;
 mod log;
 mod log1p;
