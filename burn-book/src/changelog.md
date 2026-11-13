@@ -369,6 +369,7 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   instead of panicking, and releases the peers waiting for it at a barrier or in the gradient
   collective. The model is the main worker's after its last completed optimizer step; on a Remote
   device, the failure can end the server session and leave it unreadable.
+  ([#6507](https://github.com/tracel-ai/burn/pull/6507))
   [@divakantpandey](https://github.com/divakantpandey)
 
 #### Layer parallelism
