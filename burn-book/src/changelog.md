@@ -788,6 +788,10 @@ version 13).
 
 #### Interpolation options
 
+- Add `Interpolate3d` and `tensor::module::interpolate3d` for resizing `[N, C, D, H, W]`
+  tensors with nearest, nearest-exact or trilinear interpolation, using an output size or scale
+  factors for all three spatial dimensions.
+
 **Breaking:** `InterpolateMode` variants now own their coordinate transform and cubic coefficient
 `a`. `Nearest` and `NearestExact` have fixed mappings and no overrides.
 Configurable coordinate transforms are limited to `HalfPixel` and `AlignCorners`;
