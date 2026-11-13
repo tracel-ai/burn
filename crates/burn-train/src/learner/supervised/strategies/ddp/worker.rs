@@ -1,8 +1,11 @@
 use crate::ddp::epoch::{DdpTrainEpoch, DdpValidEpoch};
 use crate::ddp::strategy::{DdpEventProcessor, WorkerComponents};
 use crate::single::TrainingLoop;
+use crate::train::panic_message;
 use crate::{Learner, LearnerModel, LearningCheckpointer, TrainLoader, ValidLoader};
 use burn_core::tensor::Device;
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
@@ -21,8 +24,18 @@ pub(crate) struct DdpWorker<M: LearnerModel> {
     is_main: bool,
 }
 
+/// How a worker finished.
+pub(crate) struct WorkerOutcome<M> {
+    pub worker_id: usize,
+    /// The model after the last completed optimizer step.
+    pub model: M,
+    /// The panic message, if the worker failed.
+    pub failure: Option<String>,
+}
+
 impl<M: LearnerModel> DdpWorker<M> {
-    /// Starts a worker that runs the model in a data distributed parallel
+    /// Starts a worker that runs the model in a data distributed parallel, reporting how it
+    /// finished to `outcomes`.
     #[allow(clippy::too_many_arguments)]
     pub fn start(
         device: Device,
@@ -35,7 +48,8 @@ impl<M: LearnerModel> DdpWorker<M> {
         starting_epoch: usize,
         worker_id: usize,
         is_main: bool,
-    ) -> JoinHandle<M> {
+        outcomes: Sender<WorkerOutcome<M>>,
+    ) -> JoinHandle<()> {
         let worker = Self {
             device,
             learner,
@@ -49,13 +63,25 @@ impl<M: LearnerModel> DdpWorker<M> {
             is_main,
         };
 
-        std::thread::spawn(|| worker.fit())
+        std::thread::spawn(move || {
+            // The receiver only leaves once every worker reported.
+            outcomes.send(worker.fit()).ok();
+        })
     }
 
-    /// Fits the model,
-    pub fn fit(mut self) -> M {
+    /// Fits the model, catching a panic so its peers can be released.
+    fn fit(mut self) -> WorkerOutcome<M> {
+        let result = catch_unwind(AssertUnwindSafe(|| self.run()));
+        WorkerOutcome {
+            worker_id: self.worker_id,
+            model: self.learner.model(),
+            failure: result.err().map(|payload| panic_message(payload.as_ref())),
+        }
+    }
+
+    fn run(&mut self) {
         let num_epochs = self.components.num_epochs;
-        let interrupter = self.components.interrupter;
+        let interrupter = self.components.interrupter.clone();
 
         // Changed the train epoch to keep the dataloaders
         let epoch_train = DdpTrainEpoch::<M>::new(
@@ -65,6 +91,7 @@ impl<M: LearnerModel> DdpWorker<M> {
         );
         let epoch_valid = self
             .dataloader_valid
+            .clone()
             .map(|dataloader| DdpValidEpoch::<M>::new(dataloader));
         self.learner.fork(&self.device);
         self.learner.grad_sharded();
@@ -76,7 +103,10 @@ impl<M: LearnerModel> DdpWorker<M> {
                 self.event_processor.lock().unwrap().start_epoch(epoch);
             }
 
-            self.components.epoch_barrier.wait();
+            // An aborted barrier means a peer failed: no further collective can complete.
+            if self.components.epoch_barrier.wait().is_err() {
+                return;
+            }
 
             epoch_train.run(
                 &mut self.learner,
@@ -86,7 +116,9 @@ impl<M: LearnerModel> DdpWorker<M> {
                 self.worker_id,
                 &self.components.epoch_barrier,
             );
-            self.components.epoch_barrier.wait();
+            if self.components.epoch_barrier.wait().is_err() {
+                return;
+            }
             if self.is_main {
                 self.event_processor.lock().unwrap().finish_train(epoch);
             }
@@ -115,13 +147,13 @@ impl<M: LearnerModel> DdpWorker<M> {
                 }
                 self.event_processor.lock().unwrap().stop_after_epoch = stop;
             }
-            self.components.epoch_barrier.wait();
+            if self.components.epoch_barrier.wait().is_err() {
+                return;
+            }
             // Every worker makes the same epoch decision, even if a stop request races the barrier.
             if self.event_processor.lock().unwrap().stop_after_epoch {
                 break;
             }
         }
-
-        self.learner.model()
     }
 }

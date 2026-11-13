@@ -365,6 +365,13 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   Workers must yield the same number of training batches; uneven exhaustion now reports an error.
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
 
+- A DDP worker that panics ends training with `TrainingError::Workers` in `LearningResult::error`
+  instead of panicking, and releases the peers waiting for it at a barrier or in the gradient
+  collective. The model is the main worker's after its last completed optimizer step; on a Remote
+  device, the failure can end the server session and leave it unreadable.
+  ([#6507](https://github.com/tracel-ai/burn/pull/6507))
+  [@divakantpandey](https://github.com/divakantpandey)
+
 #### Layer parallelism
 
 Models can now be split across devices by layer, enabling training and inference with models that

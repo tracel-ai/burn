@@ -1,13 +1,14 @@
-use std::sync::{Barrier, Mutex};
+use std::sync::Mutex;
 
 use burn_core::data::dataset::DatasetError;
 
+use super::barrier::WorkerBarrier;
 use crate::Interrupter;
 
 /// Admits a backward pass only when every worker has a batch and agrees to continue.
 pub(crate) struct StepCoordinator {
     workers: usize,
-    barrier: Barrier,
+    barrier: WorkerBarrier,
     state: Mutex<StepState>,
 }
 
@@ -21,9 +22,14 @@ impl StepCoordinator {
     pub fn new(workers: usize) -> Self {
         Self {
             workers,
-            barrier: Barrier::new(workers),
+            barrier: WorkerBarrier::new(workers),
             state: Mutex::new(StepState::default()),
         }
+    }
+
+    /// Admits no further batch, releasing workers waiting for a failed peer.
+    pub fn abort(&self) {
+        self.barrier.abort();
     }
 
     /// Loads each worker's next batch, then publishes one decision for the whole group.
@@ -50,7 +56,10 @@ impl StepCoordinator {
             self.state.lock().unwrap().ready += 1;
         }
 
-        if self.barrier.wait().is_leader() {
+        let Ok(leader) = self.barrier.wait() else {
+            return None;
+        };
+        if leader {
             let mut state = self.state.lock().unwrap();
             if !interrupter.should_stop() && state.ready != 0 && state.ready != self.workers {
                 interrupter.fail(DatasetError::new(std::io::Error::other(
@@ -60,7 +69,7 @@ impl StepCoordinator {
             state.proceed = !interrupter.should_stop() && state.ready == self.workers;
             state.ready = 0;
         }
-        self.barrier.wait();
+        self.barrier.wait().ok()?;
 
         // The next round cannot change this decision until every worker has read it
         // and reached the first barrier again.
