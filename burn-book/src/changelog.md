@@ -734,6 +734,12 @@ backends do). Autodiff composes it from tensor operations.
 `lengths` and `pages`, so remote clients and servers must be upgraded together (protocol
 version 13).
 
+#### Batch normalization without `std`
+
+- Training a `BatchNorm` no longer panics on no_std targets ("Current thread id is not
+  available"); without `std`, running statistics assume a single thread.
+  ([#6508](https://github.com/tracel-ai/burn/pull/6508)) [@HarpeLm](https://github.com/HarpeLm)
+
 #### Config derivation
 
 - Add opt-in `#[config(into)]` fields to accept convertible values in generated constructors and
