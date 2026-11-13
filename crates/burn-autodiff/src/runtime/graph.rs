@@ -45,6 +45,16 @@ pub struct GraphMutexClient;
 #[derive(Default)]
 pub struct GraphLocator {
     graphs: BTreeMap<NodeId, Arc<Graph>>,
+    /// One entry per distinct live graph, keyed by the surviving graph's origin.
+    ///
+    /// `graphs` holds one alias per *node*, so it grows with the total number of
+    /// registered operations rather than the number of live graphs. Sweeping
+    /// `graphs` on every backward pass therefore costs more over the lifetime of
+    /// a long-running process; this map keeps the same graphs deduplicated so a
+    /// sweep stays proportional to the number of live graphs. A merge folds the
+    /// absorbed graph's nodes into the survivor, so an entry can serve nodes
+    /// that were registered under a different origin.
+    origins: BTreeMap<NodeId, Arc<Graph>>,
     /// We keep a mapping of each original node id (graph id) => all nodes that point to that graph.
     /// This is to ensure that when merging graphs, we correctly move all previous graphs to
     /// the new merged one.
@@ -132,15 +142,17 @@ struct GraphCleaner<'a> {
 impl<'a> GraphCleaner<'a> {
     fn cleanup_orphaned_entries() {
         let graphs = {
-            // Get the available graphs and release the lock
+            // Get the available graphs and release the lock. Iterate the
+            // deduplicated set: `graphs` holds one alias per node, so cloning
+            // it would cost O(total registered nodes) on every backward pass.
             match STATE.lock().as_ref() {
-                Some(state) => state.graphs.clone(),
+                Some(state) => state.origins.values().cloned().collect::<Vec<_>>(),
                 None => return,
             }
         };
 
         let mut should_remove = Vec::new();
-        for graph in graphs.values() {
+        for graph in graphs.iter() {
             {
                 // Best-effort sweep: a graph whose mutex is contended is in
                 // use — possibly by this very thread, when a `Backward` step
@@ -268,6 +280,7 @@ impl GraphLocator {
 
         self.graphs.insert(main.origin, main.clone());
         self.graphs.insert(node, main.clone());
+        self.origins.insert(main.origin, main.clone());
 
         core::mem::drop(state);
 
@@ -293,6 +306,7 @@ impl GraphLocator {
 
         // Re-map merged origin to the main graph
         self.graphs.insert(merged.origin, main.clone());
+        self.origins.remove(&merged.origin);
 
         // Move all keys (node IDs) from the merged graph to the main graph
         if let Some(locator_keys) = self.keys.remove(&merged.origin) {
@@ -315,23 +329,37 @@ impl GraphLocator {
             state: Mutex::new(GraphState::default()),
         });
         self.graphs.insert(origin, graph.clone());
+        self.origins.insert(origin, graph.clone());
         self.keys.insert(origin, HashSet::new());
         graph
     }
 
     fn remove_entry(&mut self, node: &NodeId) {
         if let Some(graph) = self.graphs.remove(node) {
-            let mut remove = false;
+            let origin = graph.origin;
 
-            if let Some(entry) = self.keys.get_mut(&graph.origin) {
-                entry.remove(node);
-                if entry.is_empty() {
-                    remove = true;
+            // `keys[origin]` holds every alias of the graph except the origin
+            // node itself, so an absent entry means there are no aliases left.
+            let aliases_left = match self.keys.get_mut(&origin) {
+                Some(entry) => {
+                    entry.remove(node);
+                    !entry.is_empty()
                 }
+                None => false,
+            };
+            if !aliases_left {
+                self.keys.remove(&origin);
             }
 
-            if remove {
-                self.keys.remove(&graph.origin);
+            // A graph is unreachable once neither its origin node nor any of its
+            // aliases remain in `graphs`. Mirror the alias prune in `origins` so
+            // dead graphs do not linger there between sweeps.
+            let origin_alive = self
+                .graphs
+                .get(&origin)
+                .is_some_and(|current| Arc::ptr_eq(current, &graph));
+            if !aliases_left && !origin_alive {
+                self.origins.remove(&origin);
             }
         }
     }
@@ -344,4 +372,123 @@ enum GraphAnalysis {
     NoCollision(Arc<Graph>),
     /// Collision detected, contains a map of node IDs to their associated graphs.
     Collisions(BTreeMap<NodeId, Arc<Graph>>),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn node() -> NodeId {
+        NodeId::new()
+    }
+
+    #[test]
+    fn origins_hold_one_entry_per_graph() {
+        let mut locator = GraphLocator::default();
+        let root = node();
+        let graph = locator.select(root, &[]);
+
+        for _ in 0..64 {
+            let child = node();
+            let selected = locator.select(child, &[Parent::new(root, false)]);
+            assert!(Arc::ptr_eq(&selected, &graph));
+        }
+
+        // One alias per node, but a single distinct graph.
+        assert_eq!(locator.graphs.len(), 65);
+        assert_eq!(locator.origins.len(), 1);
+    }
+
+    #[test]
+    fn removing_the_last_alias_drops_the_origin() {
+        let mut locator = GraphLocator::default();
+        let root = node();
+        locator.select(root, &[]);
+        let child = node();
+        locator.select(child, &[Parent::new(root, false)]);
+
+        locator.remove_entry(&child);
+        assert_eq!(locator.graphs.len(), 1);
+        assert_eq!(locator.origins.len(), 1);
+
+        locator.remove_entry(&root);
+        assert_eq!(locator.graphs.len(), 0);
+        assert_eq!(locator.origins.len(), 0);
+    }
+
+    #[test]
+    fn merging_graphs_keeps_one_origin() {
+        let mut locator = GraphLocator::default();
+        let left = node();
+        let right = node();
+        locator.select(left, &[]);
+        locator.select(right, &[]);
+
+        let child = node();
+        let merged = locator.select(
+            child,
+            &[Parent::new(left, false), Parent::new(right, false)],
+        );
+
+        assert_eq!(locator.origins.len(), 1);
+        assert!(locator.origins.contains_key(&merged.origin));
+    }
+
+    /// Removing a merged-away graph's nodes must not drop the surviving graph
+    /// from `origins`. An origin that is gone from `graphs` is only dead once
+    /// the *surviving* graph has no aliases left either; a wrong prune here is
+    /// a slow leak rather than a crash, because the sweep silently stops
+    /// visiting the graph and its orphans are never collected.
+    #[test]
+    fn removing_a_merged_graph_keeps_the_surviving_origin() {
+        let mut locator = GraphLocator::default();
+
+        let left = node();
+        locator.select(left, &[]);
+        let left_alias = node();
+        locator.select(left_alias, &[Parent::new(left, false)]);
+
+        let right = node();
+        locator.select(right, &[]);
+        let right_alias = node();
+        locator.select(right_alias, &[Parent::new(right, false)]);
+
+        let child = node();
+        let merged = locator.select(
+            child,
+            &[Parent::new(left, false), Parent::new(right, false)],
+        );
+        assert_eq!(locator.origins.len(), 1);
+        assert!(locator.origins.contains_key(&merged.origin));
+
+        // A merge keeps the graph with the smallest origin id, so which side
+        // was absorbed is only known from the result.
+        let (absorbed, absorbed_alias, survivor_alias) = if merged.origin == left {
+            (right, right_alias, left_alias)
+        } else {
+            (left, left_alias, right_alias)
+        };
+
+        // Every node of the absorbed graph now aliases the survivor, so
+        // removing them one by one must leave its origin entry alone.
+        for alias in [absorbed, absorbed_alias] {
+            locator.remove_entry(&alias);
+            assert_eq!(
+                locator.origins.len(),
+                1,
+                "removing an absorbed node dropped the surviving graph"
+            );
+            assert!(locator.origins.contains_key(&merged.origin));
+        }
+
+        // The survivor's own nodes still hold it, and the last one removes it.
+        locator.remove_entry(&survivor_alias);
+        locator.remove_entry(&child);
+        assert_eq!(locator.origins.len(), 1);
+        assert!(locator.origins.contains_key(&merged.origin));
+
+        locator.remove_entry(&merged.origin);
+        assert_eq!(locator.origins.len(), 0);
+        assert!(locator.graphs.is_empty());
+    }
 }
