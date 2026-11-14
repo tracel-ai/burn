@@ -199,6 +199,8 @@ pub enum FuseOp {
         inputs: Vec<FuseArg>,
         output: FuseArg,
         dim: usize,
+        #[serde(default)]
+        equal_input_sizes: bool,
     },
     Dequantize {
         values: FuseArg,
@@ -289,6 +291,7 @@ impl Display for FuseOp {
                 inputs,
                 output,
                 dim,
+                equal_input_sizes: _,
             } => {
                 write!(f, "{output} = cat(inputs=[")?;
                 for (i, input) in inputs.iter().enumerate() {
@@ -808,6 +811,7 @@ impl FuseOp {
                 inputs,
                 output,
                 dim: _,
+                equal_input_sizes: _,
             } => {
                 for input in inputs {
                     input.multi_block_variable(registers);
