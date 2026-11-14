@@ -33,7 +33,7 @@ use burn_std::{Bytes, Shape, f16};
 
 use crate::{FlexTensor, Layout};
 
-use super::conv_common::{add_bias, squeeze_3d_to_1d, squeeze_3d_to_2d};
+use super::conv_common::{add_bias, squeeze_3d_to_2d};
 
 // ============================================================================
 // Macros for forward conv
@@ -85,54 +85,331 @@ macro_rules! conv3d_typed {
 }
 
 // ============================================================================
-// Conv1d - delegates to conv3d
+// Conv1d - native 1D GEMM-per-kernel and depthwise implementation
 // ============================================================================
 
-conv_nd_via_3d!(
-    conv1d_f32,
-    conv3d_f32,
-    expand_1d_to_3d,
-    squeeze_3d_to_1d,
-    1,
-    ConvOptions
-);
-conv_nd_via_3d!(
-    conv1d_f64,
-    conv3d_f64,
-    expand_1d_to_3d,
-    squeeze_3d_to_1d,
-    1,
-    ConvOptions
-);
-conv_nd_via_3d!(
+macro_rules! conv1d_typed {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $one:expr) => {
+        pub fn $fn_name(
+            x: FlexTensor,
+            weight: FlexTensor,
+            bias: Option<FlexTensor>,
+            options: &ConvOptions<1>,
+        ) -> FlexTensor {
+            let x_shape = x.layout().shape();
+            let w_shape = weight.layout().shape();
+            if should_use_depthwise_conv1d(x_shape, w_shape, options) {
+                conv1d_depthwise_impl::<$T>(x, weight, bias, options, $dtype, $zero)
+            } else {
+                conv1d_direct_gemm_impl::<$T>(x, weight, bias, options, $dtype, $zero, $one)
+            }
+        }
+    };
+}
+
+conv1d_typed!(conv1d_f32, f32, DType::F32, 0.0f32, 1.0f32);
+conv1d_typed!(conv1d_f64, f64, DType::F64, 0.0f64, 1.0f64);
+conv1d_typed!(
     conv1d_f16,
-    conv3d_f16,
-    expand_1d_to_3d,
-    squeeze_3d_to_1d,
-    1,
-    ConvOptions
+    f16,
+    DType::F16,
+    f16::from_f32(0.0),
+    f16::from_f32(1.0)
 );
 bf16_via_f32!(conv1d_bf16, conv1d_f32, 1, ConvOptions);
 
-fn expand_1d_to_3d(
-    x: &FlexTensor,
-    weight: &FlexTensor,
+#[inline]
+fn should_use_depthwise_conv1d(
+    x_shape: &[usize],
+    w_shape: &[usize],
     options: &ConvOptions<1>,
-) -> (FlexTensor, FlexTensor, ConvOptions<3>) {
+) -> bool {
+    let channels_in = x_shape[1];
+    let channels_out = w_shape[0];
+    let channels_in_group = w_shape[1];
+    options.groups == channels_in && channels_in == channels_out && channels_in_group == 1
+}
+
+/// Depthwise conv1d: specialized sliding-window loop for `groups == channels_in == channels_out`.
+/// Avoids GEMM packaging overhead and enables SIMD vectorization.
+fn conv1d_depthwise_impl<
+    T: num_traits::Float
+        + bytemuck::Pod
+        + Clone
+        + Copy
+        + burn_backend::Element
+        + burn_backend::ElementAdd
+        + Send
+        + Sync
+        + 'static,
+>(
+    x: FlexTensor,
+    weight: FlexTensor,
+    bias: Option<FlexTensor>,
+    options: &ConvOptions<1>,
+    dtype: DType,
+    zero: T,
+) -> FlexTensor {
+    let x = x.to_contiguous();
+    let weight = weight.to_contiguous();
+
     let x_shape = x.layout().shape();
-    let x_3d = x.reshape(Shape::from(vec![x_shape[0], x_shape[1], 1, 1, x_shape[2]]));
-
     let w_shape = weight.layout().shape();
-    let weight_3d = weight.reshape(Shape::from(vec![w_shape[0], w_shape[1], 1, 1, w_shape[2]]));
 
-    let options_3d = ConvOptions::new(
-        [1, 1, options.stride[0]],
-        [0, 0, options.padding_begin()[0]],
-        [1, 1, options.dilation[0]],
-        options.groups,
-    );
+    let batch_size = x_shape[0];
+    let channels = x_shape[1];
+    let in_l = x_shape[2];
+    let kernel_size = w_shape[2];
 
-    (x_3d, weight_3d, options_3d)
+    let stride = options.stride[0];
+    let pad = options.padding_begin()[0];
+    let dilation = options.dilation[0];
+
+    let out_l = calculate_conv_output_size(kernel_size, stride, pad, dilation, in_l);
+    let total_output = batch_size
+        .checked_mul(channels)
+        .and_then(|x| x.checked_mul(out_l))
+        .expect("conv1d depthwise: output tensor dimensions overflow");
+
+    if total_output == 0 {
+        return FlexTensor::new(
+            Bytes::from_elems(alloc::vec::Vec::<T>::new()),
+            Layout::contiguous(Shape::new([batch_size, channels, out_l])),
+            dtype,
+        );
+    }
+
+    let x_data: &[T] = x.storage();
+    let w_data: &[T] = weight.storage();
+    let mut output = vec![zero; total_output];
+
+    let k_ranges: Vec<(usize, usize)> = (0..kernel_size)
+        .map(|ki| valid_out_range(ki, dilation, pad, stride, in_l, out_l))
+        .collect();
+
+    let depthwise_worker = |bc: usize, out_slice: &mut [T]| {
+        let b = bc / channels;
+        let c = bc % channels;
+        let x_slice = &x_data[(b * channels + c) * in_l..][..in_l];
+        let w_slice = &w_data[c * kernel_size..][..kernel_size];
+
+        for (ki, &(o_start, o_end)) in k_ranges.iter().enumerate() {
+            if o_start >= o_end {
+                continue;
+            }
+            let w_val = w_slice[ki];
+            let in_start = (o_start * stride + ki * dilation) - pad;
+            if stride == 1 {
+                let src = &x_slice[in_start..in_start + (o_end - o_start)];
+                let dst = &mut out_slice[o_start..o_end];
+                for (d, s) in dst.iter_mut().zip(src.iter()) {
+                    *d = *d + *s * w_val;
+                }
+            } else {
+                let mut in_pos = in_start;
+                for d in &mut out_slice[o_start..o_end] {
+                    *d = *d + x_slice[in_pos] * w_val;
+                    in_pos += stride;
+                }
+            }
+        }
+    };
+
+    #[cfg(feature = "rayon")]
+    {
+        use rayon::prelude::*;
+        let dst_ptr = crate::ops::SendMutPtr::new(output.as_mut_ptr());
+        (0..batch_size * channels)
+            .into_par_iter()
+            .for_each(|bc| unsafe {
+                let slice = core::slice::from_raw_parts_mut(dst_ptr.ptr_add(bc * out_l), out_l);
+                depthwise_worker(bc, slice);
+            });
+    }
+    #[cfg(not(feature = "rayon"))]
+    {
+        for (bc, slice) in output.chunks_exact_mut(out_l).enumerate() {
+            depthwise_worker(bc, slice);
+        }
+    }
+
+    if let Some(bias) = bias {
+        let bias = bias.to_contiguous();
+        add_bias(&mut output, bias.storage(), batch_size, channels, out_l);
+    }
+
+    FlexTensor::new(
+        Bytes::from_elems(output),
+        Layout::contiguous(Shape::new([batch_size, channels, out_l])),
+        dtype,
+    )
+}
+
+/// Direct conv1d: decomposes convolution into `K` direct GEMM calls over strided input,
+/// completely eliminating the `im2col` temporary buffer allocation and coordinate math.
+fn conv1d_direct_gemm_impl<
+    T: num_traits::Float
+        + bytemuck::Pod
+        + Clone
+        + Copy
+        + burn_backend::Element
+        + burn_backend::ElementAdd
+        + Send
+        + Sync
+        + 'static,
+>(
+    x: FlexTensor,
+    weight: FlexTensor,
+    bias: Option<FlexTensor>,
+    options: &ConvOptions<1>,
+    dtype: DType,
+    zero: T,
+    one: T,
+) -> FlexTensor {
+    let x = x.to_contiguous();
+    let weight = weight.to_contiguous();
+
+    let x_shape = x.layout().shape();
+    let w_shape = weight.layout().shape();
+
+    let batch_size = x_shape[0];
+    let channels_in = x_shape[1];
+    let in_l = x_shape[2];
+
+    let channels_out = w_shape[0];
+    let channels_in_group = w_shape[1];
+    let kernel_size = w_shape[2];
+
+    let stride = options.stride[0];
+    let pad = options.padding_begin()[0];
+    let dilation = options.dilation[0];
+    let groups = options.groups;
+    let out_channels_per_group = channels_out / groups;
+
+    let out_l = calculate_conv_output_size(kernel_size, stride, pad, dilation, in_l);
+    let total_output = batch_size
+        .checked_mul(channels_out)
+        .and_then(|x| x.checked_mul(out_l))
+        .expect("conv1d: output tensor dimensions overflow");
+
+    if total_output == 0 {
+        return FlexTensor::new(
+            Bytes::from_elems(alloc::vec::Vec::<T>::new()),
+            Layout::contiguous(Shape::new([batch_size, channels_out, out_l])),
+            dtype,
+        );
+    }
+
+    let x_data: &[T] = x.storage();
+    let w_data: &[T] = weight.storage();
+    let mut output = vec![zero; total_output];
+
+    let k_ranges: Vec<(usize, usize)> = (0..kernel_size)
+        .map(|ki| valid_out_range(ki, dilation, pad, stride, in_l, out_l))
+        .collect();
+
+    let lhs_rs = (channels_in_group * kernel_size) as isize;
+    let lhs_cs = kernel_size as isize;
+    let rhs_rs = in_l as isize;
+    let rhs_cs = stride as isize;
+    let out_rs = out_l as isize;
+    let out_cs = 1isize;
+
+    let m = out_channels_per_group;
+    let gemm_k = channels_in_group;
+
+    #[cfg(feature = "rayon")]
+    let parallelism = if batch_size * groups == 1
+        && m.saturating_mul(out_l).saturating_mul(gemm_k) >= 192 * 192 * 192
+    {
+        gemm::Parallelism::Rayon(0)
+    } else {
+        gemm::Parallelism::None
+    };
+    #[cfg(not(feature = "rayon"))]
+    let parallelism = gemm::Parallelism::None;
+
+    let gemm_worker = |bg: usize, dst_bg: *mut T| {
+        let b = bg / groups;
+        let g = bg % groups;
+        let x_base = x_data.as_ptr();
+        let w_base = w_data.as_ptr();
+
+        for (ki, &(o_start, o_end)) in k_ranges.iter().enumerate() {
+            if o_start >= o_end {
+                continue;
+            }
+            let n = o_end - o_start;
+            let in_start = (o_start * stride + ki * dilation) - pad;
+            let read_dst = ki > 0 || o_start > 0 || o_end < out_l;
+
+            unsafe {
+                let w_ptr = w_base
+                    .add((g * out_channels_per_group) * (channels_in_group * kernel_size) + ki);
+                let x_ptr = x_base.add((b * channels_in + g * channels_in_group) * in_l + in_start);
+                let dst = dst_bg.add(o_start);
+
+                gemm::gemm(
+                    m,
+                    n,
+                    gemm_k,
+                    dst,
+                    out_cs,
+                    out_rs,
+                    read_dst,
+                    w_ptr,
+                    lhs_cs,
+                    lhs_rs,
+                    x_ptr,
+                    rhs_cs,
+                    rhs_rs,
+                    one,
+                    one,
+                    false,
+                    false,
+                    false,
+                    parallelism,
+                );
+            }
+        }
+    };
+
+    #[cfg(feature = "rayon")]
+    {
+        use rayon::prelude::*;
+        let dst_ptr = crate::ops::SendMutPtr::new(output.as_mut_ptr());
+        (0..batch_size * groups).into_par_iter().for_each(|bg| {
+            let b = bg / groups;
+            let g = bg % groups;
+            let dst_bg =
+                unsafe { dst_ptr.ptr_add((b * channels_out + g * out_channels_per_group) * out_l) };
+            gemm_worker(bg, dst_bg);
+        });
+    }
+    #[cfg(not(feature = "rayon"))]
+    {
+        for bg in 0..batch_size * groups {
+            let b = bg / groups;
+            let g = bg % groups;
+            let dst_bg = unsafe {
+                output
+                    .as_mut_ptr()
+                    .add((b * channels_out + g * out_channels_per_group) * out_l)
+            };
+            gemm_worker(bg, dst_bg);
+        }
+    }
+
+    if let Some(bias) = bias {
+        let bias = bias.to_contiguous();
+        add_bias(&mut output, bias.storage(), batch_size, channels_out, out_l);
+    }
+
+    FlexTensor::new(
+        Bytes::from_elems(output),
+        Layout::contiguous(Shape::new([batch_size, channels_out, out_l])),
+        dtype,
+    )
 }
 
 // ============================================================================
@@ -2210,6 +2487,73 @@ mod tests {
                     (actual - expected).abs() < 1e-3,
                     "bias mismatch at co={co}, o={o}: expected {expected}, got {actual}"
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn test_conv1d_grouped_padding_dilation() {
+        let batch = 2;
+        let c_in = 8;
+        let c_out = 8;
+        let groups = 2;
+        let in_w = 30;
+        let kw = 3;
+        let stride = 2;
+        let pad = 2;
+        let dilation = 2;
+        let out_w = calculate_conv_output_size(kw, stride, pad, dilation, in_w);
+
+        let c_in_group = c_in / groups;
+        let c_out_group = c_out / groups;
+
+        let x_data: Vec<f32> = (0..batch * c_in * in_w)
+            .map(|i| ((i % 100) as f32 / 100.0) - 0.5)
+            .collect();
+        let w_data: Vec<f32> = (0..c_out * c_in_group * kw)
+            .map(|i| ((i % 50) as f32 / 50.0) - 0.5)
+            .collect();
+        let bias_data: Vec<f32> = (0..c_out).map(|i| i as f32 * 0.1).collect();
+
+        let x = FlexTensor::from_data(TensorData::new(x_data.clone(), vec![batch, c_in, in_w]));
+        let weight =
+            FlexTensor::from_data(TensorData::new(w_data.clone(), vec![c_out, c_in_group, kw]));
+        let bias = FlexTensor::from_data(TensorData::new(bias_data.clone(), vec![c_out]));
+        let options = ConvOptions::new([stride], [pad], [dilation], groups);
+        let result = conv1d_f32(x, weight, Some(bias), &options);
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
+
+        assert_eq!(out.len(), batch * c_out * out_w);
+
+        // Reference computation
+        for b in 0..batch {
+            for g in 0..groups {
+                for cog in 0..c_out_group {
+                    let co = g * c_out_group + cog;
+                    for o in 0..out_w {
+                        let mut expected = bias_data[co];
+                        let in_start = (o * stride) as isize - pad as isize;
+                        for ki in 0..kw {
+                            let in_pos = in_start + (ki * dilation) as isize;
+                            if in_pos >= 0 && (in_pos as usize) < in_w {
+                                let lin = in_pos as usize;
+                                for ci in 0..c_in_group {
+                                    let x_val =
+                                        x_data[(b * c_in + g * c_in_group + ci) * in_w + lin];
+                                    let w_val = w_data[(g * c_out_group + cog) * (c_in_group * kw)
+                                        + ci * kw
+                                        + ki];
+                                    expected += x_val * w_val;
+                                }
+                            }
+                        }
+                        let actual = out[(b * c_out + co) * out_w + o];
+                        assert!(
+                            (actual - expected).abs() < 1e-4,
+                            "mismatch at b={b}, co={co}, o={o}: expected {expected}, got {actual}"
+                        );
+                    }
+                }
             }
         }
     }
