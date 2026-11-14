@@ -3,7 +3,7 @@ use crate::{
     graph::{ComputingProperty, NodeId},
     tensor::AutodiffTensor,
 };
-use alloc::{boxed::Box, vec::Vec};
+use alloc::vec::Vec;
 
 use burn_backend::Backend;
 use burn_std::sync::Arc;
@@ -15,7 +15,7 @@ use super::{
     state::{BackwardStates, State},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// Determines if a node should checkpoint its computed output or its retro_forward for recomputation
 /// The action is normally created by the child of the node, once the node is determined to be needed
 pub enum CheckpointingAction {
@@ -24,7 +24,7 @@ pub enum CheckpointingAction {
         /// The node
         node_id: NodeId,
         /// The node's output
-        state_content: Box<dyn Any + Send>,
+        state_content: Arc<dyn Any + Send>,
     },
     /// The node should recompute itself when asked
     Recompute {
@@ -54,7 +54,7 @@ impl CheckpointingAction {
     }
 }
 
-#[derive(new, Debug, Default)]
+#[derive(new, Debug, Default, Clone)]
 /// Accumulates checkpoints as checkpointing actions during the forward pass,
 /// and builds a checkpointer right before the backward pass
 pub struct CheckpointerBuilder {
@@ -89,7 +89,7 @@ impl CheckpointerBuilder {
             ComputingProperty::ComputeBound | ComputingProperty::Ambiguous => {
                 action_list.push(CheckpointingAction::Computed {
                     node_id: tensor.node.id,
-                    state_content: Box::new(tensor.primitive.clone()),
+                    state_content: Arc::new(tensor.primitive.clone()),
                 })
             }
             ComputingProperty::MemoryBound { retro_forward } => {
@@ -280,7 +280,7 @@ impl CheckpointerBuilder {
         &self,
         backward_states_map: &mut HashMap<NodeId, State>,
         node_id: NodeId,
-        state_content: Box<dyn Any + Send>,
+        state_content: Arc<dyn Any + Send>,
         n_required: usize,
     ) {
         backward_states_map.insert(
