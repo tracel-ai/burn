@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use burn_tensor::{Bool, FloatDType, Gradients, Int, Tensor};
+use burn_tensor::{Bool, Device, FloatDType, Gradients, Int, Tensor, kind::Autodiff};
 
 pub use burn_derive::AutodiffSignal;
 
@@ -10,9 +10,9 @@ pub use burn_derive::AutodiffSignal;
 /// `#[derive(AutodiffSignal)]` implements it for a struct by calling it on each field; a field
 /// that is neither a tensor nor a signal takes `#[autodiff_signal(skip)]` and is cloned through.
 pub trait AutodiffSignal: Sized {
-    /// `detach().require_grad()` on each float tensor: the stage receiving it starts a graph of
-    /// its own.
-    fn detach_require_grad(self) -> Self;
+    /// `detach().require_grad()` on each float tensor, under the gradient-checkpointing strategy
+    /// of `device`, where the stage receiving it starts a graph of its own.
+    fn detach_require_grad(self, device: &Device) -> Self;
 
     /// The gradient of each float tensor, in the same shape: what the stage sends back.
     fn grad(&self, grads: &Gradients) -> Self;
@@ -25,13 +25,15 @@ pub trait AutodiffSignal: Sized {
 impl<const D: usize> AutodiffSignal for Tensor<D> {
     /// A tensor made without autodiff, such as an attention bias, keeps it off when moved onto an
     /// autodiff device, so it is turned on here.
-    fn detach_require_grad(self) -> Self {
-        self.detach().autodiff().require_grad()
+    fn detach_require_grad(self, device: &Device) -> Self {
+        with_strategy_of(self.detach().autodiff(), device).require_grad()
     }
 
-    /// Zeros when the stage never read the tensor, so nothing flows back through it.
+    /// Zeros when the stage never read the tensor, so nothing flows back through it. They carry no
+    /// autodiff, as a gradient does, so they combine with the sender's tensors whatever its
+    /// strategy.
     fn grad(&self, grads: &Gradients) -> Self {
-        Tensor::grad(self, grads).unwrap_or_else(|| self.zeros_like())
+        Tensor::grad(self, grads).unwrap_or_else(|| self.zeros_like().without_autodiff())
     }
 
     fn grad_product(self, grad: Self) -> Option<Tensor<1>> {
@@ -40,8 +42,8 @@ impl<const D: usize> AutodiffSignal for Tensor<D> {
 }
 
 impl<const D: usize> AutodiffSignal for Tensor<D, Bool> {
-    fn detach_require_grad(self) -> Self {
-        self
+    fn detach_require_grad(self, device: &Device) -> Self {
+        with_strategy_of(self, device)
     }
 
     fn grad(&self, _grads: &Gradients) -> Self {
@@ -54,8 +56,8 @@ impl<const D: usize> AutodiffSignal for Tensor<D, Bool> {
 }
 
 impl<const D: usize> AutodiffSignal for Tensor<D, Int> {
-    fn detach_require_grad(self) -> Self {
-        self
+    fn detach_require_grad(self, device: &Device) -> Self {
+        with_strategy_of(self, device)
     }
 
     fn grad(&self, _grads: &Gradients) -> Self {
@@ -68,8 +70,8 @@ impl<const D: usize> AutodiffSignal for Tensor<D, Int> {
 }
 
 impl<T: AutodiffSignal> AutodiffSignal for Option<T> {
-    fn detach_require_grad(self) -> Self {
-        self.map(T::detach_require_grad)
+    fn detach_require_grad(self, device: &Device) -> Self {
+        self.map(|value| value.detach_require_grad(device))
     }
 
     fn grad(&self, grads: &Gradients) -> Self {
@@ -83,8 +85,10 @@ impl<T: AutodiffSignal> AutodiffSignal for Option<T> {
 }
 
 impl<T: AutodiffSignal> AutodiffSignal for Vec<T> {
-    fn detach_require_grad(self) -> Self {
-        self.into_iter().map(T::detach_require_grad).collect()
+    fn detach_require_grad(self, device: &Device) -> Self {
+        self.into_iter()
+            .map(|value| value.detach_require_grad(device))
+            .collect()
     }
 
     fn grad(&self, grads: &Gradients) -> Self {
@@ -97,6 +101,20 @@ impl<T: AutodiffSignal> AutodiffSignal for Vec<T> {
                 .zip(grad)
                 .map(|(value, grad)| value.grad_product(grad)),
         )
+    }
+}
+
+/// `tensor` under `device`'s gradient-checkpointing strategy when it uses autodiff. Tensors of two
+/// strategies cannot be combined, and `to_device` keeps the sender's.
+fn with_strategy_of<const D: usize, K: Autodiff>(
+    tensor: Tensor<D, K>,
+    device: &Device,
+) -> Tensor<D, K> {
+    match device.gradient_checkpointing_strategy() {
+        Some(strategy) if tensor.is_autodiff() => {
+            tensor.with_gradient_checkpointing_strategy(strategy)
+        }
+        _ => tensor,
     }
 }
 

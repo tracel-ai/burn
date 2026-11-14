@@ -10,7 +10,7 @@ use std::{
 
 use burn::module::Module;
 use burn::module::parallel::{
-    AutodiffSignal, DistributedLayeredModel, HeldStage, HiddenSignal, InferencePipeline, InputPart,
+    AutodiffSignal, DistributedLayeredModel, HiddenSignal, InferencePipeline, InputPart,
     InputSignal, LayerParallelism, LayerPlacement, MiddlePart, OutputPart, OutputSignal,
     PipelineParts, PipelineSchedule, PipelineShape, StagePass,
 };
@@ -385,7 +385,7 @@ where
             match pass {
                 StagePass::Forward { .. } => {
                     let stage = &self.part.stage;
-                    let input = self.previous.receive().detach_require_grad();
+                    let input = self.previous.receive().detach_require_grad(&stage.device);
                     let output = stage.forward(input.clone());
                     self.next.send(output.clone());
                     in_flight.push_back(Boundary { input, output });
@@ -452,7 +452,10 @@ where
         for pass in passes {
             match pass {
                 StagePass::Forward { .. } => {
-                    let input = self.previous.receive().detach_require_grad();
+                    let input = self
+                        .previous
+                        .receive()
+                        .detach_require_grad(self.part.signal_device());
                     let target = targets
                         .next()
                         .expect("the schedule runs one forward per microbatch");
@@ -512,17 +515,11 @@ fn accumulate<T: Module>(
     accumulator.accumulate(module, GradientsParams::from_module(grads, module));
 }
 
-/// Where each part, in forward order, takes and gives the signal between parts: an outer part
-/// on its stage's device when it holds one, on its own otherwise.
+/// Where each part, in forward order, takes and gives the signal between parts.
 fn signal_devices<M: LayerParallelism>(parts: &PipelineParts<M>) -> Vec<Device> {
-    let outer = |stage: &Option<HeldStage<M>>, device: &Device| {
-        stage.as_ref().map_or(device, |stage| &stage.device).clone()
-    };
-    core::iter::once(outer(&parts.input.stage, &parts.input.device))
-        .chain(parts.middle.iter().map(|part| part.stage.device.clone()))
-        .chain(core::iter::once(outer(
-            &parts.output.stage,
-            &parts.output.device,
-        )))
+    core::iter::once(parts.input.signal_device())
+        .chain(parts.middle.iter().map(|part| &part.stage.device))
+        .chain(core::iter::once(parts.output.signal_device()))
+        .cloned()
         .collect()
 }
