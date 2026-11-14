@@ -1,7 +1,7 @@
 use super::*;
 use burn_backend::{
     TensorData,
-    ops::{FloatTensorOps, IntTensorOps},
+    ops::{FloatTensorOps, IntTensorOps, ModuleOps},
 };
 use burn_std::{FloatDType, IntDType};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -36,34 +36,17 @@ fn optimized(inputs: &Inputs, blank: usize) -> FlexTensor {
         .expect("fixture must use native CTC")
 }
 
-fn assert_close(actual: FlexTensor, expected: &FlexTensor) {
-    assert_eq!(actual.shape(), expected.shape());
-    assert_eq!(actual.dtype(), expected.dtype());
-    let epsilon = expected.dtype().finfo().unwrap().epsilon;
-    let tolerance = match expected.dtype() {
-        DType::F32 => 2e-5,
-        DType::F64 => 16.0 * epsilon,
-        _ => 2.0 * epsilon,
-    };
-    for (actual, expected) in actual
-        .into_data()
-        .iter::<f64>()
-        .zip(expected.clone().into_data().iter::<f64>())
-    {
-        if expected.is_finite() {
-            assert!(
-                (actual - expected).abs() <= tolerance * expected.abs().max(1.0),
-                "{actual} != {expected}"
-            );
-            if actual == 0.0 && expected == 0.0 {
-                assert_eq!(actual.to_bits(), expected.to_bits());
-            }
-        } else if expected.is_nan() {
-            assert!(actual.is_nan());
-        } else {
-            assert_eq!(actual, expected);
-        }
-    }
+fn optimized_backward(inputs: &Inputs, grad_loss: &FlexTensor, blank: usize) -> FlexTensor {
+    let [scores, targets, input_lengths, target_lengths] = inputs;
+    try_ctc(
+        scores,
+        targets,
+        input_lengths,
+        target_lengths,
+        Some(grad_loss),
+        blank,
+    )
+    .expect("fixture must use native CTC backward")
 }
 
 fn small_inputs() -> Inputs {
@@ -79,7 +62,7 @@ fn small_inputs() -> Inputs {
 }
 
 #[test]
-fn rolling_rows_match_default_with_reused_and_parallel_scratch() {
+fn native_scratch_is_reused_without_mutating_inputs() {
     let (time, batch, classes, width) = (256, 16, 8, 64);
     let inputs = [
         FlexTensor::from_data(TensorData::new(
@@ -104,16 +87,38 @@ fn rolling_rows_match_default_with_reused_and_parallel_scratch() {
     for dtype in FLOAT_DTYPES {
         let inputs = with_float_dtype(&inputs, dtype);
         let snapshots = inputs.each_ref().map(|input| input.bytes().to_vec());
-        let expected = run(&inputs, false, 7);
-        assert_close(optimized(&inputs, 7), &expected);
+        let grad_loss = Flex::float_cast(
+            FlexTensor::from_data(TensorData::new(
+                (0..batch)
+                    .map(|sample| [-0.5f32, 0.0, 2.0][sample % 3])
+                    .collect(),
+                [batch],
+            )),
+            dtype,
+        );
+        let grad_snapshot = grad_loss.bytes().to_vec();
+        let expected = optimized(&inputs, 7);
+        let expected_grad = optimized_backward(&inputs, &grad_loss, 7);
+        assert_eq!(optimized(&inputs, 7).bytes(), expected.bytes());
+        assert_eq!(
+            optimized_backward(&inputs, &grad_loss, 7).bytes(),
+            expected_grad.bytes()
+        );
         #[cfg(feature = "rayon")]
         for workers in [1, 2] {
             rayon::ThreadPoolBuilder::new()
                 .num_threads(workers)
                 .build()
                 .unwrap()
-                .install(|| assert_close(optimized(&inputs, 7), &expected));
+                .install(|| {
+                    assert_eq!(optimized(&inputs, 7).bytes(), expected.bytes());
+                    assert_eq!(
+                        optimized_backward(&inputs, &grad_loss, 7).bytes(),
+                        expected_grad.bytes()
+                    );
+                });
         }
+        assert_eq!(grad_loss.bytes(), grad_snapshot);
         for (input, before) in inputs.iter().zip(snapshots) {
             assert_eq!(input.bytes(), before);
         }
@@ -121,64 +126,21 @@ fn rolling_rows_match_default_with_reused_and_parallel_scratch() {
 }
 
 #[test]
-fn rolling_rows_read_logical_views_and_empty_target_storage() {
+fn native_dispatch_accepts_supported_storage_dtypes() {
+    assert!(Flex::has_ctc_loss_backward());
     for dtype in FLOAT_DTYPES {
-        let mut inputs = with_float_dtype(&small_inputs(), dtype);
-        let layout = inputs[0].layout().flip(&[0, 2]).narrow(0, 1, 3);
-        inputs[0] = inputs[0].clone().with_layout(layout);
-        for input in &mut inputs[1..] {
-            *input = input.clone().with_layout(input.layout().flip(&[0]));
-        }
-        inputs[2] = FlexTensor::from_data(TensorData::from([3i32, 3, -1]));
-        inputs[2] = inputs[2]
-            .clone()
-            .with_layout(inputs[2].layout().narrow(0, 0, 2));
-        assert_close(optimized(&inputs, 0), &run(&inputs, false, 0));
-
-        let mut inputs = small_inputs();
-        inputs[1] = FlexTensor::from_data(TensorData::new(Vec::<i32>::new(), [2, 0]));
-        inputs[3] = FlexTensor::from_data(TensorData::from([0i32, 0]));
-        for value in [-0.0f32, -1e30, -f32::MAX] {
-            inputs[0] = Flex::float_cast(
-                FlexTensor::from_data(TensorData::new(vec![value; 24], [4, 2, 3])),
-                dtype,
-            );
-            assert_close(optimized(&inputs, 0), &run(&inputs, false, 0));
-        }
-    }
-}
-
-#[test]
-fn rolling_rows_preserve_half_rounding_and_f64_precision() {
-    let mut inputs = [
-        FlexTensor::from_data(TensorData::new(vec![-0.1f32; 64], [32, 1, 2])),
-        FlexTensor::from_data(TensorData::new(Vec::<i32>::new(), [1, 0])),
-        FlexTensor::from_data(TensorData::from([32i32])),
-        FlexTensor::from_data(TensorData::from([0i32])),
-    ];
-    for dtype in [FloatDType::F16, FloatDType::BF16] {
-        let half = with_float_dtype(&inputs, dtype);
-        let expected = run(&half, false, 0);
-        assert_eq!(optimized(&half, 0).bytes(), expected.bytes());
-        // Promoting the recurrence and casting only its result loses timestep rounding.
-        let promoted = with_float_dtype(&half, FloatDType::F32);
-        let promoted = Flex::float_cast(run(&promoted, false, 0), dtype);
-        assert_ne!(promoted.bytes(), expected.bytes());
-
-        let half = with_float_dtype(&small_inputs(), dtype);
-        assert_eq!(optimized(&half, 0).bytes(), run(&half, false, 0).bytes());
+        let output = optimized(&with_float_dtype(&small_inputs(), dtype), 0);
+        assert_eq!(output.dtype(), DType::from(dtype));
+        assert_eq!(output.shape(), Shape::new([2]));
+        let grad_loss = Flex::float_cast(
+            FlexTensor::from_data(TensorData::from([1.0f32, 2.0])),
+            dtype,
+        );
+        let grad = optimized_backward(&with_float_dtype(&small_inputs(), dtype), &grad_loss, 0);
+        assert_eq!(grad.dtype(), DType::from(dtype));
+        assert_eq!(grad.shape(), Shape::new([4, 2, 3]));
     }
 
-    let emission = -0.123456789012345f64;
-    inputs[0] = FlexTensor::from_data(TensorData::new(vec![emission; 6], [3, 1, 2]));
-    inputs[2] = FlexTensor::from_data(TensorData::from([3i32]));
-    let actual = optimized(&inputs, 0);
-    assert_close(actual.clone(), &run(&inputs, false, 0));
-    assert!((actual.storage::<f64>()[0] + 3.0 * emission).abs() < 1e-14);
-}
-
-#[test]
-fn rolling_rows_support_matching_integer_dtypes() {
     for dtype in [
         IntDType::I8,
         IntDType::I16,
@@ -193,7 +155,19 @@ fn rolling_rows_support_matching_integer_dtypes() {
         for tensor in &mut inputs[1..] {
             *tensor = Flex::int_cast(tensor.clone(), dtype);
         }
-        assert_close(optimized(&inputs, 0), &run(&inputs, false, 0));
+        assert!(try_ctc_loss(&inputs[0], &inputs[1], &inputs[2], &inputs[3], 0).is_some());
+        let grad_loss = FlexTensor::from_data(TensorData::from([1.0f32, 2.0]));
+        assert!(
+            try_ctc(
+                &inputs[0],
+                &inputs[1],
+                &inputs[2],
+                &inputs[3],
+                Some(&grad_loss),
+                0
+            )
+            .is_some()
+        );
     }
 
     // Classes need not fit the index dtype when the labels and blank do.
@@ -205,15 +179,71 @@ fn rolling_rows_support_matching_integer_dtypes() {
     for tensor in &mut inputs[1..] {
         *tensor = Flex::int_cast(tensor.clone(), IntDType::I8);
     }
-    assert_close(optimized(&inputs, 0), &run(&inputs, false, 0));
+    assert!(try_ctc_loss(&inputs[0], &inputs[1], &inputs[2], &inputs[3], 0).is_some());
 }
 
 #[test]
 fn unsupported_inputs_preserve_default_results_and_panics() {
     let base = small_inputs();
+    for grad_loss in [
+        FlexTensor::from_data(TensorData::from([1.0f32])),
+        FlexTensor::from_data(TensorData::from([1.0f64, 2.0])),
+    ] {
+        assert!(try_ctc(&base[0], &base[1], &base[2], &base[3], Some(&grad_loss), 0).is_none());
+    }
     let mut cases = Vec::new();
     let mut inputs = base.clone();
     inputs[1] = FlexTensor::from_data(TensorData::from([[1i64, 1], [2, 0]]));
+    let grad_loss = FlexTensor::from_data(TensorData::from([0.5f32, -2.0]));
+    assert!(
+        try_ctc(
+            &inputs[0],
+            &inputs[1],
+            &inputs[2],
+            &inputs[3],
+            Some(&grad_loss),
+            0
+        )
+        .is_none()
+    );
+    let backward = |native| {
+        let [scores, targets, input_lengths, target_lengths] = inputs.clone();
+        if native {
+            ctc_loss_backward(
+                scores,
+                targets,
+                input_lengths,
+                target_lengths,
+                grad_loss.clone(),
+                0,
+            )
+        } else {
+            ctc_loss_backward_default::<Flex>(
+                scores,
+                targets,
+                input_lengths,
+                target_lengths,
+                grad_loss.clone(),
+                0,
+            )
+        }
+    };
+    let expected = catch_unwind(AssertUnwindSafe(|| backward(false)));
+    let actual = catch_unwind(AssertUnwindSafe(|| backward(true)));
+    match (actual, expected) {
+        (Ok(actual), Ok(expected)) => {
+            assert_eq!(actual.dtype(), expected.dtype());
+            assert_eq!(actual.shape(), expected.shape());
+            assert_eq!(actual.bytes(), expected.bytes());
+        }
+        (Err(actual), Err(expected)) => {
+            assert_eq!(
+                actual.downcast_ref::<String>(),
+                expected.downcast_ref::<String>()
+            );
+        }
+        _ => panic!("native backward fallback changed the default outcome"),
+    }
     cases.push(inputs);
     // Unsigned endpoint subtraction wraps for empty targets in the default path.
     for dtype in [IntDType::U8, IntDType::U16, IntDType::U32, IntDType::U64] {

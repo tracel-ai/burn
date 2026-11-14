@@ -1,8 +1,13 @@
-//! Flex CPU CTC forward: backend hook versus the default decomposition.
+//! Flex CPU CTC forward and training versus the default autodiff decomposition.
 //!
 //! From this crate, run `RAYON_NUM_THREADS=1 cargo bench-flex --bench ctc_ops`.
 //! Add `--features flex-simd,flex-rayon` to enable Flex SIMD and parallel execution.
 //! Add `bench-disable-alloc` to those features for timing without allocation profiling.
+//! Training includes log-softmax, summed CTC loss, backward, and gradient access;
+//! forward measures only CTC on retained log-probabilities. Input creation is excluded.
+//! Divan tracks allocations on the benchmark thread. Leave `flex-rayon` disabled
+//! and pass `--sample-size 1` for peak allocation measurements; enable Rayon for
+//! parallel timing runs.
 
 #[cfg(not(feature = "bench-disable-alloc"))]
 #[global_allocator]
@@ -15,7 +20,11 @@ fn main() {
 #[cfg(feature = "flex")]
 #[divan::bench_group(name = "flex")]
 mod flex {
-    use burn_backend::ops::{ModuleOps, ctc::ctc_loss_default};
+    use burn_autodiff::Autodiff;
+    use burn_backend::{
+        AutodiffBackend,
+        ops::{FloatTensorOps, ModuleOps, ctc::ctc_loss_default},
+    };
     use burn_dispatch::backends::flex::{Flex, FlexTensor};
     use burn_tensor::FloatDType;
     use divan::Bencher;
@@ -23,12 +32,18 @@ mod flex {
     mod scenarios {
         include!("common/ctc.rs");
     }
-    use scenarios::{SCENARIOS, Scenario};
+    use scenarios::{BATCH, MIXED_LENGTHS, SHORT, STRIDED, Scenario};
 
-    fn bench_ctc(bencher: Bencher, scenario: &Scenario, float_dtype: FloatDType, decomposed: bool) {
-        std::hint::black_box((scenario.id, scenario.name));
-        let ([scores, targets, input_lengths, target_lengths], blank) =
-            scenario.fixture(float_dtype);
+    type Ad = Autodiff<Flex>;
+
+    fn bench_forward(
+        bencher: Bencher,
+        scenario: &Scenario,
+        float_dtype: FloatDType,
+        decomposed: bool,
+    ) {
+        let [logits, targets, input_lengths, target_lengths] = scenario.fixture(float_dtype);
+        let scores = scenario.log_probs::<Flex>(logits);
         let forward = if decomposed {
             ctc_loss_default::<Flex>
         } else {
@@ -40,59 +55,75 @@ mod flex {
                 targets.clone(),
                 input_lengths.clone(),
                 target_lengths.clone(),
-                blank,
+                0,
             );
-            // Flex executes eagerly; both paths include output access and disposal.
+            // Flex executes eagerly; include output access and disposal on both paths.
             std::hint::black_box(output.bytes());
         });
     }
 
+    fn bench_training(
+        bencher: Bencher,
+        scenario: &Scenario,
+        float_dtype: FloatDType,
+        decomposed: bool,
+    ) {
+        let [logits, targets, input_lengths, target_lengths] = scenario.fixture(float_dtype);
+        let forward = if decomposed {
+            ctc_loss_default::<Ad>
+        } else {
+            <Ad as ModuleOps<Ad>>::ctc_loss
+        };
+        bencher.bench(|| {
+            // Each iteration builds a fresh graph; backward consumes its steps.
+            let logits = Ad::float_set_require_grad(Ad::from_inner(logits.clone()), true);
+            let loss = forward(
+                scenario.log_probs::<Ad>(logits.clone()),
+                targets.clone(),
+                input_lengths.clone(),
+                target_lengths.clone(),
+                0,
+            );
+            let grads = Ad::backward(Ad::float_sum(loss));
+            let gradient =
+                Ad::grad(&logits, &grads).expect("CTC must propagate gradients to logits");
+            std::hint::black_box(gradient.bytes());
+        });
+    }
+
     macro_rules! scenario {
-        ($name:ident, $index:expr, $float:ident) => {
+        ($name:ident, $fixture:ident, $float:ident) => {
             mod $name {
                 use super::*;
 
                 #[divan::bench]
-                fn backend_hook(bencher: Bencher) {
-                    bench_ctc(bencher, &SCENARIOS[$index], FloatDType::$float, false);
+                fn forward_native(bencher: Bencher) {
+                    bench_forward(bencher, &$fixture, FloatDType::$float, false);
                 }
 
                 #[divan::bench]
-                fn default(bencher: Bencher) {
-                    bench_ctc(bencher, &SCENARIOS[$index], FloatDType::$float, true);
+                fn forward_default(bencher: Bencher) {
+                    bench_forward(bencher, &$fixture, FloatDType::$float, true);
+                }
+
+                #[divan::bench]
+                fn training_native(bencher: Bencher) {
+                    bench_training(bencher, &$fixture, FloatDType::$float, false);
+                }
+
+                #[divan::bench]
+                fn training_default(bencher: Bencher) {
+                    bench_training(bencher, &$fixture, FloatDType::$float, true);
                 }
             }
         };
     }
 
-    macro_rules! dtype_group {
-        ($name:ident, $float:ident) => {
-            #[divan::bench_group]
-            mod $name {
-                use super::*;
-
-                scenario!(s01_tiny, 0, $float);
-                scenario!(s02_short, 1, $float);
-                scenario!(s03_empty, 2, $float);
-                scenario!(s04_medium, 3, $float);
-                scenario!(s05_representative, 4, $float);
-                scenario!(s06_long, 5, $float);
-                scenario!(s07_long_targets, 6, $float);
-                scenario!(s08_long_short_targets, 7, $float);
-                scenario!(s09_single, 8, $float);
-                scenario!(s10_wide_vocabulary, 9, $float);
-                scenario!(s11_mixed_lengths, 10, $float);
-                scenario!(s12_repeated_labels, 11, $float);
-                scenario!(s13_strided_scores, 12, $float);
-                scenario!(s14_unreachable, 13, $float);
-                scenario!(s15_padded_targets, 14, $float);
-                scenario!(s16_nan_fallback, 15, $float);
-            }
-        };
-    }
-
-    dtype_group!(f32, F32);
-    dtype_group!(f64, F64);
-    dtype_group!(f16, F16);
-    dtype_group!(bf16, BF16);
+    scenario!(short_f32, SHORT, F32);
+    scenario!(batch_f32, BATCH, F32);
+    scenario!(batch_f64, BATCH, F64);
+    scenario!(batch_f16, BATCH, F16);
+    scenario!(batch_bf16, BATCH, BF16);
+    scenario!(mixed_lengths_f32, MIXED_LENGTHS, F32);
+    scenario!(strided_f32, STRIDED, F32);
 }

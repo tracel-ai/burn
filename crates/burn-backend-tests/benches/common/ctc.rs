@@ -1,192 +1,95 @@
-// Shared CPU fixtures for the retained CTC benchmarks and measurement report.
+// Representative fixtures shared by the CTC forward and training benchmarks.
 
 use super::{Flex, FlexTensor, FloatDType};
-use burn_backend::{
-    TensorData,
-    ops::{ActivationOps, FloatTensorOps},
-};
+use burn_backend::{Backend, TensorData, ops::FloatTensorOps, tensor::FloatTensor};
 
 #[derive(Clone, Copy)]
 pub(super) struct Scenario {
-    pub id: &'static str,
-    pub name: &'static str,
     /// Logical score dimensions followed by stored target width: [T, B, C, S].
-    pub shape: [usize; 4],
-    profile: Profile,
-}
-
-#[derive(Clone, Copy)]
-enum Profile {
-    Standard,
-    MixedLengths,
-    RepeatedLabels,
-    StridedScores,
-    Unreachable,
-    PaddedTargets,
-    NanFallback,
+    shape: [usize; 4],
+    mixed_lengths: bool,
+    strided: bool,
 }
 
 impl Scenario {
-    const fn new(
-        id: &'static str,
-        name: &'static str,
-        shape: [usize; 4],
-        profile: Profile,
-    ) -> Self {
-        Self {
-            id,
-            name,
-            shape,
-            profile,
-        }
-    }
-
-    pub fn fixture(&self, float_dtype: FloatDType) -> ([FlexTensor; 4], usize) {
+    pub fn fixture(&self, float_dtype: FloatDType) -> [FlexTensor; 4] {
         let [time, batch, classes, width] = self.shape;
-        let blank = if matches!(self.profile, Profile::RepeatedLabels) {
-            2
-        } else {
-            0
-        };
-        let score_shape = if matches!(self.profile, Profile::StridedScores) {
+        let logits_shape = if self.strided {
             [batch, time + 2, classes]
         } else {
             [time, batch, classes]
         };
-        let score_elements = score_shape.iter().product();
-        let logits: Vec<f64> = if matches!(self.profile, Profile::NanFallback) {
-            vec![f64::NAN; score_elements]
-        } else {
-            (0..score_elements)
-                .map(|i| (i % 997) as f64 / 997.0 - 0.5)
-                .collect()
-        };
+        let logits: Vec<f64> = (0..logits_shape.iter().product())
+            .map(|i| (i % 997) as f64 / 997.0 - 0.5)
+            .collect();
+        // Cast before log-softmax so all arithmetic uses the benchmarked dtype.
         let logits = Flex::float_cast(
-            FlexTensor::from_data(TensorData::new(logits, score_shape)),
+            FlexTensor::from_data(TensorData::new(logits, logits_shape)),
             float_dtype,
         );
-        let scores = if matches!(self.profile, Profile::NanFallback) {
-            logits
-        } else {
-            Flex::log_softmax(logits, 2)
-        };
-        let scores = if matches!(self.profile, Profile::StridedScores) {
-            let layout = scores.layout().transpose(0, 1).narrow(0, 1, time);
-            scores.with_layout(layout)
-        } else {
-            scores
-        };
-
-        let mut labels: Vec<i32> = (0..batch * width)
-            .map(|i| {
-                if matches!(self.profile, Profile::RepeatedLabels) {
-                    let label = (i / 2) % (classes - 1);
-                    (label + usize::from(label >= blank)) as i32
-                } else {
-                    (i % (classes - 1) + 1) as i32
-                }
-            })
+        let labels: Vec<i32> = (0..batch * width)
+            .map(|i| (i % (classes - 1) + 1) as i32)
             .collect();
         let mut input_lengths = vec![time as i32; batch];
         let mut target_lengths = vec![width as i32; batch];
-        match self.profile {
-            Profile::MixedLengths => {
-                for (sample, (input, target)) in input_lengths
-                    .iter_mut()
-                    .zip(&mut target_lengths)
-                    .enumerate()
-                {
-                    let (t, s) = match sample % 4 {
-                        0 => (time, width),
-                        1 => (3 * time / 4, width / 2),
-                        2 => (time / 2, 0),
-                        _ => (time / 4, width / 4),
-                    };
-                    *input = t as i32;
-                    *target = s as i32;
-                }
+        if self.mixed_lengths {
+            for (sample, (input, target)) in input_lengths
+                .iter_mut()
+                .zip(&mut target_lengths)
+                .enumerate()
+            {
+                let (t, s) = match sample % 4 {
+                    0 => (time, width),
+                    1 => (3 * time / 4, width / 2),
+                    2 => (time / 2, 0),
+                    _ => (time / 4, width / 4),
+                };
+                *input = t as i32;
+                *target = s as i32;
             }
-            Profile::Unreachable => labels.fill(1),
-            Profile::PaddedTargets => target_lengths.fill(4),
-            _ => {}
         }
-        (
-            [
-                scores,
-                FlexTensor::from_data(TensorData::new(labels, [batch, width])),
-                FlexTensor::from_data(TensorData::new(input_lengths, [batch])),
-                FlexTensor::from_data(TensorData::new(target_lengths, [batch])),
-            ],
-            blank,
-        )
+        [
+            logits,
+            FlexTensor::from_data(TensorData::new(labels, [batch, width])),
+            FlexTensor::from_data(TensorData::new(input_lengths, [batch])),
+            FlexTensor::from_data(TensorData::new(target_lengths, [batch])),
+        ]
+    }
+
+    pub fn log_probs<B: Backend>(&self, logits: FloatTensor<B>) -> FloatTensor<B> {
+        let scores = B::log_softmax(logits, 2);
+        if self.strided {
+            let time = self.shape[0];
+            B::float_slice(
+                B::float_swap_dims(scores, 0, 1),
+                &[(1..time + 1).into(), (..).into(), (..).into()],
+            )
+        } else {
+            scores
+        }
     }
 }
 
-pub(super) const SCENARIOS: [Scenario; 16] = [
-    Scenario::new("S01", "Tiny call", [1, 1, 3, 0], Profile::Standard),
-    Scenario::new("S02", "Short sequence", [16, 1, 5, 4], Profile::Standard),
-    Scenario::new(
-        "S03",
-        "Empty target batch",
-        [128, 8, 32, 0],
-        Profile::Standard,
-    ),
-    Scenario::new("S04", "Medium batch", [128, 8, 32, 32], Profile::Standard),
-    Scenario::new(
-        "S05",
-        "Representative batch",
-        [256, 16, 80, 64],
-        Profile::Standard,
-    ),
-    Scenario::new("S06", "Long sequence", [512, 16, 32, 64], Profile::Standard),
-    Scenario::new("S07", "Long targets", [256, 8, 32, 128], Profile::Standard),
-    Scenario::new(
-        "S08",
-        "Long sequence, short targets",
-        [512, 16, 32, 4],
-        Profile::Standard,
-    ),
-    Scenario::new("S09", "Single sample", [256, 1, 80, 64], Profile::Standard),
-    Scenario::new(
-        "S10",
-        "Wide vocabulary",
-        [128, 4, 1024, 32],
-        Profile::Standard,
-    ),
-    Scenario::new(
-        "S11",
-        "Mixed input and target lengths",
-        [256, 16, 80, 64],
-        Profile::MixedLengths,
-    ),
-    Scenario::new(
-        "S12",
-        "Repeated labels, blank 2",
-        [128, 8, 32, 32],
-        Profile::RepeatedLabels,
-    ),
-    Scenario::new(
-        "S13",
-        "Transposed and narrowed scores",
-        [128, 8, 32, 32],
-        Profile::StridedScores,
-    ),
-    Scenario::new(
-        "S14",
-        "Unreachable repeated target",
-        [2, 4, 3, 2],
-        Profile::Unreachable,
-    ),
-    Scenario::new(
-        "S15",
-        "Heavily padded targets",
-        [256, 16, 80, 128],
-        Profile::PaddedTargets,
-    ),
-    Scenario::new(
-        "S16",
-        "NaN fallback control",
-        [16, 1, 5, 4],
-        Profile::NanFallback,
-    ),
-];
+pub(super) const SHORT: Scenario = Scenario {
+    shape: [16, 1, 5, 4],
+    mixed_lengths: false,
+    strided: false,
+};
+
+pub(super) const BATCH: Scenario = Scenario {
+    shape: [256, 16, 80, 64],
+    mixed_lengths: false,
+    strided: false,
+};
+
+pub(super) const MIXED_LENGTHS: Scenario = Scenario {
+    shape: [256, 16, 80, 64],
+    mixed_lengths: true,
+    strided: false,
+};
+
+pub(super) const STRIDED: Scenario = Scenario {
+    shape: [128, 8, 32, 32],
+    mixed_lengths: false,
+    strided: true,
+};

@@ -79,10 +79,11 @@ positions when sequence lengths differ.
 
 #### Kernels
 
-- Reduce temporary heap use in Flex CPU CTC loss evaluation by reusing two state rows, with parallel
-  evaluation for large batches. Support F16, BF16, F32, and F64 scores with matching integer targets
-  and lengths while preserving each dtype's arithmetic. Unsupported inputs and autodiff retain the
-  generic recurrence.
+- Reduce temporary heap use in Flex CPU CTC loss for evaluation and training. Forward uses two
+  reusable state rows; backward recomputes alpha history per sample and streams beta rows directly
+  into gradients. Large batches can run in parallel. Support F16, BF16, F32, and F64 scores with
+  matching integer targets and lengths, using F32 accumulation for half-precision gradients.
+  Unsupported inputs retain the generic recurrence.
   ([#6357](https://github.com/tracel-ai/burn/pull/6357)) [@Mikyx-1](https://github.com/Mikyx-1)
 - Avoid a full-sized gradient copy in CubeCL FP32 `conv2d` bias backward, while retaining
   single-pass accumulation for FP16/BF16 to avoid intermediate overflow.
