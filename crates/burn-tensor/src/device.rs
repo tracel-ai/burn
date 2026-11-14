@@ -8,9 +8,9 @@ pub use burn_backend::cubecl::{
 };
 use burn_backend::{Backend, DeviceOps};
 pub use burn_backend::{
-    DeviceDescription, DeviceTelemetry, HardwareKind, MatmulTile, MemoryAccess, MemoryPoolUsage,
-    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileTicks,
-    SlicedPoolReport, TimingMethod,
+    DeviceDescription, DeviceTelemetry, HardwareKind, MatmulTile, MemoryAccess, MemoryPoolReport,
+    MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
+    ProfileTicks, TimingMethod,
 };
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
