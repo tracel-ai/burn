@@ -42,7 +42,8 @@ use threading::*;
 ///
 /// # Note
 ///
-/// The state value is the average of all updates on all threads.
+/// The state value is the average of all updates on all threads. Without `std`, targets are assumed
+/// to be single-threaded, and every update is recorded as coming from the same thread.
 #[derive(Clone, Debug)]
 pub struct RunningState<V> {
     id: ParamId,
