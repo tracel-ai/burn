@@ -1091,6 +1091,13 @@ Complex inverse FFT (`ifft`) is also available.
 ([#5840](https://github.com/tracel-ai/burn/pull/5840),
 [#5757](https://github.com/tracel-ai/burn/pull/5757))
 
+##### Inverse STFT length
+
+- Fix `istft` with `center = true` filling the end of the signal with zeros when `length` reaches
+  past the trimmed overlap-add output, as happens when the signal length is not a multiple of
+  `hop_length`. Those samples are now reconstructed, matching `torch.istft`.
+  ([#PR_NUMBER](https://github.com/tracel-ai/burn/pull/PR_NUMBER))
+
 #### Vision (`burn-vision`)
 
 ##### Connected components
