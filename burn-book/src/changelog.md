@@ -483,6 +483,7 @@ whose tensors are split over `devices` (crate `burn-shard`).
 - `DimSplit::data_chunks` and `DimSplit::whole_data` cut and join a quantized tensor's stored
   words and scales as bytes, instead of decoding every code and scale and quantizing each chunk
   again, so splitting a quantized checkpoint over a sharded compute device is a copy.
+  ([#6528](https://github.com/tracel-ai/burn/pull/6528))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 - A quantized tensor moves between two sharded compute devices, its codes and scales unchanged,
