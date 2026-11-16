@@ -325,6 +325,10 @@ mod tests {
     fn a_file_unlike_what_its_version_writes_is_refused() {
         let pinned = written(&measurement());
         let unknown = pinned.replace(r#""unfused": false"#, r#""unfused": false, "extra": 1"#);
+        let unknown_in_path = pinned.replace(
+            r#""transport": "Nccl""#,
+            r#""transport": "Nccl", "extra": 1"#,
+        );
         let bounds = pinned.find(r#""bounds""#).unwrap();
         let after_bounds = bounds + pinned[bounds..].find(r#""entries""#).unwrap();
         let missing = pinned.replace(&pinned[bounds..after_bounds], "");
@@ -332,7 +336,7 @@ mod tests {
             &pinned[pinned.find(r#""peaks""#).unwrap()..pinned.find(r#""clean_wall""#).unwrap()],
             "",
         );
-        for file in [&unknown, &missing, &no_peaks] {
+        for file in [&unknown, &unknown_in_path, &missing, &no_peaks] {
             assert_ne!(file, &pinned);
             assert!(
                 matches!(

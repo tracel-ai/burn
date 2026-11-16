@@ -460,6 +460,7 @@ pub struct CollectiveTime {
 
 /// How a collective ran.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum CollectivePath {
     /// Over the runtime's device transport, one part per member.
     Native {

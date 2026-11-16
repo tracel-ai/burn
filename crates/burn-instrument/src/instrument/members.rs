@@ -25,7 +25,7 @@ pub enum RanOn {
 /// on a member. Empty for a device of one.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MemberList {
-    /// Each member's id as its runtime hands it out, which is what an execution's place names.
+    /// Each member's cubecl device id, its runtime stamped in.
     devices: Vec<DeviceId>,
 }
 
@@ -41,7 +41,7 @@ impl MemberList {
     /// apart by member, and the device is timed as one.
     pub fn over(ids: Vec<DeviceId>) -> Self {
         let mut devices: Vec<DeviceId> = Vec::with_capacity(ids.len());
-        for id in ids.into_iter().map(RuntimeId::strip) {
+        for id in ids {
             if !devices.contains(&id) {
                 devices.push(id);
             }
@@ -60,15 +60,25 @@ impl MemberList {
     }
 
     /// Where an execution placed at `place` ran.
+    ///
+    /// A place names its device as its runtime hands it out, without the runtime, so where two
+    /// members of different runtimes share that id the execution is on neither: which one ran it
+    /// cannot be told.
     pub fn ran_on(&self, place: &ExecutionPlace) -> RanOn {
         if !self.several() {
             return RanOn::Device;
         }
         let device = RuntimeId::strip(place.service.device);
-        self.devices
+        let mut named = self
+            .devices
             .iter()
-            .position(|member| *member == device)
-            .map_or(RanOn::OffMembers, |index| RanOn::Member(Member(index)))
+            .enumerate()
+            .filter(|(_, member)| RuntimeId::strip(**member) == device)
+            .map(|(index, _)| Member(index));
+        match (named.next(), named.next()) {
+            (Some(member), None) => RanOn::Member(member),
+            _ => RanOn::OffMembers,
+        }
     }
 }
 
@@ -89,6 +99,17 @@ mod tests {
         assert_eq!(members.ran_on(&place(5)), RanOn::Member(Member(1)));
         assert_eq!(members.ran_on(&place(3)), RanOn::Member(Member(0)));
         assert_eq!(members.ran_on(&place(4)), RanOn::OffMembers);
+    }
+
+    /// Two members of different runtimes whose devices share an id are two members, and an
+    /// execution on that id is on neither, since its place does not say which runtime ran it.
+    #[test]
+    fn an_id_two_runtimes_share_places_nothing_on_either_member() {
+        let id = DeviceId::new(0, 3);
+        let members = MemberList::over(vec![RuntimeId::Cuda.stamp(id), RuntimeId::Hip.stamp(id)]);
+
+        assert_eq!(members.count(), 2);
+        assert_eq!(members.ran_on(&place(3)), RanOn::OffMembers);
     }
 
     /// A sharded compute device whose members are one device is timed as one.
