@@ -11,7 +11,7 @@ use burn_backend::{
 };
 use core::{cmp::Ordering, fmt};
 use cubecl::{
-    client::{Client, ClientGroup, ClientGroupError, GroupMember, MemberBuffers},
+    client::{Client, ClientGroup, ClientGroupError, MemberBuffers},
     ir::ElemType,
     logging::{CollectivePath, Communication, ExecutionScope},
     server::{Collective, TransportProvider},
@@ -513,20 +513,6 @@ impl Exchange {
             Self::AllToAll { .. } => clients.all_to_all(buffers),
         }
     }
-
-    /// Queues `member`'s own part.
-    fn run_member(self, member: &GroupMember, elem: ElemType, buffers: MemberBuffers) {
-        match self {
-            Self::AllReduce { op } => {
-                member.all_reduce(buffers, elem, reduce_operation_to_cubecl(op))
-            }
-            Self::AllGather { .. } => member.all_gather(buffers),
-            Self::ReduceScatter { op, .. } => {
-                member.reduce_scatter(buffers, elem, reduce_operation_to_cubecl(op))
-            }
-            Self::AllToAll { .. } => member.all_to_all(buffers),
-        }
-    }
 }
 
 /// A collective the members' group runs natively, with each member's tensor.
@@ -741,7 +727,7 @@ mod parts {
     use burn_backend::cubecl::dtype_to_storage_type;
     use burn_fusion::{Collective, CollectivePart};
     use burn_ir::{BackendIr, TensorHandle};
-    use cubecl::prelude::InputScalar;
+    use cubecl::{prelude::InputScalar, server::Reduction};
 
     impl Exchange {
         fn from_fusion(collective: Collective) -> Self {
@@ -753,6 +739,22 @@ mod parts {
                     split_dim,
                     concat_dim,
                 } => Self::all_to_all(split_dim, concat_dim),
+            }
+        }
+
+        /// This collective as cubecl's group runs it, over elements of `elem`.
+        fn in_cubecl(self, elem: ElemType) -> cubecl::client::Exchange {
+            let reduction = |op| Reduction {
+                dtype: elem,
+                op: reduce_operation_to_cubecl(op),
+            };
+            match self {
+                Self::AllReduce { op } => cubecl::client::Exchange::AllReduce(reduction(op)),
+                Self::AllGather { .. } => cubecl::client::Exchange::AllGather,
+                Self::ReduceScatter { op, .. } => {
+                    cubecl::client::Exchange::ReduceScatter(reduction(op))
+                }
+                Self::AllToAll { .. } => cubecl::client::Exchange::AllToAll,
             }
         }
     }
@@ -782,18 +784,18 @@ mod parts {
         let clients = ranked.iter().map(|device| device.client()).collect();
         let group = NativeGroup::new(clients, shape.clone(), dtype).ok()?;
         exchange.check(&group).ok()?;
-        let (members, elem) = (group.members(), group.elem());
+        let members = group.members();
+        let bytes = (shape.num_elements() * dtype.size()) as u64;
         let parts = group
             .clients
-            .members()
+            .parts(exchange.in_cubecl(group.elem()), bytes)
             .into_iter()
             .zip(ranked)
-            .map(|(member, device)| {
+            .map(|(part, device)| {
                 Box::new(MemberPart {
-                    member,
+                    part: Mutex::new(Some(part)),
                     exchange,
                     members,
-                    elem,
                     stand_in: StandIn {
                         device,
                         shape: shape.clone(),
@@ -807,10 +809,10 @@ mod parts {
 
     /// One member's part, run by its own device.
     struct MemberPart {
-        member: GroupMember,
+        /// Taken once: burn-fusion reaches `run` and `stand_in` through `&self`.
+        part: Mutex<Option<cubecl::client::MemberPart>>,
         exchange: Exchange,
         members: usize,
-        elem: ElemType,
         stand_in: StandIn,
     }
 
@@ -828,8 +830,13 @@ mod parts {
         fn exchange(&self, tensor: CubeTensor) -> CubeTensor {
             let source = self.exchange.source(tensor);
             let output = self.exchange.output(&source, self.members);
-            self.exchange
-                .run_member(&self.member, self.elem, member_buffers(&source, &output));
+            let part = self
+                .part
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .take()
+                .expect("a member queues its part of a collective once");
+            part.queue(member_buffers(&source, &output));
             self.exchange.restored(output)
         }
     }
@@ -1027,5 +1034,144 @@ mod tests {
             .map(|word| f32::from_ne_bytes(*word))
             .collect();
         assert!(values.iter().all(|value| value.is_nan()), "{values:?}");
+    }
+}
+
+/// What an execution observer is told of a fused native collective, whose parts each member's own
+/// thread queues.
+#[cfg(all(test, feature = "fusion", any(feature = "cuda", feature = "hip")))]
+mod observed_parts {
+    use super::*;
+    use crate::fusion::CubeFusionHandle;
+    use burn_backend::DType;
+    use burn_fusion::Collective;
+    use burn_ir::TensorHandle;
+    use cubecl::benchmark::CommunicationSkipGuard;
+    use cubecl::logging::{Execution, ExecutionKind, ExecutionObservation, ExecutionObserver};
+    use std::sync::Arc;
+
+    /// Every execution issued while it is installed.
+    #[derive(Default)]
+    struct Issued(Mutex<Vec<Execution>>);
+
+    impl ExecutionObserver for Issued {
+        fn issued(&self, execution: &Execution) {
+            self.0.lock().unwrap().push(execution.clone());
+        }
+    }
+
+    /// The communications and parts issued for one all-reduce over two devices, each member's
+    /// part run from a thread of its own as its fusion stream runs it.
+    fn all_reduce_observed() -> Vec<Execution> {
+        let devices = two_devices();
+        let shape = Shape::new([4, 2]);
+        let issued = Arc::new(Issued::default());
+        let observation = ExecutionObservation::new(issued.clone());
+        let parts = super::collective_parts(
+            &devices,
+            &shape,
+            DType::F32,
+            Collective::AllReduce {
+                op: ReduceOperation::Sum,
+            },
+        )
+        .expect("two devices run an all-reduce natively");
+        let members: Vec<_> = parts
+            .into_iter()
+            .zip(devices)
+            .map(|(part, device)| {
+                let shape = shape.clone();
+                std::thread::spawn(move || {
+                    let tensor = empty_device_contiguous_dtype(
+                        device.client(),
+                        device,
+                        shape.clone(),
+                        DType::F32,
+                    );
+                    let handle: CubeFusionHandle = tensor.into();
+                    let received = part.run(TensorHandle { handle, shape });
+                    received.client.read_one(received.handle).unwrap();
+                })
+            })
+            .collect();
+        for member in members {
+            member.join().unwrap();
+        }
+        drop(observation);
+        let issued = issued.0.lock().unwrap().clone();
+        issued
+            .into_iter()
+            .filter(|execution| !matches!(execution.kind, ExecutionKind::Kernel { .. }))
+            .collect()
+    }
+
+    /// One communication, recorded when the parts were made, parents the part each member's own
+    /// thread queued, each placed on its member's device.
+    #[test]
+    #[ignore = "needs two devices with a device transport"]
+    fn a_fused_collective_parents_every_members_part() {
+        let issued = all_reduce_observed();
+        let [communication, parts @ ..] = issued.as_slice() else {
+            panic!("a communication first: {issued:?}");
+        };
+        assert!(
+            matches!(
+                &communication.kind,
+                ExecutionKind::Communication(Communication::Collective {
+                    path: CollectivePath::Native(_),
+                    ..
+                })
+            ),
+            "{communication:?}"
+        );
+        let mut placed: Vec<_> = parts
+            .iter()
+            .map(|part| match part.kind {
+                ExecutionKind::Part { place } => {
+                    assert_eq!(part.parent, Some(communication.id), "{part:?}");
+                    place.service.device
+                }
+                _ => panic!("only parts after the communication: {issued:?}"),
+            })
+            .collect();
+        placed.sort();
+        let mut devices: Vec<_> = two_devices()
+            .iter()
+            .map(|device| device.client().service_id().device)
+            .collect();
+        devices.sort();
+        assert_eq!(placed, devices);
+    }
+
+    /// A skipping group records one skipped communication and its parts queue nothing.
+    #[test]
+    #[ignore = "needs two devices with a device transport"]
+    fn a_skipped_fused_collective_is_one_communication_and_no_part() {
+        let clients: Vec<_> = two_devices().iter().map(CubeDevice::client).collect();
+        let _skip = CommunicationSkipGuard::enter(&clients);
+        let issued = all_reduce_observed();
+        let [communication] = issued.as_slice() else {
+            panic!("one communication: {issued:?}");
+        };
+        assert!(
+            matches!(
+                &communication.kind,
+                ExecutionKind::Communication(Communication::Collective {
+                    path: CollectivePath::Skipped,
+                    ..
+                })
+            ),
+            "{communication:?}"
+        );
+    }
+
+    #[cfg(feature = "cuda")]
+    fn two_devices() -> [CubeDevice; 2] {
+        [0, 1].map(|index| CubeDevice::Cuda(cubecl::cuda::CudaDevice { index }))
+    }
+
+    #[cfg(all(feature = "hip", not(feature = "cuda")))]
+    fn two_devices() -> [CubeDevice; 2] {
+        [0, 1].map(|index| CubeDevice::Hip(cubecl::hip::AmdDevice { index }))
     }
 }
