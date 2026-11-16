@@ -504,25 +504,23 @@ impl DimSplit {
             data.shape(),
             parts.scheme,
         );
-        let values: Vec<_> = self
-            .stored_split(&parts, &parts.values)
-            .plain_chunks(&parts.values)
-            .collect();
-        let scales: Vec<_> = match parts.scheme.block_size() {
-            None => vec![parts.scales.clone(); self.members],
-            Some(_) => self
-                .stored_split(&parts, &parts.scales)
-                .plain_chunks(&parts.scales)
-                .collect(),
-        };
-        values
-            .into_iter()
-            .zip(scales)
-            .enumerate()
-            .map(|(member, (values, scales))| {
+        let (values, scales) = (parts.values.as_bytes(), parts.scales.as_bytes());
+        let values_split = self.stored_split(&parts, &parts.values);
+        let scales_split =
+            (parts.scheme.block_size()).map(|_| self.stored_split(&parts, &parts.scales));
+        (0..self.members)
+            .map(|member| {
                 let mut shape = data.shape().clone();
                 shape[self.dim] = self.range(member).len();
-                parts.chunk(shape, &values, &scales)
+                let values =
+                    (values_split.byte_ranges(&parts.values, member)).map(|range| &values[range]);
+                let scales: Vec<_> = match scales_split {
+                    Some(split) => (split.byte_ranges(&parts.scales, member))
+                        .map(|range| &scales[range])
+                        .collect(),
+                    None => vec![scales],
+                };
+                parts.chunk(shape, values.chain(scales))
             })
             .collect()
     }
@@ -545,7 +543,7 @@ impl DimSplit {
         };
         let mut shape = chunks[0].shape().clone();
         shape[self.dim] = self.len;
-        Ok(parts[0].chunk(shape, &values, &scales))
+        Ok(parts[0].chunk(shape, [values.as_bytes(), scales.as_bytes()].into_iter()))
     }
 
     /// The same split over a section of a quantized tensor's stored bytes: along the dim it lies
@@ -723,15 +721,15 @@ impl QuantizedParts {
             && (!per_tensor || self.scales.as_bytes() == first.scales.as_bytes())
     }
 
-    /// The quantized tensor of `shape` whose stored sections are `values` and `scales`, and these
-    /// parts' per-tensor scale.
-    fn chunk(&self, shape: Shape, values: &TensorData, scales: &TensorData) -> TensorData {
-        let sections = [values.as_bytes(), scales.as_bytes(), &self.global[..]];
-        let len = sections.iter().map(|section| section.len()).sum::<usize>();
+    /// The quantized tensor of `shape` whose values and block scales are `pieces` end to end,
+    /// followed by these parts' per-tensor scale: each byte is copied once.
+    fn chunk<'a>(&'a self, shape: Shape, pieces: impl Iterator<Item = &'a [u8]>) -> TensorData {
+        let pieces: Vec<_> = pieces.chain([&self.global[..]]).collect();
+        let len = pieces.iter().map(|piece| piece.len()).sum::<usize>();
         let mut bytes =
             Bytes::from_elems(Vec::<u128>::with_capacity(len.div_ceil(size_of::<u128>())));
-        for section in sections {
-            bytes.extend_from_byte_slice(section);
+        for piece in pieces {
+            bytes.extend_from_byte_slice(piece);
         }
         TensorData::from_bytes(bytes, shape, DType::QFloat(self.scheme))
     }
