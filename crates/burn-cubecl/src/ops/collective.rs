@@ -11,7 +11,7 @@ use burn_backend::{
 };
 use core::{cmp::Ordering, fmt};
 use cubecl::{
-    client::{Client, ClientGroup, ClientGroupError, MemberBuffers},
+    client::{Client, ClientGroup, ClientGroupError, GroupMember, MemberBuffers},
     ir::ElemType,
     logging::{CollectivePath, Communication, ExecutionScope},
     server::{Collective, TransportProvider},
@@ -514,19 +514,17 @@ impl Exchange {
         }
     }
 
-    /// This collective as cubecl's group runs it, over elements of `elem`.
-    fn native(self, elem: ElemType) -> cubecl::client::Exchange {
-        let reduction = |op| cubecl::server::Reduction {
-            dtype: elem,
-            op: reduce_operation_to_cubecl(op),
-        };
+    /// Queues `member`'s own part.
+    fn run_member(self, member: &GroupMember, elem: ElemType, buffers: MemberBuffers) {
         match self {
-            Self::AllReduce { op } => cubecl::client::Exchange::AllReduce(reduction(op)),
-            Self::AllGather { .. } => cubecl::client::Exchange::AllGather,
-            Self::ReduceScatter { op, .. } => {
-                cubecl::client::Exchange::ReduceScatter(reduction(op))
+            Self::AllReduce { op } => {
+                member.all_reduce(buffers, elem, reduce_operation_to_cubecl(op))
             }
-            Self::AllToAll { .. } => cubecl::client::Exchange::AllToAll,
+            Self::AllGather { .. } => member.all_gather(buffers),
+            Self::ReduceScatter { op, .. } => {
+                member.reduce_scatter(buffers, elem, reduce_operation_to_cubecl(op))
+            }
+            Self::AllToAll { .. } => member.all_to_all(buffers),
         }
     }
 }
@@ -744,7 +742,6 @@ mod parts {
     use burn_fusion::{Collective, CollectivePart};
     use burn_ir::{BackendIr, TensorHandle};
     use cubecl::prelude::InputScalar;
-    use std::sync::{Mutex, PoisonError};
 
     impl Exchange {
         fn from_fusion(collective: Collective) -> Self {
@@ -786,18 +783,17 @@ mod parts {
         let group = NativeGroup::new(clients, shape.clone(), dtype).ok()?;
         exchange.check(&group).ok()?;
         let (members, elem) = (group.members(), group.elem());
-        // Every member's source is dense, its tensor's elements moved, at the members' dtype.
-        let bytes = (shape.num_elements() * dtype.size()) as u64;
         let parts = group
             .clients
-            .parts(exchange.native(elem), bytes)
+            .members()
             .into_iter()
             .zip(ranked)
-            .map(|(part, device)| {
+            .map(|(member, device)| {
                 Box::new(MemberPart {
-                    part: Mutex::new(Some(part)),
+                    member,
                     exchange,
                     members,
+                    elem,
                     stand_in: StandIn {
                         device,
                         shape: shape.clone(),
@@ -809,12 +805,12 @@ mod parts {
         Some(order.restored(parts))
     }
 
-    /// One member's part, run by its own device. Its cubecl part is queued once, by the run or
-    /// the stand-in that takes it.
+    /// One member's part, run by its own device.
     struct MemberPart {
-        part: Mutex<Option<cubecl::client::MemberPart>>,
+        member: GroupMember,
         exchange: Exchange,
         members: usize,
+        elem: ElemType,
         stand_in: StandIn,
     }
 
@@ -832,12 +828,8 @@ mod parts {
         fn exchange(&self, tensor: CubeTensor) -> CubeTensor {
             let source = self.exchange.source(tensor);
             let output = self.exchange.output(&source, self.members);
-            self.part
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .take()
-                .expect("a member's part is queued once")
-                .queue(member_buffers(&source, &output));
+            self.exchange
+                .run_member(&self.member, self.elem, member_buffers(&source, &output));
             self.exchange.restored(output)
         }
     }
