@@ -632,7 +632,7 @@ mod tests {
     fn sharded() -> RunRecorder {
         RunRecorder::with_members(
             &Device::flex(),
-            MemberList::over(MEMBERS.to_vec()),
+            MemberList::over(MEMBERS.map(service).to_vec()),
             Floors::default(),
         )
     }

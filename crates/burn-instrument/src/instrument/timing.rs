@@ -221,7 +221,7 @@ impl Timeline {
 
 #[cfg(test)]
 mod tests {
-    use cubecl_common::device::DeviceId;
+    use cubecl_common::device::{DeviceId, ServiceId};
 
     use super::super::members::Member;
     use super::*;
@@ -274,7 +274,7 @@ mod tests {
     #[test]
     fn each_member_is_idle_on_its_own() {
         let epoch = Instant::now();
-        let members = [1, 2].map(|index_id| DeviceId::new(0, index_id));
+        let members = [1, 2].map(|index_id| ServiceId::of::<()>(DeviceId::new(0, index_id)));
         let mut timeline = Timeline::new(epoch, MemberList::over(members.to_vec()));
         let micros = Duration::from_micros;
         let window = |start: u64, end: u64| {
