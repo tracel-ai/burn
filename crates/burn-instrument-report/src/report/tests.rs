@@ -756,6 +756,7 @@ fn a_run_on_several_members_reads_each_member_apart() {
             },
         ],
         off_members: micros(300),
+        collectives: Vec::new(),
     });
 
     let rendered = Report::new(&measurement);
