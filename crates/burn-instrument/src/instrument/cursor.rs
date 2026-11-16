@@ -42,6 +42,7 @@ use std::sync::Arc;
 use burn_tensor::Device;
 
 use super::component_tree::ComponentId;
+use super::members::Member;
 use cubecl_common::device::{DeviceId, DeviceService, DeviceServiceStage, ServerUtilitiesHandle};
 use cubecl_common::device_handle::DeviceHandle;
 
@@ -97,10 +98,6 @@ thread_local! {
     /// thread, such as the model thread a collective launches its per-member kernels from.
     static MEMBER: Cell<Option<Member>> = const { Cell::new(None) };
 }
-
-/// A member of the profiled device, by its index in member order: `0` on a device of one.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Member(pub usize);
 
 /// How many members a device launches for: one, unless it is a sharded compute device whose
 /// members fuse on workers of their own.

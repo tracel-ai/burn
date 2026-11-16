@@ -41,7 +41,7 @@ use super::cursor::{Attribution, LaunchCursor, MemberCount};
 #[cfg(feature = "fusion")]
 use super::origins::{BlockOrigin, OperationId, OperationOrigins};
 use super::pricing::Floors;
-use super::timing::{Kept, Timed, Timeline, Timings};
+use super::timing::{ReadTiming, Timeline, Timings, UnreadTiming};
 use super::watching::Watching;
 use crate::breakdown::{Breakdown, PerMember};
 use crate::{ComponentObserver, Declaration};
@@ -159,12 +159,12 @@ impl RunRecorder {
         // Read outside the lock: a window the backend could not close on the
         // device resolves by waiting, and a launch still being recorded would
         // wait behind it.
-        let kept = self.locked().timings.take_kept();
-        let timed: Vec<Timed> = kept.into_iter().map(Kept::resolve).collect();
+        let unread = self.locked().timings.take_unread();
+        let read: Vec<ReadTiming> = unread.into_iter().map(UnreadTiming::read).collect();
         let mut state = self.locked();
         #[cfg(feature = "fusion")]
         state.origins.clear();
-        state.settle(timed, self.epoch, self.cursor.members());
+        state.settle(read, self.epoch, self.cursor.members());
     }
 
     /// What the run left behind.
@@ -225,7 +225,7 @@ impl ComponentObserver for RunRecorder {
 impl ExecutionObserver for RunRecorder {
     fn issued(&self, execution: &Execution) {
         if let ExecutionKind::Kernel { name, .. } = execution.kind {
-            self.launched(name);
+            self.count_launch(name);
         }
     }
 
@@ -244,14 +244,14 @@ impl ExecutionObserver for RunRecorder {
             return;
         };
         match measurement {
-            Measurement::Unread(profile) => self.profiled(name, profile),
-            Measurement::Read { duration, method } => self.timed(name, duration, method),
+            Measurement::Unread(profile) => self.keep_unread(name, profile),
+            Measurement::Read { duration, method } => self.credit_read(name, duration, method),
         }
     }
 }
 
 impl RunRecorder {
-    fn launched(&self, kernel: &'static str) {
+    fn count_launch(&self, kernel: &'static str) {
         LaunchCursor::with_placement(|placement| {
             self.locked().tree.count_launch(placement, kernel);
         });
@@ -261,7 +261,7 @@ impl RunRecorder {
     /// [`finish`](RunRecorder::finish). The runtime hands it over on the
     /// thread that issued the launch, inside the same call, so the calling
     /// thread's attribution is still the launch's.
-    fn profiled(&self, kernel: &'static str, profile: ProfileDuration) {
+    fn keep_unread(&self, kernel: &'static str, profile: ProfileDuration) {
         let attribution = LaunchCursor::current();
         let member = LaunchCursor::member();
         self.locked()
@@ -273,7 +273,7 @@ impl RunRecorder {
     /// reads each at its launch and hands the observer the duration. A kernel
     /// read as it launched ran alone, so the run is marked
     /// [`timed_alone`](Breakdown::timed_alone).
-    fn timed(&self, kernel: &'static str, duration: Duration, method: TimingMethod) {
+    fn credit_read(&self, kernel: &'static str, duration: Duration, method: TimingMethod) {
         let attribution = LaunchCursor::current();
         let mut state = self.locked();
         state.timings.read_at_launch(method);
@@ -317,9 +317,9 @@ impl State {
     /// File every timing read back under the component that counted its
     /// launch, charge each device's idle stretches between them, and, over several `members`,
     /// keep what each did.
-    fn settle(&mut self, timed: Vec<Timed>, epoch: Instant, members: MemberCount) {
+    fn settle(&mut self, read: Vec<ReadTiming>, epoch: Instant, members: MemberCount) {
         let mut timeline = Timeline::new(epoch, members);
-        for timed in timed {
+        for timed in read {
             match timed.ticks {
                 Some(ticks) => {
                     self.credit(timed.attribution, timed.kernel, ticks.duration());
@@ -360,11 +360,11 @@ mod tests {
         let recorder = recorder();
         recorder.enter(declared("block"));
         recorder.enter(declared("attention"));
-        recorder.launched("Matmul");
+        recorder.count_launch("Matmul");
         recorder.exit();
-        recorder.launched("Add");
+        recorder.count_launch("Add");
         recorder.exit();
-        recorder.launched("Sample");
+        recorder.count_launch("Sample");
 
         let breakdown = recorder.breakdown();
         let names = |kernels: &[crate::Kernel]| -> Vec<String> {
@@ -391,7 +391,7 @@ mod tests {
         recorder.enter(declared("attention"));
 
         let elsewhere = std::sync::Arc::clone(&recorder);
-        std::thread::spawn(move || elsewhere.launched("Stray"))
+        std::thread::spawn(move || elsewhere.count_launch("Stray"))
             .join()
             .expect("the other thread ran");
         recorder.exit();
@@ -409,8 +409,8 @@ mod tests {
         let recorder = recorder();
         for (label, micros) in [("query", 13), ("key", 5)] {
             recorder.enter(declared(label));
-            recorder.launched("MatmulEntry");
-            recorder.profiled("MatmulEntry", unread_timing(micros));
+            recorder.count_launch("MatmulEntry");
+            recorder.keep_unread("MatmulEntry", unread_timing(micros));
             recorder.exit();
         }
         assert_eq!(
@@ -434,8 +434,8 @@ mod tests {
     fn a_duration_read_at_launch_marks_the_run_timed_alone() {
         let recorder = recorder();
         recorder.enter(declared("query"));
-        recorder.launched("MatmulEntry");
-        recorder.timed(
+        recorder.count_launch("MatmulEntry");
+        recorder.credit_read(
             "MatmulEntry",
             Duration::from_micros(13),
             TimingMethod::Device,

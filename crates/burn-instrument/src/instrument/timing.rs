@@ -5,7 +5,8 @@ use std::time::{Duration, Instant};
 
 use cubecl::profile::{ProfileDuration, ProfileTicks, TimingMethod};
 
-use super::cursor::{Attribution, Member, MemberCount};
+use super::cursor::{Attribution, MemberCount};
+use super::members::{Member, RanOn};
 use crate::breakdown::{MemberTime, PerMember, Unplaced};
 
 /// The timings a run kept, and how far they are to be trusted.
@@ -13,7 +14,7 @@ use crate::breakdown::{MemberTime, PerMember, Unplaced};
 pub struct Timings {
     /// Timings handed over unread, each beside the component its launch was
     /// counted on.
-    kept: Vec<Kept>,
+    unread: Vec<UnreadTiming>,
     /// Whether any launch was timed on the host rather than the device.
     ///
     /// One is enough to taint the totals: a host timing is wall around a
@@ -46,7 +47,7 @@ impl Timings {
         profile: ProfileDuration,
     ) {
         self.host_timed |= !matches!(profile.timing_method(), TimingMethod::Device);
-        self.kept.push(Kept {
+        self.unread.push(UnreadTiming {
             attribution,
             member,
             kernel,
@@ -62,8 +63,8 @@ impl Timings {
     }
 
     /// Every timing kept so far, to read back.
-    pub fn take_kept(&mut self) -> Vec<Kept> {
-        std::mem::take(&mut self.kept)
+    pub fn take_unread(&mut self) -> Vec<UnreadTiming> {
+        std::mem::take(&mut self.unread)
     }
 
     /// A timing of `duration` that no component could account for.
@@ -95,18 +96,18 @@ pub struct TimingQuality {
 }
 
 /// A launch's timing, not yet read back, and the component it belongs to.
-pub struct Kept {
+pub struct UnreadTiming {
     attribution: Attribution,
     member: Option<Member>,
     kernel: &'static str,
     profile: ProfileDuration,
 }
 
-impl Kept {
+impl UnreadTiming {
     /// Read the timing back. Waits for its kernel, so a run reads them
     /// once it has run.
-    pub fn resolve(self) -> Timed {
-        Timed {
+    pub fn read(self) -> ReadTiming {
+        ReadTiming {
             attribution: self.attribution,
             member: self.member,
             kernel: self.kernel,
@@ -116,7 +117,7 @@ impl Kept {
 }
 
 /// A timing read back, or `None` for a window that came back empty.
-pub struct Timed {
+pub struct ReadTiming {
     pub attribution: Attribution,
     pub member: Option<Member>,
     pub kernel: &'static str,
@@ -138,18 +139,6 @@ struct Window {
     ran_on: RanOn,
     start: Duration,
     end: Duration,
-}
-
-/// The device a window ran on, as far as its launching thread tells.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum RanOn {
-    /// The one device a device of one runs everything on, whichever thread launched it.
-    Device,
-    /// A member, launched from its fusion worker.
-    Member(Member),
-    /// Some member, which one unknown: launched from a thread that is no member's worker, so it
-    /// fills no member's gaps and opens none.
-    UnknownMember,
 }
 
 /// What a timeline says about the run once every window is on it.
