@@ -873,6 +873,16 @@ mod parts {
 #[cfg(feature = "fusion")]
 pub(crate) use parts::collective_parts;
 
+/// Held across a whole test that issues a collective: execution observers and the skip guard are
+/// process-wide.
+#[cfg(all(test, any(feature = "cuda", all(feature = "fusion", feature = "hip"))))]
+fn serial() -> std::sync::MutexGuard<'static, ()> {
+    static SERIAL: Mutex<()> = Mutex::new(());
+    SERIAL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 #[cfg(all(test, feature = "cuda"))]
 mod tests {
     use super::*;
@@ -997,6 +1007,7 @@ mod tests {
     #[test]
     #[ignore = "needs two CUDA devices and NCCL"]
     fn a_member_standing_in_for_a_failed_tensor_lets_its_peers_finish() {
+        let _serial = serial();
         use crate::fusion::CubeFusionHandle;
         use burn_fusion::Collective;
         use burn_ir::TensorHandle;
@@ -1049,15 +1060,7 @@ mod observed_parts {
     use burn_ir::TensorHandle;
     use cubecl::benchmark::CommunicationSkipGuard;
     use cubecl::logging::{Execution, ExecutionKind, ExecutionObservation, ExecutionObserver};
-    use std::sync::{Arc, MutexGuard};
-
-    /// Held across a whole test: the observer and the skip guard are process-wide.
-    fn serial() -> MutexGuard<'static, ()> {
-        static SERIAL: Mutex<()> = Mutex::new(());
-        SERIAL
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-    }
+    use std::sync::Arc;
 
     /// Every execution issued while it is installed.
     #[derive(Default)]
