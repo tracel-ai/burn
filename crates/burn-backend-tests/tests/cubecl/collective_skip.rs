@@ -6,6 +6,7 @@ use cubek::cubecl::benchmark::CommunicationSkipGuard;
 /// device skipping communication each member gets the shape it would receive and the all-reduce
 /// leaves each member's own values where emulation would sum them.
 #[test]
+#[serial_test::serial(communication_skip)]
 fn an_emulated_collective_skipping_communication_keeps_shapes_and_skips_the_work() {
     let device = Device::default();
     let burn_dispatch::DispatchDevice::Cube(cube_device) = device.as_dispatch() else {

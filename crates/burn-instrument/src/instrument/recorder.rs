@@ -232,9 +232,11 @@ impl ExecutionObserver for RunRecorder {
     /// Timed, and handed over unread — a breakdown whose kernel components carried
     /// no time would say which kernels ran and nothing about which of them
     /// mattered, and reading each timing at its launch waits for that
-    /// kernel, which executes the run one kernel at a time.
+    /// kernel, which executes the run one kernel at a time. Kernels only: the
+    /// recorder keeps nothing of a communication, so timing one would cost its
+    /// device events for a measurement dropped on arrival.
     fn timing(&self) -> TimingRequest {
-        TimingRequest::Deferred
+        TimingRequest::Deferred(cubecl::logging::Timed::Kernels)
     }
 
     fn measured(&self, execution: &Execution, measurement: Measurement) {
