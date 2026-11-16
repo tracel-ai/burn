@@ -8,11 +8,15 @@ use burn_core::tensor::TensorReadError;
 use systemstat::{Platform, System};
 
 /// CPU Temperature in celsius degrees
+///
+/// Each reading opens the sensor through a new `systemstat::System`: a `System`
+/// is not promised to be `Sync` (on Linux, systemstat 0.2.8 caches the sensor
+/// file in a `RefCell`), and a cached sensor file is never read again from its
+/// start, so every reading after the first would fail.
 #[derive(Clone)]
 pub struct CpuTemperature {
     name: MetricName,
     temp_celsius: f32,
-    sys: Arc<System>,
 }
 
 impl CpuTemperature {
@@ -23,7 +27,6 @@ impl CpuTemperature {
         Self {
             name,
             temp_celsius: 0.,
-            sys: Arc::new(System::new()),
         }
     }
 }
@@ -46,7 +49,7 @@ impl Metric for CpuTemperature {
     }
 
     fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
-        match self.sys.cpu_temp() {
+        match System::new().cpu_temp() {
             Ok(temp) => self.temp_celsius = temp,
             Err(_) => self.temp_celsius = f32::NAN,
         }
@@ -86,5 +89,25 @@ impl Numeric for CpuTemperature {
 
     fn final_value(&self) -> NumericEntry {
         NumericEntry::Value(self.temp_celsius as f64)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression test: with systemstat 0.2.8 a reused `System` reads the
+    /// sensor only once, so the second reading came back as NaN. On a machine
+    /// without a readable sensor, both readings are NaN.
+    #[test]
+    fn a_second_reading_reads_the_sensor_like_the_first() {
+        let mut metric = CpuTemperature::new();
+
+        metric.compute().unwrap();
+        let first = metric.temp_celsius;
+        metric.compute().unwrap();
+        let second = metric.temp_celsius;
+
+        assert_eq!(first.is_nan(), second.is_nan());
     }
 }
