@@ -17,7 +17,8 @@ use cubecl::prelude::InputScalar;
 use cubek::attention::kernels::select::problem::QueryPositions;
 use cubek::attention::kernels::tune::{AttentionTuneInputs, launch_tuned};
 use cubek::attention::kernels::{
-    AttentionScoring, AttentionTensors, AttentionVisibility, QueryPlacement, ScoreScale,
+    AttentionScoring, AttentionTensors, AttentionVisibility, AttentionWeighting, QueryPlacement,
+    ScoreScale,
 };
 use cubek::std::autotune::GroupPriority;
 
@@ -39,7 +40,8 @@ pub(crate) fn routines_take(query: &CubeTensor, key: &CubeTensor, value: &CubeTe
 }
 
 /// How `options` score an attention whose query heads are `head_dim` wide: the keys a query sees,
-/// placed by their window and causal alignment, and the scale, standard where they give none.
+/// placed by their window and causal alignment, the scale, standard where they give none, and the
+/// softmax that weighs them.
 pub(crate) fn scoring(options: &AttentionModuleOptions, head_dim: usize) -> AttentionScoring {
     AttentionScoring {
         visibility: visibility(options),
@@ -47,6 +49,7 @@ pub(crate) fn scoring(options: &AttentionModuleOptions, head_dim: usize) -> Atte
             Some(scale) => ScoreScale::Custom(scale as f32),
             None => ScoreScale::standard(head_dim),
         },
+        weighting: AttentionWeighting::Softmax,
     }
 }
 
