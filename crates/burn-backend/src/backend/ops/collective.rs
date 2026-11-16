@@ -5,8 +5,8 @@ use crate::{
 };
 use alloc::{boxed::Box, vec, vec::Vec};
 use burn_std::{
-    Bytes, DType, QuantScheme, Shape, Slice, TensorData, global_scale_size, params_shape,
-    scale_size,
+    Bytes, DType, QuantScheme, QuantizedBytes, Shape, Slice, TensorData, global_scale_size,
+    params_shape, scale_size,
 };
 use core::{marker::PhantomData, ops::Range};
 
@@ -530,6 +530,17 @@ impl DimSplit {
         if let Some(shard) = parts.iter().position(|part| !part.joins(&parts[0])) {
             return Err(ShardingError::QuantizedScales { shard });
         }
+        // Chunks quantized each on their own can end inside a packed word, whose padding the
+        // whole must not keep.
+        let num_quants = parts[0].scheme.num_quants();
+        let (_, leading) = chunks.split_last().expect("one chunk per member");
+        if parts[0].packed_axis == Some(self.dim)
+            && leading
+                .iter()
+                .any(|chunk| chunk.shape()[self.dim] % num_quants != 0)
+        {
+            return Ok(self.whole_decoded(chunks));
+        }
         let joined = |section: fn(&QuantizedParts) -> &TensorData| {
             let sections: Vec<_> = parts.iter().map(|part| section(part).clone()).collect();
             let split = self.stored_split(&parts[0], &sections[0]);
@@ -544,6 +555,41 @@ impl DimSplit {
         let mut shape = chunks[0].shape().clone();
         shape[self.dim] = self.len;
         Ok(parts[0].chunk(shape, [values.as_bytes(), scales.as_bytes()].into_iter()))
+    }
+
+    /// The whole of quantized `chunks`, their codes and scales decoded, joined and quantized
+    /// again.
+    fn whole_decoded(self, chunks: &[TensorData]) -> TensorData {
+        let DType::QFloat(scheme) = chunks[0].dtype() else {
+            unreachable!("Only quantized data has codes and scales")
+        };
+        let mut global = None;
+        let (codes, scales): (Vec<_>, Vec<_>) = (chunks.iter())
+            .map(|chunk| {
+                let shape = chunk.shape().clone();
+                let (codes, scales) = QuantizedBytes {
+                    bytes: chunk.bytes().clone(),
+                    scheme,
+                    shape: shape.clone(),
+                }
+                .into_vec_i8();
+                global = scales.global;
+                let block = TensorData::new(scales.block, params_shape(&shape, &scheme));
+                (TensorData::new(codes, shape), block)
+            })
+            .unzip();
+        let codes = self.whole_plain(&codes);
+        let scales = match scheme.block_size() {
+            None => scales[0].clone(),
+            Some(_) => {
+                let len = scales.iter().map(|scale| scale.shape()[self.dim]).sum();
+                DimSplit { len, ..self }.whole_plain(&scales)
+            }
+        };
+        let shape = codes.shape().clone();
+        let codes = codes.try_into_vec::<i8>().expect("Codes are i8");
+        let scales = scales.try_into_vec::<f32>().expect("Scales are f32");
+        TensorData::quantized(codes, shape, scheme, &scales, global)
     }
 
     /// The same split over a section of a quantized tensor's stored bytes: along the dim it lies
@@ -764,7 +810,7 @@ mod tests {
     use alloc::vec;
     #[cfg(feature = "std")]
     use burn_std::Reader;
-    use burn_std::{QuantStore, QuantValue, QuantizedBytes, ScaleDtype};
+    use burn_std::{QuantStore, QuantValue, ScaleDtype};
 
     #[test]
     fn a_split_gives_the_first_members_one_more() {
@@ -982,6 +1028,29 @@ mod tests {
                 assert_eq!(split.whole_data(&chunks), Ok(data.clone()));
             }
         }
+    }
+
+    #[test]
+    fn quantized_chunks_ending_inside_a_packed_word_join_repacked() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q4S)
+            .with_store(QuantStore::PackedU32(0));
+        let quantized = |codes: Vec<i8>| {
+            let len = codes.len();
+            TensorData::quantized(codes, [len], scheme, &[1.0], None)
+        };
+        let split = DimSplit {
+            dim: 0,
+            len: 10,
+            members: 2,
+        };
+
+        let whole = split.whole_data(&[
+            quantized(vec![1, 2, 3, 4, 5]),
+            quantized(vec![6, 7, 1, 2, 3]),
+        ]);
+
+        assert_eq!(whole, Ok(quantized(vec![1, 2, 3, 4, 5, 6, 7, 1, 2, 3])));
     }
 
     #[test]
