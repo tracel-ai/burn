@@ -37,7 +37,7 @@ use cubek::matmul::kernels::{
 };
 use cubek::std::{
     Hardware,
-    matmul_axes::{K, M, N},
+    matmul_dimensions::{K, M, N},
 };
 use operand::TraceOperand;
 use runner::SinkRunner;
