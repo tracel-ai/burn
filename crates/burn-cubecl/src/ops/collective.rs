@@ -11,7 +11,7 @@ use burn_backend::{
 };
 use core::{cmp::Ordering, fmt};
 use cubecl::{
-    client::{Client, ClientGroup, ClientGroupError, GroupMember, MemberBuffers},
+    client::{Client, ClientGroup, ClientGroupError, MemberBuffers},
     ir::ElemType,
     logging::{CollectivePath, Communication, ExecutionScope},
     server::{Collective, TransportProvider},
@@ -513,20 +513,6 @@ impl Exchange {
             Self::AllToAll { .. } => clients.all_to_all(buffers),
         }
     }
-
-    /// Queues `member`'s own part.
-    fn run_member(self, member: &GroupMember, elem: ElemType, buffers: MemberBuffers) {
-        match self {
-            Self::AllReduce { op } => {
-                member.all_reduce(buffers, elem, reduce_operation_to_cubecl(op))
-            }
-            Self::AllGather { .. } => member.all_gather(buffers),
-            Self::ReduceScatter { op, .. } => {
-                member.reduce_scatter(buffers, elem, reduce_operation_to_cubecl(op))
-            }
-            Self::AllToAll { .. } => member.all_to_all(buffers),
-        }
-    }
 }
 
 /// A collective the members' group runs natively, with each member's tensor.
@@ -741,9 +727,28 @@ mod parts {
     use burn_backend::cubecl::dtype_to_storage_type;
     use burn_fusion::{Collective, CollectivePart};
     use burn_ir::{BackendIr, TensorHandle};
-    use cubecl::prelude::InputScalar;
+    use cubecl::{
+        client::{Exchange as CubeExchange, MemberPart as CubeMemberPart},
+        prelude::InputScalar,
+        server::Reduction,
+    };
 
     impl Exchange {
+        fn into_cubecl(self, dtype: ElemType) -> CubeExchange {
+            match self {
+                Self::AllReduce { op } => CubeExchange::AllReduce(Reduction {
+                    dtype,
+                    op: reduce_operation_to_cubecl(op),
+                }),
+                Self::AllGather { .. } => CubeExchange::AllGather,
+                Self::ReduceScatter { op, .. } => CubeExchange::ReduceScatter(Reduction {
+                    dtype,
+                    op: reduce_operation_to_cubecl(op),
+                }),
+                Self::AllToAll { .. } => CubeExchange::AllToAll,
+            }
+        }
+
         fn from_fusion(collective: Collective) -> Self {
             match collective {
                 Collective::AllReduce { op } => Self::AllReduce { op },
@@ -782,18 +787,18 @@ mod parts {
         let clients = ranked.iter().map(|device| device.client()).collect();
         let group = NativeGroup::new(clients, shape.clone(), dtype).ok()?;
         exchange.check(&group).ok()?;
-        let (members, elem) = (group.members(), group.elem());
+        let members = group.members();
+        let bytes = (shape.num_elements() * dtype.size()) as u64;
         let parts = group
             .clients
-            .members()
+            .parts(exchange.into_cubecl(group.elem()), bytes)
             .into_iter()
             .zip(ranked)
             .map(|(member, device)| {
                 Box::new(MemberPart {
-                    member,
+                    member: Mutex::new(Some(member)),
                     exchange,
                     members,
-                    elem,
                     stand_in: StandIn {
                         device,
                         shape: shape.clone(),
@@ -807,10 +812,9 @@ mod parts {
 
     /// One member's part, run by its own device.
     struct MemberPart {
-        member: GroupMember,
+        member: Mutex<Option<CubeMemberPart>>,
         exchange: Exchange,
         members: usize,
-        elem: ElemType,
         stand_in: StandIn,
     }
 
@@ -828,8 +832,12 @@ mod parts {
         fn exchange(&self, tensor: CubeTensor) -> CubeTensor {
             let source = self.exchange.source(tensor);
             let output = self.exchange.output(&source, self.members);
-            self.exchange
-                .run_member(&self.member, self.elem, member_buffers(&source, &output));
+            self.member
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .take()
+                .expect("a collective part runs once")
+                .queue(member_buffers(&source, &output));
             self.exchange.restored(output)
         }
     }
