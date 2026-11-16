@@ -513,6 +513,23 @@ impl Exchange {
             Self::AllToAll { .. } => clients.all_to_all(buffers),
         }
     }
+
+    /// This collective as cubecl's group runs it, over elements of `elem`.
+    #[cfg(feature = "fusion")]
+    fn in_cubecl(self, elem: ElemType) -> cubecl::client::Exchange {
+        let reduction = |op| cubecl::server::Reduction {
+            dtype: elem,
+            op: reduce_operation_to_cubecl(op),
+        };
+        match self {
+            Self::AllReduce { op } => cubecl::client::Exchange::AllReduce(reduction(op)),
+            Self::AllGather { .. } => cubecl::client::Exchange::AllGather,
+            Self::ReduceScatter { op, .. } => {
+                cubecl::client::Exchange::ReduceScatter(reduction(op))
+            }
+            Self::AllToAll { .. } => cubecl::client::Exchange::AllToAll,
+        }
+    }
 }
 
 /// A collective the members' group runs natively, with each member's tensor.
@@ -727,7 +744,7 @@ mod parts {
     use burn_backend::cubecl::dtype_to_storage_type;
     use burn_fusion::{Collective, CollectivePart};
     use burn_ir::{BackendIr, TensorHandle};
-    use cubecl::{prelude::InputScalar, server::Reduction};
+    use cubecl::prelude::InputScalar;
 
     impl Exchange {
         fn from_fusion(collective: Collective) -> Self {
@@ -739,22 +756,6 @@ mod parts {
                     split_dim,
                     concat_dim,
                 } => Self::all_to_all(split_dim, concat_dim),
-            }
-        }
-
-        /// This collective as cubecl's group runs it, over elements of `elem`.
-        fn in_cubecl(self, elem: ElemType) -> cubecl::client::Exchange {
-            let reduction = |op| Reduction {
-                dtype: elem,
-                op: reduce_operation_to_cubecl(op),
-            };
-            match self {
-                Self::AllReduce { op } => cubecl::client::Exchange::AllReduce(reduction(op)),
-                Self::AllGather { .. } => cubecl::client::Exchange::AllGather,
-                Self::ReduceScatter { op, .. } => {
-                    cubecl::client::Exchange::ReduceScatter(reduction(op))
-                }
-                Self::AllToAll { .. } => cubecl::client::Exchange::AllToAll,
             }
         }
     }
@@ -1048,7 +1049,15 @@ mod observed_parts {
     use burn_ir::TensorHandle;
     use cubecl::benchmark::CommunicationSkipGuard;
     use cubecl::logging::{Execution, ExecutionKind, ExecutionObservation, ExecutionObserver};
-    use std::sync::Arc;
+    use std::sync::{Arc, MutexGuard};
+
+    /// Held across a whole test: the observer and the skip guard are process-wide.
+    fn serial() -> MutexGuard<'static, ()> {
+        static SERIAL: Mutex<()> = Mutex::new(());
+        SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
 
     /// Every execution issued while it is installed.
     #[derive(Default)]
@@ -1110,6 +1119,7 @@ mod observed_parts {
     #[test]
     #[ignore = "needs two devices with a device transport"]
     fn a_fused_collective_parents_every_members_part() {
+        let _serial = serial();
         let issued = all_reduce_observed();
         let [communication, parts @ ..] = issued.as_slice() else {
             panic!("a communication first: {issued:?}");
@@ -1124,13 +1134,16 @@ mod observed_parts {
             ),
             "{communication:?}"
         );
+        assert!(
+            parts
+                .iter()
+                .all(|part| part.parent == Some(communication.id)),
+            "{issued:?}"
+        );
         let mut placed: Vec<_> = parts
             .iter()
             .map(|part| match part.kind {
-                ExecutionKind::Part { place } => {
-                    assert_eq!(part.parent, Some(communication.id), "{part:?}");
-                    place.service.device
-                }
+                ExecutionKind::Part { place } => place.service.device,
                 _ => panic!("only parts after the communication: {issued:?}"),
             })
             .collect();
@@ -1147,6 +1160,7 @@ mod observed_parts {
     #[test]
     #[ignore = "needs two devices with a device transport"]
     fn a_skipped_fused_collective_is_one_communication_and_no_part() {
+        let _serial = serial();
         let clients: Vec<_> = two_devices().iter().map(CubeDevice::client).collect();
         let _skip = CommunicationSkipGuard::enter(&clients);
         let issued = all_reduce_observed();
