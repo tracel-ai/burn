@@ -83,10 +83,9 @@ mod tests {
         );
     }
 
-    /// An NVFP4 projection a load laid in tile order for a device's instruction is read packed as
-    /// it is stored, and multiplies as the same weight in rows does. Refused, the matmul fell back
-    /// to dequantizing it, which a storage-tiled tensor refuses: the product panicked. Runs where
-    /// the device stores a tile for the weight against a bf16 activation.
+    /// An NVFP4 projection laid in tile order is read packed as it is stored, and multiplies as
+    /// the same weight in rows does. Runs where the device stores a tile for the weight against
+    /// a bf16 activation.
     #[test]
     fn a_packed_matrix_in_tile_order_is_read_as_stored() {
         use burn_backend::{TensorPrimitive, ops::FloatTensorOps};
