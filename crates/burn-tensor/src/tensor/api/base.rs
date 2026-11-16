@@ -1895,6 +1895,47 @@ where
         )
     }
 
+    /// Fills the `true` positions of `mask`, in row-major order, with consecutive elements of
+    /// `source`.
+    ///
+    /// `source` must hold exactly one element per `true` position in `mask`.
+    ///
+    /// # Panics
+    ///
+    /// - If `source` is not 1D.
+    /// - If `source` does not hold one element per `true` position in `mask`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// let device = Default::default();
+    /// let tensor = Tensor::<1>::from_data([0.0, 0.0, 0.0, 0.0, 0.0], &device);
+    /// let mask = Tensor::<1, Bool>::from_data([true, false, true, true, false], &device);
+    /// let source = Tensor::<1>::from_data([10.0, 20.0, 30.0], &device);
+    /// let output = tensor.masked_scatter(mask, source);
+    /// println!("{output}");
+    /// // [10.0, 0.0, 20.0, 30.0, 0.0]
+    /// ```
+    pub fn masked_scatter(self, mask: Tensor<D, Bool>, source: Tensor<1, K>) -> Self {
+        let shape = self.shape();
+        let device = self.device();
+        let flat_mask = mask.flatten::<1>(0, D - 1);
+        // Indices of the `true` positions, in row-major order.
+        let n = flat_mask.dims()[0];
+        let indices = Tensor::<1, Int>::arange(0..n as i64, &device).mask_select(flat_mask);
+
+        check!(TensorCheck::masked_scatter(
+            &source.shape(),
+            indices.dims()[0]
+        ));
+
+        self.flatten::<1>(0, D - 1)
+            .scatter(0, indices, source, IndexingUpdateOp::Assign)
+            .reshape(shape)
+    }
+
     /// Selects the elements of the tensor where `mask` is `true`, returned as a 1D tensor in the
     /// order of the flattened input tensor.
     ///

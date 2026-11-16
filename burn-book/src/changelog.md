@@ -597,6 +597,11 @@ own a random generator.
   Larger indices are still rejected. Third-party backends must accept these shapes in
   `*_gather` and `*_scatter`. ([#6381](https://github.com/tracel-ai/burn/pull/6381))
 
+- Add `Tensor::masked_scatter`, which fills the `true` positions of a mask, in row-major order, with
+  consecutive elements of a source tensor. It is implemented as a composition of `arange`,
+  `mask_select` and `scatter`, so every backend supports it without a new primitive.
+  ([#6500](https://github.com/tracel-ai/burn/issues/6500))
+
 #### Tensor one-hot encoding
 
 - Return off-value rows from `one_hot_fill` for out-of-range indices, including NaN and infinity.

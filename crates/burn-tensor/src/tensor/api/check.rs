@@ -974,6 +974,31 @@ impl TensorCheck {
         Self::check_gather_scatter_indices::<D>(Self::Ok, "Gather", dim, shape, shape_indices)
     }
 
+    pub(crate) fn masked_scatter(shape_source: &Shape, n_true: usize) -> Self {
+        let ops = "MaskedScatter";
+        let mut check = Self::Ok;
+
+        if shape_source.rank() != 1 {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "The source tensor should be 1D, but got rank {}",
+                    shape_source.rank()
+                )),
+            );
+        } else if shape_source.dims::<1>()[0] != n_true {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "The source tensor should hold one element per `true` position in the mask, but got {} elements for {n_true} `true` positions",
+                    shape_source.dims::<1>()[0]
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn scatter<const D: usize>(
         dim: usize,
         shape: &Shape,
