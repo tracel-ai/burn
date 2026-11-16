@@ -212,6 +212,7 @@ Reports also include the measured cost of a kernel launch.
   the member whose device ran them, so a sharded compute device whose members do not fuse is timed
   per member too; `DispatchDevice::shard_member_ids` names the members' devices. Measurement files
   are version 6.
+  ([#6527](https://github.com/tracel-ai/burn/pull/6527))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Flex SIMD operations
