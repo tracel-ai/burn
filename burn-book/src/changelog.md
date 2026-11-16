@@ -480,6 +480,11 @@ whose tensors are split over `devices` (crate `burn-shard`).
   [#6408](https://github.com/tracel-ai/burn/pull/6408))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- `DimSplit::data_chunks` and `DimSplit::whole_data` cut and join a quantized tensor's stored
+  words and scales as bytes, instead of decoding every code and scale and quantizing each chunk
+  again, so splitting a quantized checkpoint over a sharded compute device is a copy.
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 - A quantized tensor moves between two sharded compute devices, its codes and scales unchanged,
   instead of panicking in the router. **Breaking:** `MultiBackendBridge` implementers must add
   `change_backend_quantized`. ([#6474](https://github.com/tracel-ai/burn/pull/6474))
