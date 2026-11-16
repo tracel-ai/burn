@@ -8,23 +8,23 @@ fn main() {
     let rocm = cfg!(feature = "rocm");
     let cpu = cfg!(feature = "cpu");
     let metal = cfg!(feature = "metal");
-    let metal_native = cfg!(feature = "metal-native");
+    let wgpu_msl = cfg!(feature = "wgpu-msl");
     let vulkan = cfg!(feature = "vulkan");
     let webgpu = cfg!(feature = "webgpu");
     let wgpu = cfg!(feature = "wgpu");
 
     let remote = cfg!(feature = "remote");
     let capture = cfg!(feature = "capture");
-    // A group's members run Cube or Flex, so it executes nothing of its own, but it still puts a
+    // A sharded compute device's members run Cube or Flex, so it executes nothing of its own, but it still puts a
     // variant in the dispatch enums.
-    let group = cfg!(feature = "group");
+    let shard = cfg!(feature = "shard");
 
-    let cube = cuda || rocm || cpu || metal || metal_native || vulkan || webgpu || wgpu;
+    let cube = cuda || rocm || cpu || metal || wgpu_msl || vulkan || webgpu || wgpu;
     let local = cube || flex;
     let executing = local || remote;
 
     // Backend-free builds expose tensor/model APIs without installing an execution backend.
-    if executing || capture || group {
+    if executing || capture || shard {
         println!("cargo::rustc-cfg=backend_enabled");
     }
 

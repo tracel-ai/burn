@@ -39,17 +39,22 @@ impl BoolTensorOps<Self> for Dispatch {
     }
 
     #[backend_dispatch(skip)]
-    fn bool_to_device(tensor: BoolTensor<Self>, device: &DispatchDevice) -> BoolTensor<Self> {
+    fn bool_to_device(
+        tensor: BoolTensor<Self>,
+        device: &DispatchDevice,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         to_device!(
             Bool,
             bool,
             tensor,
             device,
-            bool_to_device,
-            |inner, device| {
-                let data =
-                    burn_backend::read_sync(B1::bool_into_data(inner)).expect("Should read data");
-                B2::bool_from_data(data, device)
+            bool_to_device(out_dtype),
+            |inner, target| {
+                let data = burn_backend::read_sync(B1::bool_into_data(inner))
+                    .expect("Should read data")
+                    .convert_dtype(out_dtype.into());
+                B2::bool_from_data(data, target)
             }
         )
     }

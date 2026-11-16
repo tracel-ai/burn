@@ -1,5 +1,6 @@
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor};
 use alloc::vec::Vec;
+use burn_backend::RandomKey;
 
 use burn_backend::{
     Backend, Distribution, ExecutionError, Scalar, TensorData,
@@ -311,8 +312,9 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         distribution: Distribution,
         device: &Device<Self>,
         dtype: IntDType,
+        key: RandomKey,
     ) -> IntTensor<Self> {
-        B::int_random(shape, distribution, device, dtype)
+        B::int_random(shape, distribution, device, dtype, key)
     }
 
     fn int_arange(

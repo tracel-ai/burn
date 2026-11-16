@@ -20,11 +20,32 @@ use burn_tensor::{Device, MatmulTile, MemoryAccess, PeakKey};
 fn a_device_describes_itself() {
     let device = Device::default();
 
+    // WGPU's default selector has no description until an adapter is named explicitly.
+    #[cfg(feature = "wgpu")]
+    let device = match device.as_dispatch() {
+        burn_dispatch::DispatchDevice::Cube(burn_dispatch::devices::CubeDevice::Wgpu(_)) => {
+            Device::enumerate(burn_tensor::DeviceType::Wgpu)
+                .into_iter()
+                .next()
+                .expect("a WGPU adapter is available")
+        }
+        _ => device,
+    };
+
     let description = device
         .description()
         .expect("the driver describes the device");
 
     assert!(!description.name.is_empty(), "{description:?}");
+}
+
+/// WGPU chooses the default adapter when opening a client, so a driver-only query has no name.
+#[cfg(feature = "wgpu")]
+#[test]
+fn the_default_wgpu_selector_has_no_description() {
+    let device = Device::wgpu(burn_tensor::DeviceKind::DefaultDevice);
+
+    assert!(device.description().is_none());
 }
 
 /// The counters answer, whichever of them the card keeps: a figure is a reading or nothing,

@@ -173,9 +173,16 @@ impl BasicOps for Bool {
     }
 
     fn to_device(tensor: BridgeTensor, device: &Device) -> BridgeTensor {
+        let dtype = tensor.dtype();
+        let out_dtype = if device.supports_dtype(dtype) {
+            dtype.into()
+        } else {
+            device.get_or_init_settings().bool_dtype
+        };
         BridgeTensor::bool(Dispatch::bool_to_device(
             tensor.into(),
             device.as_dispatch(),
+            out_dtype,
         ))
     }
 

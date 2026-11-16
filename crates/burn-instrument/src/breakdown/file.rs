@@ -21,7 +21,7 @@ const FORMAT_BEFORE_VERSION_3: &str = "burn-instrument pass";
 ///
 /// Every change to what a file serializes as (a field added, removed, renamed or re-encoded) is a
 /// new version, so a saved measurement is read back as it was taken or not at all.
-pub const MEASUREMENT_FILE_VERSION: u32 = 4;
+pub const MEASUREMENT_FILE_VERSION: u32 = 5;
 
 /// An instrumented run and what it is scored against: what a measurement file holds.
 ///
@@ -180,7 +180,7 @@ mod tests {
     use burn_tensor::FloatDType;
 
     use super::*;
-    use crate::breakdown::{Component, Kernel, Unplaced, Variant};
+    use crate::breakdown::{Component, Kernel, MemberTime, PerMember, Unplaced, Variant};
     use crate::{Bounds, ComponentPath, ComputePeak};
 
     /// A measurement written and read back is the one that was written, so one taken on a device
@@ -206,13 +206,13 @@ mod tests {
         assert_eq!(read.clean_wall, None);
     }
 
-    /// The format version 4 is, field for field. A change that fails this test is a new
+    /// The format version 5 is, field for field. A change that fails this test is a new
     /// [`MEASUREMENT_FILE_VERSION`], not an edit to the expected text.
     #[test]
-    fn version_four_is_pinned() {
+    fn version_five_is_pinned() {
         let expected = r#"{
   "format": "burn-instrument measurement",
-  "version": 4,
+  "version": 5,
   "device": "Rocm(0)",
   "peaks": {
     "copy_bytes_per_s": 161000000000.0,
@@ -270,12 +270,25 @@ mod tests {
       "timings": 0,
       "total": 0
     },
-    "unfused": false
+    "unfused": false,
+    "per_member": {
+      "members": [
+        {
+          "on_device": 900,
+          "idle": 40
+        },
+        {
+          "on_device": 600,
+          "idle": 340
+        }
+      ],
+      "off_members": 25
+    }
   }
 }"#;
         assert_eq!(written(&measurement()), expected);
         assert_eq!(
-            Measurement::read(expected.as_bytes()).expect("version 4 reads"),
+            Measurement::read(expected.as_bytes()).expect("version 5 reads"),
             measurement(),
             "and reads back as the measurement it pins"
         );
@@ -319,7 +332,7 @@ mod tests {
             Measurement::read(wide.as_bytes()),
             Err(MeasurementFileError::UnsupportedVersion {
                 found: 4_294_967_296,
-                supported: 4
+                supported: MEASUREMENT_FILE_VERSION
             })
         ));
     }
@@ -334,7 +347,7 @@ mod tests {
             Measurement::read(file.as_bytes()),
             Err(MeasurementFileError::UnsupportedVersion {
                 found: 1,
-                supported: 4
+                supported: MEASUREMENT_FILE_VERSION
             })
         ));
     }
@@ -395,6 +408,19 @@ mod tests {
                 timed_alone: false,
                 unplaced: Unplaced::default(),
                 unfused: false,
+                per_member: Some(PerMember {
+                    members: vec![
+                        MemberTime {
+                            on_device: Duration::from_nanos(900),
+                            idle: Duration::from_nanos(40),
+                        },
+                        MemberTime {
+                            on_device: Duration::from_nanos(600),
+                            idle: Duration::from_nanos(340),
+                        },
+                    ],
+                    off_members: Duration::from_nanos(25),
+                }),
             },
         }
     }

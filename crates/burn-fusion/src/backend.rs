@@ -1,12 +1,15 @@
 use crate::{
-    FusionTensor,
+    Collective, CollectivePart, FusionTensor,
     client::GlobalFusionClient,
     stream::{Context, OrderedExecution},
 };
+use burn_backend::RandomKey;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceOps, DeviceTelemetry,
-    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
-    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, profile_with_tokens,
+    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
+    ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
+    ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned, Shape,
+    profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -49,9 +52,11 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     }
 
     fn seed(device: &B::Device, seed: u64) {
-        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
-        let device = device.clone();
-        client.sync(move || B::seed(&device, seed));
+        B::seed(device, seed);
+    }
+
+    fn next_random_key(device: &Self::Device) -> RandomKey {
+        B::next_random_key(device)
     }
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
@@ -161,6 +166,70 @@ impl<B: FusionBackend> Backend for Fusion<B> {
                 closed.and(Err(server_error(err)))
             }
         }
+    }
+
+    fn environment_create(
+        device: &Self::Device,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_create(device, name, origin)
+    }
+
+    /// Activated after the calling stream's queue drains, so what was
+    /// registered before compiles into the environment it was registered in.
+    fn environment_activate(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::environment_activate(&device, id))
+            .map_err(server_error)?
+    }
+
+    fn environment_active(device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_active(device)
+    }
+
+    /// Saved after the calling stream's queue drains, so what it compiles is
+    /// in the save.
+    fn environment_save(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::environment_save(&device, id))
+            .map_err(server_error)?
+    }
+
+    fn environment_merge(
+        device: &Self::Device,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::environment_merge(&device, id, origin))
+            .map_err(server_error)?
+    }
+
+    /// Pruned after the calling stream's queue drains, so what it compiles is
+    /// pruned or kept with the rest.
+    fn environment_prune(
+        device: &Self::Device,
+        id: EnvironmentId,
+        options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::environment_prune(&device, id, options))
+            .map_err(server_error)?
     }
 
     fn ad_enabled(_device: &Self::Device) -> bool {
@@ -470,6 +539,18 @@ pub trait FusionBackend:
     /// mode instead (see the `Backend` impl). Defaults to a no-op for
     /// backends without allocation modes.
     fn memory_persistent(_device: &Self::Device, _enabled: bool) {}
+
+    /// Each member's part of `collective` over members on `devices` of `shape` and `dtype`,
+    /// member `i` at position `i`, when each member's device runs its own part natively.
+    ///
+    /// Fusion queues each part on its member's stream, so the caller never waits for the members.
+    /// `None` when the members cannot run it so, which Fusion then runs on the caller.
+    fn collective_parts(
+        devices: &[Self::Device],
+        shape: &Shape,
+        dtype: DType,
+        collective: Collective,
+    ) -> Option<Vec<Box<dyn CollectivePart<Self>>>>;
 }
 
 // Fusion implements `BackendIr` to enable router backend usage.

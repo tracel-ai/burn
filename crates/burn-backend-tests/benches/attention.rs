@@ -75,6 +75,7 @@ macro_rules! bench_attention {
                         v.clone(),
                         None,
                         None,
+                        None,
                         Default::default(),
                     )
                 });
@@ -94,6 +95,7 @@ macro_rules! bench_attention {
                             v.clone(),
                             None,
                             None,
+                            None,
                             Default::default(),
                         )
                     });
@@ -107,6 +109,7 @@ macro_rules! bench_attention {
                             q.clone(),
                             k.clone(),
                             v.clone(),
+                            None,
                             None,
                             None,
                             Default::default(),
@@ -124,6 +127,7 @@ macro_rules! bench_attention {
                             v.clone(),
                             None,
                             None,
+                            None,
                             Default::default(),
                         )
                     });
@@ -137,6 +141,7 @@ macro_rules! bench_attention {
                             q.clone(),
                             k.clone(),
                             v.clone(),
+                            None,
                             None,
                             None,
                             Default::default(),
@@ -154,6 +159,7 @@ macro_rules! bench_attention {
                             v.clone(),
                             None,
                             None,
+                            None,
                             Default::default(),
                         )
                     });
@@ -167,6 +173,7 @@ macro_rules! bench_attention {
                             q.clone(),
                             k.clone(),
                             v.clone(),
+                            None,
                             None,
                             None,
                             Default::default(),
@@ -190,7 +197,15 @@ macro_rules! bench_attention {
                 fn b1_h12_s128_d64(bencher: Bencher) {
                     let (q, k, v) = make_qkv(1, 12, 128, 128, 64);
                     bencher.bench_synced(|| {
-                        attention(q.clone(), k.clone(), v.clone(), None, None, causal_opts())
+                        attention(
+                            q.clone(),
+                            k.clone(),
+                            v.clone(),
+                            None,
+                            None,
+                            None,
+                            causal_opts(),
+                        )
                     });
                 }
 
@@ -198,7 +213,15 @@ macro_rules! bench_attention {
                 fn b1_h12_s256_d64(bencher: Bencher) {
                     let (q, k, v) = make_qkv(1, 12, 256, 256, 64);
                     bencher.bench_synced(|| {
-                        attention(q.clone(), k.clone(), v.clone(), None, None, causal_opts())
+                        attention(
+                            q.clone(),
+                            k.clone(),
+                            v.clone(),
+                            None,
+                            None,
+                            None,
+                            causal_opts(),
+                        )
                     });
                 }
 
@@ -206,7 +229,15 @@ macro_rules! bench_attention {
                 fn b1_h12_s512_d64(bencher: Bencher) {
                     let (q, k, v) = make_qkv(1, 12, 512, 512, 64);
                     bencher.bench_synced(|| {
-                        attention(q.clone(), k.clone(), v.clone(), None, None, causal_opts())
+                        attention(
+                            q.clone(),
+                            k.clone(),
+                            v.clone(),
+                            None,
+                            None,
+                            None,
+                            causal_opts(),
+                        )
                     });
                 }
             }
@@ -226,6 +257,7 @@ macro_rules! bench_attention {
                             v.clone(),
                             None,
                             Some(bias.clone()),
+                            None,
                             Default::default(),
                         )
                     });
@@ -242,6 +274,7 @@ macro_rules! bench_attention {
                             v.clone(),
                             None,
                             Some(bias.clone()),
+                            None,
                             Default::default(),
                         )
                     });
@@ -262,6 +295,7 @@ macro_rules! bench_attention {
                             v.clone(),
                             None,
                             None,
+                            None,
                             Default::default(),
                         )
                     });
@@ -275,6 +309,7 @@ macro_rules! bench_attention {
                             q.clone(),
                             k.clone(),
                             v.clone(),
+                            None,
                             None,
                             None,
                             Default::default(),
@@ -322,7 +357,15 @@ macro_rules! bench_attention {
                 fn prefill_b1_h32_kv8_s512_d128(bencher: Bencher) {
                     let (q, k, v) = half(grouped(1, 512, 512));
                     bencher.bench_synced(|| {
-                        attention(q.clone(), k.clone(), v.clone(), None, None, causal_opts())
+                        attention(
+                            q.clone(),
+                            k.clone(),
+                            v.clone(),
+                            None,
+                            None,
+                            None,
+                            causal_opts(),
+                        )
                     });
                 }
 
@@ -336,6 +379,7 @@ macro_rules! bench_attention {
                             v.clone(),
                             None,
                             None,
+                            None,
                             Default::default(),
                         )
                     });
@@ -345,7 +389,15 @@ macro_rules! bench_attention {
                 fn training_f32_b4_h32_kv8_s512_d128(bencher: Bencher) {
                     let (q, k, v) = grouped(4, 512, 512);
                     bencher.bench_synced(|| {
-                        attention(q.clone(), k.clone(), v.clone(), None, None, causal_opts())
+                        attention(
+                            q.clone(),
+                            k.clone(),
+                            v.clone(),
+                            None,
+                            None,
+                            None,
+                            causal_opts(),
+                        )
                     });
                 }
             }

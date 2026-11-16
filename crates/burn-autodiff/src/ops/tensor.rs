@@ -1,4 +1,5 @@
 use alloc::{boxed::Box, vec, vec::Vec};
+use burn_backend::RandomKey;
 use core::marker::PhantomData;
 
 #[cfg(not(feature = "std"))]
@@ -121,8 +122,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         distribution: burn_backend::Distribution,
         device: &Device<Self>,
         dtype: FloatDType,
+        key: RandomKey,
     ) -> FloatTensor<Self> {
-        AutodiffTensor::new(B::float_random(shape, distribution, device, dtype))
+        AutodiffTensor::new(B::float_random(shape, distribution, device, dtype, key))
     }
 
     fn float_zeros(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {

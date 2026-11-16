@@ -1,5 +1,5 @@
 use super::{init_matmul_output, tile};
-use crate::{kernel::quantization::dequantize, tensor::CubeTensor};
+use crate::tensor::CubeTensor;
 use burn_backend::DType;
 use burn_std::{MatmulTransformAnalysis, MatmulTransformPolicy};
 use cubek::matmul::{
@@ -38,24 +38,9 @@ impl From<MatmulStrategy> for MatmulOpStrategy {
     }
 }
 
-fn is_two_level(tensor: &CubeTensor) -> bool {
-    match tensor.dtype {
-        DType::QFloat(scheme) => burn_backend::quantization::global_scale_dtype(&scheme).is_some(),
-        _ => false,
-    }
-}
-
-fn maybe_dequantize(tensor: CubeTensor, dtype: DType) -> CubeTensor {
-    if is_two_level(&tensor) {
-        dequantize(tensor, dtype)
-    } else {
-        tensor
-    }
-}
-
 /// Launch a matmul kernel using the given strategy.
 pub fn matmul(
-    lhs: CubeTensor,
+    mut lhs: CubeTensor,
     rhs: CubeTensor,
     out: Option<CubeTensor>,
     strategy: MatmulStrategy,
@@ -63,18 +48,14 @@ pub fn matmul(
 ) -> Result<CubeTensor, MatmulSetupError> {
     let out = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
 
-    // No routine of cubek's autotune reads a scheme with a tensor-wide scale, so such an input
-    // is dequantized up front.
-    let mut lhs = maybe_dequantize(lhs, out_dtype);
-    let rhs = maybe_dequantize(rhs, out_dtype);
-
     // A broadcast-rhs batched matmul that would tile poorly is folded into a
     // single matmul: `[.., b, m, k] @ [.., 1, k, n]` runs as `[.., 1, b*m, k]`
     // instead of `b` matmuls that each re-read the whole rhs. Pure metadata —
     // the launch operands share the handles, the returned tensor keeps the
-    // broadcast shape.
+    // broadcast shape. The analysis reads row strides, which a storage-tiled
+    // operand does not have.
     let mut out_launch = out.clone();
-    if lhs.qparams.is_none() {
+    if lhs.qparams.is_none() && !lhs.meta.is_tiled() && !rhs.meta.is_tiled() {
         let analysis = MatmulTransformAnalysis::from_metadata(&lhs.meta, &rhs.meta, &out.meta);
         let action = MatmulTransformPolicy::default().action(&analysis);
         action.apply(&mut lhs.meta);

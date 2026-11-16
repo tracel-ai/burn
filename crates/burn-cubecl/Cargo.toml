@@ -44,8 +44,8 @@ cuda = ["cubecl/cuda", "burn-backend/cubecl-cuda"]
 hip = ["cubecl/hip", "burn-backend/cubecl-hip"]
 cpu = ["cubecl/cpu", "burn-backend/cubecl-cpu"]
 wgpu = ["cubecl/wgpu", "burn-backend/cubecl-wgpu"]
-metal = ["wgpu", "cubecl/metal", "burn-backend/cubecl-metal"]
-metal-native = ["cubecl/metal-native", "burn-backend/cubecl-metal-native"]
+wgpu-msl = ["wgpu", "cubecl/wgpu-msl", "burn-backend/cubecl-wgpu-msl"]
+metal = ["cubecl/metal", "burn-backend/cubecl-metal"]
 vulkan = ["wgpu", "cubecl/vulkan", "burn-backend/cubecl-vulkan"]
 webgpu = ["wgpu", "cubecl/webgpu", "burn-backend/cubecl-webgpu"]
 
@@ -115,6 +115,8 @@ serde = { workspace = true }
 text_placeholder = { workspace = true, features = ["struct_context"] }
 
 [dev-dependencies]
+# The fusion inspector, for the tests that assert which operations ran fused.
+burn-fusion = { workspace = true, features = ["test-util"] }
 cubecl = { workspace = true, features = ["test-runtime"] }
 
 [package.metadata.docs.rs]

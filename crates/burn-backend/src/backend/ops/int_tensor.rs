@@ -1,6 +1,7 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
+use crate::RandomKey;
 use crate::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{Backend, Distribution, TensorData, TensorMetadata};
 use crate::{ExecutionError, Scalar, get_or_init_device_settings};
@@ -1221,20 +1222,26 @@ pub trait IntTensorOps<B: Backend> {
 
     /// Creates a new int tensor with random values.
     ///
-    ///  # Arguments
-    ///  * `shape` - The shape of the tensor.
-    ///  * `distribution` - The distribution to sample from.
-    ///  * `device` - The device to create the tensor on.
+    /// # Arguments
+    /// * `shape` - The shape of the tensor.
+    /// * `distribution` - The distribution to sample from.
+    /// * `device` - The device to create the tensor on.
     /// * `dtype` - The target data type.
+    /// * `key` - Explicit randomness for this operation.
     ///
-    ///  # Returns
+    /// # Returns
     ///
-    ///  The tensor with the given shape and random values.
+    /// The tensor with the given shape and random values.
+    ///
+    /// This must use only the supplied key without reading or changing the backend's implicit
+    /// RNG state. Deferred backends retain the key so scheduling and later reseeding cannot
+    /// affect the draw.
     fn int_random(
         shape: Shape,
         distribution: Distribution,
         device: &Device<B>,
         dtype: IntDType,
+        key: RandomKey,
     ) -> IntTensor<B>;
 
     /// Creates a new tensor with values from the given range with the given step size.

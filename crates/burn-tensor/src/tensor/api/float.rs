@@ -15,7 +15,6 @@ use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Float, Int, TensorPrimitive};
 #[cfg(feature = "std")]
 use burn_backend::AutodiffBackend;
-use burn_backend::ElementConversion;
 use burn_backend::Scalar;
 use burn_backend::TensorMetadata;
 #[cfg(feature = "std")]
@@ -25,6 +24,7 @@ use burn_backend::ops::FloatTensorOps;
 use burn_backend::ops::GridSampleOptions;
 use burn_backend::ops::QTensorOps;
 use burn_backend::quantization::QuantizationParametersPrimitive;
+use burn_backend::{Backend, ElementConversion};
 use burn_dispatch::Dispatch;
 use core::f32;
 
@@ -1202,11 +1202,13 @@ fn int_impl(p: BridgeTensor, device: Device) -> BridgeTensor {
 }
 
 fn random_like_impl(p: &BridgeTensor, distribution: Distribution) -> BridgeTensor {
+    let device = p.as_dispatch().device();
     BridgeTensor::float(Dispatch::float_random(
         p.shape(),
         distribution,
-        &p.as_dispatch().device(),
+        &device,
         p.dtype().into(),
+        Dispatch::next_random_key(&device),
     ))
 }
 

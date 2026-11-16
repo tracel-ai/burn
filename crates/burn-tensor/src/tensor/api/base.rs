@@ -1659,6 +1659,9 @@ where
 
     /// Moves the tensor to the target device's compute resource.
     ///
+    /// Boolean values and storage dtype are preserved when the destination supports that storage.
+    /// Otherwise, boolean tensors use the destination's configured bool storage dtype.
+    ///
     /// This operation preserves the tensor's autodiff association and gradient-checkpointing
     /// strategy; the target device's autodiff configuration isn't applied. Tensors newly created
     /// on a device inherit its configuration, while tensors moved to that device retain their
@@ -1918,11 +1921,12 @@ where
     ///
     /// # Notes
     ///
-    /// The index tensor should have the same shape as the original tensor except for the dim
-    /// specified.
+    /// The index tensor must not be larger than the original tensor on any dimension except the
+    /// specified dim (`indices.shape[d] <= tensor.shape[d]` for `d != dim`), like PyTorch's
+    /// `gather`. The output has the shape of the index tensor.
     ///
     /// # Warning
-    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
+    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn gather(self, dim: impl AsIndex, indices: Tensor<D, Int>) -> Self {
         let dim = unwrap_dim_index(dim.try_dim_index(D), "Gather");
@@ -1968,8 +1972,10 @@ where
     ///
     /// # Notes
     ///
-    /// The index tensor should have the same shape as the original tensor except for the specified
-    /// dimension. The value and index tensors should have the same shape.
+    /// The index tensor must not be larger than the original tensor on any dimension except the
+    /// specified one (`indices.shape[d] <= tensor.shape[d]` for `d != dim`), like PyTorch's
+    /// `scatter`; only the positions it covers are updated. The value and index tensors must
+    /// have the same shape.
     ///
     /// For booleans, `Add` and `Max` are logical or, and `Mul` and `Min` are logical and.
     ///
@@ -1989,7 +1995,7 @@ where
     /// Other references to the input tensor will not be modified by this operation.
     ///
     /// # Warning
-    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
+    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     ///
     /// # Panics
@@ -2368,6 +2374,27 @@ where
     }
 
     /// Create a tensor from the given data on the given device.
+    ///
+    /// For `Float` and `Int` tensors, the dtype follows the
+    /// [creation options](TensorCreationOptions). Without an explicit `dtype`, it defaults to the
+    /// [device settings](crate::DeviceSettings), so `Int` tensors created from `i64` data use the
+    /// device's default int dtype unless a dtype is passed explicitly. `Bool` tensors always use
+    /// the device's default bool storage.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{DType, Int, Tensor, TensorData};
+    ///
+    /// let device = Default::default();
+    /// let data = TensorData::new(vec![1i64, 2], [2]);
+    ///
+    /// // The device's default int dtype is used (I32 on Flex), not the data dtype.
+    /// let tensor = Tensor::<1, Int>::from_data(data.clone(), &device);
+    ///
+    /// // Pass the dtype explicitly to create an I64 tensor from the same data.
+    /// let tensor = Tensor::<1, Int>::from_data(data, (&device, DType::I64));
+    /// ```
     pub fn from_data<T>(data: T, options: impl Into<TensorCreationOptions>) -> Self
     where
         T: Into<TensorData>,

@@ -456,13 +456,16 @@ impl ScalarArgument {
     /// the callable takes, so encoding another primitive is a compile error at the annotation
     /// rather than a scalar the server converts.
     pub fn to_ir(&self, check: DecodeCheck) -> TokenStream {
+        // The clone is the macro's, not the caller's: built at the call site, so lints such as
+        // `clippy::clone_on_copy` don't land on the caller's `scalar = ..` expression.
         let encode = &self.encode;
+        let owned = quote!((#encode).clone());
         match (&self.decode, check) {
             (ScalarDecode::Callable(decode), DecodeCheck::Enforce) => {
-                quote_spanned!(decode.span()=> burn::backend::fusion::custom::encode_scalar((#encode).clone(), &(#decode)))
+                quote_spanned!(decode.span()=> burn::backend::fusion::custom::encode_scalar(#owned, &(#decode)))
             }
             _ => quote!(burn::backend::fusion::custom::ScalarIr::from(
-                burn::backend::Scalar::from((#encode).clone())
+                burn::backend::Scalar::from(#owned)
             )),
         }
     }

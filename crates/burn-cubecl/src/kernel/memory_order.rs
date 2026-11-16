@@ -19,13 +19,24 @@
 //! a later reshape that cannot be expressed through strides must materialize
 //! logical value order. The extra copy can outweigh the elementwise speedup.
 //! Choosing the order here cannot account for consumers that have not run yet.
+//!
+//! A storage-tiled operand is walked the same way, one step further: its buffer is a strided
+//! tensor of more dims, the fragments its tiling splits each dim into. The kernel walks those
+//! physical dims, every other operand restated over them by strides, and the output takes the
+//! tiling back. A tiled tensor goes through an elementwise operation with no relayout and comes
+//! out tiled; an optimizer step keeps a tiled weight tiled.
 
+use burn_backend::TensorMetadata;
 use burn_std::{
-    Shape,
+    Metadata, Shape,
     tensor::layout::{DimOrder, is_contiguous_order, nested_dim_order},
 };
 
-use crate::{ops::permute, tensor::CubeTensor};
+use crate::{
+    kernel::untile,
+    ops::{expand, permute},
+    tensor::CubeTensor,
+};
 
 /// Runs `launch` with the operands permuted into their memory order, and
 /// permutes what it returns back.
@@ -35,11 +46,20 @@ use crate::{ops::permute, tensor::CubeTensor};
 /// operands of exactly that shape vote on the order. This favors full-sized
 /// inputs over broadcast parameters; large broadcast inputs may still incur
 /// significant traffic. Every operand permutes along with the output shape.
+///
+/// A storage-tiled operand of that shape first sets the dims walked: its physical ones
+/// ([`StorageTiling`]).
 pub(crate) fn in_memory_order<const N: usize>(
     operands: [CubeTensor; N],
     output_shape: Shape,
     launch: impl FnOnce([CubeTensor; N], Shape) -> CubeTensor,
 ) -> CubeTensor {
+    if let Some(tiling) = StorageTiling::new(&operands, &output_shape) {
+        let presented = operands.map(|operand| tiling.present(operand));
+        let physical = tiling.stored.shape.clone();
+        return tiling.restore(in_memory_order(presented, physical, launch));
+    }
+
     let Some(order) = MemoryOrder::of(&operands, &output_shape) else {
         return launch(operands, output_shape);
     };
@@ -54,6 +74,73 @@ pub(crate) fn in_memory_order<const N: usize>(
             .collect::<Vec<_>>(),
     );
     order.restore(launch(presented, shape))
+}
+
+/// The storage tiles an elementwise launch walks: those of the first storage-tiled operand of the
+/// output's shape. Each operand is presented as a plain tensor of its physical dims: one stored
+/// the same way as it lies, any other in rows and restated over those dims by strides
+/// (`Metadata::tiled_like`), so every operand walks the same values in step.
+struct StorageTiling {
+    /// How the tiled operand is stored.
+    stored: Metadata,
+    /// The output's logical shape, which every operand is broadcast to.
+    logical: Shape,
+}
+
+impl StorageTiling {
+    /// The tiling the operands are walked in, or `None` where none of the output's shape is
+    /// tiled. A quantized operand keeps its own rules, as [`MemoryOrder`] leaves it.
+    fn new(operands: &[CubeTensor], output_shape: &Shape) -> Option<Self> {
+        if operands.iter().any(|operand| operand.qparams.is_some()) {
+            return None;
+        }
+        let tiled = operands
+            .iter()
+            .find(|operand| operand.meta.is_tiled() && &operand.shape() == output_shape)?;
+        Some(Self {
+            stored: (*tiled.meta).clone(),
+            logical: output_shape.clone(),
+        })
+    }
+
+    /// `operand` as a plain tensor over the physical dims of the tiles: its own buffer where it
+    /// is stored in them, otherwise its rows broadcast to the output and split by strides. An
+    /// operand tiled another way is laid back in rows first.
+    fn present(&self, operand: CubeTensor) -> CubeTensor {
+        let stored_alike =
+            operand.meta.tiling == self.stored.tiling && operand.meta.shape == self.stored.shape;
+        let operand = match stored_alike {
+            true => operand,
+            false => {
+                let rows = expand(untile(operand), self.logical.clone());
+                let meta = rows
+                    .meta
+                    .tiled_like(&self.stored)
+                    .expect("an operand broadcast to the output's shape splits into its tiles");
+                CubeTensor {
+                    meta: Box::new(meta),
+                    ..rows
+                }
+            }
+        };
+        let meta = Metadata::new(operand.meta.shape.clone(), operand.meta.strides.clone());
+        CubeTensor {
+            meta: Box::new(meta),
+            ..operand
+        }
+    }
+
+    /// The kernel's output, written over the physical dims, labelled with the tiling again.
+    fn restore(&self, output: CubeTensor) -> CubeTensor {
+        let meta = (*output.meta)
+            .clone()
+            .with_tiling(self.stored.tiling)
+            .expect("the output is written over the tiles' physical dims");
+        CubeTensor {
+            meta: Box::new(meta),
+            ..output
+        }
+    }
 }
 
 /// The permutation that presents a set of operands in their memory order, and

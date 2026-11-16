@@ -50,6 +50,11 @@ let captured = device.capture_scope(|scope| {
 Module parameters are not graph inputs: their values are recorded. A capture device can be reused
 for any number of sequential scopes, one at a time.
 
+Implicit random operations (`Tensor::random` and `random_like`) and seeding the capture device
+are unsupported and panic. Capture does not allocate seeds or own a random generator. Explicit
+`RandomKey` values supplied to backend operations are recorded unchanged, including deliberate
+reuse of the same key.
+
 <!-- burn-crate-footer -->
 
 ---

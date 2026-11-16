@@ -22,9 +22,9 @@ use cubek::interpolate::{
 #[derive(Debug)]
 /// Strategy used to select how interpolation runs.
 pub enum InterpolateStrategy {
-    /// Run the strategy given rather than searching for one. cubek resolves it against the device
-    /// and the problem, so an intent states what the launch optimizes for and leaves the geometry
-    /// to cubek, while [`Forced`](CubekInterpolateStrategy::Forced) pins the geometry outright.
+    /// Run the strategy given rather than searching for one. A routine leaves its settings to
+    /// cubek, which reads them off the device and the problem, while
+    /// [`Specific`](CubekInterpolateStrategy::Specific) pins the kernel outright.
     Specific(CubekInterpolateStrategy),
 
     /// Automatically benchmark and select the best strategy at runtime.
@@ -38,10 +38,9 @@ impl Default for InterpolateStrategy {
         #[cfg(feature = "autotune")]
         return InterpolateStrategy::Autotune;
 
-        // Interpolation reads one tensor and writes another, so a build that measures nothing
-        // runs the intent that takes memory for the limit.
+        // A build that measures nothing runs the routine every device runs.
         #[cfg(not(feature = "autotune"))]
-        InterpolateStrategy::Specific(CubekInterpolateStrategy::MaximizeThroughput)
+        InterpolateStrategy::Specific(CubekInterpolateStrategy::Cube)
     }
 }
 

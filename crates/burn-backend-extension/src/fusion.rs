@@ -11,7 +11,8 @@ use quote::{format_ident, quote};
 use syn::{GenericParam, Type};
 
 /// The `Fusion<B>` implementation of `model`, which reports the errors of its malformed methods.
-/// `remote` is the remote backend's gate, when it is generated.
+/// `remote` is the router client's gate, for the remote backend and sharded compute devices, when
+/// it is generated.
 pub fn expand(model: &LazyTrait<'_>, remote: Option<&TokenStream>) -> TokenStream {
     let trait_name = model.name;
     let methods = model.methods.iter().map(|method| match method {
@@ -28,7 +29,7 @@ pub fn expand(model: &LazyTrait<'_>, remote: Option<&TokenStream>) -> TokenStrea
 /// A lazily executed method as the `Fusion<B>` implementation registers it.
 struct FusionMethod<'a> {
     method: &'a LazyMethod<'a>,
-    /// The remote backend's gate, when it is generated: the IR then also carries each extension
+    /// The router client's gate, when it is generated: the IR then also carries each extension
     /// argument's variant and ordinary fields and each enum output's variant, so a graph fused for
     /// the remote backend reaches the server complete.
     remote: Option<&'a TokenStream>,

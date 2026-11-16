@@ -86,7 +86,9 @@ impl FlexTensor {
             } else {
                 // Contiguous at offset 0 but buffer is oversized (e.g., narrowed view).
                 // Truncate to exact logical size.
-                Bytes::from_bytes_vec(self.data[..expected_bytes].to_vec())
+                let mut bytes = zeroed_bytes(self.layout.num_elements(), self.dtype);
+                bytes.copy_from_slice(&self.data[..expected_bytes]);
+                bytes
             };
             TensorData::from_bytes(bytes, self.layout.shape().clone(), self.dtype)
         } else {
@@ -242,9 +244,7 @@ impl FlexTensor {
 
     /// Create an empty tensor with given shape and dtype.
     pub fn empty(shape: Shape, dtype: DType) -> Self {
-        let num_elements = shape.num_elements();
-        let elem_size = dtype_size(dtype);
-        let bytes = Bytes::from_bytes_vec(alloc::vec![0u8; num_elements * elem_size]);
+        let bytes = zeroed_bytes(shape.num_elements(), dtype);
         let layout = Layout::contiguous(shape);
         Self {
             data: Arc::new(bytes),
@@ -942,6 +942,19 @@ pub(crate) fn dtype_size(dtype: DType) -> usize {
         dtype
     );
     size
+}
+
+/// Zeroed storage for `num_elements` values of `dtype`, allocated with the
+/// element's alignment. `Bytes::from_bytes_vec` would copy a `Vec<u8>` into a
+/// second, 16-byte aligned buffer.
+pub(crate) fn zeroed_bytes(num_elements: usize, dtype: DType) -> Bytes {
+    match dtype_size(dtype) {
+        8 => Bytes::from_elems(alloc::vec![0u64; num_elements]),
+        4 => Bytes::from_elems(alloc::vec![0u32; num_elements]),
+        2 => Bytes::from_elems(alloc::vec![0u16; num_elements]),
+        1 => Bytes::from_elems(alloc::vec![0u8; num_elements]),
+        size => unreachable!("burn-flex: unsupported element size {size}"),
+    }
 }
 
 #[cfg(test)]

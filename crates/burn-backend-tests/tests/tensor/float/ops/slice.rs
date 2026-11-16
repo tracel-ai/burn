@@ -235,7 +235,7 @@ fn should_support_slice_fill_cast_f32() {
 }
 
 // Skip on metal - F64 not supported
-#[cfg(not(any(feature = "metal", feature = "metal-native")))]
+#[cfg(not(any(feature = "wgpu-msl", feature = "metal")))]
 #[test]
 fn should_support_slice_fill_cast_f64() {
     let data = TensorData::from([0.0, 1.0, 2.0]);
@@ -470,7 +470,7 @@ fn should_support_empty_slice_2d() {
 }
 
 // Skip on metal - F64 not supported
-#[cfg(not(any(feature = "metal", feature = "metal-native")))]
+#[cfg(not(any(feature = "wgpu-msl", feature = "metal")))]
 #[test]
 fn should_keep_dtype_on_empty_slice() {
     let device = Default::default();

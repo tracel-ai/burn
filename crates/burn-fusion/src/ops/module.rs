@@ -4,10 +4,10 @@ use crate::{
 };
 use burn_backend::{
     ops::{
-        AttentionBackward, AttentionModuleOptions, ConvOptions, ConvTransposeOptions,
-        DeformConv2dBackward, DeformConvOptions, InterpolateOptions, MaxPool1dBackward,
-        MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward,
-        MaxPool3dWithIndices, ModuleOps,
+        AttentionBackward, AttentionCache, AttentionModuleOptions, ConvOptions,
+        ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, InterpolateOptions,
+        MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices,
+        MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -1828,6 +1828,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         value: FloatTensor<Fusion<B>>,
         mask: Option<burn_backend::tensor::BoolTensor<Fusion<B>>>,
         attn_bias: Option<FloatTensor<Fusion<B>>>,
+        cache: Option<AttentionCache<Fusion<B>>>,
         options: burn_backend::ops::AttentionModuleOptions,
     ) -> FloatTensor<Fusion<B>> {
         make_ops!(
@@ -1842,6 +1843,10 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     .attn_bias
                     .as_ref()
                     .map(|ab| handles.get_float_tensor::<B>(ab));
+                let cache = args.lengths.as_ref().map(|lengths| AttentionCache {
+                    lengths: handles.get_int_tensor::<B>(lengths),
+                    pages: args.pages.as_ref().map(|p| handles.get_int_tensor::<B>(p)),
+                });
 
                 let output = B::attention(
                     query,
@@ -1849,6 +1854,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     value,
                     mask,
                     attn_bias,
+                    cache,
                     args.options.clone().into(),
                 );
 
@@ -1859,12 +1865,20 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let streams = StreamId::current();
 
         let client = query.client.clone();
+        let (lengths, pages) = match cache {
+            Some(AttentionCache { lengths, pages }) => {
+                (Some(lengths.into_ir()), pages.map(|p| p.into_ir()))
+            }
+            None => (None, None),
+        };
         let desc = AttentionOpIr::create(
             query.into_ir(),
             key.into_ir(),
             value.into_ir(),
             mask.map(|m| m.into_ir()),
             attn_bias.map(|ab| ab.into_ir()),
+            lengths,
+            pages,
             options.into(),
             || client.create_empty_handle(),
         );
@@ -1872,7 +1886,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::Module(ModuleOperationIr::Attention(desc.clone())),
+                OperationIr::Module(ModuleOperationIr::Attention(Box::new(desc.clone()))),
                 AttentionOps::<B>::new(desc),
             )
             .output()

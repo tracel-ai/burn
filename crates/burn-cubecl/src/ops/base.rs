@@ -8,7 +8,7 @@ use burn_backend::{
 };
 use burn_backend::{TensorMetadata, ops::QTensorOps, ops::unfold::calculate_unfold_shape};
 use burn_std::{
-    Metadata, QuantValue, ReshapeAnalysis, reshape_analysis, strides,
+    Metadata, QuantValue, ReshapeAnalysis, reshape_analysis,
     tensor::{ReshapeAction, contiguous_strides, reshape_action},
 };
 use cubecl::tensor_vector_size_parallel;
@@ -43,14 +43,15 @@ pub(crate) async fn into_data(tensor: CubeTensor) -> Result<TensorData, Executio
     // Under an async runtime (e.g. a remote server), a lazy read defers the device→host
     // copy to first access, where a blocking read would run on — and starve — an executor
     // worker. Read eagerly there so the copy happens inside this awaited future. On a
-    // sync/threaded runtime the lazy read keeps the streaming optimization.
+    // sync/threaded runtime the lazy read keeps the streaming optimization; it holds the
+    // handle until its bytes are read, so no in-place kernel writes the buffer first.
     let read = match burn_std::runtime_kind() {
         burn_std::RuntimeKind::Async => {
             let binding = CopyDescriptor::new(tensor.handle.binding(), shape, strides, elem_size);
             tensor.client.read_one_tensor_async(binding).await
         }
         _ => {
-            let source = CopyDescriptor::new(tensor.handle, shape, strides, elem_size);
+            let source = CopyDescriptor::new(tensor.handle.clone(), shape, strides, elem_size);
             tensor.client.read_lazy_async(source).await
         }
     };
@@ -148,7 +149,7 @@ pub(crate) fn empty(shape: Shape, device: &CubeDevice, dtype: DType) -> CubeTens
 }
 
 pub(crate) fn swap_dims(tensor: CubeTensor, dim1: usize, dim2: usize) -> CubeTensor {
-    let mut tensor = crate::kernel::untile(tensor);
+    let mut tensor = tensor.untile_quantized();
     tensor.meta.swap(dim1, dim2);
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
@@ -179,7 +180,7 @@ pub(crate) fn swap_dims(tensor: CubeTensor, dim1: usize, dim2: usize) -> CubeTen
 
 /// Permute a tensor's dimensions
 pub fn permute(tensor: CubeTensor, axes: &[usize]) -> CubeTensor {
-    let mut tensor = crate::kernel::untile(tensor);
+    let mut tensor = tensor.untile_quantized();
     tensor.meta.permute(axes).unwrap();
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
@@ -256,62 +257,62 @@ pub fn permute_nhwc_to_nchw_shape(shape: Shape) -> Shape {
 }
 
 pub(crate) fn expand(tensor: CubeTensor, target_shape: Shape) -> CubeTensor {
-    let tensor = crate::kernel::untile(tensor);
-    let ndims_in = tensor.meta.shape().num_dims();
-    let ndims_out = target_shape.num_dims();
-
-    // Initialize new strides with zeros
-    let mut new_strides = strides![0usize; ndims_out];
-
-    // Calculate the difference in dimensions
-    let dim_diff = ndims_out.saturating_sub(ndims_in);
-
-    // Compare dimensions from the end, setting strides for matching dimensions or broadcasted ones
-    let mut tensor_dim_iter = tensor.meta.shape().iter().rev();
-    for i in (0..ndims_out).rev() {
-        if i >= dim_diff {
-            if let Some(&tensor_dim) = tensor_dim_iter.next() {
-                if tensor_dim == target_shape[i] || tensor_dim == 1 {
-                    // Copy stride for non-broadcast dimensions or set to 0 for broadcast ones
-                    new_strides[i] = if tensor_dim == target_shape[i] {
-                        tensor.meta.strides()[i - dim_diff]
-                    } else {
-                        0
-                    };
-                } else {
-                    // Error handling: Dimension mismatch for broadcasting
-                    panic!(
-                        "Dimension mismatch: cannot broadcast dimension {tensor_dim} of tensor to target shape"
-                    );
-                }
-            } else {
-                // If the input tensor has fewer dimensions, treat missing dimensions as 1
-                // and set stride to 0 (broadcasting)
-                new_strides[i] = 0;
-            }
-        } else {
-            // For extra dimensions in the target shape, set stride to 0 (broadcasting)
-            new_strides[i] = 0;
-        }
-    }
+    let mut tensor = tensor.untile_quantized();
+    let shape = tensor.shape();
 
     // Extra check to ensure block scales must be properly handled once they're added
     if tensor.qparams.is_some() && tensor.scheme().block_size().is_some() {
         todo!()
     }
 
-    CubeTensor {
-        client: tensor.client.clone(),
-        device: tensor.device.clone(),
-        meta: Box::new(Metadata::new(target_shape, new_strides)),
-        handle: tensor.handle.clone(),
-        dtype: tensor.dtype,
-        qparams: tensor.qparams.clone(),
+    // New leading dims, then every dim of one the target widens, are broadcast: stride 0. Each
+    // goes in and out through the metadata, which keeps a storage-tiled tensor's tiles.
+    let dim_diff = target_shape.num_dims().saturating_sub(shape.num_dims());
+    for dim in (0..dim_diff).rev() {
+        tensor.meta.insert(0, target_shape[dim], 0);
     }
+    for (dim, &target) in target_shape.iter().enumerate().skip(dim_diff) {
+        let tensor_dim = shape[dim - dim_diff];
+        if tensor_dim == target {
+            continue;
+        }
+        assert_eq!(
+            tensor_dim, 1,
+            "Dimension mismatch: cannot broadcast dimension {tensor_dim} of tensor to target shape"
+        );
+        tensor.meta.remove(dim);
+        tensor.meta.insert(dim, target, 0);
+    }
+
+    tensor
 }
 
 /// Reshape a jit tensor to a new shape
-pub fn reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
+pub fn reshape(mut tensor: CubeTensor, shape: Shape) -> CubeTensor {
+    // A storage-tiled tensor keeps its tiles when only dims of one come or go: they are removed
+    // and inserted through the metadata. Any other reshape reads it as rows.
+    if tensor.meta.is_tiled() && tensor.qparams.is_none() {
+        let logical = tensor.shape();
+        let wide = |shape: &Shape| -> Vec<usize> {
+            shape
+                .iter()
+                .copied()
+                .filter(|&extent| extent != 1)
+                .collect()
+        };
+        if wide(&logical) == wide(&shape) {
+            for dim in (0..logical.num_dims())
+                .rev()
+                .filter(|&dim| logical[dim] == 1)
+            {
+                tensor.meta.remove(dim);
+            }
+            for dim in (0..shape.num_dims()).filter(|&dim| shape[dim] == 1) {
+                tensor.meta.insert(dim, 1, 1);
+            }
+            return tensor;
+        }
+    }
     let mut tensor = crate::kernel::untile(tensor);
     let analysis = reshape_action(tensor.meta.shape(), tensor.meta.strides(), &shape);
 

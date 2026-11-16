@@ -40,9 +40,9 @@ impl HuberLossConfig {
 /// L(r) = 0.5 * d^2 + d * (|r| - d)  if |r| >  d
 /// ```
 ///
-/// where `d` is the configured `delta`. In particular, this is equal to the
-/// [L2 Loss](super::MseLoss) for residuals with magnitude smaller than `delta`,
-/// but behaves linearly instead of quadratically for large residuals.
+/// where `d` is the configured `delta`. For residuals with magnitude smaller than
+/// `delta`, this is half the squared error, or half the [MSE loss](super::MseLoss)
+/// with the same reduction. It behaves linearly for large residuals.
 ///
 /// This loss function is less sensitive to outliers than the mean squared error loss.
 ///

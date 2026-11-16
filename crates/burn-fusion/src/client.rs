@@ -1,24 +1,20 @@
 use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
     UnfusedOp,
+    ops::PartsInFlight,
     stream::{StreamId, execution::Operation},
     tensor::held,
 };
 use burn_backend::{
     Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceStage, ServerUtilitiesHandle,
 };
-use burn_std::device_handle::{CallError, CallResultExt};
+use burn_std::device_handle::{CallError, CallResultExt, SpawnedCall};
 
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorError, TensorId, TensorIr};
-use std::{
-    panic::{AssertUnwindSafe, catch_unwind},
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-        mpsc,
-    },
-    thread,
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
 };
 
 /// Use a mutex to communicate with the fusion server.
@@ -196,6 +192,15 @@ where
         })
     }
 
+    /// Executes what `stream` has queued so far without waiting for it: for an operation other
+    /// devices wait on, such as one member's part of a collective, which the stream must not hold
+    /// back for a later operation to fuse with.
+    pub(crate) fn execute_queued(&self, stream: StreamId) {
+        self.server
+            .submit(move |server| server.drain_stream(stream));
+        self.server.flush_queue();
+    }
+
     /// Flush the operations queue.
     pub fn flush_queue(&self) {
         self.server.flush_queue();
@@ -326,6 +331,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        PartsInFlight::wait_until_none();
         let dtype = tensor.dtype;
         let client_dst_cloned = client_dst.clone();
         let shape = tensor.shape.clone();
@@ -370,6 +376,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        PartsInFlight::wait_until_none();
         let dtype = tensor.dtype;
         let client_dst_cloned = client_dst.clone();
         let shape = tensor.shape.clone();
@@ -410,11 +417,13 @@ where
         client_src: Self,
         client_dst: Self,
         stream: StreamId,
+        out_dtype: burn_backend::BoolDType,
     ) -> FusionTensor<R>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let dtype = tensor.dtype;
+        PartsInFlight::wait_until_none();
+        let dtype = out_dtype.into();
         let client_dst_cloned = client_dst.clone();
         let shape = tensor.shape.clone();
         let id = client_src.create_empty_handle();
@@ -425,7 +434,7 @@ where
         held::release();
         match bool_tensor.unwrap() {
             Ok(bool_tensor) => {
-                let bool_tensor = B::bool_to_device(bool_tensor, client_dst.device());
+                let bool_tensor = B::bool_to_device(bool_tensor, client_dst.device(), out_dtype);
                 client_dst.server.submit(move |server_dst| {
                     server_dst
                         .handles
@@ -458,6 +467,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        PartsInFlight::wait_until_none();
         let dtype = tensor.dtype;
         let client_dst_cloned = client_dst.clone();
         let shape = tensor.shape.clone();
@@ -557,7 +567,7 @@ where
     pub fn resolve_carrying_float<B>(
         &self,
         tensor: FusionTensor<R>,
-    ) -> Resolving<B::FloatTensorPrimitive>
+    ) -> SpawnedCall<Result<B::FloatTensorPrimitive, TensorError>>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -571,7 +581,7 @@ where
     pub fn resolve_carrying_int<B>(
         &self,
         tensor: FusionTensor<R>,
-    ) -> Resolving<B::IntTensorPrimitive>
+    ) -> SpawnedCall<Result<B::IntTensorPrimitive, TensorError>>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -585,7 +595,7 @@ where
     pub fn resolve_carrying_bool<B>(
         &self,
         tensor: FusionTensor<R>,
-    ) -> Resolving<B::BoolTensorPrimitive>
+    ) -> SpawnedCall<Result<B::BoolTensorPrimitive, TensorError>>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -600,49 +610,16 @@ where
         read: impl FnOnce(&mut FusionServer<R>, TensorIr, StreamId) -> Result<T, TensorError>
         + Send
         + 'static,
-    ) -> Resolving<T> {
+    ) -> SpawnedCall<Result<T, TensorError>> {
         // `into_ir()` runs on this thread: on the server thread, a cross-stream tensor's
         // `shared_view` would `submit_blocking` again and panic on the re-entrancy.
         let stream = tensor.stream;
         let tensor = tensor.into_ir();
-        let (sender, receiver) = mpsc::sync_channel(1);
-        self.server.submit(move |server| {
-            let read = catch_unwind(AssertUnwindSafe(|| read(server, tensor, stream)));
-            let _ = sender.send(read);
-        });
-        self.server.flush_queue();
+        let call = self
+            .server
+            .spawn(move |server| read(server, tensor, stream));
         held::release();
-        Resolving { receiver }
-    }
-}
-
-/// A tensor the fusion server is resolving, so the servers of several devices can resolve theirs
-/// at once.
-#[must_use = "the resolved tensor is lost unless it is waited on"]
-pub struct Resolving<T> {
-    receiver: mpsc::Receiver<thread::Result<Result<T, TensorError>>>,
-}
-
-impl<T> Resolving<T> {
-    /// Wait for the server to resolve the tensor.
-    pub fn wait(self) -> Result<T, TensorError> {
-        let failure = match self.receiver.recv() {
-            Ok(Ok(resolved)) => return resolved,
-            Ok(Err(payload)) => {
-                let message = payload
-                    .downcast_ref::<&str>()
-                    .map(|message| message.to_string())
-                    .or_else(|| payload.downcast_ref::<String>().cloned());
-                match message {
-                    Some(message) => {
-                        format!("the fusion server panicked resolving a tensor: {message}")
-                    }
-                    None => "the fusion server panicked resolving a tensor".to_string(),
-                }
-            }
-            Err(_) => "the fusion server stopped before resolving a tensor".to_string(),
-        };
-        Err(TensorError::new(ExecutionError::with_context(failure)))
+        call
     }
 }
 
@@ -688,6 +665,14 @@ impl<R: FusionRuntime + 'static> ServerHandle<R> {
     ) -> Result<Out, CallError> {
         crate::tensor::deferred::flush();
         self.handle.submit_blocking(task)
+    }
+
+    fn spawn<Out: Send + 'static, T: FnOnce(&mut FusionServer<R>) -> Out + Send + 'static>(
+        &self,
+        task: T,
+    ) -> SpawnedCall<Out> {
+        crate::tensor::deferred::flush();
+        self.handle.spawn(task)
     }
 
     fn flush_queue(&self) {

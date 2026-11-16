@@ -47,6 +47,7 @@ pub trait BatchStrategy<I>: Send + Sync {
 pub struct FixBatchStrategy<I> {
     items: Vec<I>,
     batch_size: usize,
+    drop_last: bool,
 }
 
 impl<I> FixBatchStrategy<I> {
@@ -64,13 +65,27 @@ impl<I> FixBatchStrategy<I> {
         FixBatchStrategy {
             items: Vec::with_capacity(batch_size),
             batch_size,
+            drop_last: false,
         }
+    }
+
+    /// Sets whether to drop the last batch when it is smaller than the batch size.
+    ///
+    /// By default, the last incomplete batch is kept. Dropped items are excluded from
+    /// [`BatchStrategy::expected_num_items`].
+    pub fn with_drop_last(mut self, drop_last: bool) -> Self {
+        self.drop_last = drop_last;
+        self
     }
 }
 
 impl<I: Send + Sync + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
     fn expected_num_items(&self, input_items: usize) -> Option<usize> {
-        Some(input_items)
+        Some(if self.drop_last {
+            input_items - input_items % self.batch_size
+        } else {
+            input_items
+        })
     }
 
     fn add(&mut self, item: I) {
@@ -78,8 +93,15 @@ impl<I: Send + Sync + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
     }
 
     fn batch(&mut self, force: bool) -> Option<Vec<I>> {
-        if self.items.len() < self.batch_size && !force {
-            return None;
+        if self.items.len() < self.batch_size {
+            if !force {
+                return None;
+            }
+
+            if self.drop_last {
+                self.items.clear();
+                return None;
+            }
         }
 
         let mut items = Vec::with_capacity(self.batch_size);
@@ -93,10 +115,75 @@ impl<I: Send + Sync + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
     }
 
     fn clone_dyn(&self) -> Box<dyn BatchStrategy<I>> {
-        Box::new(Self::new(self.batch_size))
+        Box::new(Self::new(self.batch_size).with_drop_last(self.drop_last))
     }
 
     fn batch_size(&self) -> Option<usize> {
         Some(self.batch_size)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn batch_sizes(mut strategy: FixBatchStrategy<usize>, num_items: usize) -> Vec<usize> {
+        let mut sizes = Vec::new();
+
+        for item in 0..num_items {
+            strategy.add(item);
+            if let Some(items) = strategy.batch(false) {
+                sizes.push(items.len());
+            }
+        }
+        if let Some(items) = strategy.batch(true) {
+            sizes.push(items.len());
+        }
+
+        sizes
+    }
+
+    #[test]
+    fn keeps_the_last_incomplete_batch_by_default() {
+        let strategy = FixBatchStrategy::new(4);
+
+        assert_eq!(strategy.expected_num_items(10), Some(10));
+        assert_eq!(batch_sizes(strategy, 10), vec![4, 4, 2]);
+    }
+
+    #[test]
+    fn drops_the_last_incomplete_batch() {
+        let strategy = FixBatchStrategy::new(4).with_drop_last(true);
+
+        assert_eq!(strategy.expected_num_items(10), Some(8));
+        assert_eq!(batch_sizes(strategy, 10), vec![4, 4]);
+    }
+
+    #[test]
+    fn drop_last_keeps_a_complete_last_batch() {
+        let strategy = FixBatchStrategy::new(4).with_drop_last(true);
+
+        assert_eq!(strategy.expected_num_items(8), Some(8));
+        assert_eq!(batch_sizes(strategy, 8), vec![4, 4]);
+    }
+
+    #[test]
+    fn drop_last_yields_nothing_when_the_dataset_is_smaller_than_a_batch() {
+        let strategy = FixBatchStrategy::new(4).with_drop_last(true);
+
+        assert_eq!(strategy.expected_num_items(3), Some(0));
+        assert!(batch_sizes(strategy, 3).is_empty());
+    }
+
+    #[test]
+    fn drop_last_survives_clone_dyn() {
+        let strategy = FixBatchStrategy::<usize>::new(4).with_drop_last(true);
+        let mut cloned = strategy.clone_dyn();
+
+        for item in 0..3 {
+            cloned.add(item);
+        }
+
+        assert!(cloned.batch(true).is_none());
     }
 }

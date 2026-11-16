@@ -2,7 +2,7 @@
 //! enters, from the thread driving the model, and the kernels, blocks and
 //! timings the runtimes report, from whichever thread issues them.
 //!
-//! The runtime calls a [`LaunchObserver`] synchronously, on the thread that
+//! The runtime calls an [`ExecutionObserver`] synchronously, on the thread that
 //! issued the launch, before it is submitted. The recorder is the observer,
 //! and records each launch under that thread's own attribution — moved in
 //! step with the ops the thread runs, and inside a fusion block set to the
@@ -33,17 +33,17 @@ use burn_fusion::observer::{BlockOperations, FusionObserver};
 #[cfg(feature = "fusion")]
 use burn_ir::OperationIr;
 use burn_tensor::Device;
-use cubecl::logging::{LaunchObserver, TimingRequest};
+use cubecl::logging::{Execution, ExecutionKind, ExecutionObserver, Measurement, TimingRequest};
 use cubecl::profile::{ProfileDuration, TimingMethod};
 
 use super::component_tree::ComponentTree;
-use super::cursor::{Attribution, LaunchCursor};
+use super::cursor::{Attribution, LaunchCursor, MemberCount};
 #[cfg(feature = "fusion")]
 use super::origins::{BlockOrigin, OperationId, OperationOrigins};
 use super::pricing::Floors;
 use super::timing::{Kept, Timed, Timeline, Timings};
 use super::watching::Watching;
-use crate::breakdown::Breakdown;
+use crate::breakdown::{Breakdown, PerMember};
 use crate::{ComponentObserver, Declaration};
 
 /// Records a run's events into its component tree.
@@ -90,6 +90,8 @@ struct State {
     origins: OperationOrigins,
     /// The floors of a pricing run, taken by the entries in the order they arrive.
     floors: Floors,
+    /// What each member did, on a sharded compute device: see [`Breakdown::per_member`].
+    per_member: Option<PerMember>,
 }
 
 impl RunRecorder {
@@ -162,7 +164,7 @@ impl RunRecorder {
         let mut state = self.locked();
         #[cfg(feature = "fusion")]
         state.origins.clear();
-        state.settle(timed, self.epoch);
+        state.settle(timed, self.epoch, self.cursor.members());
     }
 
     /// What the run left behind.
@@ -173,9 +175,11 @@ impl RunRecorder {
     /// kernels its open components have yet to launch.
     fn breakdown(&self) -> Breakdown {
         let state = self.locked();
-        state
-            .tree
-            .breakdown(state.timings.quality(), self.cursor.fusion())
+        state.tree.breakdown(
+            state.timings.quality(),
+            self.cursor.fusion(),
+            state.per_member.clone(),
+        )
     }
 
     /// The shared state, recovering a lock a panicking run poisoned: a tree
@@ -218,11 +222,11 @@ impl ComponentObserver for RunRecorder {
 /// launches, never where the model thread has got to: under fusion a kernel
 /// launches on the fusion worker, dozens of ops after the model thread
 /// registered its work.
-impl LaunchObserver for RunRecorder {
-    fn launched(&self, kernel: &'static str) {
-        LaunchCursor::with_placement(|placement| {
-            self.locked().tree.count_launch(placement, kernel);
-        });
+impl ExecutionObserver for RunRecorder {
+    fn issued(&self, execution: &Execution) {
+        if let ExecutionKind::Kernel { name, .. } = execution.kind {
+            self.launched(name);
+        }
     }
 
     /// Timed, and handed over unread — a breakdown whose kernel components carried
@@ -233,13 +237,34 @@ impl LaunchObserver for RunRecorder {
         TimingRequest::Deferred
     }
 
+    fn measured(&self, execution: &Execution, measurement: Measurement) {
+        let ExecutionKind::Kernel { name, .. } = execution.kind else {
+            return;
+        };
+        match measurement {
+            Measurement::Unread(profile) => self.profiled(name, profile),
+            Measurement::Read { duration, method } => self.timed(name, duration, method),
+        }
+    }
+}
+
+impl RunRecorder {
+    fn launched(&self, kernel: &'static str) {
+        LaunchCursor::with_placement(|placement| {
+            self.locked().tree.count_launch(placement, kernel);
+        });
+    }
+
     /// Kept beside the component that counted the launch, and read back in
     /// [`finish`](RunRecorder::finish). The runtime hands it over on the
     /// thread that issued the launch, inside the same call, so the calling
     /// thread's attribution is still the launch's.
     fn profiled(&self, kernel: &'static str, profile: ProfileDuration) {
         let attribution = LaunchCursor::current();
-        self.locked().timings.keep(attribution, kernel, profile);
+        let member = LaunchCursor::member();
+        self.locked()
+            .timings
+            .keep(attribution, member, kernel, profile);
     }
 
     /// Only while the runtime's profiling logger reads timings too, which
@@ -288,21 +313,24 @@ impl FusionObserver for RunRecorder {
 
 impl State {
     /// File every timing read back under the component that counted its
-    /// launch, and charge the device's idle stretches between them.
-    fn settle(&mut self, timed: Vec<Timed>, epoch: Instant) {
-        let mut timeline = Timeline::new(epoch);
+    /// launch, charge each device's idle stretches between them, and, over several `members`,
+    /// keep what each did.
+    fn settle(&mut self, timed: Vec<Timed>, epoch: Instant, members: MemberCount) {
+        let mut timeline = Timeline::new(epoch, members);
         for timed in timed {
             match timed.ticks {
                 Some(ticks) => {
                     self.credit(timed.attribution, timed.kernel, ticks.duration());
-                    timeline.push(timed.attribution, &ticks);
+                    timeline.push(timed.attribution, timed.member, &ticks);
                 }
                 None => self.timings.unplace(Duration::ZERO),
             }
         }
-        for (attribution, idle) in timeline.idle() {
+        let settled = timeline.settle();
+        for (attribution, idle) in settled.idle {
             self.tree.charge_idle(attribution, idle);
         }
+        self.per_member = settled.per_member;
     }
 
     /// Add `duration` to the component that counted `kernel`'s launch under

@@ -108,7 +108,7 @@ fn should_repeat_0_times_empty() {
 }
 
 // Skip on metal - F64 not supported
-#[cfg(not(any(feature = "metal", feature = "metal-native")))]
+#[cfg(not(any(feature = "wgpu-msl", feature = "metal")))]
 #[test]
 fn should_keep_dtype_on_repeat_0_times() {
     let tensor =

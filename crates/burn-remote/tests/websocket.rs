@@ -2,7 +2,10 @@
 
 mod common;
 
-use burn_backend::{distributed::ReduceOperation, ops::CollectiveOps};
+use burn_backend::{
+    Backend, EnvironmentError, EnvironmentId, PruneOptions, distributed::ReduceOperation,
+    ops::CollectiveOps,
+};
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_flex::Flex;
 use burn_remote::{
@@ -285,7 +288,7 @@ fn a_dial_waits_for_a_websocket_server_that_starts_late() {
     rt.shutdown_background();
 }
 
-/// A `transfer_client` process, killed when dropped.
+/// A `transfer_client` process, killed when dropped if still running.
 struct TransferClient {
     index: usize,
     child: std::process::Child,
@@ -328,6 +331,15 @@ impl TransferClient {
     fn start_round(&mut self) {
         std::io::Write::write_all(&mut self.rounds, b"go\n").unwrap();
     }
+
+    fn wait(&mut self) {
+        let status = self.child.wait().unwrap();
+        assert!(
+            status.success(),
+            "transfer client {} stopped with {status}",
+            self.index
+        );
+    }
 }
 
 impl Drop for TransferClient {
@@ -362,6 +374,8 @@ fn two_clients_keep_their_own_transfers() {
                 .iter_mut()
                 .for_each(|client| client.wait_for(TRANSFER_CLIENT_DONE));
         }
+        // Let clients finish teardown and flush coverage before Drop's forced cleanup.
+        clients.iter_mut().for_each(TransferClient::wait);
     });
     rt.shutdown_background();
 }
@@ -400,6 +414,38 @@ fn transfer_client() {
             println!("{TRANSFER_CLIENT_DONE}");
         }
     });
+}
+
+#[test]
+fn random_requests_keep_their_seeds_across_remote_reseeding() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default(), Default::default()]),
+    );
+    let device = Device::remote_options(&host).init().unwrap();
+    let other = Device::remote_options(&host)
+        .device_index(1)
+        .init()
+        .unwrap();
+    let float = || Tensor::<1>::random([12], Distribution::Default, &device);
+    let int = || Tensor::<1, Int>::random([12], Distribution::Uniform(0., 1000.), &device);
+
+    device.seed(7);
+    let expected_float = float().into_data();
+    let expected_int = int().into_data();
+    device.seed(7);
+    let pending_float = float();
+    let pending_int = int();
+    // Both server devices share Flex's implicit RNG; neither reset may affect these draws.
+    other.seed(13);
+    device.seed(19);
+    pending_int.into_data().assert_eq(&expected_int, false);
+    pending_float.into_data().assert_eq(&expected_float, false);
+    rt.shutdown_background();
 }
 
 #[test]
@@ -1166,6 +1212,36 @@ fn a_device_query_is_answered_by_its_handler() {
     rt.shutdown_background();
 }
 
+/// A prune is answered by the server's backend: one that keeps no environment
+/// says so in its own words, which only the round trip to it can carry back.
+#[test]
+fn a_prune_is_answered_by_the_servers_backend() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
+    let id = EnvironmentId {
+        storage: 0,
+        name: "pruned".into(),
+        location: String::new(),
+    };
+
+    let answer =
+        Dispatch::environment_prune(device.as_dispatch(), id.clone(), PruneOptions::default());
+
+    // The server's backend's answer, not the client's own default.
+    let backends_own =
+        <Flex as Backend>::environment_prune(&Default::default(), id, PruneOptions::default());
+    assert_eq!(format!("{answer:?}"), format!("{backends_own:?}"));
+    assert!(
+        matches!(answer, Err(EnvironmentError::Unsupported { .. })),
+        "{answer:?}"
+    );
+    rt.shutdown_background();
+}
+
 /// The server's backend has no device clock, so it opens no profiling window and the client
 /// measures between two syncs instead.
 #[test]
@@ -1622,4 +1698,70 @@ fn a_tensor_many_frames_long_is_uploaded_and_read_back() {
     let expected: Vec<f32> = values.iter().map(|value| value * 2.0).collect();
     assert_eq!(doubled, expected);
     rt.shutdown_background();
+}
+
+mod bool_transfer {
+    use super::*;
+    use burn_backend::{TensorMetadata, ops::BoolTensorOps};
+    use burn_tensor::{BoolStore, DeviceConfig};
+
+    fn assert_bool_transfer_storage(mut source: Device, target: Device) {
+        source
+            .configure(DeviceConfig::default().bool_dtype(BoolStore::U8))
+            .unwrap();
+        let dtype = DType::Bool(BoolStore::U8);
+        assert!(target.supports_dtype(dtype));
+        assert_eq!(target.settings().bool_dtype, BoolStore::Native);
+        // A cast through the target's Native default would normalize these bytes.
+        let data = TensorData::from_bytes_vec(vec![2, 0, 255], [3], dtype);
+
+        let moved = Tensor::<1, Bool>::from_data(data.clone(), &source).to_device(&target);
+
+        assert_eq!(moved.dtype(), dtype);
+        moved.into_data().assert_eq(&data, true);
+
+        // Request storage different from each destination's default, including through fusion.
+        let tensor = Dispatch::bool_from_data(data, target.as_dispatch());
+        let moved = Dispatch::bool_to_device(tensor, source.as_dispatch(), BoolStore::Native);
+        assert_eq!(moved.dtype(), DType::Bool(BoolStore::Native));
+        burn_backend::read_sync(Dispatch::bool_into_data(moved.clone()))
+            .unwrap()
+            .assert_eq(&TensorData::from([true, false, true]), true);
+
+        let returned = Dispatch::bool_to_device(moved, target.as_dispatch(), BoolStore::U8);
+        assert_eq!(returned.dtype(), dtype);
+        let returned = burn_backend::read_sync(Dispatch::bool_into_data(returned)).unwrap();
+        assert_eq!(returned.as_slice::<u8>().unwrap(), &[1, 0, 1]);
+    }
+
+    #[test]
+    fn bool_move_preserves_or_converts_storage_on_same_server() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default(); 2]));
+        let source = Device::remote_options(&host)
+            .device_index(0)
+            .init()
+            .unwrap();
+        let target = Device::remote_options(&host)
+            .device_index(1)
+            .init()
+            .unwrap();
+
+        assert_bool_transfer_storage(source, target);
+
+        rt.shutdown_background();
+    }
+
+    #[test]
+    fn bool_move_preserves_or_converts_storage_between_servers() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let source_host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+        let target_host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+        let source = Device::remote_options(&source_host).init().unwrap();
+        let target = Device::remote_options(&target_host).init().unwrap();
+
+        assert_bool_transfer_storage(source, target);
+
+        rt.shutdown_background();
+    }
 }

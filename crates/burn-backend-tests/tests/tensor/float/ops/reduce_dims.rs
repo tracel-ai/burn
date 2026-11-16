@@ -1,10 +1,7 @@
-//! Reductions over several dimensions at once, on operands in and out of
-//! logical dimension order. Each case asks for the same answer as reducing
-//! the dimensions one at a time on a contiguous copy, so what is pinned is
-//! that folding dimensions together never changes what is summed.
+//! Multi-axis reductions preserve logical values across memory layouts.
 
 use super::*;
-use burn_tensor::Tolerance;
+use burn_tensor::{TensorData, Tolerance};
 
 /// A `[2, 3, 4, 5]` tensor held channels-last in memory, and a contiguous
 /// copy of the same values.
@@ -32,9 +29,7 @@ fn assert_same(actual: TestTensor<4>, expected: TestTensor<4>) {
 }
 
 #[test]
-fn every_non_channel_dimension_of_a_channels_last_tensor_folds_into_one() {
-    // Batch, height and width sit next to each other in channels-last memory,
-    // so this is the case that reduces in a single launch.
+fn sum_dims_reduces_non_channel_dimensions_in_channels_last_memory() {
     let (permuted, contiguous) = permuted_and_contiguous();
 
     assert_same(
@@ -44,15 +39,32 @@ fn every_non_channel_dimension_of_a_channels_last_tensor_folds_into_one() {
 }
 
 #[test]
-fn every_non_channel_dimension_of_a_contiguous_tensor_is_reduced_in_two() {
-    // In logical order the batch dimension is separated from height and width
-    // by the channels, so the innermost pair reduces first and the batch after.
-    let (_, contiguous) = permuted_and_contiguous();
-
-    assert_same(
-        contiguous.clone().sum_dims(&[0, 2, 3]),
-        one_dim_at_a_time(contiguous, &[0, 2, 3]),
+fn sum_dims_reduces_separated_axes() {
+    let tensor = TestTensor::<3>::from_data(
+        [
+            [[-2.0, 1.0, 4.0], [3.0, -5.0, 4.0]],
+            [[6.0, -1.0, 2.0], [-4.0, 3.0, 5.0]],
+        ],
+        &Default::default(),
     );
+
+    tensor
+        .sum_dims(&[0, 2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([[[10.0], [6.0]]]), Tolerance::default());
+}
+
+#[test]
+fn sum_dims_preserves_permuted_broadcast_values() {
+    let tensor =
+        TestTensor::<3>::from_data([[[-2.0, 1.0, 4.0], [3.0, -5.0, 4.0]]], &Default::default())
+            .expand([2, 2, 3])
+            .permute([2, 1, 0]);
+
+    tensor
+        .sum_dims(&[0, 2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([[[6.0], [4.0]]]), Tolerance::default());
 }
 
 #[test]

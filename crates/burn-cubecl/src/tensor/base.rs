@@ -116,7 +116,7 @@ impl TensorMetadata for CubeTensor {
     }
 
     fn can_mut(&self) -> bool {
-        self.handle.can_mut()
+        CubeTensor::can_mut(self)
     }
 }
 
@@ -218,8 +218,27 @@ impl CubeTensor {
         (moved, qparams)
     }
 
-    /// Return the reference to a tensor handle.
+    /// This tensor bound as rows: a storage-tiled one laid back in rows first
+    /// ([`untile`](crate::kernel::untile)). Every kernel but cubek's matmul reads rows, so a
+    /// tiled tensor reaches it through a copy rather than have its tiles read as rows.
     pub fn binding(self) -> TensorBinding {
+        crate::kernel::untile(self).stored_binding()
+    }
+
+    /// This tensor ready for a rewrite of its dims (swap, permute, expand): a float one as it is,
+    /// its tiles moving with their dims through its metadata; a quantized one laid back in rows,
+    /// which [`untile`](crate::kernel::untile) refuses when it is tiled, since its scales lie in
+    /// its kernel's tile order and no rewrite restates them.
+    pub(crate) fn untile_quantized(self) -> Self {
+        match self.qparams {
+            Some(_) => crate::kernel::untile(self),
+            None => self,
+        }
+    }
+
+    /// This tensor bound as it is stored, its tiling included: for the readers that take storage
+    /// tiles, cubek's matmul ([`stored`](Self::stored)) and the untile itself.
+    pub fn stored_binding(self) -> TensorBinding {
         TensorBinding {
             handle: self.handle.binding(),
             strides: self.meta.strides,
@@ -233,26 +252,9 @@ impl CubeTensor {
         self.dtype.size()
     }
 
-    /// Return the reference to a tensor argument.
-    ///
-    /// # Panics
-    ///
-    /// On a storage-tiled tensor: a kernel argument is read as rows, and only cubek's matmul
-    /// reads storage tiles, through [`binding`](Self::binding). Un-tile it first
-    /// ([`untile`](crate::kernel::untile)).
+    /// Return the reference to a tensor argument, as rows ([`binding`](Self::binding)).
     pub fn into_tensor_arg(self) -> TensorArg {
-        self.assert_rows("into_tensor_arg");
         self.binding().into_tensor_arg()
-    }
-
-    /// A storage-tiled tensor is read as rows by nothing but cubek's matmul; every other kernel
-    /// refuses it here rather than read its tiles as rows.
-    fn assert_rows(&self, op: &str) {
-        assert!(
-            !self.meta.is_tiled(),
-            "CubeTensor::{op}: a storage-tiled tensor is read only by the matmul it was tiled \
-             for; un-tile it (kernel::untile) for anything else"
-        );
     }
 
     /// Return the reference to a buffer argument.
@@ -262,7 +264,12 @@ impl CubeTensor {
 
     /// Returns a reference to the aliased tensor argument.
     pub fn as_tensor_alias(&self, input_pos: usize) -> TensorArg {
-        self.assert_rows("as_tensor_alias");
+        // An alias writes the buffer the kernel reads as rows, which a tiled tensor is not:
+        // `can_mut` keeps one from being written in place.
+        assert!(
+            !self.meta.is_tiled(),
+            "CubeTensor::as_tensor_alias on a storage-tiled tensor"
+        );
         TensorArg::Alias {
             input_pos,
             strides: self.meta.strides().clone(),
@@ -311,7 +318,7 @@ impl CubeTensor {
     }
 
     pub(crate) fn can_mut_broadcast(&self, rhs: &Self) -> bool {
-        if !self.handle.can_mut() || !self.is_nonoverlapping() {
+        if !self.can_mut() || !self.is_nonoverlapping() {
             return false;
         }
         let ndims = self.meta.num_dims();
@@ -351,9 +358,11 @@ impl CubeTensor {
         launch_unary_numeric::<Copy, _>(tensor, |_| ())
     }
 
-    /// Check if the tensor is safe to mutate.
+    /// Check if the tensor is safe to mutate. A storage-tiled one is not: a kernel writing in
+    /// place writes rows. The elementwise kernels write its tiles in place all the same, through
+    /// its buffer bound untiled at its physical shape (`kernel::memory_order`).
     pub fn can_mut(&self) -> bool {
-        self.handle.can_mut()
+        self.handle.can_mut() && !self.meta.is_tiled()
     }
 
     /// Assert that both tensors are on the same device.
@@ -389,6 +398,9 @@ impl CubeTensor {
 
         if strides.contains(&0) {
             return false;
+        }
+        if shape.num_elements() == 0 {
+            return true;
         }
         let rank = self.rank();
         if rank > 1 {

@@ -8,8 +8,8 @@ use burn_core::backend::{Backend, backend_extension, tensor::FloatTensor};
         feature = "wgpu",
         feature = "webgpu",
         feature = "vulkan",
+        feature = "wgpu-msl",
         feature = "metal",
-        feature = "metal-native",
         feature = "cuda",
         feature = "rocm",
         feature = "cpu"

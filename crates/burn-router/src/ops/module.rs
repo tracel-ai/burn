@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 
 use burn_backend::ops::{
-    AttentionBackward, AttentionModuleOptions, ConvOptions, ConvTransposeOptions,
+    AttentionBackward, AttentionCache, AttentionModuleOptions, ConvOptions, ConvTransposeOptions,
     DeformConv2dBackward, DeformConvOptions, InterpolateOptions, MaxPool1dBackward,
     MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward,
     MaxPool3dWithIndices, ModuleOps,
@@ -1353,21 +1353,32 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         value: FloatTensor<Self>,
         mask: Option<BoolTensor<Self>>,
         attn_bias: Option<FloatTensor<Self>>,
+        cache: Option<AttentionCache<Self>>,
         options: AttentionModuleOptions,
     ) -> FloatTensor<Self> {
         let client = query.client.clone();
+        let (lengths, pages) = match cache {
+            Some(AttentionCache { lengths, pages }) => {
+                (Some(lengths.into_ir()), pages.map(|p| p.into_ir()))
+            }
+            None => (None, None),
+        };
         let desc = AttentionOpIr::create(
             query.into_ir(),
             key.into_ir(),
             value.into_ir(),
             mask.map(|m: BoolTensor<Self>| m.into_ir()),
             attn_bias.map(|ab| ab.into_ir()),
+            lengths,
+            pages,
             options.into(),
             || client.create_empty_handle(),
         );
 
         client
-            .register(OperationIr::Module(ModuleOperationIr::Attention(desc)))
+            .register(OperationIr::Module(ModuleOperationIr::Attention(Box::new(
+                desc,
+            ))))
             .output()
     }
 }

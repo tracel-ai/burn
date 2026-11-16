@@ -7,6 +7,7 @@ use cubecl::{
 };
 
 use crate::{
+    kernel::memory_order::in_memory_order,
     kernel::utils::{address_type, broadcast_shape},
     ops::{max_vector_size_many, numeric::empty_device_dtype},
     tensor::CubeTensor,
@@ -63,46 +64,48 @@ pub fn mask_fill(
         );
     }
 
-    let vector_size = max_vector_size_many(&[&input, &mask], ndims - 1);
-    let working_units = out_shape.num_elements() / vector_size as usize;
-    let cube_dim = CubeDim::new(&input.client, working_units);
-    let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
+    in_memory_order([input, mask], out_shape, |[input, mask], out_shape| {
+        let vector_size = max_vector_size_many(&[&input, &mask], ndims - 1);
+        let working_units = out_shape.num_elements() / vector_size as usize;
+        let cube_dim = CubeDim::new(&input.client, working_units);
+        let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
-    let output = match strategy {
-        MaskFillStrategy::Readonly => empty_device_dtype(
-            input.client.clone(),
-            input.device.clone(),
-            out_shape,
-            input.dtype,
-        ),
-        MaskFillStrategy::Inplace => input.clone(),
-    };
+        let output = match strategy {
+            MaskFillStrategy::Readonly => empty_device_dtype(
+                input.client.clone(),
+                input.device.clone(),
+                out_shape,
+                input.dtype,
+            ),
+            MaskFillStrategy::Inplace => input.clone(),
+        };
 
-    let out_arg = match strategy {
-        MaskFillStrategy::Readonly => output.clone().into_linear_view(),
-        MaskFillStrategy::Inplace => output.as_linear_view_alias(0),
-    };
+        let out_arg = match strategy {
+            MaskFillStrategy::Readonly => output.clone().into_linear_view(),
+            MaskFillStrategy::Inplace => output.as_linear_view_alias(0),
+        };
 
-    let at = address_type!(input, mask, output);
-    let mask = mask.into_linear_view_like(&output);
+        let at = address_type!(input, mask, output);
+        let mask = mask.into_linear_view_like(&output);
 
-    unsafe {
-        mask_fill_kernel::launch_unchecked(
-            &output.client,
-            cube_count,
-            cube_dim,
-            at,
-            vector_size,
-            input.into_linear_view_like(&output),
-            mask,
-            out_arg,
-            value,
-            [
-                dtype_to_storage_type(output.dtype),
-                dtype_to_storage_type(dtype_bool),
-            ],
-        );
-    }
+        unsafe {
+            mask_fill_kernel::launch_unchecked(
+                &output.client,
+                cube_count,
+                cube_dim,
+                at,
+                vector_size,
+                input.into_linear_view_like(&output),
+                mask,
+                out_arg,
+                value,
+                [
+                    dtype_to_storage_type(output.dtype),
+                    dtype_to_storage_type(dtype_bool),
+                ],
+            );
+        }
 
-    output
+        output
+    })
 }

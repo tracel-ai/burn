@@ -3,7 +3,10 @@ use quote::quote;
 
 pub(crate) fn derive_impl(item: &syn::DeriveInput) -> proc_macro::TokenStream {
     let factory = ConfigAnalyzerFactory::new();
-    let analyzer = factory.create_analyzer(item);
+    let analyzer = match factory.create_analyzer(item) {
+        Ok(analyzer) => analyzer,
+        Err(err) => return err.into_compile_error().into(),
+    };
 
     let constructor = analyzer.gen_new_fn();
     let builders = analyzer.gen_builder_fns();

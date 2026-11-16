@@ -1,4 +1,5 @@
 use self::unary_basic_int::BasicIntUnaryKind;
+use burn_backend::RandomKey;
 use burn_backend::cubecl::dtype_to_storage_type;
 
 use super::{expand, numeric, permute, unfold};
@@ -665,16 +666,19 @@ impl IntTensorOps<Self> for CubeBackend {
         distribution: Distribution,
         device: &Device<Self>,
         dtype: IntDType,
+        key: RandomKey,
     ) -> IntTensor<Self> {
         let dtype = dtype.into();
         match distribution {
-            Distribution::Default => random_uniform(shape, device, 0., 255., dtype),
+            Distribution::Default => random_uniform(shape, device, 0., 255., dtype, key),
             Distribution::Uniform(low, high) => {
-                random_uniform(shape, device, low.elem(), high.elem(), dtype)
+                random_uniform(shape, device, low.elem(), high.elem(), dtype, key)
             }
-            Distribution::Bernoulli(prob) => random_bernoulli(shape, device, prob as f32, dtype),
+            Distribution::Bernoulli(prob) => {
+                random_bernoulli(shape, device, prob as f32, dtype, key)
+            }
             Distribution::Normal(mean, std) => {
-                random_normal(shape, device, mean.elem(), std.elem(), dtype)
+                random_normal(shape, device, mean.elem(), std.elem(), dtype, key)
             }
         }
     }

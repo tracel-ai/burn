@@ -14,8 +14,9 @@
 //!
 //! * The model thread's is set directly on every enter and exit. An unfused
 //!   launch is issued there, synchronously, under exactly that component.
-//! * The fusion worker's is set by a task sent into **the queue the ops travel
-//!   through**. A device's worker runs every service of its stage from one
+//! * Each fusion worker's is set by a task sent into **the queue the ops travel
+//!   through**: one worker on a fused device, one per member on a sharded
+//!   compute device. A device's worker runs every service of its stage from one
 //!   FIFO, so the task is processed after every op registered before the
 //!   boundary and before every op registered after it. An op the worker
 //!   processes is then known to come from the component that registered it,
@@ -35,7 +36,7 @@
 //! kept beside it, so a kernel that fused several components' work can be
 //! named for them.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
 use burn_tensor::Device;
@@ -92,37 +93,83 @@ thread_local! {
     /// leaving one restores exactly what entering it overrode.
     #[cfg(feature = "fusion")]
     static OUTER: RefCell<Vec<Placement>> = const { RefCell::new(Vec::new()) };
+    /// The member this thread launches for, on a member's fusion worker. `None` on every other
+    /// thread, such as the model thread a collective launches its per-member kernels from.
+    static MEMBER: Cell<Option<Member>> = const { Cell::new(None) };
+}
+
+/// A member of the profiled device, by its index in member order: `0` on a device of one.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Member(pub usize);
+
+/// How many members a device launches for: one, unless it is a sharded compute device whose
+/// members fuse on workers of their own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MemberCount(pub usize);
+
+impl MemberCount {
+    /// Whether the device has more than one member, so each is timed apart.
+    pub fn several(self) -> bool {
+        self.0 > 1
+    }
 }
 
 /// Moves every launching thread's [`Attribution`] in step with the ops it runs.
 pub struct LaunchCursor {
-    /// The fusion worker of the profiled device, where its ops go through one.
-    worker: Option<DeviceHandle<WorkerCursor>>,
+    /// The fusion workers of the profiled device, in member order, where its ops go through them.
+    workers: Vec<DeviceHandle<WorkerCursor>>,
 }
 
 impl LaunchCursor {
-    /// A cursor for work running on `device`, moving its fusion worker's
-    /// attribution too where its ops go through one
-    /// (`DispatchDevice::fusion_worker`).
+    /// A cursor for work running on `device`, moving its fusion workers' attribution too where
+    /// its ops go through them (`DispatchDevice::fusion_workers`), and telling each worker which
+    /// member it launches for.
     pub fn new(device: &Device) -> Self {
-        let worker = device.as_dispatch().fusion_worker().map(|worker| {
-            // Opening the handle waits on the worker while holding cubecl's channel
-            // registry, which a block still running there can need too: open it idle.
+        let ids = device.as_dispatch().fusion_workers();
+        if !ids.is_empty() {
+            // Opening a handle waits on the worker while holding cubecl's channel registry, which
+            // a block still running there can need too: open them idle.
             device
                 .sync()
-                .expect("the device answers before the worker is reached");
-            DeviceHandle::new(worker)
-        });
-        Self { worker }
+                .expect("the device answers before the workers are reached");
+        }
+        Self::over(ids)
+    }
+
+    /// A cursor moving the workers `ids`, the member at each index told it launches for that
+    /// member.
+    ///
+    /// A worker named twice, as by a sharded compute device whose members are one device, is
+    /// kept once: its members share one thread, which cannot launch for two of them.
+    fn over(ids: Vec<DeviceId>) -> Self {
+        let mut workers: Vec<DeviceHandle<WorkerCursor>> = Vec::with_capacity(ids.len());
+        let mut seen: Vec<DeviceId> = Vec::with_capacity(ids.len());
+        for id in ids {
+            if !seen.contains(&id) {
+                seen.push(id);
+                workers.push(DeviceHandle::new(id));
+            }
+        }
+        for (index, worker) in workers.iter().enumerate() {
+            worker
+                .submit(move |_: &mut WorkerCursor| MEMBER.with(|it| it.set(Some(Member(index)))));
+        }
+        Self { workers }
     }
 
     /// Whether the profiled device's ops go through a fusion worker — whether,
     /// that is, the run being instrumented is the fused graph.
     pub fn fusion(&self) -> Fusion {
-        match self.worker {
-            Some(_) => Fusion::Fused,
-            None => Fusion::Unfused,
+        match self.workers.is_empty() {
+            false => Fusion::Fused,
+            true => Fusion::Unfused,
         }
+    }
+
+    /// How many members the profiled device launches for, one unless it is a sharded compute
+    /// device whose members fuse.
+    pub fn members(&self) -> MemberCount {
+        MemberCount(self.workers.len().max(1))
     }
 
     /// Point every launching thread at `attribution`: this one now, and the
@@ -134,9 +181,15 @@ impl LaunchCursor {
     /// a full queue waits for the worker to make room.
     pub fn point_at(&self, attribution: Attribution) {
         Self::point_thread_at(attribution);
-        if let Some(worker) = &self.worker {
+        for worker in &self.workers {
             worker.submit(move |_: &mut WorkerCursor| Self::point_thread_at(attribution));
         }
+    }
+
+    /// The member a launch issued on the calling thread runs on, where the thread is a
+    /// member's fusion worker.
+    pub fn member() -> Option<Member> {
+        MEMBER.with(Cell::get)
     }
 
     /// What a launch issued on the calling thread is recorded under.
@@ -235,7 +288,7 @@ mod tests {
             index_id: u16::MAX,
         };
         let cursor = LaunchCursor {
-            worker: Some(DeviceHandle::new(device)),
+            workers: vec![DeviceHandle::new(device)],
         };
         let ops = DeviceHandle::<Ops>::new(device);
         let [block] = components();
@@ -258,13 +311,67 @@ mod tests {
         );
     }
 
+    /// On a sharded compute device every member's worker takes each boundary, and knows which
+    /// member it launches for.
+    #[test]
+    fn every_members_worker_follows_the_boundaries() {
+        let devices = [u16::MAX - 1, u16::MAX - 2].map(|index_id| DeviceId {
+            type_id: u16::MAX,
+            index_id,
+        });
+        let cursor = LaunchCursor::over(devices.to_vec());
+        let [block] = components();
+
+        cursor.point_at(block);
+
+        for (index, device) in devices.into_iter().enumerate() {
+            let seen = DeviceHandle::<Ops>::new(device)
+                .submit_blocking(|_: &mut Ops| (LaunchCursor::current(), LaunchCursor::member()))
+                .expect("the worker answers");
+            assert_eq!(seen, (block, Some(Member(index))), "member {index}");
+        }
+        assert_eq!(cursor.members(), MemberCount(2));
+    }
+
+    /// A sharded compute device whose members are one device names its worker twice: both are
+    /// one worker, so the device launches for one member and is timed as one.
+    #[test]
+    fn a_worker_named_twice_is_one_member() {
+        let device = DeviceId {
+            type_id: u16::MAX,
+            index_id: u16::MAX - 5,
+        };
+        let cursor = LaunchCursor::over(vec![device, device]);
+
+        assert_eq!(cursor.members(), MemberCount(1));
+        let member = DeviceHandle::<Ops>::new(device)
+            .submit_blocking(|_: &mut Ops| LaunchCursor::member())
+            .expect("the worker answers");
+        assert_eq!(member, Some(Member(0)));
+    }
+
+    /// A launch from any thread but a member's worker, as a collective's per-member kernels are
+    /// launched from the model thread, is on no member.
+    #[test]
+    fn a_thread_that_is_no_members_worker_launches_for_no_member() {
+        let devices = [u16::MAX - 3, u16::MAX - 4].map(|index_id| DeviceId {
+            type_id: u16::MAX,
+            index_id,
+        });
+        let _cursor = LaunchCursor::over(devices.to_vec());
+
+        assert_eq!(LaunchCursor::member(), None);
+    }
+
     /// A block overrides the thread's attribution for as long as it runs and
     /// gives back exactly what it found — nested blocks included, since a
     /// fused kernel can run an unfused fallback inside itself.
     #[cfg(feature = "fusion")]
     #[test]
     fn a_block_overrides_the_thread_until_it_has_run() {
-        let cursor = LaunchCursor { worker: None };
+        let cursor = LaunchCursor {
+            workers: Vec::new(),
+        };
         let [outer, fused, first, second, fallback] = components();
         cursor.point_at(outer);
 
@@ -290,7 +397,9 @@ mod tests {
     /// cursor moves at once.
     #[test]
     fn without_a_worker_the_calling_thread_moves_at_once() {
-        let cursor = LaunchCursor { worker: None };
+        let cursor = LaunchCursor {
+            workers: Vec::new(),
+        };
         let [norm] = components();
         cursor.point_at(norm);
         assert_eq!(LaunchCursor::current(), norm);

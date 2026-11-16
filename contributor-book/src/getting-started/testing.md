@@ -40,6 +40,36 @@ From the repository root, use `cargo run-checks` for the repository validation w
 to Flex; select another backend with `cargo run-checks --backend <backend>` when working on
 backend-specific code.
 
+## CI suites
+
+Linux and Windows standard tests use four shards:
+
+| Shard | Validation |
+| --- | --- |
+| `backends` | Flex backend and extension tests, CPU transfer integration tests, dispatch unit tests, and Flex FFT kernels |
+| `crates` | Workspace tests with Flex, backend-free feature checks, and graph capture tests |
+| `crates-features` | Dataset features, vision and training features, and remote FFT tests on Linux |
+| `examples` | Compilation checks for the example packages |
+
+Run a shard from the repository root, for example:
+
+```sh
+cargo xtask test --ci crates
+cargo xtask test --ci crates-features
+```
+
+The Linux and Windows test shards and stable Linux no-std tests use Cargo's normal test profile,
+without `--release` or CI-specific profile overrides. This keeps compilation unoptimized and enables
+debug assertions and overflow checks. The examples shard runs `cargo check`.
+
+The previous-Rust Linux job checks workspace and opt-in feature compatibility, then builds the
+no-std target configurations. Stable Rust runs the no-std builds and execution tests separately.
+The macOS and GPU suites keep their existing optimized profiles.
+
+Coverage is collected by the three Linux test shards on pushes to `main`; PR tests run without
+instrumentation. Each shard must produce a report containing workspace crate sources before it
+can be uploaded. The coverage upload job combines the three reports.
+
 ## Autodiff
 
 Shared backward tests live in

@@ -1,7 +1,7 @@
 //! Process-global registry connecting Burn's compact `DeviceId` to rich remote endpoints.
 
 use burn_ir::TensorId;
-use burn_std::{DeviceSettings, ExecutionError};
+use burn_std::{DeviceSettings, ExecutionError, rand::StdRng};
 use std::{
     collections::HashMap,
     sync::{
@@ -67,6 +67,7 @@ struct EndpointRegistry {
 struct EndpointEntry {
     endpoint: RemoteEndpoint,
     device_index: u32,
+    rng: Arc<Mutex<StdRng>>,
     settings: Arc<OnceLock<DeviceSettings>>,
     device_count: Arc<OnceLock<u32>>,
     /// The one session this device opens, named before it opens so a collective can name it.
@@ -116,6 +117,7 @@ pub(crate) fn register_endpoint(endpoint: RemoteEndpoint, device_index: u32) -> 
         EndpointEntry {
             endpoint,
             device_index,
+            rng: Arc::new(Mutex::new(burn_std::rand::get_seeded_rng())),
             settings: Arc::new(OnceLock::new()),
             device_count: Arc::new(OnceLock::new()),
             session_id: SessionId::new(),
@@ -159,6 +161,10 @@ pub(crate) fn has_settings(id: u32) -> bool {
 
 pub(crate) fn settings_cell(id: u32) -> Arc<OnceLock<DeviceSettings>> {
     with_entry(id, |entry| entry.settings.clone())
+}
+
+pub(crate) fn random_generator(id: u32) -> Arc<Mutex<StdRng>> {
+    with_entry(id, |entry| entry.rng.clone())
 }
 
 pub(crate) fn device_count_cell(id: u32) -> Arc<OnceLock<u32>> {

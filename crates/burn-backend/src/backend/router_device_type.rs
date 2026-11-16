@@ -5,8 +5,8 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum RouterDeviceType {
-    /// A group of devices that a tensor's shards are spread over.
-    Group = 253,
+    /// A sharded compute device of devices that a tensor's shards are spread over.
+    ShardedCompute = 253,
     /// A device on a remote server.
     Remote = 254,
     /// A device that records operations instead of running them.
@@ -27,10 +27,12 @@ mod tests {
     /// Every variant: the match stops compiling when one is added, until it is listed here.
     fn every_router_device_type() -> [RouterDeviceType; 3] {
         match RouterDeviceType::Remote {
-            RouterDeviceType::Group | RouterDeviceType::Remote | RouterDeviceType::Capture => {}
+            RouterDeviceType::ShardedCompute
+            | RouterDeviceType::Remote
+            | RouterDeviceType::Capture => {}
         }
         [
-            RouterDeviceType::Group,
+            RouterDeviceType::ShardedCompute,
             RouterDeviceType::Remote,
             RouterDeviceType::Capture,
         ]
