@@ -11,14 +11,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(feature = "fusion")]
 use burn_fusion::observer::FusionObservation;
-use cubecl::logging::LaunchObservation;
+use cubecl::logging::ExecutionObservation;
 
 use super::recorder::RunRecorder;
 
 /// What watching a run installed: the runtime's launch observer and the
 /// fusion server's. Both come out when it drops.
 pub struct Watching {
-    _launches: LaunchObservation,
+    _launches: ExecutionObservation,
     #[cfg(feature = "fusion")]
     _fusion: FusionObservation,
     /// Last, since fields drop in order: the claim is given up only once both
@@ -38,7 +38,7 @@ impl Watching {
     /// `claim` is held until both observers have been put back.
     pub fn new(recorder: &Arc<RunRecorder>, claim: Claim) -> Self {
         Self {
-            _launches: LaunchObservation::new(recorder.clone()),
+            _launches: ExecutionObservation::new(recorder.clone()),
             #[cfg(feature = "fusion")]
             _fusion: FusionObservation::new(recorder.clone()),
             _claim: claim,

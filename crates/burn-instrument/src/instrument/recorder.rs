@@ -2,7 +2,7 @@
 //! enters, from the thread driving the model, and the kernels, blocks and
 //! timings the runtimes report, from whichever thread issues them.
 //!
-//! The runtime calls a [`LaunchObserver`] synchronously, on the thread that
+//! The runtime calls an [`ExecutionObserver`] synchronously, on the thread that
 //! issued the launch, before it is submitted. The recorder is the observer,
 //! and records each launch under that thread's own attribution — moved in
 //! step with the ops the thread runs, and inside a fusion block set to the
@@ -33,7 +33,7 @@ use burn_fusion::observer::{BlockOperations, FusionObserver};
 #[cfg(feature = "fusion")]
 use burn_ir::OperationIr;
 use burn_tensor::Device;
-use cubecl::logging::{LaunchObserver, TimingRequest};
+use cubecl::logging::{Execution, ExecutionKind, ExecutionObserver, Measurement, TimingRequest};
 use cubecl::profile::{ProfileDuration, TimingMethod};
 
 use super::component_tree::ComponentTree;
@@ -222,19 +222,39 @@ impl ComponentObserver for RunRecorder {
 /// launches, never where the model thread has got to: under fusion a kernel
 /// launches on the fusion worker, dozens of ops after the model thread
 /// registered its work.
-impl LaunchObserver for RunRecorder {
-    fn launched(&self, kernel: &'static str) {
-        LaunchCursor::with_placement(|placement| {
-            self.locked().tree.count_launch(placement, kernel);
-        });
+impl ExecutionObserver for RunRecorder {
+    fn issued(&self, execution: &Execution) {
+        if let ExecutionKind::Kernel { name, .. } = execution.kind {
+            self.launched(name);
+        }
     }
 
     /// Timed, and handed over unread — a breakdown whose kernel components carried
     /// no time would say which kernels ran and nothing about which of them
     /// mattered, and reading each timing at its launch waits for that
-    /// kernel, which executes the run one kernel at a time.
+    /// kernel, which executes the run one kernel at a time. Kernels only: the
+    /// recorder keeps nothing of a communication, so timing one would cost its
+    /// device events for a measurement dropped on arrival.
     fn timing(&self) -> TimingRequest {
-        TimingRequest::Deferred
+        TimingRequest::Deferred(cubecl::logging::Timed::Kernels)
+    }
+
+    fn measured(&self, execution: &Execution, measurement: Measurement) {
+        let ExecutionKind::Kernel { name, .. } = execution.kind else {
+            return;
+        };
+        match measurement {
+            Measurement::Unread(profile) => self.profiled(name, profile),
+            Measurement::Read { duration, method } => self.timed(name, duration, method),
+        }
+    }
+}
+
+impl RunRecorder {
+    fn launched(&self, kernel: &'static str) {
+        LaunchCursor::with_placement(|placement| {
+            self.locked().tree.count_launch(placement, kernel);
+        });
     }
 
     /// Kept beside the component that counted the launch, and read back in
