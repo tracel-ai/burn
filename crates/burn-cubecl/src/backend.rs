@@ -12,8 +12,6 @@ use burn_backend::{
 use burn_backend::{
     EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, PruneOptions, Pruned,
 };
-#[cfg(all(feature = "persistence", not(target_family = "wasm")))]
-use burn_std::environment::SaveOptions;
 use burn_std::{BoolStore, DType, id::StreamId, quantization::quantizable};
 use cubecl::device::DeviceId;
 #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
@@ -270,7 +268,7 @@ impl Backend for CubeBackend {
         id: EnvironmentId,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
         device.client().flush().map_err(server_err)?;
-        Ok(id.save(SaveOptions::new())?)
+        Ok(id.save()?)
     }
 
     /// The launches the calling stream's client still buffers are flushed
