@@ -993,6 +993,11 @@ See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics)
   [#6042](https://github.com/tracel-ai/burn/pull/6042))
   [@divakantpandey](https://github.com/divakantpandey), [@Infinty-ux](https://github.com/Infinty-ux)
 
+#### System metrics
+
+- Fix `burn-train` failing to build with systemstat 0.2.8, which new projects resolve to, and the
+  `CpuTemperature` metric reading NaN after its first reading with that version.
+
 #### Text generation metrics
 
 - Correct BLEU and ROUGE-L scores and prevent panics when prediction and reference sequence lengths
