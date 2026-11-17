@@ -1,16 +1,10 @@
 #![allow(missing_docs)]
 
-use super::{
-    SumAutotuneKey,
-    base::{reduce_dims_copy, reduce_dims_folded},
-};
-use crate::{
-    CubeAutotuneKey, CubeTuneId, kernel::reduce::bounds::with_sum_bounds, tensor::CubeTensor,
-};
-use burn_backend::{DType, cubecl::dtype_to_elem_type};
+use super::base::{reduce_dims_copy, reduce_dims_folded};
+use crate::{CubeTuneId, tensor::CubeTensor};
+use burn_backend::DType;
 use cubecl::{
     AutotuneKey,
-    client::Client,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
 };
 use cubek::reduce::components::instructions::ReduceOperationConfig;
@@ -114,79 +108,6 @@ mod reduce_dims_ops {
         (input, dims, config): (CubeTensor, Vec<usize>, ReduceOperationConfig),
     ) -> Result<CubeTensor, String> {
         reduce_dims_copy(input, &dims, config).map_err(|error| error.to_string())
-    }
-}
-
-/// Executes autotune on a whole-tensor sum.
-pub fn autotune_sum(client: &Client, input: CubeTensor) -> CubeTensor {
-    use sum_ops::*;
-
-    static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!("autotune-sum");
-
-    let tune_id = CubeTuneId::new(&input.client, &input.device);
-    let tunables = TUNER.init(&tune_id, || {
-        with_sum_bounds(TunableSet::new(create_key_sum, sum_input_gen))
-            .with(Tunable::new("sum_chained", sum_chained))
-            .with(Tunable::new("sum_one_shot", sum_one_shot::<1>))
-            .with(Tunable::new("sum_one_shot", sum_one_shot::<2>))
-            .with(Tunable::new("sum_one_shot", sum_one_shot::<4>))
-            .with(Tunable::new("sum_one_shot", sum_one_shot::<8>))
-            .with(Tunable::new("sum_one_shot", sum_one_shot::<16>))
-            .with(Tunable::new("sum_one_shot", sum_one_shot::<32>))
-            .with(Tunable::new("sum_one_shot", sum_one_shot::<64>))
-    });
-
-    TUNER.execute(&tune_id, client, tunables, input)
-}
-
-pub(crate) fn create_key_sum(input: &CubeTensor) -> CubeAutotuneKey {
-    CubeAutotuneKey::Sum(SumAutotuneKey::generate(input))
-}
-
-impl SumAutotuneKey {
-    #[allow(unused)]
-    pub(crate) fn generate(input: &CubeTensor) -> Self {
-        let dtype = input.dtype;
-        let length = input.meta.num_elements();
-        Self::new(dtype, length)
-    }
-}
-mod sum_ops {
-    #![allow(missing_docs)]
-    use crate::ops::numeric::zeros_client;
-
-    use super::*;
-
-    pub(crate) fn sum_input_gen(_key: &CubeAutotuneKey, input: &CubeTensor) -> CubeTensor {
-        input.clone()
-    }
-
-    pub(crate) fn sum_one_shot<const C: u32>(input: CubeTensor) -> Result<CubeTensor, String> {
-        let client = input.client.clone();
-        let device = input.device.clone();
-        let output = zeros_client(client.clone(), device, [1].into(), input.dtype);
-        let dtype = input.dtype;
-
-        cubek::reduce::shared_sum(
-            &output.client,
-            input.binding(),
-            output.clone().binding(),
-            C,
-            dtype_to_elem_type(dtype),
-        )
-        .map_err(|e| e.to_string())
-        .map(|_| output)
-    }
-
-    #[cfg(feature = "autotune")]
-    pub(crate) fn sum_chained(input: CubeTensor) -> Result<CubeTensor, String> {
-        crate::kernel::reduce::reduce(
-            input,
-            None,
-            crate::kernel::reduce::KernelReduceStrategy::Autotune,
-            cubek::reduce::components::instructions::ReduceOperationConfig::Sum,
-        )
-        .map_err(|e| e.to_string())
     }
 }
 

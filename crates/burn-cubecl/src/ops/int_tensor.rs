@@ -387,7 +387,7 @@ impl IntTensorOps<Self> for CubeBackend {
     }
 
     fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::sum_fallback(tensor, Default::default()).unwrap()
+        reduce::sum(tensor, Default::default()).unwrap()
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {

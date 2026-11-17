@@ -439,7 +439,7 @@ impl FloatTensorOps<Self> for CubeBackend {
     }
 
     fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        reduce::sum_fallback(tensor, Default::default()).unwrap()
+        reduce::sum(tensor, Default::default()).unwrap()
     }
 
     fn float_max(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
