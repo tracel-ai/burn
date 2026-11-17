@@ -6,10 +6,10 @@ use crate::{
 use burn_backend::RandomKey;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceOps, DeviceTelemetry,
-    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
-    ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
-    ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned, Shape,
-    profile_with_tokens,
+    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
+    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
+    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
+    SaveOptions, Shape, profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -198,12 +198,23 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn environment_save(
         device: &Self::Device,
         id: EnvironmentId,
+        options: SaveOptions,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
         client
-            .try_sync(move || B::environment_save(&device, id))
+            .try_sync(move || B::environment_save(&device, id, options))
             .map_err(server_error)?
+    }
+
+    /// Counted without draining the calling stream's queue: the count is of
+    /// what has compiled and tuned so far, and work queued but not yet
+    /// executed is not in it.
+    fn environment_summary(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentSummary, EnvironmentError> {
+        B::environment_summary(device, id)
     }
 
     fn environment_merge(
