@@ -1,5 +1,3 @@
-#[cfg(feature = "autotune")]
-mod bounds;
 mod fuser;
 mod optimization;
 

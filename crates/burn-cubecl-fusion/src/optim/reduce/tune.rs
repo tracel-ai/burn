@@ -1,28 +1,24 @@
-use super::{bounds::with_fused_reduce_bounds, optimization::ReduceOptimizationTuneArg};
+use super::optimization::{ReduceOptimizationTuneArg, reduce_operation};
 use crate::{
     CubeFusionHandle,
     engine::trace::TuneOutput,
     tune::{FusionInputGen, TuneInput},
 };
-use burn_backend::cubecl::dtype_to_elem_type;
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeTuneId,
-    tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
+    tile::Geometry,
+    tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
-use cubek::reduce::{
-    launch::{RoutineStrategy, tune_key::ReduceAutotuneKey},
-    routines::{BlueprintStrategy, cube::CubeStrategy, plane::PlaneStrategy, unit::UnitStrategy},
-};
+use cubek::reduce::kernels::{ReduceElements, ReduceKey, ReduceRoutineProblem};
 use serde::{Deserialize, Serialize};
 
-/// Autotune key for standard fused reduction operations.
-///
-/// Records metadata about the fusion graph (IO and ops) alongside
-/// the core reduction parameters to ensure stable kernel selection.
+/// Autotune key for standard fused reduction operations: the reduce's own key, as cubek's reduce
+/// autotune states it, beside what the trace fuses around it.
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
 pub struct FusedReduceAutotuneKey {
-    reduce_key: ReduceAutotuneKey,
+    reduce_key: ReduceKey,
     #[autotune(anchor)]
     fuse_num_reads: usize,
     #[autotune(anchor)]
@@ -31,10 +27,9 @@ pub struct FusedReduceAutotuneKey {
     fuse_num_ops: usize,
 }
 
-/// Executes autotuning for fused reduction operations.
-///
-/// This tuner evaluates different hardware-specific strategies (Plane, Cube, Unit)
-/// and assigns priorities based on the `vector_count` of the reduction.
+/// Run the fused reduce: the routine cubek's reduce autotune elected for the unfused reduce,
+/// reading through the trace's read block, then the write block, or the fallback, whichever the
+/// autotune measured faster for its key.
 pub fn fused_reduce_autotune(
     arg: ReduceOptimizationTuneArg,
     context: &mut Context<CubeFusionHandle>,
@@ -43,72 +38,11 @@ pub fn fused_reduce_autotune(
 
     let tune_id = CubeTuneId::new(&arg.info.client, &arg.info.device);
     let tunables = TUNER.init(&tune_id, || {
-        const PRIORITY_MAX: i8 = 2;
-        const PRIORITY_MIN: i8 = 1;
-
-        let mut set = with_fused_reduce_bounds(TunableSet::new(create_key, FusionInputGen));
-        let group = TuneGroup::<FusedReduceAutotuneKey>::new("fused_reduce", |_key| PRIORITY_MAX);
-
-        // Fallback implementation for robustness.
-        set = set.with(Tunable::new("fused_reduce_fallback", tune_fallback));
-
-        // Define properties to categorize hardware strategies.
-        enum ReduceProps {
-            GreatWithLowReduceCount,
-            GreatWithHighReduceCount,
-            Balanced,
-        }
-
-        let strategies = [
-            (
-                "fused_unit",
-                RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
-                ReduceProps::GreatWithHighReduceCount,
-            ),
-            (
-                "fused_plane",
-                RoutineStrategy::Plane(BlueprintStrategy::Inferred(PlaneStrategy {
-                    independent: true,
-                })),
-                ReduceProps::Balanced,
-            ),
-            (
-                "fused_cube",
-                RoutineStrategy::Cube(BlueprintStrategy::Inferred(CubeStrategy {
-                    // Two steps reduction doesn't work with fuse-on-write, we can't activate plane
-                    // when using the cube algo.
-                    use_planes: false,
-                })),
-                ReduceProps::GreatWithLowReduceCount,
-            ),
-        ];
-
-        for (name, strategy, props) in strategies {
-            let tunable = Tunable::new(name, move |input| tune_reduce(input, &strategy)).group(
-                &group,
-                move |key| match props {
-                    ReduceProps::GreatWithLowReduceCount => {
-                        if key.reduce_key.vector_count < 128 {
-                            PRIORITY_MAX
-                        } else {
-                            PRIORITY_MIN
-                        }
-                    }
-                    ReduceProps::GreatWithHighReduceCount => {
-                        if key.reduce_key.vector_count > 64 {
-                            PRIORITY_MAX
-                        } else {
-                            PRIORITY_MIN
-                        }
-                    }
-                    ReduceProps::Balanced => PRIORITY_MAX,
-                },
-            );
-
-            set = set.with(tunable);
-        }
-
-        set
+        // The fallback first: it always runs, and its unfused reduce settles the key the fused
+        // one elects its routine from.
+        TunableSet::new(create_key, FusionInputGen)
+            .with(Tunable::new("fused_reduce_fallback", tune_fallback))
+            .with(Tunable::new("fused_reduce_tile", tune_fused))
     });
 
     TUNER.execute(
@@ -119,7 +53,7 @@ pub fn fused_reduce_autotune(
     );
 }
 
-/// Creates the autotune key by extracting tensor metadata and fusion block statistics.
+/// Creates the autotune key from the reduce's operands and the fusion blocks' statistics.
 pub(crate) fn create_key(input: &TuneInput<ReduceOptimizationTuneArg>) -> FusedReduceAutotuneKey {
     let opt = input.optimization();
     assert!(
@@ -127,18 +61,20 @@ pub(crate) fn create_key(input: &TuneInput<ReduceOptimizationTuneArg>) -> FusedR
         "Forked context not supported for key generation"
     );
     let tensors = input.tensors();
-
-    let input_tensor = tensors.get(&opt.info.reduce.op.input.id).unwrap();
-    let out_tensor = tensors.get(&opt.info.reduce.op.out.id).unwrap();
-    let acc = opt.info.reduce.acc.into_elem();
-
-    let key = ReduceAutotuneKey::generate(
-        dtype_to_elem_type(input_tensor.dtype),
-        dtype_to_elem_type(out_tensor.dtype),
-        acc,
-        &input_tensor.shape,
-        opt.info.reduce.axis == input_tensor.shape.rank() - 1,
-        opt.info.reduce.axis,
+    let reduce = &opt.info.reduce;
+    let input_tensor = tensors.get(&reduce.op.input.id).unwrap();
+    let out_tensor = tensors.get(&reduce.op.out.id).unwrap();
+    // The key reads the problem the operands state, not the widths they are read at.
+    let problem = ReduceRoutineProblem::stated(
+        &Geometry::row_major(&input_tensor.shape),
+        &Geometry::row_major(&out_tensor.shape),
+        reduce.axis,
+        reduce_operation(reduce.inst),
+        ReduceElements {
+            input: dtype_to_storage_type(input_tensor.dtype),
+            accumulator: reduce.acc.into_elem(),
+            out: dtype_to_storage_type(out_tensor.dtype),
+        },
     );
 
     // Assume the fusion contains at least a read and a write block.
@@ -146,21 +82,23 @@ pub(crate) fn create_key(input: &TuneInput<ReduceOptimizationTuneArg>) -> FusedR
     let write_block = &opt.info.trace.blocks[1];
 
     FusedReduceAutotuneKey::new(
-        key,
+        ReduceKey::from(&problem),
         read_block.reads.len() + write_block.reads.len(),
         read_block.writes.len() + write_block.writes.len(),
         read_block.ops.len() + write_block.ops.len(),
     )
 }
 
-/// Executes a fused reduction optimization.
-fn tune_reduce(
-    input: TuneInput<ReduceOptimizationTuneArg>,
-    strategy: &RoutineStrategy,
-) -> Result<TuneOutput, String> {
-    input
-        .execute(|ctx, opt| opt.execute_fused(ctx, strategy.clone()))
-        .map_err(|e| format!("{e:?}"))
+/// The reduce on its elected routine, through the trace's read block, then the write block; on the
+/// original inputs, the fallback where it does not run fused, since that run's result is the one
+/// kept.
+fn tune_fused(input: TuneInput<ReduceOptimizationTuneArg>) -> Result<TuneOutput, String> {
+    let is_original = input.is_original();
+    input.execute(|context, opt| match opt.execute_fused(context) {
+        Ok(output) => Ok(output),
+        Err(_) if is_original => Ok(opt.execute_fallback(context)),
+        Err(error) => Err(format!("{error:?}")),
+    })
 }
 
 /// Executes the fallback path for a reduction optimization.
