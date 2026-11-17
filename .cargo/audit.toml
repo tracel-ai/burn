@@ -24,8 +24,8 @@ ignore = [
     "RUSTSEC-2026-0398",
     # Polars uses the unaffected read decoder, not the affected write decoder.
     "RUSTSEC-2026-0403",
-    # Unmaintained, with no fixed upgrade: `chrono` (polars, object_store, turso, wmi,
-    # tokio-rustls-acme), `chrono-tz` (polars) and `humantime` (object_store).
+    # `chrono` (turso, polars), `chrono-tz` (polars-arrow) and `humantime` (polars →
+    # object_store) are marked unmaintained with no release to move to: their users pin them.
     "RUSTSEC-2026-0543",
     "RUSTSEC-2026-0555",
     "RUSTSEC-2026-0542",
