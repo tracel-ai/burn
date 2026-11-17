@@ -85,10 +85,7 @@ impl TileOperand for TraceReadTileOperand {
         );
         let size!(W) = config.width;
         let view = View::new::<FusedInput, Coords1d>(block, PlainLayout::new(lines));
-        let source = ErasedTensor::<E, ReadOnly>::of_view::<
-            View<Vector<E, W>, Coords1d>,
-            W,
-        >(view);
+        let source = ErasedTensor::<E, ReadOnly>::of_view::<View<Vector<E, W>, Coords1d>, W>(view);
 
         let mut geometry = RuntimeGeometry::new();
         #[unroll]

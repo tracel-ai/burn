@@ -25,10 +25,7 @@ use cubecl::{
     tile::{Geometry, launch::Refusal},
 };
 use cubek::microkernel::reduce::ReduceOperation;
-use cubek::reduce::{
-    components::instructions::ReduceOperationConfig,
-    kernels::{ReduceElements, ReduceTensors, fastest_reduce_candidate},
-};
+use cubek::reduce::kernels::{ReduceElements, ReduceTensors, fastest_reduce_candidate};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -190,7 +187,7 @@ impl ReduceOptimizationTuneArg {
         context: &mut Context<CubeFusionHandle>,
     ) -> Result<TuneOutput, TraceError<FusedReduceError>> {
         let out_desc = context.tensors.get(&self.info.reduce.op.out.id).unwrap();
-        let out_shape = out_desc.shape.clone();
+        let (out_id, out_shape) = (out_desc.id, out_desc.shape.clone());
         let size = out_shape.num_elements() * dtype_to_storage_type(out_desc.dtype).size();
         let out = CubeFusionHandle {
             client: self.info.client.clone(),
@@ -211,9 +208,7 @@ impl ReduceOptimizationTuneArg {
         #[allow(unused_mut)] // It is used when `autotune-checks` is activated.
         let mut output_read = launcher.launch(&self.info.client, &self.info.device, context)?;
 
-        context
-            .handles
-            .register_handle(self.info.reduce.op.out.id, out.clone());
+        context.handles.register_handle(out_id, out.clone());
 
         #[cfg(feature = "autotune-checks")]
         if let TuneOutput::Checked { handles } = &mut output_read {
@@ -317,8 +312,7 @@ impl ReduceOptimization {
         fused_reduce_autotune(arg, context);
 
         #[cfg(not(feature = "autotune"))]
-        if arg.execute_fused(context).is_err()
-        {
+        if arg.execute_fused(context).is_err() {
             arg.execute_fallback(context);
         }
     }
@@ -440,21 +434,6 @@ pub(crate) fn reduce_operation(instruction: ReduceInstruction) -> ReduceOperatio
         ReduceInstruction::MaxAbs => ReduceOperation::MaxAbs,
         ReduceInstruction::Any => ReduceOperation::Any,
         ReduceInstruction::All => ReduceOperation::All,
-    }
-}
-
-pub(crate) fn reduce_instruction2config(instruction: &ReduceInstruction) -> ReduceOperationConfig {
-    match instruction {
-        ReduceInstruction::ArgMax => ReduceOperationConfig::ArgMax,
-        ReduceInstruction::ArgMin => ReduceOperationConfig::ArgMin,
-        ReduceInstruction::Prod => ReduceOperationConfig::Prod,
-        ReduceInstruction::Mean => ReduceOperationConfig::Mean,
-        ReduceInstruction::Sum => ReduceOperationConfig::Sum,
-        ReduceInstruction::Max => ReduceOperationConfig::Max,
-        ReduceInstruction::Min => ReduceOperationConfig::Min,
-        ReduceInstruction::MaxAbs => ReduceOperationConfig::MaxAbs,
-        ReduceInstruction::Any => ReduceOperationConfig::Any,
-        ReduceInstruction::All => ReduceOperationConfig::All,
     }
 }
 
