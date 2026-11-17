@@ -268,7 +268,7 @@ impl Backend for CubeBackend {
         id: EnvironmentId,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
         device.client().flush().map_err(server_err)?;
-        Ok(id.save()?)
+        Ok(id.save(burn_std::environment::SaveOptions::new())?)
     }
 
     /// The launches the calling stream's client still buffers are flushed
