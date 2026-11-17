@@ -201,10 +201,18 @@ Reports also include the measured cost of a kernel launch.
   ([#6430](https://github.com/tracel-ai/burn/pull/6430))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
-- `Breakdown::per_member` holds each member's device and idle time on a sharded compute device
-  whose members fuse, and the time of kernels launched off the members' workers. Its report prints
-  them, and the clean run beyond the slowest member's kernels, in place of a host split.
-  Measurement files are version 5. ([#6430](https://github.com/tracel-ai/burn/pull/6430))
+- `Breakdown::per_member` holds each member's device and idle time on a sharded compute device,
+  and the time of kernels that ran on no member's device. Its report prints them, and the clean run
+  beyond the slowest member's kernels, in place of a host split.
+  ([#6430](https://github.com/tracel-ai/burn/pull/6430))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- `PerMember::collectives` counts the collectives a sharded compute device ran, by operation, path
+  and size, with each member's part time and exposed time (`CollectiveTime`). Kernels are placed on
+  the member whose device ran them, so a sharded compute device whose members do not fuse is timed
+  per member too; `DispatchDevice::shard_member_ids` names the members' devices. Measurement files
+  are version 6.
+  ([#6527](https://github.com/tracel-ai/burn/pull/6527))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Flex SIMD operations
@@ -478,6 +486,12 @@ whose tensors are split over `devices` (crate `burn-shard`).
   recorded execution error instead of panicking.
   ([#6396](https://github.com/tracel-ai/burn/pull/6396),
   [#6408](https://github.com/tracel-ai/burn/pull/6408))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- `DimSplit::data_chunks` and `DimSplit::whole_data` cut and join a quantized tensor's stored
+  words and scales as bytes, instead of decoding every code and scale and quantizing each chunk
+  again, so splitting a quantized checkpoint over a sharded compute device is a copy.
+  ([#6528](https://github.com/tracel-ai/burn/pull/6528))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 - A quantized tensor moves between two sharded compute devices, its codes and scales unchanged,

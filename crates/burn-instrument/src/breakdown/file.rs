@@ -21,7 +21,7 @@ const FORMAT_BEFORE_VERSION_3: &str = "burn-instrument pass";
 ///
 /// Every change to what a file serializes as (a field added, removed, renamed or re-encoded) is a
 /// new version, so a saved measurement is read back as it was taken or not at all.
-pub const MEASUREMENT_FILE_VERSION: u32 = 5;
+pub const MEASUREMENT_FILE_VERSION: u32 = 6;
 
 /// An instrumented run and what it is scored against: what a measurement file holds.
 ///
@@ -180,7 +180,10 @@ mod tests {
     use burn_tensor::FloatDType;
 
     use super::*;
-    use crate::breakdown::{Component, Kernel, MemberTime, PerMember, Unplaced, Variant};
+    use crate::breakdown::{
+        CollectiveMemberTime, CollectivePath, CollectiveTime, Component, Kernel, MemberTime,
+        PerMember, Unplaced, Variant,
+    };
     use crate::{Bounds, ComponentPath, ComputePeak};
 
     /// A measurement written and read back is the one that was written, so one taken on a device
@@ -206,13 +209,13 @@ mod tests {
         assert_eq!(read.clean_wall, None);
     }
 
-    /// The format version 5 is, field for field. A change that fails this test is a new
+    /// The format version 6 is, field for field. A change that fails this test is a new
     /// [`MEASUREMENT_FILE_VERSION`], not an edit to the expected text.
     #[test]
-    fn version_five_is_pinned() {
+    fn version_six_is_pinned() {
         let expected = r#"{
   "format": "burn-instrument measurement",
-  "version": 5,
+  "version": 6,
   "device": "Rocm(0)",
   "peaks": {
     "copy_bytes_per_s": 161000000000.0,
@@ -282,13 +285,35 @@ mod tests {
           "idle": 340
         }
       ],
-      "off_members": 25
+      "off_members": 25,
+      "collectives": [
+        {
+          "operation": "all_reduce",
+          "path": {
+            "Native": {
+              "transport": "Nccl"
+            }
+          },
+          "bytes": 4096,
+          "count": 2,
+          "members": [
+            {
+              "part": 80,
+              "exposed": 10
+            },
+            {
+              "part": 70,
+              "exposed": 0
+            }
+          ]
+        }
+      ]
     }
   }
 }"#;
         assert_eq!(written(&measurement()), expected);
         assert_eq!(
-            Measurement::read(expected.as_bytes()).expect("version 5 reads"),
+            Measurement::read(expected.as_bytes()).expect("version 6 reads"),
             measurement(),
             "and reads back as the measurement it pins"
         );
@@ -300,6 +325,10 @@ mod tests {
     fn a_file_unlike_what_its_version_writes_is_refused() {
         let pinned = written(&measurement());
         let unknown = pinned.replace(r#""unfused": false"#, r#""unfused": false, "extra": 1"#);
+        let unknown_in_path = pinned.replace(
+            r#""transport": "Nccl""#,
+            r#""transport": "Nccl", "extra": 1"#,
+        );
         let bounds = pinned.find(r#""bounds""#).unwrap();
         let after_bounds = bounds + pinned[bounds..].find(r#""entries""#).unwrap();
         let missing = pinned.replace(&pinned[bounds..after_bounds], "");
@@ -307,7 +336,7 @@ mod tests {
             &pinned[pinned.find(r#""peaks""#).unwrap()..pinned.find(r#""clean_wall""#).unwrap()],
             "",
         );
-        for file in [&unknown, &missing, &no_peaks] {
+        for file in [&unknown, &unknown_in_path, &missing, &no_peaks] {
             assert_ne!(file, &pinned);
             assert!(
                 matches!(
@@ -420,6 +449,24 @@ mod tests {
                         },
                     ],
                     off_members: Duration::from_nanos(25),
+                    collectives: vec![CollectiveTime {
+                        operation: "all_reduce".to_string(),
+                        path: CollectivePath::Native {
+                            transport: "Nccl".to_string(),
+                        },
+                        bytes: 4096,
+                        count: 2,
+                        members: vec![
+                            CollectiveMemberTime {
+                                part: Duration::from_nanos(80),
+                                exposed: Duration::from_nanos(10),
+                            },
+                            CollectiveMemberTime {
+                                part: Duration::from_nanos(70),
+                                exposed: Duration::ZERO,
+                            },
+                        ],
+                    }],
                 }),
             },
         }
