@@ -1,6 +1,6 @@
 //! CPU Temperature metric
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use super::MetricMetadata;
 use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, NumericEntry, SerializedEntry};
@@ -12,7 +12,9 @@ use systemstat::{Platform, System};
 pub struct CpuTemperature {
     name: MetricName,
     temp_celsius: f32,
-    sys: Arc<System>,
+    // `System` caches open sensor files in a `RefCell` on Linux (systemstat 0.2.8), so it is not
+    // `Sync` on its own.
+    sys: Arc<Mutex<System>>,
 }
 
 impl CpuTemperature {
@@ -23,7 +25,7 @@ impl CpuTemperature {
         Self {
             name,
             temp_celsius: 0.,
-            sys: Arc::new(System::new()),
+            sys: Arc::new(Mutex::new(System::new())),
         }
     }
 }
@@ -46,7 +48,12 @@ impl Metric for CpuTemperature {
     }
 
     fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
-        match self.sys.cpu_temp() {
+        let temp = self
+            .sys
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .cpu_temp();
+        match temp {
             Ok(temp) => self.temp_celsius = temp,
             Err(_) => self.temp_celsius = f32::NAN,
         }
