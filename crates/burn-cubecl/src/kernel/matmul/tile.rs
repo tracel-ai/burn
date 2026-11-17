@@ -101,10 +101,10 @@ fn run_as((lhs, rhs, out): Inputs) -> Inputs {
     (transposed(rhs), transposed(lhs), transposed(out))
 }
 
-/// `tensor`, the input stated over `dimensions`, as cubek's plan reads it: as stored, and dequantized
-/// into `out` by burn's dequantize where a plan reaches for it. A quantized input the routines
-/// cannot state as stored is dequantized here first, and the plan reads a float input; a float
-/// one stored in tiles no routine reads is laid back in rows.
+/// `tensor`, the input stated over `dimensions`, as cubek's plan reads it: as stored, and
+/// dequantized into `out` by burn's dequantize where a plan reaches for it. A quantized input the
+/// routines cannot state as stored is dequantized here first, and the plan reads a float input; a
+/// float one stored in tiles no routine reads is laid back in rows.
 ///
 /// # Errors
 ///

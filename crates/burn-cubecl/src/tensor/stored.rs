@@ -14,8 +14,8 @@ impl CubeTensor {
         PlainTensor::new(self.stored_binding(), elem)
     }
 
-    /// This tensor, one matrix over `dimensions` in the order its shape states them, as it is stored:
-    /// plain, or, quantized, packed under its scales ([`PackedTensor::of_quantized`]).
+    /// This tensor, one matrix over `dimensions` in the order its shape states them, as it is
+    /// stored: plain, or, quantized, packed under its scales ([`PackedTensor::of_quantized`]).
     ///
     /// # Errors
     ///
