@@ -1,7 +1,5 @@
 #[cfg(feature = "autotune")]
-use super::{
-    autotune_reduce, autotune_reduce_dims_plan, autotune_reduce_with_indices, autotune_sum,
-};
+use super::{autotune_reduce_dims_plan, autotune_sum};
 use crate::ops::permute;
 use crate::{
     ops::numeric::{empty_device_contiguous_dtype, fill_device_dtype, zeros_client},
@@ -13,10 +11,9 @@ use burn_std::{BoolDType, Metadata};
 use burn_std::{Shape, Strides};
 use cubecl::{AutotuneKey, client::Client, features::AtomicUsage, ir::Type, prelude::InputScalar};
 use cubek::reduce::{
-    ReduceDtypes, ReduceError, ReduceStrategy, ReduceWithIndicesDtypes,
+    ReduceDtypes, ReduceError, ReduceWithIndicesDtypes,
     components::instructions::ReduceOperationConfig,
-    launch::{RoutineStrategy, VectorizationStrategy},
-    routines::{BlueprintStrategy, unit::UnitStrategy},
+    kernels::{ReduceKernel, ReduceKernelHeuristic, ReduceOpStrategy},
     shared_sum,
 };
 use serde::{Deserialize, Serialize};
@@ -163,7 +160,7 @@ impl Default for SumStrategy {
     }
 }
 
-/// Reduce all elements of the `input` tensor using the instruction `Rd` and the given [Strategy](ReduceStrategy).
+/// Reduce all elements of the `input` tensor using the instruction `Rd` and the given [strategy](KernelReduceStrategy).
 ///
 /// Return an error if `strategy` is `Specific(strategy)` and the specified strategy is not supported by the `client`.
 ///
@@ -445,7 +442,7 @@ fn argsort(shape: &[usize]) -> Vec<usize> {
     indices
 }
 
-/// Reduce the given `axis` of the `input` tensor using the instruction `Rd` and the given [Strategy](ReduceStrategy).
+/// Reduce the given `axis` of the `input` tensor using the instruction `Rd` and the given [strategy](KernelReduceStrategy).
 ///
 /// Return an error if `strategy` is `Specific(strategy)` and the specified strategy is not supported by the `client`.
 /// Also returns an error if the `axis` is larger than the `input` rank or if the shape of `output` is invalid.
@@ -497,38 +494,18 @@ pub fn reduce_dim(
         return Ok(output);
     }
 
-    let result = match strategy {
-        KernelReduceStrategy::Unspecified => cubek::reduce::reduce(
-            &client,
-            input.binding(),
-            output.clone().binding(),
-            dim,
-            ReduceStrategy {
-                routine: RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
-                vectorization: VectorizationStrategy {
-                    parallel_output_vectorization: false,
-                },
-                autotune_level: Default::default(),
-            },
-            config,
-            dtypes,
-        ),
-        KernelReduceStrategy::Specific(strategy) => cubek::reduce::reduce(
-            &client,
-            input.binding(),
-            output.clone().binding(),
-            dim,
-            strategy,
-            config,
-            dtypes,
-        ),
-        #[cfg(feature = "autotune")]
-        KernelReduceStrategy::Autotune => {
-            autotune_reduce(&client, input, output.clone(), dim, config, dtypes);
-            Ok(())
-        }
-    };
-    result.map(|_| output)
+    let device = input.device.clone();
+    cubek::reduce::kernels::reduce(
+        &client,
+        &device,
+        input.binding(),
+        output.clone().binding(),
+        dim,
+        strategy.into(),
+        config,
+        dtypes,
+    )
+    .map(|_| output)
 }
 
 /// Reduce the given `axis` of `input`, returning the values **and** their indices from a
@@ -608,49 +585,19 @@ pub fn reduce_dim_with_indices(
 
     let client = input.client.clone();
 
-    let result = match strategy {
-        KernelReduceStrategy::Unspecified => cubek::reduce::reduce_with_indices(
-            &client,
-            input.binding(),
-            values.clone().binding(),
-            indices.clone().binding(),
-            dim,
-            ReduceStrategy {
-                routine: RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
-                vectorization: VectorizationStrategy {
-                    parallel_output_vectorization: false,
-                },
-                autotune_level: Default::default(),
-            },
-            config,
-            dtypes,
-        ),
-        KernelReduceStrategy::Specific(strategy) => cubek::reduce::reduce_with_indices(
-            &client,
-            input.binding(),
-            values.clone().binding(),
-            indices.clone().binding(),
-            dim,
-            strategy,
-            config,
-            dtypes,
-        ),
-        #[cfg(feature = "autotune")]
-        KernelReduceStrategy::Autotune => {
-            autotune_reduce_with_indices(
-                &client,
-                input,
-                values.clone(),
-                indices.clone(),
-                dim,
-                config,
-                dtypes,
-            );
-            Ok(())
-        }
-    };
-
-    result.map(|_| (values, indices))
+    let device = input.device.clone();
+    cubek::reduce::kernels::reduce_with_indices(
+        &client,
+        &device,
+        input.binding(),
+        values.clone().binding(),
+        indices.clone().binding(),
+        dim,
+        strategy.into(),
+        config,
+        dtypes,
+    )
+    .map(|_| (values, indices))
 }
 
 /// Creates an empty output tensor with the proper shape and decreasing strides to reduce the given `axis` of `input`
@@ -685,16 +632,29 @@ pub fn init_reduce_output_dtype(
 }
 
 /// Select a strategy to perform a reduction.
+/// How a reduction picks its kernel. Every way runs cubek's tile-DSL reduce routines.
 #[derive(Clone, Debug)]
 pub enum KernelReduceStrategy {
-    /// Use a best-effort strategy based on the hardware capacity.
-    /// This differs from Autotune as it doesn't try and compare many strategies to select the best.
+    /// The routine cubek's rules pick, without a tuning round.
     Unspecified,
-    /// Fix the exact strategy for the reduction.
-    Specific(cubek::reduce::launch::ReduceStrategy),
-    /// Use autotune to find the best strategy given the hardware and the inputs.
+    /// Exactly this kernel.
+    Specific(ReduceKernel),
+    /// The routine measured fastest for the problem on this device.
     #[cfg(feature = "autotune")]
     Autotune,
+}
+
+impl From<KernelReduceStrategy> for ReduceOpStrategy {
+    fn from(strategy: KernelReduceStrategy) -> Self {
+        match strategy {
+            KernelReduceStrategy::Unspecified => {
+                ReduceOpStrategy::Heuristic(ReduceKernelHeuristic::Tile)
+            }
+            KernelReduceStrategy::Specific(kernel) => ReduceOpStrategy::Specific(kernel),
+            #[cfg(feature = "autotune")]
+            KernelReduceStrategy::Autotune => ReduceOpStrategy::Autotune,
+        }
+    }
 }
 
 impl Default for KernelReduceStrategy {
