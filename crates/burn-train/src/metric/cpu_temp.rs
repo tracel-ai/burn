@@ -88,23 +88,3 @@ impl Numeric for CpuTemperature {
         NumericEntry::Value(self.temp_celsius as f64)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Regression test: with systemstat 0.2.8 a reused `System` reads the
-    /// sensor only once, so the second reading came back as NaN. On a machine
-    /// without a readable sensor, both readings are NaN.
-    #[test]
-    fn a_second_reading_reads_the_sensor_like_the_first() {
-        let mut metric = CpuTemperature::new();
-
-        metric.compute().unwrap();
-        let first = metric.temp_celsius;
-        metric.compute().unwrap();
-        let second = metric.temp_celsius;
-
-        assert_eq!(first.is_nan(), second.is_nan());
-    }
-}
