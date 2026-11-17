@@ -8,11 +8,6 @@ use burn_core::tensor::TensorReadError;
 use systemstat::{Platform, System};
 
 /// CPU Temperature in celsius degrees
-///
-/// Each reading opens the sensor through a new `systemstat::System`: a `System`
-/// is not promised to be `Sync` (on Linux, systemstat 0.2.8 caches the sensor
-/// file in a `RefCell`), and a cached sensor file is never read again from its
-/// start, so every reading after the first would fail.
 #[derive(Clone)]
 pub struct CpuTemperature {
     name: MetricName,
