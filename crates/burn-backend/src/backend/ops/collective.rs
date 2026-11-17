@@ -4,7 +4,10 @@ use crate::{
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use alloc::{boxed::Box, vec, vec::Vec};
-use burn_std::{Bytes, DType, QuantScheme, QuantizedBytes, Slice, TensorData, params_shape};
+use burn_std::{
+    Bytes, DType, QuantScheme, QuantizedBytes, Shape, Slice, TensorData, global_scale_size,
+    params_shape, scale_size,
+};
 use core::{marker::PhantomData, ops::Range};
 
 /// Collectives over a group of devices, called once with every member's tensor.
@@ -501,16 +504,24 @@ impl DimSplit {
             data.shape(),
             parts.scheme,
         );
-        let scales: Vec<_> = match parts.scheme.block_size() {
-            None => vec![parts.scales.clone(); self.members],
-            Some(_) => self
-                .scale_split(&parts.scales)
-                .plain_chunks(&parts.scales)
-                .collect(),
-        };
-        self.plain_chunks(&parts.codes)
-            .zip(scales)
-            .map(|(codes, scales)| parts.with(codes, scales).into_data())
+        let (values, scales) = (parts.values.as_bytes(), parts.scales.as_bytes());
+        let values_split = self.stored_split(&parts, &parts.values);
+        let scales_split =
+            (parts.scheme.block_size()).map(|_| self.stored_split(&parts, &parts.scales));
+        (0..self.members)
+            .map(|member| {
+                let mut shape = data.shape().clone();
+                shape[self.dim] = self.range(member).len();
+                let values =
+                    (values_split.byte_ranges(&parts.values, member)).map(|range| &values[range]);
+                let scales: Vec<_> = match scales_split {
+                    Some(split) => (split.byte_ranges(&parts.scales, member))
+                        .map(|range| &scales[range])
+                        .collect(),
+                    None => vec![scales],
+                };
+                parts.chunk(shape, values.chain(scales))
+            })
             .collect()
     }
 
@@ -519,22 +530,75 @@ impl DimSplit {
         if let Some(shard) = parts.iter().position(|part| !part.joins(&parts[0])) {
             return Err(ShardingError::QuantizedScales { shard });
         }
-        let codes: Vec<_> = parts.iter().map(|part| part.codes.clone()).collect();
+        // Chunks quantized each on their own can end inside a packed word, whose padding the
+        // whole must not keep.
+        let num_quants = parts[0].scheme.num_quants();
+        let (_, leading) = chunks.split_last().expect("one chunk per member");
+        if parts[0].packed_axis == Some(self.dim)
+            && leading
+                .iter()
+                .any(|chunk| chunk.shape()[self.dim] % num_quants != 0)
+        {
+            return Ok(self.whole_decoded(chunks));
+        }
+        let joined = |section: fn(&QuantizedParts) -> &TensorData| {
+            let sections: Vec<_> = parts.iter().map(|part| section(part).clone()).collect();
+            let split = self.stored_split(&parts[0], &sections[0]);
+            let len = sections.iter().map(|chunk| chunk.shape()[split.dim]).sum();
+            DimSplit { len, ..split }.whole_plain(&sections)
+        };
+        let values = joined(|part| &part.values);
         let scales = match parts[0].scheme.block_size() {
             None => parts[0].scales.clone(),
+            Some(_) => joined(|part| &part.scales),
+        };
+        let mut shape = chunks[0].shape().clone();
+        shape[self.dim] = self.len;
+        Ok(parts[0].chunk(shape, [values.as_bytes(), scales.as_bytes()].into_iter()))
+    }
+
+    /// The whole of quantized `chunks`, their codes and scales decoded, joined and quantized
+    /// again.
+    fn whole_decoded(self, chunks: &[TensorData]) -> TensorData {
+        let DType::QFloat(scheme) = chunks[0].dtype() else {
+            unreachable!("Only quantized data has codes and scales")
+        };
+        let mut global = None;
+        let (codes, scales): (Vec<_>, Vec<_>) = (chunks.iter())
+            .map(|chunk| {
+                let shape = chunk.shape().clone();
+                let (codes, scales) = QuantizedBytes {
+                    bytes: chunk.bytes().clone(),
+                    scheme,
+                    shape: shape.clone(),
+                }
+                .into_vec_i8();
+                global = scales.global;
+                let block = TensorData::new(scales.block, params_shape(&shape, &scheme));
+                (TensorData::new(codes, shape), block)
+            })
+            .unzip();
+        let codes = self.whole_plain(&codes);
+        let scales = match scheme.block_size() {
+            None => scales[0].clone(),
             Some(_) => {
-                let scales: Vec<_> = parts.iter().map(|part| part.scales.clone()).collect();
                 let len = scales.iter().map(|scale| scale.shape()[self.dim]).sum();
                 DimSplit { len, ..self }.whole_plain(&scales)
             }
         };
-        Ok(parts[0].with(self.whole_plain(&codes), scales).into_data())
+        let shape = codes.shape().clone();
+        let codes = codes.try_into_vec::<i8>().expect("Codes are i8");
+        let scales = scales.try_into_vec::<f32>().expect("Scales are f32");
+        TensorData::quantized(codes, shape, scheme, &scales, global)
     }
 
-    /// The same split over the grid of block scales, one entry per block.
-    fn scale_split(self, scales: &TensorData) -> Self {
+    /// The same split over a section of a quantized tensor's stored bytes: along the dim it lies
+    /// on there, as long as the section is there.
+    fn stored_split(self, parts: &QuantizedParts, section: &TensorData) -> Self {
+        let dim = parts.stored_dim(self.dim);
         Self {
-            len: scales.shape()[self.dim],
+            dim,
+            len: section.shape()[dim],
             ..self
         }
     }
@@ -618,16 +682,22 @@ fn least_common_multiple(a: usize, b: usize) -> usize {
     a / x * b
 }
 
-/// A quantized tensor's codes and block scales as plain row-major data, which cut and join along
-/// a dim like any other, so no code or scale changes on the way.
+/// A quantized tensor's stored bytes as the plain tensors they are: its values as the words or
+/// bytes that hold them, its block scales, and a two-level scheme's per-tensor scale. Each cuts and
+/// joins along a dim like any plain tensor, so no code or scale is decoded on the way.
+///
+/// A store packed along an outer axis lays its words, and its block scales, with that axis
+/// innermost and the innermost axis in its place ([`PackedOrder`](burn_std::PackedOrder)).
 struct QuantizedParts {
     scheme: QuantScheme,
-    /// One `i8` per element; a float code is its bits.
-    codes: TensorData,
-    /// One scale per block, on the grid of blocks, or a single one for a per-tensor scheme.
+    /// The axis the values are packed along, `None` for a native store.
+    packed_axis: Option<usize>,
+    /// The words, or the bytes of a native store, in stored order.
+    values: TensorData,
+    /// One scale per block in stored order, or a single one for a per-tensor scheme.
     scales: TensorData,
     /// A two-level scheme's per-tensor scale, which every chunk keeps whole.
-    global: Option<f32>,
+    global: Bytes,
 }
 
 impl QuantizedParts {
@@ -635,41 +705,90 @@ impl QuantizedParts {
         let DType::QFloat(scheme) = data.dtype() else {
             unreachable!("Only quantized data has codes and scales")
         };
-        let shape = data.shape().clone();
-        let bytes = QuantizedBytes {
-            bytes: data.bytes().clone(),
-            scheme,
-            shape: shape.clone(),
+        let shape = data.shape();
+        let packed_axis = (scheme.packing_dim()).map(|packed| shape.num_dims() - 1 - packed);
+        let lay = |mut dims: Shape| {
+            if let Some(axis) = packed_axis {
+                dims.as_mut_slice().swap(axis, shape.num_dims() - 1);
+            }
+            dims
         };
-        let (codes, scales) = bytes.into_vec_i8();
+        let mut values_shape = lay(shape.clone());
+        let value_bytes = match packed_axis {
+            Some(_) => {
+                let last = values_shape.num_dims() - 1;
+                values_shape[last] = values_shape[last].div_ceil(scheme.num_quants());
+                scheme.size_bits_stored().div_ceil(u8::BITS as usize)
+            }
+            None => size_of::<i8>(),
+        };
+        let scales_shape = match scheme.block_size() {
+            Some(_) => lay(params_shape(shape, &scheme)),
+            None => Shape::new([1]),
+        };
+        let scale_bytes = scale_size(scheme.scale_dtype());
+        let values_end = values_shape.num_elements() * value_bytes;
+        let scales_end = values_end + scales_shape.num_elements() * scale_bytes;
+        let section = |start: usize, end: usize| {
+            (data.bytes().view(start, end))
+                .unwrap_or_else(|_| Bytes::from_bytes_vec(data.as_bytes()[start..end].to_vec()))
+        };
         Self {
             scheme,
-            codes: TensorData::new(codes, shape.clone()),
-            scales: TensorData::new(scales.block, params_shape(&shape, &scheme)),
-            global: scales.global,
+            packed_axis,
+            values: TensorData::from_bytes(
+                section(0, values_end),
+                values_shape,
+                unsigned_of_size(value_bytes),
+            ),
+            scales: TensorData::from_bytes(
+                section(values_end, scales_end),
+                scales_shape,
+                unsigned_of_size(scale_bytes),
+            ),
+            global: section(scales_end, scales_end + global_scale_size(&scheme)),
+        }
+    }
+
+    /// Where dim `dim` of the tensor lies in its stored sections.
+    fn stored_dim(&self, dim: usize) -> usize {
+        let last = self.values.shape().num_dims() - 1;
+        match self.packed_axis {
+            Some(axis) if dim == axis => last,
+            Some(axis) if dim == last => axis,
+            _ => dim,
         }
     }
 
     /// Whether these parts and `first` share the scales a joined whole keeps once.
     fn joins(&self, first: &Self) -> bool {
         let per_tensor = self.scheme.block_size().is_none();
-        self.global.map(f32::to_bits) == first.global.map(f32::to_bits)
+        self.global[..] == first.global[..]
             && (!per_tensor || self.scales.as_bytes() == first.scales.as_bytes())
     }
 
-    fn with(&self, codes: TensorData, scales: TensorData) -> Self {
-        Self {
-            codes,
-            scales,
-            ..*self
+    /// The quantized tensor of `shape` whose values and block scales are `pieces` end to end,
+    /// followed by these parts' per-tensor scale: each byte is copied once.
+    fn chunk<'a>(&'a self, shape: Shape, pieces: impl Iterator<Item = &'a [u8]>) -> TensorData {
+        let pieces: Vec<_> = pieces.chain([&self.global[..]]).collect();
+        let len = pieces.iter().map(|piece| piece.len()).sum::<usize>();
+        let mut bytes =
+            Bytes::from_elems(Vec::<u128>::with_capacity(len.div_ceil(size_of::<u128>())));
+        for piece in pieces {
+            bytes.extend_from_byte_slice(piece);
         }
+        TensorData::from_bytes(bytes, shape, DType::QFloat(self.scheme))
     }
+}
 
-    fn into_data(self) -> TensorData {
-        let shape = self.codes.shape().clone();
-        let codes = self.codes.try_into_vec::<i8>().expect("Codes are i8");
-        let scales = self.scales.try_into_vec::<f32>().expect("Scales are f32");
-        TensorData::quantized(codes, shape, self.scheme, &scales, self.global)
+/// The unsigned integer type `bytes` wide, which a stored section of that element size is read as.
+fn unsigned_of_size(bytes: usize) -> DType {
+    match bytes {
+        1 => DType::U8,
+        2 => DType::U16,
+        4 => DType::U32,
+        8 => DType::U64,
+        _ => unreachable!("A quantized store or scale is 1, 2, 4 or 8 bytes wide, not {bytes}"),
     }
 }
 
@@ -808,6 +927,130 @@ mod tests {
             );
             assert_eq!(split.whole_data(&chunks), Ok(data));
         }
+    }
+
+    /// The chunks of `data` cut as its decoded codes and scales, then quantized again: what the
+    /// stored bytes must cut into, without decoding them.
+    fn decoded_chunks(split: DimSplit, data: &TensorData) -> Vec<TensorData> {
+        let DType::QFloat(scheme) = data.dtype() else {
+            unreachable!("quantized data")
+        };
+        let shape = data.shape().clone();
+        let (codes, scales) = QuantizedBytes {
+            bytes: data.bytes().clone(),
+            scheme,
+            shape: shape.clone(),
+        }
+        .into_vec_i8();
+        let codes = TensorData::new(codes, shape.clone());
+        let block_scales = TensorData::new(scales.block, params_shape(&shape, &scheme));
+        let block_chunks: Vec<_> = match scheme.block_size() {
+            None => vec![block_scales; split.members],
+            Some(_) => DimSplit {
+                len: block_scales.shape()[split.dim],
+                ..split
+            }
+            .plain_chunks(&block_scales)
+            .collect(),
+        };
+        split
+            .plain_chunks(&codes)
+            .zip(block_chunks)
+            .map(|(codes, block)| {
+                let shape = codes.shape().clone();
+                let block = block.try_to_vec::<f32>().unwrap();
+                TensorData::quantized(
+                    codes.try_to_vec::<i8>().unwrap(),
+                    shape,
+                    scheme,
+                    &block,
+                    scales.global,
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn quantized_chunks_cut_the_stored_bytes_as_decoding_would() {
+        let nvfp4 = |store, block: &[u8]| {
+            QuantScheme::default()
+                .with_value(QuantValue::E2M1)
+                .with_store(store)
+                .per_block(block, ScaleDtype::UE4M3)
+                .per_tensor(ScaleDtype::F32)
+        };
+        let schemes = [
+            nvfp4(QuantStore::PackedU32(0), &[16]),
+            nvfp4(QuantStore::PackedU32(1), &[16, 1]),
+            nvfp4(QuantStore::PackedU32(2), &[16, 1, 1]),
+            nvfp4(QuantStore::PackedNative(0), &[16]),
+            QuantScheme::default()
+                .with_value(QuantValue::Q8S)
+                .with_store(QuantStore::Native)
+                .per_block([2], ScaleDtype::F32),
+            QuantScheme::default()
+                .with_value(QuantValue::Q4S)
+                .with_store(QuantStore::PackedU32(1)),
+        ];
+        let shape = [32, 32, 32];
+        let elements = shape.iter().product::<usize>();
+        for scheme in schemes {
+            let codes: Vec<i8> = (0..elements)
+                .map(|index| match scheme.value {
+                    QuantValue::Q8S => ((index % 251) as i16 - 125) as i8,
+                    QuantValue::Q4S => (index % 16) as i8 - 8,
+                    _ => (index % 16) as i8,
+                })
+                .collect();
+            let blocks = params_shape(&Shape::from(shape), &scheme).num_elements();
+            let scales: Vec<f32> = (0..blocks)
+                .map(|block| (1 + block % 7) as f32 * 0.25)
+                .collect();
+            let global = burn_std::global_scale_dtype(&scheme).map(|_| 3.0);
+            let data = TensorData::quantized(codes, shape, scheme, &scales, global);
+            for (dim, members) in [(0, 2), (0, 3), (1, 2), (1, 4), (2, 2), (2, 4)] {
+                let split = DimSplit {
+                    dim,
+                    len: shape[dim],
+                    members,
+                };
+                if !split.cuts_whole_quantized_units(&scheme, shape.len()) {
+                    continue;
+                }
+
+                let chunks: Vec<_> = split.data_chunks(&data).collect();
+
+                assert_eq!(
+                    chunks,
+                    decoded_chunks(split, &data),
+                    "{scheme:?} cut along dim {dim} into {members}"
+                );
+                assert_eq!(split.whole_data(&chunks), Ok(data.clone()));
+            }
+        }
+    }
+
+    #[test]
+    fn quantized_chunks_ending_inside_a_packed_word_join_repacked() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q4S)
+            .with_store(QuantStore::PackedU32(0));
+        let quantized = |codes: Vec<i8>| {
+            let len = codes.len();
+            TensorData::quantized(codes, [len], scheme, &[1.0], None)
+        };
+        let split = DimSplit {
+            dim: 0,
+            len: 10,
+            members: 2,
+        };
+
+        let whole = split.whole_data(&[
+            quantized(vec![1, 2, 3, 4, 5]),
+            quantized(vec![6, 7, 1, 2, 3]),
+        ]);
+
+        assert_eq!(whole, Ok(quantized(vec![1, 2, 3, 4, 5, 6, 7, 1, 2, 3])));
     }
 
     #[test]

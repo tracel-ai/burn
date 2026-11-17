@@ -5,7 +5,8 @@ use std::time::{Duration, Instant};
 
 use cubecl::profile::{ProfileDuration, ProfileTicks, TimingMethod};
 
-use super::cursor::{Attribution, Member, MemberCount};
+use super::cursor::Attribution;
+use super::members::{MemberList, RanOn};
 use crate::breakdown::{MemberTime, PerMember, Unplaced};
 
 /// The timings a run kept, and how far they are to be trusted.
@@ -13,7 +14,7 @@ use crate::breakdown::{MemberTime, PerMember, Unplaced};
 pub struct Timings {
     /// Timings handed over unread, each beside the component its launch was
     /// counted on.
-    kept: Vec<Kept>,
+    unread: Vec<UnreadTiming>,
     /// Whether any launch was timed on the host rather than the device.
     ///
     /// One is enough to taint the totals: a host timing is wall around a
@@ -37,18 +38,19 @@ pub struct Timings {
 }
 
 impl Timings {
-    /// Keep a launch's timing unread, beside the component that counted it.
+    /// Keep a launch's timing unread, beside the component that counted it and the device it
+    /// ran on.
     pub fn keep(
         &mut self,
         attribution: Attribution,
-        member: Option<Member>,
+        ran_on: RanOn,
         kernel: &'static str,
         profile: ProfileDuration,
     ) {
         self.host_timed |= !matches!(profile.timing_method(), TimingMethod::Device);
-        self.kept.push(Kept {
+        self.unread.push(UnreadTiming {
             attribution,
-            member,
+            ran_on,
             kernel,
             profile,
         });
@@ -62,8 +64,8 @@ impl Timings {
     }
 
     /// Every timing kept so far, to read back.
-    pub fn take_kept(&mut self) -> Vec<Kept> {
-        std::mem::take(&mut self.kept)
+    pub fn take_unread(&mut self) -> Vec<UnreadTiming> {
+        std::mem::take(&mut self.unread)
     }
 
     /// A timing of `duration` that no component could account for.
@@ -95,20 +97,20 @@ pub struct TimingQuality {
 }
 
 /// A launch's timing, not yet read back, and the component it belongs to.
-pub struct Kept {
+pub struct UnreadTiming {
     attribution: Attribution,
-    member: Option<Member>,
+    ran_on: RanOn,
     kernel: &'static str,
     profile: ProfileDuration,
 }
 
-impl Kept {
+impl UnreadTiming {
     /// Read the timing back. Waits for its kernel, so a run reads them
     /// once it has run.
-    pub fn resolve(self) -> Timed {
-        Timed {
+    pub fn read(self) -> ReadTiming {
+        ReadTiming {
             attribution: self.attribution,
-            member: self.member,
+            ran_on: self.ran_on,
             kernel: self.kernel,
             ticks: cubecl::future::block_on(self.profile.resolve()),
         }
@@ -116,9 +118,9 @@ impl Kept {
 }
 
 /// A timing read back, or `None` for a window that came back empty.
-pub struct Timed {
+pub struct ReadTiming {
     pub attribution: Attribution,
-    pub member: Option<Member>,
+    pub ran_on: RanOn,
     pub kernel: &'static str,
     pub ticks: Option<ProfileTicks>,
 }
@@ -128,7 +130,7 @@ pub struct Timeline {
     /// Before the run, so every window can be placed after it and the gaps
     /// between them read off.
     epoch: Instant,
-    members: MemberCount,
+    members: MemberList,
     windows: Vec<Window>,
 }
 
@@ -140,18 +142,6 @@ struct Window {
     end: Duration,
 }
 
-/// The device a window ran on, as far as its launching thread tells.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum RanOn {
-    /// The one device a device of one runs everything on, whichever thread launched it.
-    Device,
-    /// A member, launched from its fusion worker.
-    Member(Member),
-    /// Some member, which one unknown: launched from a thread that is no member's worker, so it
-    /// fills no member's gaps and opens none.
-    UnknownMember,
-}
-
 /// What a timeline says about the run once every window is on it.
 pub struct Settled {
     /// Every stretch a device sat idle, beside the component whose kernel ended it.
@@ -161,7 +151,7 @@ pub struct Settled {
 }
 
 impl Timeline {
-    pub fn new(epoch: Instant, members: MemberCount) -> Self {
+    pub fn new(epoch: Instant, members: MemberList) -> Self {
         Self {
             epoch,
             members,
@@ -169,14 +159,9 @@ impl Timeline {
         }
     }
 
-    /// Place the window `ticks` measured for a kernel launched for `member` on the component
+    /// Place the window `ticks` measured for a kernel that ran on `ran_on`, for the component
     /// under `attribution`.
-    pub fn push(&mut self, attribution: Attribution, member: Option<Member>, ticks: &ProfileTicks) {
-        let ran_on = match (self.members.several(), member) {
-            (false, _) => RanOn::Device,
-            (true, Some(member)) => RanOn::Member(member),
-            (true, None) => RanOn::UnknownMember,
-        };
+    pub fn push(&mut self, attribution: Attribution, ran_on: RanOn, ticks: &ProfileTicks) {
         self.windows.push(Window {
             attribution,
             ran_on,
@@ -189,8 +174,8 @@ impl Timeline {
     /// ended it: that launch is what the device was waiting for. And over several members, what
     /// each did.
     ///
-    /// In start order rather than launch order: the fusion worker and the
-    /// model thread both launch, and the device runs them as they arrive. A
+    /// In start order rather than launch order: the fusion workers and the
+    /// model thread all launch, and each device runs them as they arrive. A
     /// window that starts before the last one ended overlapped it, and the
     /// device was not idle for it at all. Each member's device is idle on its own: another
     /// member's kernel running meanwhile does not fill the gap.
@@ -199,8 +184,9 @@ impl Timeline {
             .sort_by_key(|window| (window.ran_on, window.start));
         let mut idle = Vec::with_capacity(self.windows.len());
         let mut per_member = self.members.several().then(|| PerMember {
-            members: vec![MemberTime::default(); self.members.0],
+            members: vec![MemberTime::default(); self.members.count()],
             off_members: Duration::ZERO,
+            collectives: Vec::new(),
         });
         let mut busy_until: Option<(RanOn, Duration)> = None;
         for window in &self.windows {
@@ -216,7 +202,7 @@ impl Timeline {
                 _ => (window.ran_on, window.end),
             });
             match (window.ran_on, per_member.as_mut()) {
-                (RanOn::UnknownMember, Some(per_member)) => per_member.off_members += length,
+                (RanOn::OffMembers, Some(per_member)) => per_member.off_members += length,
                 (RanOn::Member(member), Some(per_member)) => {
                     if let Some(time) = per_member.members.get_mut(member.0) {
                         time.on_device += length;
@@ -235,6 +221,9 @@ impl Timeline {
 
 #[cfg(test)]
 mod tests {
+    use cubecl_common::device::{DeviceId, ServiceId};
+
+    use super::super::members::Member;
     use super::*;
 
     /// The device's idle stretches are charged to the kernel that ended each:
@@ -243,7 +232,7 @@ mod tests {
     #[test]
     fn idle_time_is_charged_to_the_kernel_that_ended_it() {
         let epoch = Instant::now();
-        let mut timeline = Timeline::new(epoch, MemberCount(1));
+        let mut timeline = Timeline::new(epoch, MemberList::default());
         let mut tree = super::super::component_tree::ComponentTree::default();
         let mut component = |label| {
             let component = tree.enter(crate::Declaration {
@@ -261,10 +250,10 @@ mod tests {
             ProfileTicks::from_start_end(epoch + micros(start), epoch + micros(end))
         };
         // Out of order on purpose: the device runs them by start time.
-        timeline.push(matmul, None, &window(15, 20));
-        timeline.push(norm, None, &window(0, 10));
-        timeline.push(Attribution::Untagged, None, &window(18, 30));
-        timeline.push(norm, None, &window(40, 50));
+        timeline.push(matmul, RanOn::Device, &window(15, 20));
+        timeline.push(norm, RanOn::Device, &window(0, 10));
+        timeline.push(Attribution::Untagged, RanOn::Device, &window(18, 30));
+        timeline.push(norm, RanOn::Device, &window(40, 50));
 
         let micros = Duration::from_micros;
         assert_eq!(
@@ -280,22 +269,24 @@ mod tests {
     }
 
     /// A member waiting on a collective is idle while the other computes, which one merged
-    /// timeline would read as filling the gap. A kernel launched off the members' workers is on
-    /// no member: it fills no member's gap, and is counted apart.
+    /// timeline would read as filling the gap. A kernel on no member's device fills no member's
+    /// gap, and is counted apart.
     #[test]
     fn each_member_is_idle_on_its_own() {
         let epoch = Instant::now();
-        let mut timeline = Timeline::new(epoch, MemberCount(2));
+        let members = [1, 2].map(|index_id| ServiceId::of::<()>(DeviceId::new(0, index_id)));
+        let mut timeline = Timeline::new(epoch, MemberList::over(members.to_vec()));
         let micros = Duration::from_micros;
         let window = |start: u64, end: u64| {
             ProfileTicks::from_start_end(epoch + micros(start), epoch + micros(end))
         };
         let at = Attribution::Untagged;
-        timeline.push(at, Some(Member(0)), &window(0, 10));
-        timeline.push(at, Some(Member(1)), &window(0, 30));
-        timeline.push(at, None, &window(12, 28));
-        timeline.push(at, Some(Member(0)), &window(30, 40));
-        timeline.push(at, Some(Member(1)), &window(35, 40));
+        let (first, second) = (RanOn::Member(Member(0)), RanOn::Member(Member(1)));
+        timeline.push(at, first, &window(0, 10));
+        timeline.push(at, second, &window(0, 30));
+        timeline.push(at, RanOn::OffMembers, &window(12, 28));
+        timeline.push(at, first, &window(30, 40));
+        timeline.push(at, second, &window(35, 40));
 
         let settled = timeline.settle();
         assert_eq!(settled.idle, [(at, micros(20)), (at, micros(5))]);
@@ -313,6 +304,7 @@ mod tests {
                     },
                 ],
                 off_members: micros(16),
+                collectives: Vec::new(),
             })
         );
     }

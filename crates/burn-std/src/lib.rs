@@ -87,7 +87,7 @@ pub use cubecl_environment::{backtrace, future, rand, stream, sync};
 pub mod environment {
     pub use cubecl_environment::environment::{
         EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, PruneOptions,
-        PruneTally, Pruned, RecordPruning,
+        PruneTally, Pruned, RecordPruning, SaveOptions,
     };
 }
 

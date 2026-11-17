@@ -513,6 +513,23 @@ impl Exchange {
             Self::AllToAll { .. } => clients.all_to_all(buffers),
         }
     }
+
+    /// This collective as cubecl's group runs it, over elements of `elem`.
+    #[cfg(feature = "fusion")]
+    fn in_cubecl(self, elem: ElemType) -> cubecl::client::Exchange {
+        let reduction = |op| cubecl::server::Reduction {
+            dtype: elem,
+            op: reduce_operation_to_cubecl(op),
+        };
+        match self {
+            Self::AllReduce { op } => cubecl::client::Exchange::AllReduce(reduction(op)),
+            Self::AllGather { .. } => cubecl::client::Exchange::AllGather,
+            Self::ReduceScatter { op, .. } => {
+                cubecl::client::Exchange::ReduceScatter(reduction(op))
+            }
+            Self::AllToAll { .. } => cubecl::client::Exchange::AllToAll,
+        }
+    }
 }
 
 /// A collective the members' group runs natively, with each member's tensor.
@@ -727,28 +744,9 @@ mod parts {
     use burn_backend::cubecl::dtype_to_storage_type;
     use burn_fusion::{Collective, CollectivePart};
     use burn_ir::{BackendIr, TensorHandle};
-    use cubecl::{
-        client::{Exchange as CubeExchange, MemberPart as CubeMemberPart},
-        prelude::InputScalar,
-        server::Reduction,
-    };
+    use cubecl::prelude::InputScalar;
 
     impl Exchange {
-        fn into_cubecl(self, dtype: ElemType) -> CubeExchange {
-            match self {
-                Self::AllReduce { op } => CubeExchange::AllReduce(Reduction {
-                    dtype,
-                    op: reduce_operation_to_cubecl(op),
-                }),
-                Self::AllGather { .. } => CubeExchange::AllGather,
-                Self::ReduceScatter { op, .. } => CubeExchange::ReduceScatter(Reduction {
-                    dtype,
-                    op: reduce_operation_to_cubecl(op),
-                }),
-                Self::AllToAll { .. } => CubeExchange::AllToAll,
-            }
-        }
-
         fn from_fusion(collective: Collective) -> Self {
             match collective {
                 Collective::AllReduce { op } => Self::AllReduce { op },
@@ -791,12 +789,12 @@ mod parts {
         let bytes = (shape.num_elements() * dtype.size()) as u64;
         let parts = group
             .clients
-            .parts(exchange.into_cubecl(group.elem()), bytes)
+            .parts(exchange.in_cubecl(group.elem()), bytes)
             .into_iter()
             .zip(ranked)
-            .map(|(member, device)| {
+            .map(|(part, device)| {
                 Box::new(MemberPart {
-                    member: Mutex::new(Some(member)),
+                    part: Mutex::new(Some(part)),
                     exchange,
                     members,
                     stand_in: StandIn {
@@ -812,7 +810,8 @@ mod parts {
 
     /// One member's part, run by its own device.
     struct MemberPart {
-        member: Mutex<Option<CubeMemberPart>>,
+        /// Taken once: burn-fusion reaches `run` and `stand_in` through `&self`.
+        part: Mutex<Option<cubecl::client::MemberPart>>,
         exchange: Exchange,
         members: usize,
         stand_in: StandIn,
@@ -832,12 +831,13 @@ mod parts {
         fn exchange(&self, tensor: CubeTensor) -> CubeTensor {
             let source = self.exchange.source(tensor);
             let output = self.exchange.output(&source, self.members);
-            self.member
+            let part = self
+                .part
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .take()
-                .expect("a collective part runs once")
-                .queue(member_buffers(&source, &output));
+                .expect("a member queues its part of a collective once");
+            part.queue(member_buffers(&source, &output));
             self.exchange.restored(output)
         }
     }
@@ -872,6 +872,16 @@ mod parts {
 
 #[cfg(feature = "fusion")]
 pub(crate) use parts::collective_parts;
+
+/// Held across a whole test that issues a collective: execution observers and the skip guard are
+/// process-wide.
+#[cfg(all(test, any(feature = "cuda", all(feature = "fusion", feature = "hip"))))]
+fn serial() -> std::sync::MutexGuard<'static, ()> {
+    static SERIAL: Mutex<()> = Mutex::new(());
+    SERIAL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 #[cfg(all(test, feature = "cuda"))]
 mod tests {
@@ -997,6 +1007,7 @@ mod tests {
     #[test]
     #[ignore = "needs two CUDA devices and NCCL"]
     fn a_member_standing_in_for_a_failed_tensor_lets_its_peers_finish() {
+        let _serial = serial();
         use crate::fusion::CubeFusionHandle;
         use burn_fusion::Collective;
         use burn_ir::TensorHandle;
@@ -1035,5 +1046,149 @@ mod tests {
             .map(|word| f32::from_ne_bytes(*word))
             .collect();
         assert!(values.iter().all(|value| value.is_nan()), "{values:?}");
+    }
+}
+
+/// What an execution observer is told of a fused native collective, whose parts each member's own
+/// thread queues.
+#[cfg(all(test, feature = "fusion", any(feature = "cuda", feature = "hip")))]
+mod observed_parts {
+    use super::*;
+    use crate::fusion::CubeFusionHandle;
+    use burn_backend::DType;
+    use burn_fusion::Collective;
+    use burn_ir::TensorHandle;
+    use cubecl::benchmark::CommunicationSkipGuard;
+    use cubecl::logging::{Execution, ExecutionKind, ExecutionObservation, ExecutionObserver};
+    use std::sync::Arc;
+
+    /// Every execution issued while it is installed.
+    #[derive(Default)]
+    struct Issued(Mutex<Vec<Execution>>);
+
+    impl ExecutionObserver for Issued {
+        fn issued(&self, execution: &Execution) {
+            self.0.lock().unwrap().push(execution.clone());
+        }
+    }
+
+    /// The communications and parts issued for one all-reduce over two devices, each member's
+    /// part run from a thread of its own as its fusion stream runs it.
+    fn all_reduce_observed() -> Vec<Execution> {
+        let devices = two_devices();
+        let shape = Shape::new([4, 2]);
+        let issued = Arc::new(Issued::default());
+        let observation = ExecutionObservation::new(issued.clone());
+        let parts = super::collective_parts(
+            &devices,
+            &shape,
+            DType::F32,
+            Collective::AllReduce {
+                op: ReduceOperation::Sum,
+            },
+        )
+        .expect("two devices run an all-reduce natively");
+        let members: Vec<_> = parts
+            .into_iter()
+            .zip(devices)
+            .map(|(part, device)| {
+                let shape = shape.clone();
+                std::thread::spawn(move || {
+                    let tensor = empty_device_contiguous_dtype(
+                        device.client(),
+                        device,
+                        shape.clone(),
+                        DType::F32,
+                    );
+                    let handle: CubeFusionHandle = tensor.into();
+                    let received = part.run(TensorHandle { handle, shape });
+                    received.client.read_one(received.handle).unwrap();
+                })
+            })
+            .collect();
+        for member in members {
+            member.join().unwrap();
+        }
+        drop(observation);
+        let issued = issued.0.lock().unwrap().clone();
+        issued
+            .into_iter()
+            .filter(|execution| !matches!(execution.kind, ExecutionKind::Kernel { .. }))
+            .collect()
+    }
+
+    /// One communication, recorded when the parts were made, parents the part each member's own
+    /// thread queued, each placed on its member's device.
+    #[test]
+    #[ignore = "needs two devices with a device transport"]
+    fn a_fused_collective_parents_every_members_part() {
+        let _serial = serial();
+        let issued = all_reduce_observed();
+        let [communication, parts @ ..] = issued.as_slice() else {
+            panic!("a communication first: {issued:?}");
+        };
+        assert!(
+            matches!(
+                &communication.kind,
+                ExecutionKind::Communication(Communication::Collective {
+                    path: CollectivePath::Native(_),
+                    ..
+                })
+            ),
+            "{communication:?}"
+        );
+        assert!(
+            parts
+                .iter()
+                .all(|part| part.parent == Some(communication.id)),
+            "{issued:?}"
+        );
+        let mut placed: Vec<_> = parts
+            .iter()
+            .map(|part| match part.kind {
+                ExecutionKind::Part { place } => place.service.device,
+                _ => panic!("only parts after the communication: {issued:?}"),
+            })
+            .collect();
+        placed.sort();
+        let mut devices: Vec<_> = two_devices()
+            .iter()
+            .map(|device| device.client().service_id().device)
+            .collect();
+        devices.sort();
+        assert_eq!(placed, devices);
+    }
+
+    /// A skipping group records one skipped communication and its parts queue nothing.
+    #[test]
+    #[ignore = "needs two devices with a device transport"]
+    fn a_skipped_fused_collective_is_one_communication_and_no_part() {
+        let _serial = serial();
+        let clients: Vec<_> = two_devices().iter().map(CubeDevice::client).collect();
+        let _skip = CommunicationSkipGuard::enter(&clients);
+        let issued = all_reduce_observed();
+        let [communication] = issued.as_slice() else {
+            panic!("one communication: {issued:?}");
+        };
+        assert!(
+            matches!(
+                &communication.kind,
+                ExecutionKind::Communication(Communication::Collective {
+                    path: CollectivePath::Skipped,
+                    ..
+                })
+            ),
+            "{communication:?}"
+        );
+    }
+
+    #[cfg(feature = "cuda")]
+    fn two_devices() -> [CubeDevice; 2] {
+        [0, 1].map(|index| CubeDevice::Cuda(cubecl::cuda::CudaDevice { index }))
+    }
+
+    #[cfg(all(feature = "hip", not(feature = "cuda")))]
+    fn two_devices() -> [CubeDevice; 2] {
+        [0, 1].map(|index| CubeDevice::Hip(cubecl::hip::AmdDevice { index }))
     }
 }

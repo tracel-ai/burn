@@ -44,6 +44,9 @@ fusion = ["dep:burn-fusion", "dep:burn-ir", "burn-tensor/fusion"]
 # separately (e.g. `burn-tensor/wgpu`) and select it with BURN_DEVICE; add `fusion` for the fused
 # half.
 collector-tests = ["cubecl", "instrument"]
+# The collector's tests over a sharded compute device of the first two cards of one runtime.
+sharded-tests-cuda = ["collector-tests", "burn-tensor/shard", "burn-tensor/cuda"]
+sharded-tests-rocm = ["collector-tests", "burn-tensor/shard", "burn-tensor/rocm"]
 
 [dependencies]
 burn-instrument-macros = { workspace = true }
