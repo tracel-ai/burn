@@ -131,16 +131,23 @@ struct GraphCleaner<'a> {
 
 impl<'a> GraphCleaner<'a> {
     fn cleanup_orphaned_entries() {
+        // Collect one handle per live graph and release the lock. Cloning the whole
+        // node-to-graph map here cost O(registered nodes) on every backward; the map holds
+        // one entry per alias, while `keys` holds one entry per graph.
         let graphs = {
-            // Get the available graphs and release the lock
-            match STATE.lock().as_ref() {
-                Some(state) => state.graphs.clone(),
+            let state = STATE.lock();
+            match state.as_ref() {
+                Some(state) => state
+                    .keys
+                    .keys()
+                    .filter_map(|origin| state.graphs.get(origin).cloned())
+                    .collect::<Vec<_>>(),
                 None => return,
             }
         };
 
         let mut should_remove = Vec::new();
-        for graph in graphs.values() {
+        for graph in &graphs {
             {
                 // Best-effort sweep: a graph whose mutex is contended is in
                 // use — possibly by this very thread, when a `Backward` step
