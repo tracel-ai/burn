@@ -830,6 +830,13 @@ to retain size-derived mapping. See the [interpolation guide](building-blocks/mo
 for configuration and backend limitations.
 ([#6154](https://github.com/tracel-ai/burn/pull/6154), [@Sadik00789](https://github.com/Sadik00789))
 
+#### Lazy parameters
+
+- `Param::lazy_dtype` reports a parameter's data type without initializing it, beside
+  `lazy_shape` and `lazy_device`: the default for its kind on the device it will initialize on,
+  which `Param::uninitialized` now documents its initializer creates the value at.
+  `Parameter` gains `dtype` and `default_dtype`.
+
 #### Linear-algebra layers behind `linalg`
 
 **Breaking:** `burn` and `burn-nn` no longer build `burn-linalg` unless the `linalg` feature is

@@ -4,7 +4,7 @@ use crate::module::{
     Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper, ModuleVisitor,
 };
 use alloc::{boxed::Box, format, string::ToString, vec::Vec};
-use burn_tensor::{Bool, Device, Float, Int, Tensor, TensorData};
+use burn_tensor::{Bool, DType, Device, Float, Int, Tensor, TensorData};
 
 impl<const D: usize> super::sealed::Sealed for Tensor<D, Float> {
     fn is_active(&self) -> bool {
@@ -53,6 +53,14 @@ impl<const D: usize> Parameter for Tensor<D, Float> {
         Tensor::shape(self)
     }
 
+    fn dtype(&self) -> DType {
+        Tensor::dtype(self)
+    }
+
+    fn default_dtype(device: &Device) -> DType {
+        device.settings().float_dtype.into()
+    }
+
     fn load_to_device(self, device: &Device) -> Self {
         if self.device() != *device {
             Tensor::to_device(self, device).detach()
@@ -81,6 +89,14 @@ impl<const D: usize> Parameter for Tensor<D, Int> {
         Tensor::shape(self)
     }
 
+    fn dtype(&self) -> DType {
+        Tensor::dtype(self)
+    }
+
+    fn default_dtype(device: &Device) -> DType {
+        device.settings().int_dtype.into()
+    }
+
     fn load_to_device(self, device: &Device) -> Self {
         if self.device() != *device {
             Tensor::to_device(self, device)
@@ -107,6 +123,14 @@ impl<const D: usize> Parameter for Tensor<D, Bool> {
 
     fn shape(&self) -> burn_std::Shape {
         Tensor::shape(self)
+    }
+
+    fn dtype(&self) -> DType {
+        Tensor::dtype(self)
+    }
+
+    fn default_dtype(device: &Device) -> DType {
+        device.settings().bool_dtype.into()
     }
 
     fn load_to_device(self, device: &Device) -> Self {
@@ -544,6 +568,45 @@ mod tests {
             false,
             shape.into(),
         )
+    }
+
+    /// The data type `param` reports before it initializes, checked against the one its value
+    /// is made at.
+    fn assert_lazy_dtype_is_made<T: Parameter>(param: Param<T>) {
+        let lazy = param.lazy_dtype();
+        assert!(
+            !param.is_initialized(),
+            "asking for the dtype must not initialize"
+        );
+        assert_eq!(lazy, param.val().dtype());
+        assert_eq!(param.lazy_dtype(), lazy);
+    }
+
+    #[test]
+    fn lazy_dtype_names_the_dtype_each_tensor_kind_initializes_at() {
+        let device = test_device();
+        let shape = [2, 3];
+        assert_lazy_dtype_is_made(Param::uninitialized(
+            ParamId::new(),
+            move |device, _| Tensor::<2>::zeros(shape, device),
+            device.clone(),
+            false,
+            shape.into(),
+        ));
+        assert_lazy_dtype_is_made(Param::uninitialized(
+            ParamId::new(),
+            move |device, _| Tensor::<2, Int>::zeros(shape, device),
+            device.clone(),
+            false,
+            shape.into(),
+        ));
+        assert_lazy_dtype_is_made(Param::uninitialized(
+            ParamId::new(),
+            move |device, _| Tensor::<2, Bool>::empty(shape, device),
+            device,
+            false,
+            shape.into(),
+        ));
     }
 
     #[test]
