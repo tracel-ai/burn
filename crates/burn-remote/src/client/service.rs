@@ -13,9 +13,10 @@ use crate::{
 };
 use burn_backend::{
     DTypeUsageSet, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
-    EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken,
-    ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
-    ProfileTicks, ProfileToken, PruneOptions, Pruned, TensorData,
+    EnvironmentId, EnvironmentOrigin, EnvironmentSummary, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
+    ProfileDuration, ProfileOptions, ProfileTicks, ProfileToken, PruneOptions, Pruned, SaveOptions,
+    TensorData,
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
 };
 use burn_ir::{CapturedGraphId, OperationIr, TensorId, TensorIr};
@@ -799,11 +800,26 @@ impl RemoteService {
         &mut self,
         stream_id: StreamId,
         id: EnvironmentId,
+        options: SaveOptions,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
         self.environment_request(
-            |request| Task::EnvironmentSave(request, stream_id, id),
+            |request| Task::EnvironmentSave(request, stream_id, id, options),
             |answer| match answer {
                 TaskResponseContent::EnvironmentSaved(res) => Ok(res),
+                other => Err(other),
+            },
+        )
+    }
+
+    /// Count what the environment `id` of the server's backend holds as it stands.
+    pub fn environment_summary(
+        &mut self,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentSummary, EnvironmentError> {
+        self.environment_request(
+            |request| Task::EnvironmentSummarize(request, id),
+            |answer| match answer {
+                TaskResponseContent::EnvironmentSummarized(res) => Ok(res),
                 other => Err(other),
             },
         )

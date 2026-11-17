@@ -72,7 +72,7 @@ shard = ["burn-dispatch/shard"]
 extension = []
 
 # Backend features
-persistence = ["burn-dispatch/persistence"]
+persistence = ["std", "burn-dispatch/persistence", "burn-std/persistence"]
 autotune = ["burn-dispatch/autotune"]
 autotune-checks = ["burn-dispatch/autotune-checks"]
 fusion = ["burn-dispatch/fusion"]
