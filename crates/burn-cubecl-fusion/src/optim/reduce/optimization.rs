@@ -180,6 +180,25 @@ pub enum FusedReduceError {
 }
 
 impl ReduceOptimizationTuneArg {
+    /// Run the reduce: fused where the autotune measured that faster, the fallback otherwise.
+    pub fn run(self, context: &mut Context<CubeFusionHandle>) {
+        // An empty input leaves the fused launch either an axis it rejects or nothing to launch
+        // over.
+        let input = context.tensors.get(&self.info.reduce.op.input.id).unwrap();
+        if input.shape.num_elements() == 0 {
+            self.execute_fallback(context);
+            return;
+        }
+
+        #[cfg(feature = "autotune")]
+        fused_reduce_autotune(self, context);
+
+        #[cfg(not(feature = "autotune"))]
+        if self.execute_fused(context).is_err() {
+            self.execute_fallback(context);
+        }
+    }
+
     /// The read block and the reduce in one launch, into a new output, then the write block on
     /// that output in a second one.
     pub fn execute_fused(
@@ -295,26 +314,11 @@ impl ReduceOptimization {
     ) {
         // The index of the fallback reduce is the number of ops fused as read.
         let fallback = fallback(self.info.len_read);
-        let arg = ReduceOptimizationTuneArg {
+        ReduceOptimizationTuneArg {
             info: self.info.clone(),
             fallback: Arc::new(fallback),
-        };
-
-        // Same as `ReduceBroadcastedOptimization::execute`: an empty input leaves the fused
-        // kernels either an axis they reject or nothing to launch over.
-        let input = context.tensors.get(&self.info.reduce.op.input.id).unwrap();
-        if input.shape.num_elements() == 0 {
-            arg.execute_fallback(context);
-            return;
         }
-
-        #[cfg(feature = "autotune")]
-        fused_reduce_autotune(arg, context);
-
-        #[cfg(not(feature = "autotune"))]
-        if arg.execute_fused(context).is_err() {
-            arg.execute_fallback(context);
-        }
+        .run(context);
     }
 
     pub fn num_output_buffers(&self) -> usize {
