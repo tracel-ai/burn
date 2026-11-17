@@ -1,4 +1,4 @@
-use super::optimization::{ReduceOptimizationTuneArg, reduce_operation};
+use super::optimization::{ReduceOptimizationInfo, ReduceOptimizationTuneArg, reduce_operation};
 use crate::{
     CubeFusionHandle,
     engine::trace::TuneOutput,
@@ -6,12 +6,16 @@ use crate::{
 };
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
+use burn_ir::{TensorId, TensorIr};
 use cubecl::{
     AutotuneKey, CubeTuneId,
     tile::Geometry,
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
-use cubek::reduce::kernels::{ReduceElements, ReduceKey, ReduceRoutineProblem};
+use cubek::reduce::kernels::{
+    ReduceElements, ReduceKey, ReduceRoutineProblem, fastest_reduce_candidate,
+};
+use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 
 /// Autotune key for standard fused reduction operations: the reduce's own key, as cubek's reduce
@@ -35,6 +39,15 @@ pub fn fused_reduce_autotune(
     context: &mut Context<CubeFusionHandle>,
 ) {
     static TUNER: LocalTuner<FusedReduceAutotuneKey, CubeTuneId> = local_tuner!();
+
+    // Until cubek's reduce autotune has elected a routine for the unfused reduce, the fused launch
+    // has nothing to run. The fallback runs alone, outside a round, and its unfused reduce settles
+    // that election; a round raced before it would settle the fused key on the fallback for good.
+    let reduce_key = reduce_key(&arg.info, &context.tensors);
+    if fastest_reduce_candidate(&arg.info.client, &arg.info.device, &reduce_key).is_none() {
+        arg.execute_fallback(context);
+        return;
+    }
 
     let tune_id = CubeTuneId::new(&arg.info.client, &arg.info.device);
     let tunables = TUNER.init(&tune_id, || {
@@ -60,33 +73,36 @@ pub(crate) fn create_key(input: &TuneInput<ReduceOptimizationTuneArg>) -> FusedR
         input.is_original(),
         "Forked context not supported for key generation"
     );
-    let tensors = input.tensors();
-    let reduce = &opt.info.reduce;
-    let input_tensor = tensors.get(&reduce.op.input.id).unwrap();
-    let out_tensor = tensors.get(&reduce.op.out.id).unwrap();
-    // The key reads the problem the operands state, not the widths they are read at.
-    let problem = ReduceRoutineProblem::stated(
-        &Geometry::row_major(&input_tensor.shape),
-        &Geometry::row_major(&out_tensor.shape),
-        reduce.axis,
-        reduce_operation(reduce.inst),
-        ReduceElements {
-            input: dtype_to_storage_type(input_tensor.dtype),
-            accumulator: reduce.acc.into_elem(),
-            out: dtype_to_storage_type(out_tensor.dtype),
-        },
-    );
-
     // Assume the fusion contains at least a read and a write block.
     let read_block = &opt.info.trace.blocks[0];
     let write_block = &opt.info.trace.blocks[1];
 
     FusedReduceAutotuneKey::new(
-        ReduceKey::from(&problem),
+        reduce_key(&opt.info, input.tensors()),
         read_block.reads.len() + write_block.reads.len(),
         read_block.writes.len() + write_block.writes.len(),
         read_block.ops.len() + write_block.ops.len(),
     )
+}
+
+/// The unfused reduce's key, as cubek's reduce autotune states it: the problem the operands state,
+/// not the widths they are read at.
+fn reduce_key(info: &ReduceOptimizationInfo, tensors: &HashMap<TensorId, TensorIr>) -> ReduceKey {
+    let reduce = &info.reduce;
+    let input = tensors.get(&reduce.op.input.id).unwrap();
+    let out = tensors.get(&reduce.op.out.id).unwrap();
+    let problem = ReduceRoutineProblem::stated(
+        &Geometry::row_major(&input.shape),
+        &Geometry::row_major(&out.shape),
+        reduce.axis,
+        reduce_operation(reduce.inst),
+        ReduceElements {
+            input: dtype_to_storage_type(input.dtype),
+            accumulator: reduce.acc.into_elem(),
+            out: dtype_to_storage_type(out.dtype),
+        },
+    );
+    ReduceKey::from(&problem)
 }
 
 /// The reduce on its elected routine, through the trace's read block, then the write block; on the
