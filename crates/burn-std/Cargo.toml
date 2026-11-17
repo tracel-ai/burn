@@ -24,6 +24,8 @@ std = [
     "rand/std",
 ]
 tracing = ["cubecl-common/tracing", "cubecl-environment/tracing"]
+# Reading saved compute environments, where the environments are kept in files.
+persistence = ["std", "cubecl-environment/persistence"]
 
 network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 
