@@ -44,6 +44,8 @@ impl Metric for CpuTemperature {
     }
 
     fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        // A new `System` for each reading: systemstat 0.2.8 holds a `RefCell` (not `Sync`) and a
+        // bug prevents a reused `System` to read the sensor more than once.
         match System::new().cpu_temp() {
             Ok(temp) => self.temp_celsius = temp,
             Err(_) => self.temp_celsius = f32::NAN,
