@@ -73,8 +73,9 @@ impl TraceSinkArgLaunch {
 #[cube]
 impl Destination for TraceSink {
     type Arg<E: Numeric> = TraceSinkArg;
+    type Served<E: Numeric> = Tile;
 
-    fn tile<E: Numeric, V: Size>(arg: &TraceSinkArg, partitioning: &Partitioning) -> Tile {
+    fn serve<E: Numeric, V: Size>(arg: &TraceSinkArg, partitioning: &Partitioning) -> Tile {
         let config = comptime!(arg.config.clone());
         let mut outputs = arg.outputs.clone();
         multi_block_variables_init(&config, &mut outputs.variables);
@@ -108,8 +109,6 @@ impl Destination for TraceSink {
         )
         .tile::<E>(comptime!(partitioning.levels().to_vec()))
     }
-
-    fn finish<E: Numeric>(_arg: &TraceSinkArg) {}
 }
 
 impl DestinationLaunch for TraceSink {

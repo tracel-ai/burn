@@ -218,10 +218,18 @@ Reports also include the measured cost of a kernel launch.
   ([#6430](https://github.com/tracel-ai/burn/pull/6430))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
-- `Breakdown::per_member` holds each member's device and idle time on a sharded compute device
-  whose members fuse, and the time of kernels launched off the members' workers. Its report prints
-  them, and the clean run beyond the slowest member's kernels, in place of a host split.
-  Measurement files are version 5. ([#6430](https://github.com/tracel-ai/burn/pull/6430))
+- `Breakdown::per_member` holds each member's device and idle time on a sharded compute device,
+  and the time of kernels that ran on no member's device. Its report prints them, and the clean run
+  beyond the slowest member's kernels, in place of a host split.
+  ([#6430](https://github.com/tracel-ai/burn/pull/6430))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- `PerMember::collectives` counts the collectives a sharded compute device ran, by operation, path
+  and size, with each member's part time and exposed time (`CollectiveTime`). Kernels are placed on
+  the member whose device ran them, so a sharded compute device whose members do not fuse is timed
+  per member too; `DispatchDevice::shard_member_ids` names the members' devices. Measurement files
+  are version 6.
+  ([#6527](https://github.com/tracel-ai/burn/pull/6527))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Flex SIMD operations
@@ -361,6 +369,23 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   `FusionBackend::collective_parts`, returning `None` to keep a collective on the caller.
   ([#6421](https://github.com/tracel-ai/burn/pull/6421))
 
+- A collective that CubeCL backends emulate, though the members share a runtime with a
+  transport, logs a warning once per collective and reason: a dtype the transport does not
+  reduce, an uneven split, or devices out of order. `burn_cubecl::ops::CollectiveTransport::new`
+  says how collectives between some devices run: natively, by which library (NCCL or RCCL) and
+  reducing which element types, or emulated and why.
+  ([#6486](https://github.com/tracel-ai/burn/pull/6486))
+
+- While a CubeCL `CommunicationSkipGuard` holds a member's device, a collective on CubeCL backends
+  runs nothing: each member receives a tensor of the shape and dtype it would, whose values are
+  wrong. It is for timing a run as if communication were free. `broadcast` still transfers.
+  ([#6497](https://github.com/tracel-ai/burn/pull/6497))
+
+- A CubeCL `ExecutionObserver` sees a collective that CubeCL backends emulate as one collective
+  over its members, with why it is emulated, and as the parent of the kernels and transfers that
+  run it, so a profile can charge them to it. A skipped one is seen as skipped.
+  ([#6511](https://github.com/tracel-ai/burn/pull/6511))
+
 #### Distributed data parallel training
 
 - Fix DDP gradient-synchronization hangs across local and remote devices.
@@ -478,6 +503,12 @@ whose tensors are split over `devices` (crate `burn-shard`).
   recorded execution error instead of panicking.
   ([#6396](https://github.com/tracel-ai/burn/pull/6396),
   [#6408](https://github.com/tracel-ai/burn/pull/6408))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- `DimSplit::data_chunks` and `DimSplit::whole_data` cut and join a quantized tensor's stored
+  words and scales as bytes, instead of decoding every code and scale and quantizing each chunk
+  again, so splitting a quantized checkpoint over a sharded compute device is a copy.
+  ([#6528](https://github.com/tracel-ai/burn/pull/6528))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 - A quantized tensor moves between two sharded compute devices, its codes and scales unchanged,
@@ -815,6 +846,13 @@ Explicit scales now also drive scale-dependent coordinate mapping. Use `.with_ou
 to retain size-derived mapping. See the [interpolation guide](building-blocks/module.md#interpolation)
 for configuration and backend limitations.
 ([#6154](https://github.com/tracel-ai/burn/pull/6154), [@Sadik00789](https://github.com/Sadik00789))
+
+#### Lazy parameters
+
+- `Param::lazy_dtype` reports a parameter's data type without initializing it, beside
+  `lazy_shape` and `lazy_device`: the default for its kind on the device it will initialize on,
+  which `Param::uninitialized` now documents its initializer creates the value at.
+  `Parameter` gains `dtype` and `default_dtype`.
 
 #### Linear-algebra layers behind `linalg`
 

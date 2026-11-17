@@ -50,7 +50,7 @@ impl Display for Members<'_, '_> {
         if !per_member.off_members.is_zero() {
             writeln!(
                 f,
-                "  {:<width$} {:>8} ms   launched off the members' workers, on no member's line",
+                "  {:<width$} {:>8} ms   ran on no member's device, on no member's line",
                 "off members",
                 Millis(per_member.off_members),
             )?;

@@ -203,9 +203,7 @@ impl RecentHistoryPoints {
     fn resize(&mut self) {
         let mut points = Vec::with_capacity(self.max_samples * self.factor_before_resize);
 
-        for i in self.cursor..self.points.len() {
-            points.push(self.points[i]);
-        }
+        points.extend_from_slice(&self.points[self.cursor..]);
 
         self.points = points;
         self.cursor = 0;

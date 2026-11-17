@@ -239,22 +239,12 @@ fn median(mut samples: Vec<Duration>) -> Option<Duration> {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
-    use std::sync::Mutex;
 
     use burn_tensor::{Int, Tensor};
 
+    use super::super::test_observation::serial;
     use super::*;
     use crate::{Bounds, compute};
-
-    /// One instrument at a time, in a process where every test runs alongside
-    /// the others.
-    static SERIAL: Mutex<()> = Mutex::new(());
-
-    fn serial() -> std::sync::MutexGuard<'static, ()> {
-        SERIAL
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-    }
 
     /// The model runs once per warmup, once per sample, once priced and once
     /// instrumented: a warmup left out would leave the tuner's candidates in

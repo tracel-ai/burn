@@ -36,7 +36,7 @@
 //! kept beside it, so a kernel that fused several components' work can be
 //! named for them.
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::sync::Arc;
 
 use burn_tensor::Device;
@@ -93,25 +93,6 @@ thread_local! {
     /// leaving one restores exactly what entering it overrode.
     #[cfg(feature = "fusion")]
     static OUTER: RefCell<Vec<Placement>> = const { RefCell::new(Vec::new()) };
-    /// The member this thread launches for, on a member's fusion worker. `None` on every other
-    /// thread, such as the model thread a collective launches its per-member kernels from.
-    static MEMBER: Cell<Option<Member>> = const { Cell::new(None) };
-}
-
-/// A member of the profiled device, by its index in member order: `0` on a device of one.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Member(pub usize);
-
-/// How many members a device launches for: one, unless it is a sharded compute device whose
-/// members fuse on workers of their own.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MemberCount(pub usize);
-
-impl MemberCount {
-    /// Whether the device has more than one member, so each is timed apart.
-    pub fn several(self) -> bool {
-        self.0 > 1
-    }
 }
 
 /// Moves every launching thread's [`Attribution`] in step with the ops it runs.
@@ -122,8 +103,7 @@ pub struct LaunchCursor {
 
 impl LaunchCursor {
     /// A cursor for work running on `device`, moving its fusion workers' attribution too where
-    /// its ops go through them (`DispatchDevice::fusion_workers`), and telling each worker which
-    /// member it launches for.
+    /// its ops go through them (`DispatchDevice::fusion_workers`).
     pub fn new(device: &Device) -> Self {
         let ids = device.as_dispatch().fusion_workers();
         if !ids.is_empty() {
@@ -136,11 +116,10 @@ impl LaunchCursor {
         Self::over(ids)
     }
 
-    /// A cursor moving the workers `ids`, the member at each index told it launches for that
-    /// member.
+    /// A cursor moving the workers `ids`.
     ///
     /// A worker named twice, as by a sharded compute device whose members are one device, is
-    /// kept once: its members share one thread, which cannot launch for two of them.
+    /// moved once.
     fn over(ids: Vec<DeviceId>) -> Self {
         let mut workers: Vec<DeviceHandle<WorkerCursor>> = Vec::with_capacity(ids.len());
         let mut seen: Vec<DeviceId> = Vec::with_capacity(ids.len());
@@ -149,10 +128,6 @@ impl LaunchCursor {
                 seen.push(id);
                 workers.push(DeviceHandle::new(id));
             }
-        }
-        for (index, worker) in workers.iter().enumerate() {
-            worker
-                .submit(move |_: &mut WorkerCursor| MEMBER.with(|it| it.set(Some(Member(index)))));
         }
         Self { workers }
     }
@@ -164,12 +139,6 @@ impl LaunchCursor {
             false => Fusion::Fused,
             true => Fusion::Unfused,
         }
-    }
-
-    /// How many members the profiled device launches for, one unless it is a sharded compute
-    /// device whose members fuse.
-    pub fn members(&self) -> MemberCount {
-        MemberCount(self.workers.len().max(1))
     }
 
     /// Point every launching thread at `attribution`: this one now, and the
@@ -184,12 +153,6 @@ impl LaunchCursor {
         for worker in &self.workers {
             worker.submit(move |_: &mut WorkerCursor| Self::point_thread_at(attribution));
         }
-    }
-
-    /// The member a launch issued on the calling thread runs on, where the thread is a
-    /// member's fusion worker.
-    pub fn member() -> Option<Member> {
-        MEMBER.with(Cell::get)
     }
 
     /// What a launch issued on the calling thread is recorded under.
@@ -311,8 +274,7 @@ mod tests {
         );
     }
 
-    /// On a sharded compute device every member's worker takes each boundary, and knows which
-    /// member it launches for.
+    /// On a sharded compute device every member's worker takes each boundary.
     #[test]
     fn every_members_worker_follows_the_boundaries() {
         let devices = [u16::MAX - 1, u16::MAX - 2].map(|index_id| DeviceId {
@@ -324,43 +286,12 @@ mod tests {
 
         cursor.point_at(block);
 
-        for (index, device) in devices.into_iter().enumerate() {
+        for device in devices {
             let seen = DeviceHandle::<Ops>::new(device)
-                .submit_blocking(|_: &mut Ops| (LaunchCursor::current(), LaunchCursor::member()))
+                .submit_blocking(|_: &mut Ops| LaunchCursor::current())
                 .expect("the worker answers");
-            assert_eq!(seen, (block, Some(Member(index))), "member {index}");
+            assert_eq!(seen, block, "{device:?}");
         }
-        assert_eq!(cursor.members(), MemberCount(2));
-    }
-
-    /// A sharded compute device whose members are one device names its worker twice: both are
-    /// one worker, so the device launches for one member and is timed as one.
-    #[test]
-    fn a_worker_named_twice_is_one_member() {
-        let device = DeviceId {
-            type_id: u16::MAX,
-            index_id: u16::MAX - 5,
-        };
-        let cursor = LaunchCursor::over(vec![device, device]);
-
-        assert_eq!(cursor.members(), MemberCount(1));
-        let member = DeviceHandle::<Ops>::new(device)
-            .submit_blocking(|_: &mut Ops| LaunchCursor::member())
-            .expect("the worker answers");
-        assert_eq!(member, Some(Member(0)));
-    }
-
-    /// A launch from any thread but a member's worker, as a collective's per-member kernels are
-    /// launched from the model thread, is on no member.
-    #[test]
-    fn a_thread_that_is_no_members_worker_launches_for_no_member() {
-        let devices = [u16::MAX - 3, u16::MAX - 4].map(|index_id| DeviceId {
-            type_id: u16::MAX,
-            index_id,
-        });
-        let _cursor = LaunchCursor::over(devices.to_vec());
-
-        assert_eq!(LaunchCursor::member(), None);
     }
 
     /// A block overrides the thread's attribution for as long as it runs and

@@ -2,7 +2,7 @@
 //! enters, from the thread driving the model, and the kernels, blocks and
 //! timings the runtimes report, from whichever thread issues them.
 //!
-//! The runtime calls a [`LaunchObserver`] synchronously, on the thread that
+//! The runtime calls an [`ExecutionObserver`] synchronously, on the thread that
 //! issued the launch, before it is submitted. The recorder is the observer,
 //! and records each launch under that thread's own attribution — moved in
 //! step with the ops the thread runs, and inside a fusion block set to the
@@ -33,17 +33,21 @@ use burn_fusion::observer::{BlockOperations, FusionObserver};
 #[cfg(feature = "fusion")]
 use burn_ir::OperationIr;
 use burn_tensor::Device;
-use cubecl::logging::{LaunchObserver, TimingRequest};
+use cubecl::logging::{
+    Execution, ExecutionKind, ExecutionObserver, ExecutionPlace, Measurement, Timed, TimingRequest,
+};
 use cubecl::profile::{ProfileDuration, TimingMethod};
 
+use super::collective_ledger::CollectiveLedger;
 use super::component_tree::ComponentTree;
-use super::cursor::{Attribution, LaunchCursor, MemberCount};
+use super::cursor::{Attribution, LaunchCursor};
+use super::members::MemberList;
 #[cfg(feature = "fusion")]
 use super::origins::{BlockOrigin, OperationId, OperationOrigins};
 use super::pricing::Floors;
-use super::timing::{Kept, Timed, Timeline, Timings};
+use super::timing::{ReadTiming, Timeline, Timings, UnreadTiming};
 use super::watching::Watching;
-use crate::breakdown::{Breakdown, PerMember};
+use crate::breakdown::{Breakdown, CollectiveTime, PerMember};
 use crate::{ComponentObserver, Declaration};
 
 /// Records a run's events into its component tree.
@@ -72,6 +76,8 @@ pub struct RunRecorder {
     epoch: Instant,
     /// Where each launching thread records, moved at every boundary.
     cursor: LaunchCursor,
+    /// The members of a sharded compute device, which place each execution by its device.
+    members: MemberList,
     /// A mutex rather than a cell: components are entered on the thread driving
     /// the model and kernels arrive on the runtime's worker, so the two halves
     /// of the tree are written from different threads. The lock is held only
@@ -85,6 +91,7 @@ pub struct RunRecorder {
 struct State {
     tree: ComponentTree,
     timings: Timings,
+    collectives: CollectiveLedger,
     /// What a block's operations are mapped back through.
     #[cfg(feature = "fusion")]
     origins: OperationOrigins,
@@ -103,12 +110,17 @@ impl RunRecorder {
     /// arena would record this one's first kernels at an index that means
     /// something else here.
     pub fn new(device: &Device, floors: Floors) -> Self {
+        Self::with_members(device, MemberList::of(device), floors)
+    }
+
+    fn with_members(device: &Device, members: MemberList, floors: Floors) -> Self {
         let cursor = LaunchCursor::new(device);
         cursor.point_at(Attribution::Untagged);
         Self {
             device: device.clone(),
             epoch: Instant::now(),
             cursor,
+            members,
             state: Mutex::new(State {
                 floors,
                 ..State::default()
@@ -159,12 +171,19 @@ impl RunRecorder {
         // Read outside the lock: a window the backend could not close on the
         // device resolves by waiting, and a launch still being recorded would
         // wait behind it.
-        let kept = self.locked().timings.take_kept();
-        let timed: Vec<Timed> = kept.into_iter().map(Kept::resolve).collect();
+        let (unread, ledger) = {
+            let mut state = self.locked();
+            (
+                state.timings.take_unread(),
+                std::mem::take(&mut state.collectives),
+            )
+        };
+        let read: Vec<ReadTiming> = unread.into_iter().map(UnreadTiming::read).collect();
+        let collectives = ledger.settle(&self.members);
         let mut state = self.locked();
         #[cfg(feature = "fusion")]
         state.origins.clear();
-        state.settle(timed, self.epoch, self.cursor.members());
+        state.settle(read, self.epoch, &self.members, collectives);
     }
 
     /// What the run left behind.
@@ -222,38 +241,67 @@ impl ComponentObserver for RunRecorder {
 /// launches, never where the model thread has got to: under fusion a kernel
 /// launches on the fusion worker, dozens of ops after the model thread
 /// registered its work.
-impl LaunchObserver for RunRecorder {
-    fn launched(&self, kernel: &'static str) {
-        LaunchCursor::with_placement(|placement| {
-            self.locked().tree.count_launch(placement, kernel);
-        });
+impl ExecutionObserver for RunRecorder {
+    fn issued(&self, execution: &Execution) {
+        match execution.kind {
+            ExecutionKind::Kernel { name, .. } => self.count_launch(name),
+            _ => self.locked().collectives.issued(execution, &self.members),
+        }
     }
 
     /// Timed, and handed over unread — a breakdown whose kernel components carried
     /// no time would say which kernels ran and nothing about which of them
     /// mattered, and reading each timing at its launch waits for that
-    /// kernel, which executes the run one kernel at a time.
+    /// kernel, which executes the run one kernel at a time. Communications too
+    /// over several members, whose parts and waits say what each collective cost
+    /// each member; a device of one runs none.
     fn timing(&self) -> TimingRequest {
-        TimingRequest::Deferred
+        match self.members.several() {
+            true => TimingRequest::Deferred(Timed::KernelsAndCommunications),
+            false => TimingRequest::Deferred(Timed::Kernels),
+        }
     }
 
-    /// Kept beside the component that counted the launch, and read back in
-    /// [`finish`](RunRecorder::finish). The runtime hands it over on the
-    /// thread that issued the launch, inside the same call, so the calling
-    /// thread's attribution is still the launch's.
-    fn profiled(&self, kernel: &'static str, profile: ProfileDuration) {
+    fn measured(&self, execution: &Execution, measurement: Measurement) {
+        match (&execution.kind, measurement) {
+            (ExecutionKind::Kernel { place, name }, Measurement::Unread(profile)) => {
+                self.keep_unread(name, place, profile)
+            }
+            (ExecutionKind::Kernel { name, .. }, Measurement::Read { duration, method }) => {
+                self.credit_read(name, duration, method)
+            }
+            (_, Measurement::Unread(profile)) => {
+                self.locked().collectives.measured(execution, profile)
+            }
+            (_, Measurement::Read { .. }) => {}
+        }
+    }
+}
+
+impl RunRecorder {
+    fn count_launch(&self, kernel: &'static str) {
+        LaunchCursor::with_placement(|placement| {
+            self.locked().tree.count_launch(placement, kernel);
+        });
+    }
+
+    /// Kept beside the component that counted the launch and the device at
+    /// `place`, and read back in [`finish`](RunRecorder::finish). The runtime
+    /// hands it over on the thread that issued the launch, inside the same call,
+    /// so the calling thread's attribution is still the launch's.
+    fn keep_unread(&self, kernel: &'static str, place: &ExecutionPlace, profile: ProfileDuration) {
         let attribution = LaunchCursor::current();
-        let member = LaunchCursor::member();
+        let ran_on = self.members.ran_on(place);
         self.locked()
             .timings
-            .keep(attribution, member, kernel, profile);
+            .keep(attribution, ran_on, kernel, profile);
     }
 
     /// Only while the runtime's profiling logger reads timings too, which
     /// reads each at its launch and hands the observer the duration. A kernel
     /// read as it launched ran alone, so the run is marked
     /// [`timed_alone`](Breakdown::timed_alone).
-    fn timed(&self, kernel: &'static str, duration: Duration, method: TimingMethod) {
+    fn credit_read(&self, kernel: &'static str, duration: Duration, method: TimingMethod) {
         let attribution = LaunchCursor::current();
         let mut state = self.locked();
         state.timings.read_at_launch(method);
@@ -296,14 +344,20 @@ impl FusionObserver for RunRecorder {
 impl State {
     /// File every timing read back under the component that counted its
     /// launch, charge each device's idle stretches between them, and, over several `members`,
-    /// keep what each did.
-    fn settle(&mut self, timed: Vec<Timed>, epoch: Instant, members: MemberCount) {
-        let mut timeline = Timeline::new(epoch, members);
-        for timed in timed {
+    /// keep what each did and what the `collectives` cost each.
+    fn settle(
+        &mut self,
+        read: Vec<ReadTiming>,
+        epoch: Instant,
+        members: &MemberList,
+        collectives: Vec<CollectiveTime>,
+    ) {
+        let mut timeline = Timeline::new(epoch, members.clone());
+        for timed in read {
             match timed.ticks {
                 Some(ticks) => {
                     self.credit(timed.attribution, timed.kernel, ticks.duration());
-                    timeline.push(timed.attribution, timed.member, &ticks);
+                    timeline.push(timed.attribution, timed.ran_on, &ticks);
                 }
                 None => self.timings.unplace(Duration::ZERO),
             }
@@ -312,7 +366,10 @@ impl State {
         for (attribution, idle) in settled.idle {
             self.tree.charge_idle(attribution, idle);
         }
-        self.per_member = settled.per_member;
+        self.per_member = settled.per_member.map(|per_member| PerMember {
+            collectives,
+            ..per_member
+        });
     }
 
     /// Add `duration` to the component that counted `kernel`'s launch under
@@ -329,8 +386,14 @@ impl State {
 
 #[cfg(test)]
 mod tests {
+    use burn_tensor::StreamId;
+    use cubecl::logging::{Communication, ExecutionId, StreamRole, WaitTarget};
+    use cubecl::server::{Collective, TransportProvider};
+    use cubecl_common::device::{DeviceId, ServiceId};
+
+    use super::super::test_observation::minted;
     use super::*;
-    use crate::breakdown::{Component, Unplaced};
+    use crate::breakdown::{CollectiveMemberTime, CollectivePath, Component, MemberTime, Unplaced};
 
     /// A launch on the thread driving the model lands under the component that
     /// thread has open, and under none once it has closed — the unfused case,
@@ -340,11 +403,11 @@ mod tests {
         let recorder = recorder();
         recorder.enter(declared("block"));
         recorder.enter(declared("attention"));
-        recorder.launched("Matmul");
+        recorder.count_launch("Matmul");
         recorder.exit();
-        recorder.launched("Add");
+        recorder.count_launch("Add");
         recorder.exit();
-        recorder.launched("Sample");
+        recorder.count_launch("Sample");
 
         let breakdown = recorder.breakdown();
         let names = |kernels: &[crate::Kernel]| -> Vec<String> {
@@ -371,7 +434,7 @@ mod tests {
         recorder.enter(declared("attention"));
 
         let elsewhere = std::sync::Arc::clone(&recorder);
-        std::thread::spawn(move || elsewhere.launched("Stray"))
+        std::thread::spawn(move || elsewhere.count_launch("Stray"))
             .join()
             .expect("the other thread ran");
         recorder.exit();
@@ -389,8 +452,8 @@ mod tests {
         let recorder = recorder();
         for (label, micros) in [("query", 13), ("key", 5)] {
             recorder.enter(declared(label));
-            recorder.launched("MatmulEntry");
-            recorder.profiled("MatmulEntry", unread_timing(micros));
+            recorder.count_launch("MatmulEntry");
+            recorder.keep_unread("MatmulEntry", &place(0), unread_timing(micros));
             recorder.exit();
         }
         assert_eq!(
@@ -414,8 +477,8 @@ mod tests {
     fn a_duration_read_at_launch_marks_the_run_timed_alone() {
         let recorder = recorder();
         recorder.enter(declared("query"));
-        recorder.launched("MatmulEntry");
-        recorder.timed(
+        recorder.count_launch("MatmulEntry");
+        recorder.credit_read(
             "MatmulEntry",
             Duration::from_micros(13),
             TimingMethod::Device,
@@ -436,8 +499,226 @@ mod tests {
         assert_eq!(LaunchCursor::current(), Attribution::Untagged);
     }
 
+    /// A collective settles into each member's part time and exposed time, summed over the
+    /// collectives of its kind. A wait whose part had ended when its stream reached it reads
+    /// zero, and a wait for every queued collective is charged to the member's last part.
+    #[test]
+    fn a_collective_settles_into_each_members_part_and_exposed_time() {
+        let [
+            first,
+            part_0,
+            part_1,
+            wait_0,
+            wait_1,
+            second,
+            part_0b,
+            part_1b,
+            queued_1,
+        ] = minted();
+        let recorder = sharded();
+        for collective in [first, second] {
+            recorder.issue(collective, None, all_reduce(4096, native()));
+        }
+        recorder.share(part_0, first, part(0), 30);
+        recorder.share(part_1, first, part(1), 20);
+        recorder.share(wait_0, first, wait(0, WaitTarget::Part(part_0)), 10);
+        recorder.share(wait_1, first, wait(1, WaitTarget::Part(part_1)), 0);
+        recorder.share(part_0b, second, part(0), 5);
+        recorder.share(part_1b, second, part(1), 7);
+        recorder.share(queued_1, first, wait(1, WaitTarget::QueuedCollectives), 4);
+
+        recorder.end_run();
+        let collectives = recorder.collectives();
+        assert_eq!(
+            collectives.len(),
+            1,
+            "two all-reduces of one kind are one row"
+        );
+        assert_eq!(collectives[0].count, 2);
+        assert_eq!(
+            collectives[0].members,
+            [member_time(35, 10), member_time(27, 4),]
+        );
+    }
+
+    /// A skipped collective is counted though nothing of it ran, apart from the native ones, and
+    /// each size is a kind of its own.
+    #[test]
+    fn a_skipped_collective_is_counted_untimed() {
+        let [native_small, native_large, skipped] = minted();
+        let recorder = sharded();
+        recorder.issue(native_small, None, all_reduce(64, native()));
+        recorder.issue(native_large, None, all_reduce(4096, native()));
+        recorder.issue(
+            skipped,
+            None,
+            all_reduce(64, cubecl::logging::CollectivePath::Skipped),
+        );
+
+        recorder.end_run();
+        let rows: Vec<(u64, CollectivePath, usize)> = recorder
+            .collectives()
+            .into_iter()
+            .map(|row| {
+                assert_eq!(row.members, [CollectiveMemberTime::default(); 2]);
+                (row.bytes, row.path, row.count)
+            })
+            .collect();
+        let nccl = CollectivePath::Native {
+            transport: "Nccl".to_string(),
+        };
+        assert_eq!(
+            rows,
+            [
+                (64, nccl.clone(), 1),
+                (4096, nccl, 1),
+                (64, CollectivePath::Skipped, 1),
+            ]
+        );
+    }
+
+    /// A kernel is on the member whose device its place names, whichever thread launched it,
+    /// and one on a device that is no member's is on none.
+    #[test]
+    fn a_kernel_is_placed_on_the_member_its_device_is() {
+        let recorder = sharded();
+        let kernel = |device| ExecutionKind::Kernel {
+            place: ExecutionPlace {
+                service: service(device),
+                stream: StreamRole::Compute(StreamId { value: 0 }),
+            },
+            name: "Matmul",
+        };
+        let [on_second, elsewhere] = minted();
+        recorder.issue(on_second, None, kernel(MEMBERS[1]));
+        recorder.measure(on_second, kernel(MEMBERS[1]), 9);
+        recorder.issue(elsewhere, None, kernel(DeviceId::new(0, 9)));
+        recorder.measure(elsewhere, kernel(DeviceId::new(0, 9)), 4);
+
+        recorder.end_run();
+        let per_member = recorder.breakdown().per_member.expect("two members");
+        assert_eq!(per_member.members[0], MemberTime::default());
+        assert_eq!(per_member.members[1].on_device, Duration::from_micros(9));
+        assert_eq!(per_member.off_members, Duration::from_micros(4));
+    }
+
+    /// Communications are timed only where there are several members to time apart.
+    #[test]
+    fn communications_are_timed_over_several_members() {
+        assert_eq!(
+            sharded().timing(),
+            TimingRequest::Deferred(Timed::KernelsAndCommunications)
+        );
+        assert_eq!(recorder().timing(), TimingRequest::Deferred(Timed::Kernels));
+    }
+
+    /// The devices of the two members of [`sharded`].
+    const MEMBERS: [DeviceId; 2] = [
+        DeviceId {
+            type_id: 0,
+            index_id: 1,
+        },
+        DeviceId {
+            type_id: 0,
+            index_id: 2,
+        },
+    ];
+
     fn recorder() -> RunRecorder {
         RunRecorder::new(&Device::flex(), Floors::default())
+    }
+
+    /// A recorder for a sharded compute device of the two [`MEMBERS`].
+    fn sharded() -> RunRecorder {
+        RunRecorder::with_members(
+            &Device::flex(),
+            MemberList::over(MEMBERS.map(service).to_vec()),
+            Floors::default(),
+        )
+    }
+
+    impl RunRecorder {
+        fn issue(&self, id: ExecutionId, parent: Option<ExecutionId>, kind: ExecutionKind) {
+            self.issued(&Execution { id, parent, kind });
+        }
+
+        fn measure(&self, id: ExecutionId, kind: ExecutionKind, micros: u64) {
+            let execution = Execution {
+                id,
+                parent: None,
+                kind,
+            };
+            self.measured(&execution, Measurement::Unread(unread_timing(micros)));
+        }
+
+        /// Issue a part or wait of `collective`, and hand its window of `micros` over.
+        fn share(
+            &self,
+            id: ExecutionId,
+            collective: ExecutionId,
+            kind: ExecutionKind,
+            micros: u64,
+        ) {
+            self.issue(id, Some(collective), kind.clone());
+            self.measure(id, kind, micros);
+        }
+
+        fn collectives(&self) -> Vec<crate::CollectiveTime> {
+            self.breakdown()
+                .per_member
+                .expect("two members")
+                .collectives
+        }
+    }
+
+    fn all_reduce(bytes: u64, path: cubecl::logging::CollectivePath) -> ExecutionKind {
+        ExecutionKind::Communication(Communication::Collective {
+            operation: Collective::AllReduce,
+            members: MEMBERS.map(service).to_vec(),
+            bytes,
+            path,
+        })
+    }
+
+    fn native() -> cubecl::logging::CollectivePath {
+        cubecl::logging::CollectivePath::Native(TransportProvider::Nccl)
+    }
+
+    fn part(member: usize) -> ExecutionKind {
+        ExecutionKind::Part {
+            place: ExecutionPlace {
+                service: service(MEMBERS[member]),
+                stream: StreamRole::Collective,
+            },
+        }
+    }
+
+    fn wait(member: usize, awaits: WaitTarget) -> ExecutionKind {
+        ExecutionKind::Wait {
+            place: ExecutionPlace {
+                service: service(MEMBERS[member]),
+                stream: StreamRole::Compute(StreamId { value: 0 }),
+            },
+            awaits,
+        }
+    }
+
+    fn member_time(part: u64, exposed: u64) -> CollectiveMemberTime {
+        CollectiveMemberTime {
+            part: Duration::from_micros(part),
+            exposed: Duration::from_micros(exposed),
+        }
+    }
+
+    fn service(device: DeviceId) -> ServiceId {
+        ServiceId::of::<()>(device)
+    }
+
+    fn place(index_id: u16) -> ExecutionPlace {
+        ExecutionPlace {
+            service: service(DeviceId::new(0, index_id)),
+            stream: StreamRole::Compute(StreamId { value: 0 }),
+        }
     }
 
     /// A device timing of `micros`, as the runtime hands one over: unread.
