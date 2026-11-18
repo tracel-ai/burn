@@ -33,12 +33,16 @@ static MEASURED: LazyLock<Mutex<MeasuredLinks>> = LazyLock::new(Default::default
 /// What the link from `from`'s device to `to` delivers across transfer sizes: within one server,
 /// as its backend measures it; between two, as the target times downloads from the source.
 ///
-/// Unsupported unless both devices' sessions are open and their servers admitted them, checked
-/// before anything is exposed or granted on either.
+/// Unsupported between an Iroh server and a WebSocket one, which no transfer crosses, and unless
+/// both devices' sessions are open and their servers admitted them, checked before anything is
+/// exposed or granted on either.
 pub(crate) fn measure_link(
     from: &RemoteClient,
     to: &RemoteDevice,
 ) -> Result<Vec<LinkPoint>, PeakError> {
+    if from.device.peer_addr().is_iroh() != to.peer_addr().is_iroh() {
+        return Err(PeakError::Unsupported);
+    }
     if !admitted(from) || !admitted(&get_client::<RemoteChannel>(to)) {
         return Err(PeakError::Unsupported);
     }
@@ -77,17 +81,12 @@ fn measure_within_server(
         .unwrap_or(Err(PeakError::Unsupported))
 }
 
-/// Unsupported between an Iroh server and a WebSocket one, which no transfer crosses.
-///
 /// One at a time in the process, so a second caller for the pair finds the first one's curve
 /// whichever sessions it reaches the servers through.
 fn measure_between_servers(
     from: &RemoteClient,
     to: &RemoteDevice,
 ) -> Result<Vec<LinkPoint>, PeakError> {
-    if from.device.peer_addr().is_iroh() != to.peer_addr().is_iroh() {
-        return Err(PeakError::Unsupported);
-    }
     let target_client = get_client::<RemoteChannel>(to);
     let mut measured = measured();
     let ends = (link_end(&from.device), link_end(to));
