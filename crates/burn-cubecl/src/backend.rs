@@ -462,6 +462,10 @@ impl Backend for CubeBackend {
         sizes
             .iter()
             .map(|&bytes| {
+                // cubecl's probe sizes its buffers in `usize`, which a 32-bit target would wrap.
+                if usize::try_from(bytes).is_err() {
+                    return Err(PeakError::Unsupported);
+                }
                 let value = measure_link_throughput(&members, LinkKey { route, bytes })?;
                 Ok(Peak {
                     per_second: value.ops_per_s(),

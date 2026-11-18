@@ -48,6 +48,9 @@ impl<'a> LinkProber<'a> {
     /// unless both devices' sessions are open and their servers admitted them, checked before
     /// anything is exposed or granted on either.
     pub(crate) fn measure(&self, sizes: &[u64]) -> Vec<Result<Peak, PeakError>> {
+        if sizes.is_empty() {
+            return Vec::new();
+        }
         let (source, target) = (&self.source.device, &self.target.device);
         if source.peer_addr().is_iroh() != target.peer_addr().is_iroh() {
             return unsupported(sizes);
