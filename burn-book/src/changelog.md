@@ -161,7 +161,7 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
 - `Device::measure_link(&to)` measures what the link from one device to another delivers at each
   transfer size. Two devices of one server run their backend's link probe there; between two
   servers, the target times its downloads from the source. `PeakError::Transfer` reports a
-  transfer the probe lost.
+  transfer the probe lost. ([#6551](https://github.com/tracel-ai/burn/pull/6551))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Device transfers
