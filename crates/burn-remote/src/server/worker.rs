@@ -34,7 +34,7 @@
 //! cannot host co-located collective / same-host-transfer participants (the single thread would
 //! stall on the blocking tasks above). Ordinary compute is unaffected.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use burn_backend::PeakError;
@@ -61,7 +61,6 @@ use crate::server::transfer::TensorTransfer;
 use crate::server::{DeviceCaptureLock, SessionCaptures, SessionExecutionModes};
 use crate::shared::{
     LocalAllReducePart, RequestId, SessionId, Task, TaskResponse, TaskResponseContent,
-    TransferCapability,
 };
 use crate::telemetry::{
     TelemetryEvent, TelemetryProbe, TransferPhase, TransferScope, serialized_len,
@@ -110,8 +109,6 @@ where
     /// the cache from becoming a serialization point if graph execution is ever driven from more
     /// than the current single-FIFO worker.
     graphs: Mutex<HashMap<GraphId, Graph>>,
-    /// Link probe buffers this session exposed and no client withdrew yet, withdrawn when it closes.
-    link_pulls: HashSet<TransferCapability>,
     queries: DeviceQueries<B>,
     captures: SessionCaptures<B>,
     execution_modes: SessionExecutionModes,
@@ -146,7 +143,6 @@ where
             response_tasks: ResponseTasks::default(),
             transfer,
             local_comm,
-            link_pulls: HashSet::new(),
             graphs: Mutex::new(HashMap::new()),
             queries,
             captures: SessionCaptures::new(session_id, capture_lock),
@@ -226,9 +222,6 @@ where
         // half-finished transfer doesn't strand device memory in the shared registry.
         self.local_comm.purge_session(session_id).await;
         self.local_comm.abandon_session(session_id).await;
-        for capability in &self.link_pulls {
-            self.transfer.withdraw(*capability).await;
-        }
 
         log::debug!("Session {session_id} worker draining and exiting");
 
@@ -668,7 +661,6 @@ where
                     self.transfer
                         .expose_data(link_buffer(&pull), pull.downloads, pull.capability, target)
                         .await;
-                    self.link_pulls.insert(pull.capability);
                 }
                 self.send_response(request_id, TaskResponseContent::LinkExposed(exposed))
                     .await
@@ -679,9 +671,7 @@ where
                     .await
             }
             Task::WithdrawLinkPull(capability) => {
-                if self.link_pulls.remove(&capability) {
-                    self.transfer.withdraw(capability).await;
-                }
+                self.transfer.withdraw(capability).await;
                 Ok(())
             }
         }
@@ -1261,7 +1251,6 @@ mod tests {
                 response_tasks: ResponseTasks::default(),
                 transfer: Arc::new(NoTransfer),
                 local_comm: Arc::new(LocalCommService::<Flex>::new(1)),
-                link_pulls: HashSet::new(),
                 graphs: Mutex::new(HashMap::new()),
                 queries: DeviceQueries::default(),
                 captures: SessionCaptures::new(session_id, capture_lock),
