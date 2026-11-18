@@ -38,13 +38,20 @@ pub(crate) fn measure_link(
     }
 }
 
+/// Names `to` by its open session, which the server reaches its device through: a client the
+/// server would not admit to `to` cannot probe it.
 fn measure_within_server(
     from: &RemoteClient,
     to: &RemoteDevice,
 ) -> Result<Vec<LinkPoint>, PeakError> {
-    let index = to.device_index;
+    let target = get_client::<RemoteChannel>(to)
+        .handle
+        .submit_blocking(|s| s.open_session())
+        .ok()
+        .flatten()
+        .ok_or(PeakError::Unsupported)?;
     from.handle
-        .submit_blocking(move |s| s.measure_link_local(index))
+        .submit_blocking(move |s| s.measure_link_local(target))
         .unwrap_or(Err(PeakError::Unsupported))
 }
 

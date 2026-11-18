@@ -38,7 +38,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use burn_backend::PeakError;
-use burn_backend::tensor::{Device, FloatTensor};
+use burn_backend::tensor::FloatTensor;
 use burn_ir::{BackendIr, GraphBindings, GraphId, HandleKind, TensorError, TensorId, TensorIr};
 use burn_router::{Graph, TensorInterpreter};
 use burn_std::{DType, ExecutionError, id::StreamId};
@@ -56,6 +56,7 @@ use crate::server::DeviceQueries;
 use crate::server::ServerStreams;
 use crate::server::link_probe::{link_buffer, time_link_pull};
 use crate::server::local_comm::LocalCommService;
+use crate::server::session::SessionDevices;
 use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
 use crate::server::transfer::TensorTransfer;
 use crate::server::{DeviceCaptureLock, SessionCaptures, SessionExecutionModes};
@@ -81,8 +82,8 @@ const TASK_CHANNEL_CAPACITY: usize = 64;
 pub struct SessionServices<B: BackendIr, T> {
     pub transfer: Arc<T>,
     pub local_comm: Arc<LocalCommService<B>>,
-    /// Every device the server hosts, by index, for a link probe to reach another.
-    pub devices: Arc<[Device<B>]>,
+    /// The device each of the server's open sessions is on, for a link probe to reach another.
+    pub sessions: Arc<SessionDevices<B>>,
     pub queries: DeviceQueries<B>,
     pub probe: TelemetryProbe,
 }
@@ -103,7 +104,7 @@ where
     response_tasks: ResponseTasks,
     transfer: Arc<T>,
     local_comm: Arc<LocalCommService<B>>,
-    devices: Arc<[Device<B>]>,
+    sessions: Arc<SessionDevices<B>>,
     /// Cache of client-registered reusable op-graphs, keyed by id (see
     /// [`Task::RegisterAndExecuteGraph`]).
     ///
@@ -136,7 +137,7 @@ where
         let SessionServices {
             transfer,
             local_comm,
-            devices,
+            sessions,
             queries,
             probe,
         } = services;
@@ -148,7 +149,7 @@ where
             response_tasks: ResponseTasks::default(),
             transfer,
             local_comm,
-            devices,
+            sessions,
             graphs: Mutex::new(HashMap::new()),
             queries,
             captures: SessionCaptures::new(session_id, capture_lock),
@@ -645,9 +646,9 @@ where
                 self.send_response(request_id, TaskResponseContent::Peaks(peaks))
                     .await
             }
-            Task::MeasureLinkLocal(request_id, device_index) => {
-                let link = match self.devices.get(device_index as usize) {
-                    Some(to) => self.runner.measure_link(to),
+            Task::MeasureLinkLocal(request_id, target) => {
+                let link = match self.sessions.device_of(target) {
+                    Some(to) => self.runner.measure_link(&to),
                     None => Err(PeakError::Unsupported),
                 };
                 self.send_response(request_id, TaskResponseContent::Link(link))
@@ -1235,7 +1236,7 @@ mod tests {
             Self {
                 transfer: Arc::new(NoTransfer),
                 local_comm,
-                devices: Arc::new([Default::default()]),
+                sessions: Arc::new(SessionDevices::new(vec![Default::default()])),
                 queries: DeviceQueries::default(),
                 probe: TelemetryProbe::disabled(),
             }
@@ -1256,7 +1257,7 @@ mod tests {
                 response_tasks: ResponseTasks::default(),
                 transfer: Arc::new(NoTransfer),
                 local_comm: Arc::new(LocalCommService::<Flex>::new(1)),
-                devices: Arc::new([Default::default()]),
+                sessions: Arc::new(SessionDevices::new(vec![Default::default()])),
                 graphs: Mutex::new(HashMap::new()),
                 queries: DeviceQueries::default(),
                 captures: SessionCaptures::new(session_id, capture_lock),

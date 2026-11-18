@@ -46,6 +46,7 @@ where
     /// All devices this server hosts, indexed by the device index the client selects at
     /// session init. `devices[0]` is the default device (`DeviceIndex::Default`).
     devices: Vec<HostedDevice<B>>,
+    session_devices: Arc<SessionDevices<B>>,
     pub(crate) transfer: Arc<T>,
     /// Rendezvous registry for same-host tensor transfers between this server's sessions.
     pub(crate) local_comm: Arc<LocalCommService<B>>,
@@ -57,6 +58,42 @@ where
     probe: TelemetryProbe,
     /// Spawns the telemetry logger once, on the first session.
     logger: Once,
+}
+
+/// The device each open session is on, so a session reaches another device only through a session
+/// its client opened there, which the server's authorizer admitted.
+pub(crate) struct SessionDevices<B: BackendIr> {
+    devices: Vec<Device<B>>,
+    open: std::sync::Mutex<HashMap<SessionId, u32>>,
+}
+
+impl<B: BackendIr> SessionDevices<B> {
+    pub(crate) fn new(devices: Vec<Device<B>>) -> Self {
+        Self {
+            devices,
+            open: Default::default(),
+        }
+    }
+
+    /// The device `session` is on, while it is open.
+    pub(crate) fn device_of(&self, session: SessionId) -> Option<Device<B>> {
+        let index = *self.open().get(&session)?;
+        self.devices.get(index as usize).cloned()
+    }
+
+    fn opened(&self, session: SessionId, device_index: u32) {
+        self.open().insert(session, device_index);
+    }
+
+    fn closed(&self, session: SessionId) {
+        self.open().remove(&session);
+    }
+
+    fn open(&self) -> std::sync::MutexGuard<'_, HashMap<SessionId, u32>> {
+        self.open
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
 }
 
 /// A device this server hosts, with the lock its sessions' graph captures share.
@@ -83,6 +120,7 @@ where
         );
         Self {
             local_comm: Arc::new(LocalCommService::new(devices.len())),
+            session_devices: Arc::new(SessionDevices::new(devices.clone())),
             devices: devices
                 .into_iter()
                 .map(|device| HostedDevice {
@@ -171,16 +209,13 @@ where
                 SessionServices {
                     transfer: self.transfer.clone(),
                     local_comm: self.local_comm.clone(),
-                    devices: self
-                        .devices
-                        .iter()
-                        .map(|hosted| hosted.device.clone())
-                        .collect(),
+                    sessions: self.session_devices.clone(),
                     queries: self.queries.clone(),
                     probe: self.probe.clone(),
                 },
                 self.hosted(device_index).capture_lock.clone(),
             );
+            self.session_devices.opened(session_id, device_index);
             self.probe.emit(|| TelemetryEvent::SessionOpened {
                 session: session_id,
                 device: device_index,
@@ -245,11 +280,40 @@ where
     async fn close(&self, session_id: SessionId) {
         let mut sessions = self.sessions.lock().await;
         if sessions.remove(&session_id).is_some() {
+            self.session_devices.closed(session_id);
             self.probe.emit(|| TelemetryEvent::SessionClosed {
                 session: session_id,
             });
         }
         drop(sessions);
         self.local_comm.abandon_session(session_id).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_flex::Flex;
+
+    #[test]
+    fn an_open_session_reaches_its_device() {
+        let sessions = SessionDevices::<Flex>::new(vec![Default::default(), Default::default()]);
+        let session = SessionId::new();
+
+        sessions.opened(session, 1);
+
+        assert!(sessions.device_of(session).is_some());
+    }
+
+    #[test]
+    fn a_session_never_opened_or_closed_reaches_no_device() {
+        let sessions = SessionDevices::<Flex>::new(vec![Default::default()]);
+        let session = SessionId::new();
+        assert!(sessions.device_of(session).is_none());
+
+        sessions.opened(session, 0);
+        sessions.closed(session);
+
+        assert!(sessions.device_of(session).is_none());
     }
 }

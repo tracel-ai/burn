@@ -943,17 +943,23 @@ impl RemoteService {
         .unwrap_or_else(|| vec![Err(PeakError::Unsupported); count])
     }
 
-    /// What the link from the server's device to its device at `device_index` delivers;
-    /// unsupported when the server could not be asked.
-    pub fn measure_link_local(&mut self, device_index: u32) -> Result<Vec<LinkPoint>, PeakError> {
+    /// What the link from the server's device to the device of its open session `target`
+    /// delivers; unsupported when the server could not be asked.
+    pub fn measure_link_local(&mut self, target: SessionId) -> Result<Vec<LinkPoint>, PeakError> {
         self.report(
-            |id| Task::MeasureLinkLocal(id, device_index),
+            |id| Task::MeasureLinkLocal(id, target),
             |answer| match answer {
                 TaskResponseContent::Link(link) => Some(link),
                 _ => None,
             },
         )
         .unwrap_or(Err(PeakError::Unsupported))
+    }
+
+    /// This device's session, opening it first; `None` when the server refused or could not be
+    /// reached.
+    pub(crate) fn open_session(&mut self) -> Option<SessionId> {
+        self.try_connect().ok().map(|()| self.session_id)
     }
 
     /// Expose the pull's buffer for `target` to download, waiting until it is exposed; false when

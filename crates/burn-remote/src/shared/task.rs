@@ -460,9 +460,9 @@ pub enum Task {
     MeasureMemory(RequestId, StreamId),
     /// The peak throughput of the session's device for each key.
     MeasurePeaks(RequestId, Vec<PeakKey>),
-    /// What the link from the session's device to the device at this index of the same server
-    /// delivers.
-    MeasureLinkLocal(RequestId, u32),
+    /// What the link from the session's device to the device of another open session on the same
+    /// server delivers.
+    MeasureLinkLocal(RequestId, SessionId),
     /// Expose the pull's buffer for `PeerId` to download, answering once it is exposed.
     ExposeLinkPull(RequestId, PeerId, LinkPull),
     /// What the link from the server at `PeerAddr` to the session's server delivers at the pull's
