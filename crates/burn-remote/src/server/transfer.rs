@@ -37,4 +37,7 @@ pub(crate) trait TensorTransfer<B: BackendIr>: Send + Sync + 'static {
         target: PeerId,
         reason: String,
     ) -> impl Future<Output = ()> + Send;
+
+    /// Stop serving what `capability` exposed, whatever downloads it has left.
+    fn withdraw(&self, capability: TransferCapability) -> impl Future<Output = ()> + Send;
 }

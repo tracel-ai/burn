@@ -62,6 +62,14 @@ impl<B: BackendIr> TensorTransfer<B> for WebSocketTransfer<B> {
     async fn fail(&self, _capability: TransferCapability, _target: PeerId, reason: String) {
         log::error!("WebSocket tensor transfer failed before exposure: {reason}");
     }
+
+    async fn withdraw(&self, capability: TransferCapability) {
+        self.inner
+            .exposed_tensors
+            .lock()
+            .await
+            .remove(&capability_to_websocket_id(capability));
+    }
 }
 
 fn capability_to_websocket_id(

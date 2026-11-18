@@ -1,5 +1,6 @@
 //! A link probe between two remote devices, which their servers run.
 
+use core::time::Duration;
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex, PoisonError};
 
@@ -12,9 +13,9 @@ use crate::PeerId;
 use crate::shared::{LinkPull, TransferCapability};
 
 const SMALLEST_PULL_BYTES: u64 = 4 << 10;
-const LARGEST_PULL_BYTES: u64 = 64 << 20;
-/// Each size's first download only opens the connection, so it is left out of the rate.
-const DOWNLOADS_PER_PULL: u32 = 11;
+/// A size whose fastest download takes longer ends the sweep: the next would take four times as
+/// long, for a rate the link has already settled on.
+const SLOWEST_PULL: Duration = Duration::from_secs(1);
 
 /// A device, by its server and its index there.
 type LinkEnd = (PeerId, u32);
@@ -31,17 +32,10 @@ pub(crate) fn measure_link(
     from: &RemoteClient,
     to: &RemoteDevice,
 ) -> Result<Vec<LinkPoint>, PeakError> {
-    let source = &from.device;
-    if source.peer_id() == to.peer_id() {
-        return measure_within_server(from, to);
+    match from.device.peer_id() == to.peer_id() {
+        true => measure_within_server(from, to),
+        false => measure_between_servers(from, to),
     }
-    let ends = (link_end(source), link_end(to));
-    if let Some(curve) = measured().get(&ends) {
-        return Ok(curve.clone());
-    }
-    let curve = measure_between_servers(from, to)?;
-    measured().insert(ends, curve.clone());
-    Ok(curve)
 }
 
 fn measure_within_server(
@@ -55,6 +49,9 @@ fn measure_within_server(
 }
 
 /// Unsupported between an Iroh server and a WebSocket one, which no transfer crosses.
+///
+/// Holds both sessions' order for the whole sweep, so a second caller for the pair finds the
+/// first one's curve.
 fn measure_between_servers(
     from: &RemoteClient,
     to: &RemoteDevice,
@@ -62,32 +59,59 @@ fn measure_between_servers(
     if from.device.peer_addr().is_iroh() != to.peer_addr().is_iroh() {
         return Err(PeakError::Unsupported);
     }
-    let pulls = link_pulls();
     let target_client = get_client::<RemoteChannel>(to);
-    let order = session_order([&from.device, to]);
-    let (target, exposed) = (to.peer_id(), pulls.clone());
-    from.handle
-        .submit(move |s| s.expose_link_probe(target, exposed));
-    from.handle.flush_queue();
-    let source = from.device.peer_addr();
-    let link = target_client
-        .handle
-        .submit_blocking(move |s| s.measure_link_pull(source, pulls))
-        .unwrap_or(Err(PeakError::Unsupported));
-    drop(order);
-    link
+    let _order = session_order([&from.device, to]);
+    let ends = (link_end(&from.device), link_end(to));
+    if let Some(curve) = measured().get(&ends) {
+        return Ok(curve.clone());
+    }
+    let mut curve = Vec::new();
+    for bytes in pull_sizes() {
+        let point = pull_once(from, &target_client, to.peer_id(), bytes)?;
+        curve.push(point);
+        if point.bytes as f64 / point.per_second > SLOWEST_PULL.as_secs_f64() {
+            break;
+        }
+    }
+    measured().insert(ends, curve.clone());
+    Ok(curve)
 }
 
-/// One pull per size, by fours from the smallest to the largest.
-fn link_pulls() -> Vec<LinkPull> {
+/// One size of the sweep: exposed on the source, timed on the target, then withdrawn from the
+/// source whatever downloads the target left.
+fn pull_once(
+    from: &RemoteClient,
+    target_client: &RemoteClient,
+    target: PeerId,
+    bytes: u64,
+) -> Result<LinkPoint, PeakError> {
+    let pull = LinkPull {
+        bytes,
+        downloads: LinkPull::MAX_DOWNLOADS,
+        capability: TransferCapability::random(),
+    };
+    let exposed = from
+        .handle
+        .submit_blocking(move |s| s.expose_link_pull(target, pull))
+        .unwrap_or(false);
+    if !exposed {
+        return Err(PeakError::Unsupported);
+    }
+    let source = from.device.peer_addr();
+    let point = target_client
+        .handle
+        .submit_blocking(move |s| s.measure_link_pull(source, pull))
+        .unwrap_or(Err(PeakError::Unsupported));
+    from.handle
+        .submit(move |s| s.withdraw_link_pull(pull.capability));
+    from.handle.flush_queue();
+    point
+}
+
+/// From the smallest size up to the largest a server exposes, by fours.
+fn pull_sizes() -> impl Iterator<Item = u64> {
     core::iter::successors(Some(SMALLEST_PULL_BYTES), |bytes| Some(bytes * 4))
-        .take_while(|bytes| *bytes <= LARGEST_PULL_BYTES)
-        .map(|bytes| LinkPull {
-            bytes,
-            downloads: DOWNLOADS_PER_PULL,
-            capability: TransferCapability::random(),
-        })
-        .collect()
+        .take_while(|bytes| *bytes <= LinkPull::MAX_BYTES)
 }
 
 fn link_end(device: &RemoteDevice) -> LinkEnd {
@@ -103,11 +127,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pulls_span_four_kibibytes_to_sixty_four_mebibytes() {
-        let sizes: Vec<u64> = link_pulls().iter().map(|pull| pull.bytes).collect();
+    fn pulls_span_four_kibibytes_to_the_largest_a_server_exposes() {
+        let sizes: Vec<u64> = pull_sizes().collect();
 
         assert_eq!(sizes.first(), Some(&SMALLEST_PULL_BYTES));
-        assert_eq!(sizes.last(), Some(&LARGEST_PULL_BYTES));
+        assert_eq!(sizes.last(), Some(&LinkPull::MAX_BYTES));
         assert_eq!(sizes.len(), 8);
     }
 }

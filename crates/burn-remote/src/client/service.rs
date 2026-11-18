@@ -946,26 +946,50 @@ impl RemoteService {
     /// What the link from the server's device to its device at `device_index` delivers;
     /// unsupported when the server could not be asked.
     pub fn measure_link_local(&mut self, device_index: u32) -> Result<Vec<LinkPoint>, PeakError> {
-        self.report(|id| Task::MeasureLinkLocal(id, device_index), link_answer)
-            .unwrap_or(Err(PeakError::Unsupported))
+        self.report(
+            |id| Task::MeasureLinkLocal(id, device_index),
+            |answer| match answer {
+                TaskResponseContent::Link(link) => Some(link),
+                _ => None,
+            },
+        )
+        .unwrap_or(Err(PeakError::Unsupported))
     }
 
-    /// Expose a buffer per pull for `target` to download, sending it immediately so the target's
-    /// downloads find it.
-    pub fn expose_link_probe(&mut self, target: crate::PeerId, pulls: Vec<LinkPull>) {
-        self.submit_task(Task::ExposeLinkProbe { target, pulls });
-        self.send_batch();
+    /// Expose the pull's buffer for `target` to download, waiting until it is exposed; false when
+    /// the server refused it or could not be asked.
+    pub fn expose_link_pull(&mut self, target: crate::PeerId, pull: LinkPull) -> bool {
+        self.report(
+            |id| Task::ExposeLinkPull(id, target, pull),
+            |answer| match answer {
+                TaskResponseContent::LinkExposed(exposed) => Some(exposed),
+                _ => None,
+            },
+        )
+        .unwrap_or(false)
     }
 
-    /// What the link from `source`'s server to this one delivers, timed by downloading each pull;
-    /// unsupported when the server could not be asked.
+    /// What the link from `source`'s server to this one delivers at the pull's size; unsupported
+    /// when the server could not be asked.
     pub fn measure_link_pull(
         &mut self,
         source: crate::PeerAddr,
-        pulls: Vec<LinkPull>,
-    ) -> Result<Vec<LinkPoint>, PeakError> {
-        self.report(|id| Task::MeasureLinkPull(id, source, pulls), link_answer)
-            .unwrap_or(Err(PeakError::Unsupported))
+        pull: LinkPull,
+    ) -> Result<LinkPoint, PeakError> {
+        self.report(
+            |id| Task::MeasureLinkPull(id, source, pull),
+            |answer| match answer {
+                TaskResponseContent::LinkPulled(point) => Some(point),
+                _ => None,
+            },
+        )
+        .unwrap_or(Err(PeakError::Unsupported))
+    }
+
+    /// Stop the server serving the buffer exposed under `capability`, sending it immediately.
+    pub fn withdraw_link_pull(&mut self, capability: TransferCapability) {
+        self.submit_task(Task::WithdrawLinkPull(capability));
+        self.send_batch();
     }
 
     /// Send a report request and wait on the server's answer, which `answer` takes out of the
@@ -1334,13 +1358,6 @@ impl Drop for RemoteService {
             .as_mut()
             .expect("writer present (checked above)");
         writer.shutdown(&self.executor, Some(batch));
-    }
-}
-
-fn link_answer(answer: TaskResponseContent) -> Option<Result<Vec<LinkPoint>, PeakError>> {
-    match answer {
-        TaskResponseContent::Link(link) => Some(link),
-        _ => None,
     }
 }
 

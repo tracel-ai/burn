@@ -54,7 +54,7 @@ use tokio::sync::mpsc;
 
 use crate::server::DeviceQueries;
 use crate::server::ServerStreams;
-use crate::server::link_probe::{link_buffer, time_link_pulls};
+use crate::server::link_probe::{link_buffer, time_link_pull};
 use crate::server::local_comm::LocalCommService;
 use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
 use crate::server::transfer::TensorTransfer;
@@ -652,27 +652,24 @@ where
                 self.send_response(request_id, TaskResponseContent::Link(link))
                     .await
             }
-            Task::ExposeLinkProbe { target, pulls } => {
-                let transfer = self.transfer.clone();
-                // Detached like a tensor's expose: a transport may hold it until it is downloaded.
-                spawn_detached(async move {
-                    for pull in pulls {
-                        transfer
-                            .expose_data(
-                                link_buffer(&pull),
-                                pull.downloads,
-                                pull.capability,
-                                target.clone(),
-                            )
-                            .await;
-                    }
-                });
-                Ok(())
-            }
-            Task::MeasureLinkPull(request_id, source, pulls) => {
-                let link = time_link_pulls(&*self.transfer, &source, &pulls).await;
-                self.send_response(request_id, TaskResponseContent::Link(link))
+            Task::ExposeLinkPull(request_id, target, pull) => {
+                let exposed = pull.is_bounded();
+                if exposed {
+                    self.transfer
+                        .expose_data(link_buffer(&pull), pull.downloads, pull.capability, target)
+                        .await;
+                }
+                self.send_response(request_id, TaskResponseContent::LinkExposed(exposed))
                     .await
+            }
+            Task::MeasureLinkPull(request_id, source, pull) => {
+                let point = time_link_pull(&*self.transfer, &source, &pull).await;
+                self.send_response(request_id, TaskResponseContent::LinkPulled(point))
+                    .await
+            }
+            Task::WithdrawLinkPull(capability) => {
+                self.transfer.withdraw(capability).await;
+                Ok(())
             }
         }
     }
@@ -877,6 +874,8 @@ mod tests {
         }
 
         async fn fail(&self, _: TransferCapability, _: PeerId, _: String) {}
+
+        async fn withdraw(&self, _: TransferCapability) {}
     }
 
     #[tokio::test(flavor = "multi_thread")]

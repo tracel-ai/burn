@@ -15,35 +15,39 @@ pub(crate) fn link_buffer(pull: &LinkPull) -> TensorData {
     TensorData::zeros::<u8, _>([pull.bytes as usize])
 }
 
-/// What the link from `source` delivers at each pull's size, timing every download after the
-/// first.
+/// Timed downloads a target takes of one size before its time budget can end the sampling.
+const MIN_TIMED_DOWNLOADS: usize = 3;
+const SAMPLING_BUDGET: Duration = Duration::from_millis(500);
+
+/// What the link from `source` delivers at the pull's size, timing every download after the first
+/// until the time budget runs out or the pull's downloads do.
 ///
 /// # Errors
 ///
-/// [`Transfer`](PeakError::Transfer) when a download fails, which leaves the source's later
-/// buffers exposed.
-pub(crate) async fn time_link_pulls<B: BackendIr, T: TensorTransfer<B>>(
+/// [`Unsupported`](PeakError::Unsupported) for a pull outside the bounds a client sends, and
+/// [`Transfer`](PeakError::Transfer) when a download fails.
+pub(crate) async fn time_link_pull<B: BackendIr, T: TensorTransfer<B>>(
     transfer: &T,
     source: &PeerAddr,
-    pulls: &[LinkPull],
-) -> Result<Vec<LinkPoint>, PeakError> {
-    let mut points = Vec::with_capacity(pulls.len());
-    for pull in pulls {
-        let mut samples = Vec::with_capacity(pull.downloads as usize);
-        for _ in 0..pull.downloads {
-            let start = Instant::now();
-            transfer
-                .download_tensor(source.clone(), pull.capability)
-                .await
-                .ok_or(PeakError::Transfer)?;
-            samples.push(start.elapsed());
-        }
-        points.push(link_point(
-            pull.bytes,
-            samples.get(1..).unwrap_or_default(),
-        )?);
+    pull: &LinkPull,
+) -> Result<LinkPoint, PeakError> {
+    if !pull.is_bounded() {
+        return Err(PeakError::Unsupported);
     }
-    Ok(points)
+    let started = Instant::now();
+    let mut samples = Vec::with_capacity(pull.downloads as usize);
+    for _ in 0..pull.downloads {
+        let start = Instant::now();
+        transfer
+            .download_tensor(source.clone(), pull.capability)
+            .await
+            .ok_or(PeakError::Transfer)?;
+        samples.push(start.elapsed());
+        if samples.len() > MIN_TIMED_DOWNLOADS && started.elapsed() >= SAMPLING_BUDGET {
+            break;
+        }
+    }
+    link_point(pull.bytes, samples.get(1..).unwrap_or_default())
 }
 
 /// The link's rate at its fastest sample of moving `bytes`, and how much the samples spread.
