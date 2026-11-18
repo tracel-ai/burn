@@ -167,13 +167,14 @@ impl Reparameterizer for Lora {
 ///
 /// # Memory limitations
 ///
-/// QLoRA reduces stored base-weight memory and trains only the adapter factors, but still
-/// composes a dense effective weight as `dequantize(base) + scale * (a @ b)`. For a linear
-/// projection whose input requires gradients, autodiff retains that dense weight for backward
-/// and computes a full weight-shaped gradient before propagating into the factors. Peak training
-/// memory can therefore be substantially higher than the packed weights and adapters alone suggest.
-/// Fusion can avoid a separate dequantized base allocation, but does not eliminate all of these
-/// dense intermediates.
+/// QLoRA reduces stored base-weight memory and trains only the adapter factors. `burn_nn::Linear`
+/// applies the adapter in factored form, `x @ base + scale * ((x @ a) @ b)`, so the packed base
+/// stays inside the matmul and only rank-sized intermediates are added. Code that reads the
+/// effective weight through [`Param::val`] instead composes a dense
+/// `dequantize(base) + scale * (a @ b)`: for a projection whose input requires gradients, autodiff
+/// retains that dense weight for backward and computes a full weight-shaped gradient before
+/// propagating into the factors, so peak training memory can be much higher than the packed
+/// weights and adapters suggest.
 ///
 /// [`Module::valid`](crate::module::Module::valid) preserves the packed base and adapters.
 /// Explicitly calling [`Module::materialize`](crate::module::Module::materialize) merges them

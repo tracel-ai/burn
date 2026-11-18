@@ -4,8 +4,8 @@ use burn_core as burn;
 
 use burn::config::Config;
 use burn::instrument::{self, Bounds, compute};
-use burn::module::Param;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
+use burn::module::{LoraAdapter, Param};
 use burn::tensor::module::linear;
 use burn::tensor::{Device, Tensor, assert_shape};
 
@@ -155,11 +155,38 @@ impl Linear {
     /// Panics if the last axis of `input` is not `d_input`.
     #[compute(bounds = Self::bounds)]
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
+        if let Some(adapter) = self.weight.adapter() {
+            return self.forward_factored(input, adapter);
+        }
         let weight = self.weight.val();
         let [d_input, _] = weight.dims();
         assert_shape!(input, [.., d_input]);
 
         linear(input, weight, self.bias.as_ref().map(|b| b.val()))
+    }
+
+    /// Applies a LoRA-adapted weight as `x @ base + scale * ((x @ a) @ b)`.
+    ///
+    /// Composing `base + scale * (a @ b)` first would build a dense weight-sized delta on every
+    /// call, and autodiff would keep it and compute a weight-sized gradient before reaching the
+    /// factors. The factored form only adds rank-sized intermediates, and a quantized base stays
+    /// packed inside `linear`.
+    fn forward_factored<const D: usize>(
+        &self,
+        input: Tensor<D>,
+        adapter: &LoraAdapter,
+    ) -> Tensor<D> {
+        let base = self.weight.base();
+        let [d_input, _] = base.dims();
+        assert_shape!(input, [.., d_input]);
+
+        let low_rank = linear(
+            linear(input.clone(), adapter.a.val(), None),
+            adapter.b.val(),
+            None,
+        );
+        linear(input, base, self.bias.as_ref().map(|b| b.val()))
+            + low_rank.mul_scalar(adapter.scale)
     }
 }
 
@@ -424,5 +451,114 @@ mod tests {
         let data_2 = value.into_data();
 
         data_1.assert_approx_eq::<f32>(&data_2, Default::default());
+    }
+
+    /// Sets LoRA `b` factors, which start at zero, so the adapter changes the output.
+    #[derive(Default)]
+    struct NonzeroB {
+        path: alloc::vec::Vec<alloc::string::String>,
+    }
+
+    impl burn::module::ModuleMapper for NonzeroB {
+        fn enter_module(&mut self, name: &str, _container_type: &str) {
+            self.path.push(name.into());
+        }
+
+        fn exit_module(&mut self, _name: &str, _container_type: &str) {
+            self.path.pop();
+        }
+
+        fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
+            if self.path.last().map(|name| name.as_str()) != Some("b") {
+                return param;
+            }
+            param.map(|b| {
+                let trainable = b.is_require_grad();
+                Tensor::random(b.shape(), burn::tensor::Distribution::Default, &b.device())
+                    .set_require_grad(trainable)
+            })
+        }
+    }
+
+    fn adapted_linear(device: &Device) -> Linear {
+        let linear = LinearConfig::new(4, 6)
+            .init(device)
+            .apply_lora(burn::module::Lora::new(2, 4.0))
+            .map(&mut NonzeroB::default());
+        let b = linear.weight.adapter().expect("LoRA is attached").b.val();
+        assert!(b.abs().sum().into_scalar::<FT>() > 0.0, "b must be nonzero");
+        linear
+    }
+
+    fn composed_forward<const D: usize>(linear: &Linear, input: Tensor<D>) -> Tensor<D> {
+        burn::tensor::module::linear(
+            input,
+            linear.weight.val(),
+            linear.bias.as_ref().map(|b| b.val()),
+        )
+    }
+
+    #[test]
+    fn lora_forward_matches_the_composed_weight() {
+        let device = Default::default();
+        let linear = adapted_linear(&device);
+        let input = Tensor::<3>::random([2, 3, 4], burn::tensor::Distribution::Default, &device);
+
+        let expected = composed_forward(&linear, input.clone()).into_data();
+
+        linear
+            .forward(input)
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
+    #[test]
+    fn qlora_forward_matches_the_composed_weight() {
+        use burn::module::{QLora, Quantizer};
+        use burn::tensor::quantization::{Calibration, QuantValue};
+
+        let device = Device::default();
+        let scheme = device
+            .settings()
+            .quantization
+            .scheme
+            .with_value(QuantValue::Q8S);
+        let quantizer = Quantizer::new(Calibration::MinMax, scheme);
+        let linear = LinearConfig::new(32, 6)
+            .init(&device)
+            .apply_qlora(QLora::new(burn::module::Lora::new(2, 4.0), quantizer))
+            .map(&mut NonzeroB::default());
+        let input = Tensor::<2>::random([3, 32], burn::tensor::Distribution::Default, &device);
+
+        let expected = composed_forward(&linear, input.clone()).into_data();
+
+        linear
+            .forward(input)
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::permissive());
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn lora_forward_gives_the_factors_the_composed_gradients() {
+        let device = Device::default().autodiff();
+        let linear = adapted_linear(&device);
+        let input = Tensor::<2>::random([3, 4], burn::tensor::Distribution::Default, &device);
+        let adapter = linear.weight.adapter().expect("LoRA is attached");
+
+        let grads = linear.forward(input.clone()).sum().backward();
+        let expected = composed_forward(&linear, input).sum().backward();
+
+        for factor in [&adapter.a, &adapter.b] {
+            factor
+                .grad(&grads)
+                .expect("factors are trainable")
+                .into_data()
+                .assert_approx_eq::<FT>(
+                    &factor.grad(&expected).unwrap().into_data(),
+                    Tolerance::default(),
+                );
+        }
+        assert!(linear.weight.grad(&grads).is_none(), "the base is frozen");
     }
 }
