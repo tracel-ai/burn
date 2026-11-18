@@ -290,7 +290,7 @@ pub enum OpsKind<BO, B, S, C, const N: usize> {
 }
 
 /// Operation containing its parent nodes, its own node and the backward step state.
-#[derive(new, Debug)]
+#[derive(new, Debug, Clone)]
 pub struct Ops<S, const N: usize> {
     /// Parents nodes.
     pub parents: [Option<NodeRef>; N],
@@ -323,6 +323,11 @@ where
         self.backward.backward(self.ops, grads, checkpointer);
     }
 
+    fn step_retained(&self, grads: &mut Gradients, checkpointer: &mut Checkpointer) {
+        self.backward
+            .backward(self.ops.clone(), grads, checkpointer);
+    }
+
     fn parents(&self) -> &[Parent] {
         &self.ops.node.parents
     }
@@ -342,7 +347,7 @@ struct UntrackedOpsStep<const N: usize> {
 }
 
 impl<const N: usize> Step for UntrackedOpsStep<N> {
-    fn step(self: Box<Self>, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
+    fn step_retained(&self, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
         // Nothing to do
     }
 

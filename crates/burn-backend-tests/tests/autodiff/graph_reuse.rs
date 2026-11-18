@@ -288,3 +288,91 @@ fn cleanup_preserves_live_saved_buffers_and_releases_them_after_backward() {
         "consumed steps must release their saved buffers"
     );
 }
+
+#[test]
+fn retained_graph_serves_backward_from_several_outputs() {
+    let device = AutodiffDevice::new();
+    let a = TestTensor::<1>::from_floats([3.0, 4.0], &device).require_grad();
+    let b = TestTensor::<1>::from_floats([5.0, 6.0], &device);
+    let outer = a.clone().reshape([2, 1]).matmul(b.reshape([1, 2]));
+
+    let grads = outer.clone().slice([0..1, 0..1]).sum().backward_retain();
+    a.grad(&grads)
+        .unwrap()
+        .into_data()
+        .assert_eq(&TensorData::from([5.0f32, 0.0]), false);
+
+    let grads = outer.slice([1..2, 0..1]).sum().backward();
+    a.grad(&grads)
+        .unwrap()
+        .into_data()
+        .assert_eq(&TensorData::from([0.0f32, 5.0]), false);
+}
+
+#[test]
+fn retained_graph_runs_until_a_final_backward_consumes_it() {
+    let device = AutodiffDevice::new();
+    let x = TestTensor::<1>::from_floats([1.0, 2.0], &device).require_grad();
+    let y = TestTensor::<1>::from_floats([3.0, 4.0], &device).require_grad();
+    let output = (x.clone() * y.clone()).sum();
+
+    for grads in [
+        output.backward_retain(),
+        output.backward_retain(),
+        output.backward(),
+    ] {
+        x.grad(&grads)
+            .unwrap()
+            .into_data()
+            .assert_eq(&TensorData::from([3.0f32, 4.0]), false);
+        y.grad(&grads)
+            .unwrap()
+            .into_data()
+            .assert_eq(&TensorData::from([1.0f32, 2.0]), false);
+    }
+    assert_consumed(|| {
+        let _ = output.backward_retain();
+    });
+}
+
+#[test]
+fn retained_graph_holds_saved_buffers_until_the_final_backward() {
+    let device = AutodiffDevice::new();
+    let leaf = TestTensor::<1>::ones([2], &device).require_grad();
+    let saved = TestTensor::<1>::from_floats([2.0, 3.0], &device.clone().without_autodiff());
+    let output = (leaf.clone() * saved.clone()).sum();
+
+    drop(output.backward_retain());
+    assert!(
+        !saved.can_mut(),
+        "a retained graph must keep its saved buffer"
+    );
+
+    drop(output.backward());
+    assert!(
+        saved.can_mut(),
+        "the final backward must release the saved buffer"
+    );
+}
+
+#[test]
+fn dropping_a_retained_graph_releases_saved_buffers() {
+    let device = AutodiffDevice::new();
+    let leaf = TestTensor::<1>::ones([2], &device).require_grad();
+    let saved = TestTensor::<1>::from_floats([2.0, 3.0], &device.clone().without_autodiff());
+    let output = (leaf.clone() * saved.clone()).sum();
+
+    drop(output.backward_retain());
+    drop(output);
+    drop(leaf);
+
+    // Sweep orphaned work through an unrelated backward graph.
+    let _ = TestTensor::<1>::ones([2], &device)
+        .require_grad()
+        .sum()
+        .backward();
+    assert!(
+        saved.can_mut(),
+        "dropping a retained graph must release its saved buffer"
+    );
+}

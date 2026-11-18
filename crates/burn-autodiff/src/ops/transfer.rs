@@ -36,7 +36,7 @@ where
     type State = Src::Device;
 
     fn backward(
-        self,
+        &self,
         ops: Ops<Self::State, 1>,
         grads: &mut Gradients,
         _checkpointer: &mut Checkpointer,

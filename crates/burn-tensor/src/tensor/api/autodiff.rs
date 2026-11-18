@@ -55,11 +55,12 @@ impl<const D: usize> Tensor<D> {
     /// reachable from this tensor, even though this method borrows it. Clones share those steps;
     /// cloning a tensor does not preserve its backward tape.
     ///
-    /// Burn does not support retaining the graph for another backward (`retain_graph`). Combine
-    /// losses that share intermediates into one loss before calling backward, or recompute the
-    /// forward pass for each backward. Fresh forwards and existing branches can reuse parameter
-    /// leaves, including leaves used by an earlier backward, as long as they do not depend on
-    /// consumed intermediates. Gradient checkpointing does not change this contract.
+    /// To run several backward passes over shared intermediates, use
+    /// [`backward_retain`](Tensor::backward_retain) for all but the last, combine the losses into
+    /// one before calling backward, or recompute the forward pass for each backward. Fresh
+    /// forwards and existing branches can reuse parameter leaves, including leaves used by an
+    /// earlier backward, as long as they do not depend on consumed intermediates. Gradient
+    /// checkpointing does not change this contract.
     ///
     /// To intentionally stop gradients through earlier operations, use [`detach`](Tensor::detach).
     /// This starts a new lineage; it does not restore the earlier graph.
@@ -77,6 +78,26 @@ impl<const D: usize> Tensor<D> {
             "Tensor::backward requires a tracked autodiff tensor; call Tensor::autodiff().require_grad() on the source leaf before computing the output"
         );
         backward_impl(&self.primitive)
+    }
+
+    /// Computes gradients like [`backward`](Tensor::backward), but keeps the recorded graph.
+    ///
+    /// Later calls to `backward_retain` or `backward` on this tensor, or on other outputs that
+    /// share its intermediates, reuse the graph without recomputing the forward pass. This is the
+    /// equivalent of PyTorch's `backward(retain_graph=True)`.
+    ///
+    /// The graph, including the activations saved for backward, stays in memory until a final
+    /// [`backward`](Tensor::backward) consumes it or every tensor referencing it is dropped.
+    ///
+    /// # Panics
+    ///
+    /// Panics under the same conditions as [`backward`](Tensor::backward).
+    pub fn backward_retain(&self) -> Gradients {
+        assert!(
+            self.is_tracked(),
+            "Tensor::backward_retain requires a tracked autodiff tensor; call Tensor::autodiff().require_grad() on the source leaf before computing the output"
+        );
+        backward_retain_impl(&self.primitive)
     }
 
     /// Returns this tensor's retained gradient, if present.
@@ -124,6 +145,11 @@ impl<const D: usize> Tensor<D> {
 #[cfg(feature = "autodiff")]
 fn backward_impl(p: &BridgeTensor) -> Gradients {
     Gradients::from_inner(Dispatch::backward(p.clone().into_float()))
+}
+
+#[cfg(feature = "autodiff")]
+fn backward_retain_impl(p: &BridgeTensor) -> Gradients {
+    Gradients::from_inner(Dispatch::backward_retain(&p.clone().into_float()))
 }
 
 #[cfg(feature = "autodiff")]
