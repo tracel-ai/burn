@@ -4,7 +4,7 @@ use burn_backend::RandomKey;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceTelemetry,
     EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
-    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, LinkPoint,
+    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
     MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
     PruneOptions, Pruned, SaveOptions, profile_with_tokens,
 };
@@ -186,8 +186,12 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
         get_client::<R>(device).measure_peaks(keys)
     }
 
-    fn measure_link(from: &Self::Device, to: &Self::Device) -> Result<Vec<LinkPoint>, PeakError> {
-        get_client::<R>(from).measure_link(to)
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        get_client::<R>(from).measure_link(to, sizes)
     }
 
     fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {

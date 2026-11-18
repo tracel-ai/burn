@@ -6,7 +6,7 @@ use burn_backend::RandomKey;
 use burn_backend::{
     DType, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId,
     EnvironmentOrigin, EnvironmentSummary, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-    LinkPoint, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
+    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
     ProfileToken, PruneOptions, Pruned, SaveOptions, TensorData, UnknownExecutionMode,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
@@ -253,10 +253,10 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
         keys.iter().map(|_| Err(PeakError::Unsupported)).collect()
     }
 
-    /// What the link from the interpreter's device to `to` delivers across transfer sizes.
+    /// The peak throughput of the link from the interpreter's device to `to` for each of `sizes`.
     #[allow(unused_variables)]
-    fn measure_link(&self, to: &Self::Device) -> Result<Vec<LinkPoint>, PeakError> {
-        Err(PeakError::Unsupported)
+    fn measure_link(&self, to: &Self::Device, sizes: &[u64]) -> Vec<Result<Peak, PeakError>> {
+        sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
     }
 
     /// Prepare the interpreter's backend for a graph capture — see

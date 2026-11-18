@@ -1,7 +1,7 @@
 use burn_backend::{
     DTypeUsageSet, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
     EnvironmentId, EnvironmentOrigin, EnvironmentSummary, ExecutionError, ExecutionMode,
-    ExecutionModeToken, ExecutionStatistics, LinkPoint, MemoryReport, Peak, PeakError, PeakKey,
+    ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
     ProfileOptions, ProfileToken, PruneOptions, Pruned, SaveOptions, TensorData,
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
@@ -459,9 +459,9 @@ pub enum Task {
     MeasurePeaks(RequestId, Vec<PeakKey>),
     /// Grant the session's device to the same-server link probe that presents the capability.
     GrantLink(RequestId, TransferCapability),
-    /// What the link from the session's device to the device another session of the same server
-    /// granted under the capability delivers.
-    MeasureLinkLocal(RequestId, TransferCapability),
+    /// The peak throughput of the link from the session's device to the device another session of
+    /// the same server granted under the capability, for each size in bytes.
+    MeasureLinkLocal(RequestId, TransferCapability, Vec<u64>),
     /// Expose the pull's buffer for `PeerId` to download, answering once it is exposed.
     ExposeLinkPull(RequestId, PeerId, LinkPull),
     /// What the link from the server at `PeerAddr` to the session's server delivers at the pull's
@@ -575,12 +575,12 @@ pub enum TaskResponseContent {
     Peaks(Vec<Result<Peak, PeakError>>),
     /// The answer to [`GrantLink`](Task::GrantLink), once the grant is registered.
     LinkGranted,
-    /// The answer to [`MeasureLinkLocal`](Task::MeasureLinkLocal).
-    Link(Result<Vec<LinkPoint>, PeakError>),
+    /// The answer to [`MeasureLinkLocal`](Task::MeasureLinkLocal), one per size in order.
+    Link(Vec<Result<Peak, PeakError>>),
     /// The answer to [`ExposeLinkPull`](Task::ExposeLinkPull): whether the buffer is exposed.
     LinkExposed(bool),
     /// The answer to [`MeasureLinkPull`](Task::MeasureLinkPull).
-    LinkPulled(Result<LinkPoint, PeakError>),
+    LinkPulled(Result<Peak, PeakError>),
     /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init),
     /// before it closes the session.
     InitRefused(SessionRefusal),

@@ -14,7 +14,7 @@ use alloc::{
 use burn_backend::{
     Backend, BackendGraph, DType, DeviceDescription, DeviceOps, DeviceTelemetry, EnvironmentBundle,
     EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary, ExecutionError,
-    ExecutionMode, ExecutionModeToken, ExecutionStatistics, FloatDType, LinkPoint, MemoryReport,
+    ExecutionMode, ExecutionModeToken, ExecutionStatistics, FloatDType, MemoryReport,
     Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
     SaveOptions, Shape, TensorData, TensorMetadata, TensorPrimitive, ops::TransactionPrimitive,
 };
@@ -2611,8 +2611,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
     }
 
     /// What the link from the interpreter's device to `to` delivers across transfer sizes.
-    pub fn measure_link(&self, to: &B::Device) -> Result<Vec<LinkPoint>, PeakError> {
-        B::measure_link(&self.device, to)
+    pub fn measure_link(&self, to: &B::Device, sizes: &[u64]) -> Vec<Result<Peak, PeakError>> {
+        B::measure_link(&self.device, to, sizes)
     }
 
     /// Prepare the backend for a graph capture.

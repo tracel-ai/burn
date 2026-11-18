@@ -449,7 +449,7 @@ fn random_requests_keep_their_seeds_across_remote_reseeding() {
 }
 
 #[test]
-fn a_link_between_two_servers_is_timed_at_each_size() {
+fn a_link_between_two_servers_is_timed_at_each_size_asked() {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_io()
         .build()
@@ -459,19 +459,18 @@ fn a_link_between_two_servers_is_timed_at_each_size() {
     let device_1 = Device::remote_options(&host_1).init().unwrap();
     let device_2 = Device::remote_options(&host_2).init().unwrap();
 
-    let link = device_1.measure_link(&device_2).unwrap();
+    let sizes = [1 << 20, 4096];
 
-    assert_eq!(
-        link.first().map(|point| point.bytes),
-        Some(4096),
-        "{link:?}"
-    );
+    let peaks = device_1.measure_link(&device_2, &sizes);
+
+    assert_eq!(peaks.len(), sizes.len());
     assert!(
-        link.windows(2).all(|pair| pair[0].bytes < pair[1].bytes),
-        "{link:?}"
+        peaks
+            .iter()
+            .all(|peak| peak.is_ok_and(|peak| peak.per_second > 0.0)),
+        "{peaks:?}"
     );
-    assert!(link.iter().all(|point| point.per_second > 0.0), "{link:?}");
-    assert_eq!(device_1.measure_link(&device_2).unwrap(), link);
+    assert_eq!(device_1.measure_link(&device_2, &sizes), peaks);
 
     rt.shutdown_background();
 }
@@ -494,8 +493,8 @@ fn a_link_within_a_server_is_its_backends_to_answer() {
 
     // Flex runs no link probe.
     assert_eq!(
-        device_0.measure_link(&device_1),
-        Err(burn_tensor::PeakError::Unsupported)
+        device_0.measure_link(&device_1, &[4096]),
+        [Err(burn_tensor::PeakError::Unsupported)]
     );
 
     rt.shutdown_background();

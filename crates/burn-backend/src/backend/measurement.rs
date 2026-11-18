@@ -110,15 +110,3 @@ impl core::fmt::Display for PeakError {
 }
 
 impl core::error::Error for PeakError {}
-
-/// What the link from one device to another delivers when it moves `bytes` at once.
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct LinkPoint {
-    /// The bytes one transfer moves.
-    pub bytes: u64,
-    /// Bytes per second, at the fastest sample.
-    pub per_second: f64,
-    /// The samples' standard deviation over their mean, or `None` where fewer than two were
-    /// taken.
-    pub relative_std_dev: Option<f64>,
-}

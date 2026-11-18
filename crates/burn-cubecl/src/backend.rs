@@ -2,13 +2,13 @@ use crate::execution::OPEN_MODES;
 use crate::{CubeDevice, tensor::CubeTensor};
 use burn_backend::RandomKey;
 use burn_backend::cubecl::{
-    LinkRoute, ThroughputKey, dtype_to_storage_type, measure_link_curve, measure_peak_throughput,
-    transfer_route,
+    LinkKey, LinkRoute, ThroughputKey, dtype_to_storage_type, measure_link_throughput,
+    measure_peak_throughput, transfer_route,
 };
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceDescription,
     DeviceTelemetry, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-    LinkPoint, MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration,
+    MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration,
     ProfileOptions, ProfileToken, SlicedPoolReport, TensorData, profile_with_tokens,
 };
 burn_std::native_persistence! {
@@ -448,27 +448,26 @@ impl Backend for CubeBackend {
             .collect()
     }
 
-    /// Runs cubecl's link probe over the route a transfer between the two takes, at every size
-    /// it sweeps.
-    fn measure_link(from: &Self::Device, to: &Self::Device) -> Result<Vec<LinkPoint>, PeakError> {
+    /// Runs cubecl's link probe over the route a transfer between the two takes.
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
         if from == to {
-            return Err(PeakError::Unsupported);
+            return sizes.iter().map(|_| Err(PeakError::Unsupported)).collect();
         }
         let members = [from.client(), to.client()];
         let route = LinkRoute::Transfer(transfer_route(&members[0], &members[1]));
-        let curve = measure_link_curve(&members, route);
-        if curve.points().is_empty() {
-            return Err(PeakError::Unsupported);
-        }
-        Ok(curve
-            .points()
+        sizes
             .iter()
-            .map(|point| LinkPoint {
-                bytes: point.bytes,
-                per_second: point.value.ops_per_s(),
-                relative_std_dev: point.value.relative_std_dev(),
+            .map(|&bytes| {
+                let value = measure_link_throughput(&members, LinkKey { route, bytes })?;
+                Ok(Peak {
+                    per_second: value.ops_per_s(),
+                })
             })
-            .collect())
+            .collect()
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)

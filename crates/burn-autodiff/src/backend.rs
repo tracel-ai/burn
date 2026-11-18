@@ -11,7 +11,7 @@ use burn_backend::{
     backend::{
         AutodiffBackend, Backend, BackendTypes, DeviceDescription, DeviceTelemetry,
         EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
-        ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, LinkPoint,
+        ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
         MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
         PruneOptions, Pruned, SaveOptions,
     },
@@ -194,8 +194,12 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::measure_peaks(device, keys)
     }
 
-    fn measure_link(from: &Self::Device, to: &Self::Device) -> Result<Vec<LinkPoint>, PeakError> {
-        B::measure_link(from, to)
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        B::measure_link(from, to, sizes)
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)

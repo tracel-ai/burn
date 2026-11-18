@@ -16,7 +16,7 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 use super::DeviceOps;
 use super::profile::profile_unsupported;
 use super::{
-    DeviceDescription, DeviceTelemetry, LinkPoint, MemoryReport, Peak, PeakError, PeakKey,
+    DeviceDescription, DeviceTelemetry, MemoryReport, Peak, PeakError, PeakKey,
 };
 use super::{
     EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
@@ -195,12 +195,17 @@ pub trait Backend:
         keys.iter().map(|_| Err(PeakError::Unsupported)).collect()
     }
 
-    /// What the link from `from` to `to` delivers across transfer sizes, ascending, by moving
-    /// data from one to the other: or why the two have none. [Unsupported](PeakError::Unsupported)
-    /// by a backend that runs no link probe, and between a device and itself.
+    /// The peak throughput of the link from `from` to `to` for each of `sizes`, in order, in bytes
+    /// per second when one transfer moves that many bytes: the peak, or why the link has none.
+    /// Every size is [unsupported](PeakError::Unsupported) by a backend that runs no link probe,
+    /// and between a device and itself.
     #[allow(unused_variables)]
-    fn measure_link(from: &Self::Device, to: &Self::Device) -> Result<Vec<LinkPoint>, PeakError> {
-        Err(PeakError::Unsupported)
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
     }
 
     /// Name of the backend.

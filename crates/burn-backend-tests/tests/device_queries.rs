@@ -130,7 +130,7 @@ fn a_device_has_no_link_to_itself() {
     let device = Device::default();
 
     assert_eq!(
-        device.measure_link(&device),
-        Err(burn_tensor::PeakError::Unsupported)
+        device.measure_link(&device, &[4096]),
+        [Err(burn_tensor::PeakError::Unsupported)]
     );
 }

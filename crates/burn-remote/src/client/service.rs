@@ -14,7 +14,7 @@ use crate::{
 use burn_backend::{
     DTypeUsageSet, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
     EnvironmentId, EnvironmentOrigin, EnvironmentSummary, ExecutionError, ExecutionMode,
-    ExecutionModeToken, ExecutionStatistics, LinkPoint, MemoryReport, Peak, PeakError, PeakKey,
+    ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
     ProfileDuration, ProfileOptions, ProfileTicks, ProfileToken, PruneOptions, Pruned, SaveOptions,
     TensorData,
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
@@ -953,20 +953,22 @@ impl RemoteService {
         .is_some()
     }
 
-    /// What the link from the server's device to the device granted under `capability` delivers;
-    /// unsupported when the server could not be asked.
+    /// The peak throughput of the link from the server's device to the device granted under
+    /// `capability` for each of `sizes`; every size unsupported when the server could not be asked.
     pub fn measure_link_local(
         &mut self,
         capability: TransferCapability,
-    ) -> Result<Vec<LinkPoint>, PeakError> {
+        sizes: Vec<u64>,
+    ) -> Vec<Result<Peak, PeakError>> {
+        let count = sizes.len();
         self.report(
-            |id| Task::MeasureLinkLocal(id, capability),
+            |id| Task::MeasureLinkLocal(id, capability, sizes),
             |answer| match answer {
                 TaskResponseContent::Link(link) => Some(link),
                 _ => None,
             },
         )
-        .unwrap_or(Err(PeakError::Unsupported))
+        .unwrap_or_else(|| vec![Err(PeakError::Unsupported); count])
     }
 
     /// Expose the pull's buffer for `target` to download, waiting until it is exposed; false when
@@ -988,11 +990,11 @@ impl RemoteService {
         &mut self,
         source: crate::PeerAddr,
         pull: LinkPull,
-    ) -> Option<Result<LinkPoint, PeakError>> {
+    ) -> Option<Result<Peak, PeakError>> {
         self.report(
             |id| Task::MeasureLinkPull(id, source, pull),
             |answer| match answer {
-                TaskResponseContent::LinkPulled(point) => Some(point),
+                TaskResponseContent::LinkPulled(peak) => Some(peak),
                 _ => None,
             },
         )

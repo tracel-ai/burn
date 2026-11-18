@@ -16,7 +16,7 @@ use burn_backend::{
     AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, DeviceDescription,
     DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
     EnvironmentSummary, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-    LinkPoint, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
+    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
     ProfileToken, PruneOptions, Pruned, SaveOptions,
 };
 
@@ -377,12 +377,16 @@ impl Backend for Dispatch {
     }
 
     /// Unsupported between devices of two backends: no backend moves data across that link.
-    fn measure_link(from: &Self::Device, to: &Self::Device) -> Result<Vec<LinkPoint>, PeakError> {
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
         dispatch_device_pair!(
             measured(from),
             measured(to),
-            |from, to| B::measure_link(from, to),
-            Err(PeakError::Unsupported)
+            |from, to| B::measure_link(from, to, sizes),
+            sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
         )
     }
 

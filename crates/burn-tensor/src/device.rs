@@ -8,7 +8,7 @@ pub use burn_backend::cubecl::{
 };
 use burn_backend::{Backend, DeviceOps};
 pub use burn_backend::{
-    DeviceDescription, DeviceTelemetry, HardwareKind, LinkPoint, MatmulTile, MemoryAccess,
+    DeviceDescription, DeviceTelemetry, HardwareKind, MatmulTile, MemoryAccess,
     MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
     ProfileTicks, SlicedPoolReport, TimingMethod,
 };
@@ -830,16 +830,13 @@ impl Device {
         Dispatch::measure_peaks(self.as_dispatch(), keys)
     }
 
-    /// What the link from this device to `to` delivers, in bytes per second, at each transfer size
-    /// a probe sweeps, ascending. The probe moves data between the two for a while, so measure
-    /// once and keep the answer.
-    ///
-    /// # Errors
-    ///
-    /// [`Unsupported`](PeakError::Unsupported) between a device and itself, between devices of two
-    /// backends, and from a backend that runs no link probe.
-    pub fn measure_link(&self, to: &Device) -> Result<Vec<LinkPoint>, PeakError> {
-        Dispatch::measure_link(self.as_dispatch(), to.as_dispatch())
+    /// The peak throughput of the link from this device to `to` for each of `sizes`, in order, in
+    /// bytes per second when one transfer moves that many bytes: the peak, or why the link has
+    /// none. Every size is [unsupported](PeakError::Unsupported) between a device and itself,
+    /// between devices of two backends, and from a backend that runs no link probe. A probe moves
+    /// data between the two for a while, so measure once and keep the answer.
+    pub fn measure_link(&self, to: &Device, sizes: &[u64]) -> Vec<Result<Peak, PeakError>> {
+        Dispatch::measure_link(self.as_dispatch(), to.as_dispatch(), sizes)
     }
 
     /// Prepares the given data for transfer between the CPU and accelerator devices such as GPUs.

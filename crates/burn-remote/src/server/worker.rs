@@ -647,10 +647,10 @@ where
                 self.send_response(request_id, TaskResponseContent::LinkGranted)
                     .await
             }
-            Task::MeasureLinkLocal(request_id, capability) => {
+            Task::MeasureLinkLocal(request_id, capability, sizes) => {
                 let link = match self.local_comm.take_link(capability).await {
-                    Some(to) => self.runner.measure_link(&to),
-                    None => Err(PeakError::Unsupported),
+                    Some(to) => self.runner.measure_link(&to, &sizes),
+                    None => vec![Err(PeakError::Unsupported); sizes.len()],
                 };
                 self.send_response(request_id, TaskResponseContent::Link(link))
                     .await
