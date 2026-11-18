@@ -17,6 +17,7 @@
 //!   with momentum, weight decay and gradient accumulation helpers.
 //! - [`lr_scheduler`]: constant, step, exponential, linear, cosine, Noam, and sequential or
 //!   composed schedules.
+//! - [`ema`]: exponential moving average of module parameters.
 //! - [`grad_clipping`]: clipping by value or by norm.
 //!
 //! # Feature flags
@@ -32,6 +33,10 @@ extern crate alloc;
 /// Optimizer module.
 mod optim;
 pub use optim::*;
+
+/// Exponential moving average module.
+pub mod ema;
+pub use ema::*;
 
 /// Gradient clipping module.
 pub mod grad_clipping;
