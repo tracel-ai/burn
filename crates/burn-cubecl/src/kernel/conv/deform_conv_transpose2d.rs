@@ -27,7 +27,7 @@ use cubecl::{
 };
 use cubek::{
     convolution::components::ConvSetupError,
-    reduce::components::instructions::ReduceOperationConfig,
+    reduce::ReduceOperation,
 };
 use std::marker::PhantomData;
 
@@ -64,7 +64,7 @@ pub(crate) fn deform_conv2d_backward(
             None,
             0,
             Default::default(),
-            ReduceOperationConfig::Sum,
+            ReduceOperation::Sum,
         )
         .unwrap();
         let grad = reduce_dim(
@@ -72,7 +72,7 @@ pub(crate) fn deform_conv2d_backward(
             None,
             2,
             Default::default(),
-            ReduceOperationConfig::Sum,
+            ReduceOperation::Sum,
         )
         .unwrap();
         let grad = reduce_dim(
@@ -80,7 +80,7 @@ pub(crate) fn deform_conv2d_backward(
             None,
             3,
             Default::default(),
-            ReduceOperationConfig::Sum,
+            ReduceOperation::Sum,
         )
         .unwrap();
 

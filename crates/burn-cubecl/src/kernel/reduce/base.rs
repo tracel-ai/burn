@@ -11,9 +11,8 @@ use burn_std::{BoolDType, Metadata};
 use burn_std::{Shape, Strides};
 use cubecl::prelude::InputScalar;
 use cubek::reduce::{
-    ReduceDtypes, ReduceError, ReduceWithIndicesDtypes,
-    components::instructions::ReduceOperationConfig,
-    kernels::{ReduceKernel, ReduceKernelHeuristic, ReduceOpStrategy},
+    ReduceError, ReduceOperation,
+    kernels::{ReduceElements, ReduceKernel, ReduceKernelHeuristic, ReduceOpStrategy},
 };
 
 /// The value a reduction over zero elements must produce, or `None` if there is none.
@@ -22,19 +21,19 @@ use cubek::reduce::{
 /// a bounded numeric type (there is no integer below `i32::MIN`) and an `Arg*` would have to name
 /// an element that does not exist, so they return `None`: numpy raises `ValueError` and torch
 /// raises `IndexError` for all of them, as do burn's CPU backends for an empty `max`/`min`.
-fn empty_reduce_identity(config: ReduceOperationConfig, dtype: DType) -> Option<f64> {
+fn empty_reduce_identity(config: ReduceOperation, dtype: DType) -> Option<f64> {
     match config {
-        ReduceOperationConfig::Sum | ReduceOperationConfig::Any => Some(0.0),
-        ReduceOperationConfig::Prod | ReduceOperationConfig::All => Some(1.0),
+        ReduceOperation::Sum | ReduceOperation::Any => Some(0.0),
+        ReduceOperation::Prod | ReduceOperation::All => Some(1.0),
         // Only floats can carry `NaN`; an integer mean of nothing has no representable value.
-        ReduceOperationConfig::Mean => dtype.is_float().then_some(f64::NAN),
-        ReduceOperationConfig::Max
-        | ReduceOperationConfig::Min
-        | ReduceOperationConfig::MaxAbs
-        | ReduceOperationConfig::TopK(_)
-        | ReduceOperationConfig::ArgMax
-        | ReduceOperationConfig::ArgMin
-        | ReduceOperationConfig::ArgTopK(_) => None,
+        ReduceOperation::Mean => dtype.is_float().then_some(f64::NAN),
+        ReduceOperation::Max
+        | ReduceOperation::Min
+        | ReduceOperation::MaxAbs
+        | ReduceOperation::TopK { .. }
+        | ReduceOperation::ArgMax
+        | ReduceOperation::ArgMin
+        | ReduceOperation::ArgTopK { .. } => None,
     }
 }
 
@@ -49,7 +48,7 @@ fn empty_reduce_identity(config: ReduceOperationConfig, dtype: DType) -> Option<
 fn reduce_empty_axis(
     output: CubeTensor,
     axis_length: usize,
-    config: ReduceOperationConfig,
+    config: ReduceOperation,
 ) -> Result<CubeTensor, ReduceError> {
     let identity =
         empty_reduce_identity(config, output.dtype).ok_or(ReduceError::ReduceAxisTooSmall {
@@ -83,7 +82,7 @@ pub fn sum(tensor: CubeTensor, strategy: KernelReduceStrategy) -> Result<CubeTen
     if tensor.is_contiguous() {
         *tensor.meta = Metadata::new([tensor.meta.num_elements()], [1]);
     }
-    reduce(tensor, None, strategy, ReduceOperationConfig::Sum)
+    reduce(tensor, None, strategy, ReduceOperation::Sum)
 }
 
 /// Reduce all elements of the `input` tensor using the instruction `Rd` and the given [strategy](KernelReduceStrategy).
@@ -96,7 +95,7 @@ pub fn reduce(
     mut tensor: CubeTensor,
     output_dtype: Option<DType>,
     strategy: KernelReduceStrategy,
-    config: ReduceOperationConfig,
+    config: ReduceOperation,
 ) -> Result<CubeTensor, cubek::reduce::ReduceError> {
     // In practice, it looks like starting by the axis with the smallest shape
     // and going in increasing order lead to the fastest calculation.
@@ -133,7 +132,7 @@ pub fn reduce_dims(
     output_dtype: Option<DType>,
     dims: &[usize],
     strategy: KernelReduceStrategy,
-    config: ReduceOperationConfig,
+    config: ReduceOperation,
 ) -> Result<CubeTensor, ReduceError> {
     let input = crate::kernel::untile(input);
 
@@ -142,9 +141,9 @@ pub fn reduce_dims(
         && output_dtype.is_none()
         && matches!(
             config,
-            ReduceOperationConfig::Sum | ReduceOperationConfig::Mean
+            ReduceOperation::Sum | ReduceOperation::Mean
         )
-        && (matches!(config, ReduceOperationConfig::Sum) || input.dtype.is_float())
+        && (matches!(config, ReduceOperation::Sum) || input.dtype.is_float())
         && (0..input.meta.num_dims())
             .filter(|dim| dims.contains(dim))
             .count()
@@ -163,7 +162,7 @@ pub(super) fn reduce_dims_folded(
     output_dtype: Option<DType>,
     dims: &[usize],
     strategy: KernelReduceStrategy,
-    config: ReduceOperationConfig,
+    config: ReduceOperation,
 ) -> Result<CubeTensor, ReduceError> {
     let rank = input.meta.num_dims();
     let mut shape = input.meta.shape().clone();
@@ -231,7 +230,7 @@ pub(super) fn reduce_dims_folded(
 pub(super) fn reduce_dims_copy(
     input: CubeTensor,
     dims: &[usize],
-    config: ReduceOperationConfig,
+    config: ReduceOperation,
 ) -> Result<CubeTensor, ReduceError> {
     let rank = input.meta.num_dims();
     let original_shape = input.meta.shape().clone();
@@ -314,8 +313,8 @@ fn fold_leading_dims(tensor: &mut CubeTensor, count: usize) {
     *tensor.meta = Metadata::new(Shape::from(folded_shape), Strides::new(&folded_strides));
 }
 
-/// Reduce with a logical instruction ([`Any`](ReduceOperationConfig::Any) /
-/// [`All`](ReduceOperationConfig::All)) and return the result as a boolean tensor.
+/// Reduce with a logical instruction ([`Any`](ReduceOperation::Any) /
+/// [`All`](ReduceOperation::All)) and return the result as a boolean tensor.
 ///
 /// `Any` / `All` require the output dtype (like `Arg*` index outputs): the
 /// kernel writes the `0/1` flags directly into the numeric backing of the
@@ -327,13 +326,13 @@ fn fold_leading_dims(tensor: &mut CubeTensor, count: usize) {
 pub fn reduce_logical(
     tensor: CubeTensor,
     dim: Option<usize>,
-    config: ReduceOperationConfig,
+    config: ReduceOperation,
     out_dtype: BoolDType,
 ) -> CubeTensor {
     debug_assert!(
         matches!(
             config,
-            ReduceOperationConfig::Any | ReduceOperationConfig::All
+            ReduceOperation::Any | ReduceOperation::All
         ),
         "reduce_logical only supports Any / All, got {config:?}"
     );
@@ -355,9 +354,9 @@ pub fn reduce_logical(
 /// Shared memory scales with it, so a routine that fits at one length can overrun the
 /// device limit at another. That makes it part of the fused autotune key as well as the
 /// output length along the reduced axis.
-pub(crate) fn accumulator_len(config: ReduceOperationConfig) -> usize {
+pub(crate) fn accumulator_len(config: ReduceOperation) -> usize {
     match config {
-        ReduceOperationConfig::TopK(k) | ReduceOperationConfig::ArgTopK(k) => k,
+        ReduceOperation::TopK { k } | ReduceOperation::ArgTopK { k } => k,
         _ => 1,
     }
 }
@@ -380,29 +379,30 @@ pub fn reduce_dim(
     output_dtype: Option<DType>,
     dim: usize,
     strategy: KernelReduceStrategy,
-    config: ReduceOperationConfig,
+    config: ReduceOperation,
 ) -> Result<CubeTensor, cubek::reduce::ReduceError> {
     let input = crate::kernel::untile(input);
     debug_assert!(
         !matches!(
             config,
-            ReduceOperationConfig::ArgMax
-                | ReduceOperationConfig::ArgMin
-                | ReduceOperationConfig::ArgTopK(_)
-                | ReduceOperationConfig::Any
-                | ReduceOperationConfig::All
+            ReduceOperation::ArgMax
+                | ReduceOperation::ArgMin
+                | ReduceOperation::ArgTopK { .. }
+                | ReduceOperation::Any
+                | ReduceOperation::All
         ) || output_dtype.is_some(),
         "The `output_dtype` has to be `Some` when the `config` is `ArgMax`, `ArgMin`, `ArgTopK`, `Any` or `All`.
         "
     );
 
     let accumulator_len = accumulator_len(config);
-    let dtypes = config.precision(
+    let elements = ReduceElements::for_operation(
+        config,
         dtype_to_elem_type(input.dtype),
         output_dtype.map(dtype_to_elem_type),
     );
     let client = input.client.clone();
-    let output = init_reduce_output(&input, dim, &dtypes, accumulator_len).ok_or(
+    let output = init_reduce_output(&input, dim, &elements, accumulator_len).ok_or(
         cubek::reduce::ReduceError::InvalidAxis {
             axis: dim,
             rank: input.meta.num_dims(),
@@ -429,7 +429,7 @@ pub fn reduce_dim(
         dim,
         strategy.into(),
         config,
-        dtypes,
+        elements,
     )
     .map(|_| output)
 }
@@ -451,46 +451,39 @@ pub fn reduce_dim_with_indices(
     indices_dtype: DType,
     dim: usize,
     strategy: KernelReduceStrategy,
-    config: ReduceOperationConfig,
+    config: ReduceOperation,
 ) -> Result<(CubeTensor, CubeTensor), ReduceError> {
     let unsupported = |operation| ReduceError::IndicesUnsupported { operation };
 
-    // Fold each `Arg*` onto its value counterpart: `precision` would otherwise demand an
+    // Fold each `Arg*` onto its value counterpart: its elements would otherwise demand an
     // output dtype, which here only ever applies to the indices.
     let config = match config {
-        ReduceOperationConfig::ArgMax => ReduceOperationConfig::Max,
-        ReduceOperationConfig::ArgMin => ReduceOperationConfig::Min,
-        ReduceOperationConfig::ArgTopK(k) => ReduceOperationConfig::TopK(k),
-        ReduceOperationConfig::Max
-        | ReduceOperationConfig::Min
-        | ReduceOperationConfig::TopK(_) => config,
-        ReduceOperationConfig::Sum => return Err(unsupported("Sum")),
-        ReduceOperationConfig::Prod => return Err(unsupported("Prod")),
-        ReduceOperationConfig::Mean => return Err(unsupported("Mean")),
-        ReduceOperationConfig::MaxAbs => return Err(unsupported("MaxAbs")),
-        ReduceOperationConfig::Any => return Err(unsupported("Any")),
-        ReduceOperationConfig::All => return Err(unsupported("All")),
+        ReduceOperation::ArgMax => ReduceOperation::Max,
+        ReduceOperation::ArgMin => ReduceOperation::Min,
+        ReduceOperation::ArgTopK { k } => ReduceOperation::TopK { k },
+        ReduceOperation::Max
+        | ReduceOperation::Min
+        | ReduceOperation::TopK { .. } => config,
+        ReduceOperation::Sum => return Err(unsupported("Sum")),
+        ReduceOperation::Prod => return Err(unsupported("Prod")),
+        ReduceOperation::Mean => return Err(unsupported("Mean")),
+        ReduceOperation::MaxAbs => return Err(unsupported("MaxAbs")),
+        ReduceOperation::Any => return Err(unsupported("Any")),
+        ReduceOperation::All => return Err(unsupported("All")),
     };
 
     let out_len = accumulator_len(config);
 
-    // `precision` for these operations keeps input/values/accumulation at the input
-    // dtype; the index dtype is the caller's and is converted for free in the final
-    // output write.
-    let value_dtypes = config.precision(dtype_to_elem_type(input.dtype), None);
-    let dtypes = ReduceWithIndicesDtypes {
-        input: value_dtypes.input,
-        values: value_dtypes.output,
-        indices: dtype_to_elem_type(indices_dtype),
-        accumulation: value_dtypes.accumulation,
-    };
+    // These operations keep input, values and accumulation at the input dtype; the index dtype is
+    // the caller's and is converted for free in the final output write.
+    let elements = ReduceElements::for_operation(config, dtype_to_elem_type(input.dtype), None);
 
     let invalid_axis = || ReduceError::InvalidAxis {
         axis: dim,
         rank: input.meta.num_dims(),
     };
 
-    let values = init_reduce_output_dtype(&input, dim, elem_type_to_dtype(dtypes.values), out_len)
+    let values = init_reduce_output_dtype(&input, dim, elem_type_to_dtype(elements.out), out_len)
         .ok_or_else(invalid_axis)?;
     let indices =
         init_reduce_output_dtype(&input, dim, indices_dtype, out_len).ok_or_else(invalid_axis)?;
@@ -521,7 +514,8 @@ pub fn reduce_dim_with_indices(
         dim,
         strategy.into(),
         config,
-        dtypes,
+        elements,
+        dtype_to_elem_type(indices_dtype),
     )
     .map(|_| (values, indices))
 }
@@ -531,19 +525,19 @@ pub fn reduce_dim_with_indices(
 pub fn init_reduce_output(
     input: &CubeTensor,
     dim: usize,
-    dtypes: &ReduceDtypes,
+    elements: &ReduceElements,
     accumulator_len: usize,
 ) -> Option<CubeTensor> {
     init_reduce_output_dtype(
         input,
         dim,
-        elem_type_to_dtype(dtypes.output),
+        elem_type_to_dtype(elements.out),
         accumulator_len,
     )
 }
 
 /// Like [`init_reduce_output`], but with the output dtype given directly rather than taken
-/// from a [`ReduceDtypes`]. Needed when one reduce writes two outputs of different dtypes.
+/// from a [`ReduceElements`]. Needed when one reduce writes two outputs of different dtypes.
 pub fn init_reduce_output_dtype(
     input: &CubeTensor,
     dim: usize,

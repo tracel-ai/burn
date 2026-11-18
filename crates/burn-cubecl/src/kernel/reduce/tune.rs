@@ -7,7 +7,7 @@ use cubecl::{
     AutotuneKey,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
 };
-use cubek::reduce::components::instructions::ReduceOperationConfig;
+use cubek::reduce::ReduceOperation;
 use serde::{Deserialize, Serialize};
 
 /// Anchors shapes and strides to reuse plan choices across nearby workloads.
@@ -26,7 +26,7 @@ impl ReduceDimsPlanAutotuneKey {
         strides: &[usize],
         dims: &[usize],
         dtype: DType,
-        config: ReduceOperationConfig,
+        config: ReduceOperation,
     ) -> Self {
         Self::new(
             shape
@@ -39,7 +39,7 @@ impl ReduceDimsPlanAutotuneKey {
                 .collect(),
             dims.to_vec(),
             dtype,
-            matches!(config, ReduceOperationConfig::Mean),
+            matches!(config, ReduceOperation::Mean),
         )
     }
 }
@@ -48,7 +48,7 @@ impl ReduceDimsPlanAutotuneKey {
 pub(super) fn autotune_reduce_dims_plan(
     input: CubeTensor,
     dims: &[usize],
-    config: ReduceOperationConfig,
+    config: ReduceOperation,
 ) -> CubeTensor {
     use reduce_dims_ops::*;
 
@@ -73,7 +73,7 @@ mod reduce_dims_ops {
     use super::*;
 
     pub(super) fn create_key(
-        (input, dims, config): &(CubeTensor, Vec<usize>, ReduceOperationConfig),
+        (input, dims, config): &(CubeTensor, Vec<usize>, ReduceOperation),
     ) -> ReduceDimsPlanAutotuneKey {
         ReduceDimsPlanAutotuneKey::generate(
             input.meta.shape(),
@@ -86,13 +86,13 @@ mod reduce_dims_ops {
 
     pub(super) fn input_gen(
         _key: &ReduceDimsPlanAutotuneKey,
-        (input, dims, config): &(CubeTensor, Vec<usize>, ReduceOperationConfig),
-    ) -> (CubeTensor, Vec<usize>, ReduceOperationConfig) {
+        (input, dims, config): &(CubeTensor, Vec<usize>, ReduceOperation),
+    ) -> (CubeTensor, Vec<usize>, ReduceOperation) {
         (input.clone(), dims.clone(), *config)
     }
 
     pub(super) fn folded(
-        (input, dims, config): (CubeTensor, Vec<usize>, ReduceOperationConfig),
+        (input, dims, config): (CubeTensor, Vec<usize>, ReduceOperation),
     ) -> Result<CubeTensor, String> {
         reduce_dims_folded(
             input,
@@ -105,7 +105,7 @@ mod reduce_dims_ops {
     }
 
     pub(super) fn copy_single(
-        (input, dims, config): (CubeTensor, Vec<usize>, ReduceOperationConfig),
+        (input, dims, config): (CubeTensor, Vec<usize>, ReduceOperation),
     ) -> Result<CubeTensor, String> {
         reduce_dims_copy(input, &dims, config).map_err(|error| error.to_string())
     }
@@ -123,7 +123,7 @@ mod reduce_dims_plan_tests {
                 &[3 * n, n, 1],
                 &[0, 2],
                 DType::F32,
-                ReduceOperationConfig::Sum,
+                ReduceOperation::Sum,
             )
         });
 
