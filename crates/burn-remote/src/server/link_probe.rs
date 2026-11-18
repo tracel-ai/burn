@@ -18,6 +18,9 @@ pub(crate) fn link_buffer(pull: &LinkPull) -> TensorData {
 /// Timed downloads a target takes of one size before its time budget can end the sampling.
 const MIN_TIMED_DOWNLOADS: usize = 3;
 const SAMPLING_BUDGET: Duration = Duration::from_millis(500);
+/// Past this, one timed download is enough: a link that slowed mid-sweep must still finish the
+/// size inside the source's [`LINK_PULL_TTL`](crate::shared::LINK_PULL_TTL).
+const SAMPLING_DEADLINE: Duration = Duration::from_secs(60);
 
 /// What the link from `source` delivers at the pull's size, timing every download after the first
 /// until the time budget runs out or the pull's downloads do.
@@ -43,11 +46,16 @@ pub(crate) async fn time_link_pull<B: BackendIr, T: TensorTransfer<B>>(
             .await
             .ok_or(PeakError::Transfer)?;
         samples.push(start.elapsed());
-        if samples.len() > MIN_TIMED_DOWNLOADS && started.elapsed() >= SAMPLING_BUDGET {
+        if sampled_enough(samples.len() - 1, started.elapsed()) {
             break;
         }
     }
     link_point(pull.bytes, samples.get(1..).unwrap_or_default())
+}
+
+fn sampled_enough(timed: usize, elapsed: Duration) -> bool {
+    (timed >= MIN_TIMED_DOWNLOADS && elapsed >= SAMPLING_BUDGET)
+        || (timed >= 1 && elapsed >= SAMPLING_DEADLINE)
 }
 
 /// The link's rate at its fastest sample of moving `bytes`, and how much the samples spread.
@@ -95,6 +103,13 @@ mod tests {
         let samples = [Duration::from_millis(3); 4];
 
         assert_eq!(relative_std_dev(&samples), Some(0.0));
+    }
+
+    #[test]
+    fn a_slow_link_stops_at_one_timed_download_past_the_deadline() {
+        assert!(!sampled_enough(1, SAMPLING_BUDGET));
+        assert!(sampled_enough(1, SAMPLING_DEADLINE));
+        assert!(!sampled_enough(0, SAMPLING_DEADLINE));
     }
 
     #[test]

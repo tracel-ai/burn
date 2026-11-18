@@ -281,11 +281,16 @@ impl LinkPull {
     /// The most downloads a target makes of one size, the first of which is not timed.
     pub const MAX_DOWNLOADS: u32 = 11;
 
-    /// Whether a server serves this pull: a peer asks for no more than a client sends.
+    /// Whether a server serves this pull: no more than a client sends, and a warmup and one timed
+    /// download at least.
     pub fn is_bounded(&self) -> bool {
-        (1..=Self::MAX_BYTES).contains(&self.bytes) && self.downloads <= Self::MAX_DOWNLOADS
+        (1..=Self::MAX_BYTES).contains(&self.bytes)
+            && (2..=Self::MAX_DOWNLOADS).contains(&self.downloads)
     }
 }
+
+/// How long a source serves a link probe's buffer when no client withdraws it.
+pub const LINK_PULL_TTL: Duration = Duration::from_secs(300);
 
 #[allow(missing_docs, clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
@@ -593,9 +598,10 @@ mod tests {
         };
 
         assert!(pull(LinkPull::MAX_BYTES, LinkPull::MAX_DOWNLOADS).is_bounded());
-        assert!(!pull(LinkPull::MAX_BYTES + 1, 1).is_bounded());
+        assert!(!pull(LinkPull::MAX_BYTES + 1, 2).is_bounded());
         assert!(!pull(4096, LinkPull::MAX_DOWNLOADS + 1).is_bounded());
-        assert!(!pull(0, 1).is_bounded());
+        assert!(!pull(0, 2).is_bounded());
+        assert!(!pull(4096, 1).is_bounded());
     }
 
     #[test]

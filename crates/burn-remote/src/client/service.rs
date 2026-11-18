@@ -969,13 +969,13 @@ impl RemoteService {
         .unwrap_or(false)
     }
 
-    /// What the link from `source`'s server to this one delivers at the pull's size; unsupported
+    /// What the link from `source`'s server to this one delivers at the pull's size, or `None`
     /// when the server could not be asked.
     pub fn measure_link_pull(
         &mut self,
         source: crate::PeerAddr,
         pull: LinkPull,
-    ) -> Result<LinkPoint, PeakError> {
+    ) -> Option<Result<LinkPoint, PeakError>> {
         self.report(
             |id| Task::MeasureLinkPull(id, source, pull),
             |answer| match answer {
@@ -983,7 +983,6 @@ impl RemoteService {
                 _ => None,
             },
         )
-        .unwrap_or(Err(PeakError::Unsupported))
     }
 
     /// Stop the server serving the buffer exposed under `capability`, sending it immediately.

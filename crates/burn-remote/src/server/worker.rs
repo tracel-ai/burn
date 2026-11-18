@@ -60,7 +60,8 @@ use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
 use crate::server::transfer::TensorTransfer;
 use crate::server::{DeviceCaptureLock, SessionCaptures, SessionExecutionModes};
 use crate::shared::{
-    LocalAllReducePart, RequestId, SessionId, Task, TaskResponse, TaskResponseContent,
+    LINK_PULL_TTL, LocalAllReducePart, RequestId, SessionId, Task, TaskResponse,
+    TaskResponseContent,
 };
 use crate::telemetry::{
     TelemetryEvent, TelemetryProbe, TransferPhase, TransferScope, serialized_len,
@@ -658,6 +659,12 @@ where
                     self.transfer
                         .expose_data(link_buffer(&pull), pull.downloads, pull.capability, target)
                         .await;
+                    let transfer = self.transfer.clone();
+                    // A client whose session dropped before withdrawing it never will.
+                    spawn_detached(async move {
+                        crate::time::sleep(LINK_PULL_TTL).await;
+                        transfer.withdraw(pull.capability).await;
+                    });
                 }
                 self.send_response(request_id, TaskResponseContent::LinkExposed(exposed))
                     .await

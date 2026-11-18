@@ -50,8 +50,8 @@ fn measure_within_server(
 
 /// Unsupported between an Iroh server and a WebSocket one, which no transfer crosses.
 ///
-/// Holds both sessions' order for the whole sweep, so a second caller for the pair finds the
-/// first one's curve.
+/// One at a time in the process, so a second caller for the pair finds the first one's curve
+/// whichever sessions it reaches the servers through.
 fn measure_between_servers(
     from: &RemoteClient,
     to: &RemoteDevice,
@@ -60,11 +60,12 @@ fn measure_between_servers(
         return Err(PeakError::Unsupported);
     }
     let target_client = get_client::<RemoteChannel>(to);
-    let _order = session_order([&from.device, to]);
+    let mut measured = measured();
     let ends = (link_end(&from.device), link_end(to));
-    if let Some(curve) = measured().get(&ends) {
+    if let Some(curve) = measured.get(&ends) {
         return Ok(curve.clone());
     }
+    let _order = session_order([&from.device, to]);
     let mut curve = Vec::new();
     for bytes in pull_sizes() {
         let point = pull_once(from, &target_client, to.peer_id(), bytes)?;
@@ -73,12 +74,13 @@ fn measure_between_servers(
             break;
         }
     }
-    measured().insert(ends, curve.clone());
+    measured.insert(ends, curve.clone());
     Ok(curve)
 }
 
 /// One size of the sweep: exposed on the source, timed on the target, then withdrawn from the
-/// source whatever downloads the target left.
+/// source whatever downloads the target left. A target that could not be asked may still be
+/// downloading, so the buffer is left to expire on the source instead.
 fn pull_once(
     from: &RemoteClient,
     target_client: &RemoteClient,
@@ -101,7 +103,9 @@ fn pull_once(
     let point = target_client
         .handle
         .submit_blocking(move |s| s.measure_link_pull(source, pull))
-        .unwrap_or(Err(PeakError::Unsupported));
+        .ok()
+        .flatten()
+        .ok_or(PeakError::Unsupported)?;
     from.handle
         .submit(move |s| s.withdraw_link_pull(pull.capability));
     from.handle.flush_queue();
