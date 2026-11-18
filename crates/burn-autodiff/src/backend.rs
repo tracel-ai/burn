@@ -11,9 +11,9 @@ use burn_backend::{
     backend::{
         AutodiffBackend, Backend, BackendTypes, DeviceDescription, DeviceTelemetry,
         EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
-        ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-        MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
-        PruneOptions, Pruned, SaveOptions,
+        ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
+        PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
+        SaveOptions,
     },
     tensor::{BoolTensor, IntTensor, QuantizedTensor},
 };

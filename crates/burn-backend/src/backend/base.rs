@@ -15,9 +15,7 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
 use super::profile::profile_unsupported;
-use super::{
-    DeviceDescription, DeviceTelemetry, MemoryReport, Peak, PeakError, PeakKey,
-};
+use super::{DeviceDescription, DeviceTelemetry, MemoryReport, Peak, PeakError, PeakKey};
 use super::{
     EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
     PruneOptions, Pruned, SaveOptions,

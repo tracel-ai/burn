@@ -6,8 +6,8 @@ use burn_backend::RandomKey;
 use burn_backend::{
     DType, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId,
     EnvironmentOrigin, EnvironmentSummary, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
-    ProfileToken, PruneOptions, Pruned, SaveOptions, TensorData, UnknownExecutionMode,
+    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
+    PruneOptions, Pruned, SaveOptions, TensorData, UnknownExecutionMode,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};

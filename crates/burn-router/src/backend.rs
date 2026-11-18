@@ -4,9 +4,9 @@ use burn_backend::RandomKey;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceTelemetry,
     EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
-    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
-    PruneOptions, Pruned, SaveOptions, profile_with_tokens,
+    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
+    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
+    SaveOptions, profile_with_tokens,
 };
 use core::marker::PhantomData;
 

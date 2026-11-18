@@ -14,8 +14,8 @@ use alloc::{
 use burn_backend::{
     Backend, BackendGraph, DType, DeviceDescription, DeviceOps, DeviceTelemetry, EnvironmentBundle,
     EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary, ExecutionError,
-    ExecutionMode, ExecutionModeToken, ExecutionStatistics, FloatDType, MemoryReport,
-    Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
+    ExecutionMode, ExecutionModeToken, ExecutionStatistics, FloatDType, MemoryReport, Peak,
+    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
     SaveOptions, Shape, TensorData, TensorMetadata, TensorPrimitive, ops::TransactionPrimitive,
 };
 use burn_ir::{

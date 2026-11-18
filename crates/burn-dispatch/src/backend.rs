@@ -16,8 +16,8 @@ use burn_backend::{
     AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, DeviceDescription,
     DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
     EnvironmentSummary, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
-    ProfileToken, PruneOptions, Pruned, SaveOptions,
+    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
+    PruneOptions, Pruned, SaveOptions,
 };
 
 /// A captured graph from one of the dispatched backends (see

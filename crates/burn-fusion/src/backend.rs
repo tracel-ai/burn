@@ -7,9 +7,9 @@ use burn_backend::RandomKey;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceOps, DeviceTelemetry,
     EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
-    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
-    PruneOptions, Pruned, SaveOptions, Shape, profile_with_tokens,
+    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
+    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
+    SaveOptions, Shape, profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};

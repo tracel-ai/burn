@@ -8,8 +8,8 @@ use burn_backend::cubecl::{
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceDescription,
     DeviceTelemetry, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-    MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration,
-    ProfileOptions, ProfileToken, SlicedPoolReport, TensorData, profile_with_tokens,
+    MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
+    ProfileToken, SlicedPoolReport, TensorData, profile_with_tokens,
 };
 burn_std::native_persistence! {
     use burn_backend::{
