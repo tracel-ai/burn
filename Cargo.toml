@@ -152,7 +152,7 @@ half = { version = "2.7.1", features = [
     "num-traits",
     "serde",
 ], default-features = false }
-macerator = { version = "0.5.2" }
+macerator = { version = "0.6.0" }
 ndarray = { version = "0.17.2", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
