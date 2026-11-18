@@ -33,22 +33,29 @@ static MEASURED: LazyLock<Mutex<MeasuredLinks>> = LazyLock::new(Default::default
 /// What the link from `from`'s device to `to` delivers across transfer sizes: within one server,
 /// as its backend measures it; between two, as the target times downloads from the source.
 ///
-/// Unsupported once either device's session has ended, before anything is exposed or granted on
-/// the other.
+/// Unsupported unless both devices' sessions are open and their servers admitted them, checked
+/// before anything is exposed or granted on either.
 pub(crate) fn measure_link(
     from: &RemoteClient,
     to: &RemoteDevice,
 ) -> Result<Vec<LinkPoint>, PeakError> {
-    if [&from.device, to]
-        .iter()
-        .any(|device| device.session_error().is_some())
-    {
+    if !admitted(from) || !admitted(&get_client::<RemoteChannel>(to)) {
         return Err(PeakError::Unsupported);
     }
     match from.device.peer_id() == to.peer_id() {
         true => measure_within_server(from, to),
         false => measure_between_servers(from, to),
     }
+}
+
+/// Whether `client`'s session is open, connecting it first: a device a listing named but never
+/// connected may still be refused.
+fn admitted(client: &RemoteClient) -> bool {
+    client.device.session_error().is_none()
+        && client
+            .handle
+            .submit_blocking(|s| s.try_connect().is_ok())
+            .unwrap_or(false)
 }
 
 /// `to`'s session grants its device under a capability only this client holds, so the server
