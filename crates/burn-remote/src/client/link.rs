@@ -38,20 +38,22 @@ pub(crate) fn measure_link(
     }
 }
 
-/// Names `to` by its open session, which the server reaches its device through: a client the
-/// server would not admit to `to` cannot probe it.
+/// `to`'s session grants its device under a capability only this client holds, so the server
+/// probes a device only for a client it admitted there.
 fn measure_within_server(
     from: &RemoteClient,
     to: &RemoteDevice,
 ) -> Result<Vec<LinkPoint>, PeakError> {
-    let target = get_client::<RemoteChannel>(to)
+    let capability = TransferCapability::random();
+    let granted = get_client::<RemoteChannel>(to)
         .handle
-        .submit_blocking(|s| s.open_session())
-        .ok()
-        .flatten()
-        .ok_or(PeakError::Unsupported)?;
+        .submit_blocking(move |s| s.grant_link(capability))
+        .unwrap_or(false);
+    if !granted {
+        return Err(PeakError::Unsupported);
+    }
     from.handle
-        .submit_blocking(move |s| s.measure_link_local(target))
+        .submit_blocking(move |s| s.measure_link_local(capability))
         .unwrap_or(Err(PeakError::Unsupported))
 }
 

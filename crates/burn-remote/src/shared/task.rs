@@ -111,7 +111,7 @@ impl LocalAllReducePart {
 pub struct TransferCapability([u8; 32]);
 
 impl TransferCapability {
-    #[cfg(feature = "client")]
+    #[cfg(any(feature = "client", test))]
     pub fn random() -> Self {
         Self(rand::random())
     }
@@ -289,9 +289,6 @@ impl LinkPull {
     }
 }
 
-/// How long a source serves a link probe's buffer when no client withdraws it.
-pub const LINK_PULL_TTL: Duration = Duration::from_secs(300);
-
 #[allow(missing_docs, clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Task {
@@ -460,9 +457,11 @@ pub enum Task {
     MeasureMemory(RequestId, StreamId),
     /// The peak throughput of the session's device for each key.
     MeasurePeaks(RequestId, Vec<PeakKey>),
-    /// What the link from the session's device to the device of another open session on the same
-    /// server delivers.
-    MeasureLinkLocal(RequestId, SessionId),
+    /// Grant the session's device to the same-server link probe that presents the capability.
+    GrantLink(RequestId, TransferCapability),
+    /// What the link from the session's device to the device another session of the same server
+    /// granted under the capability delivers.
+    MeasureLinkLocal(RequestId, TransferCapability),
     /// Expose the pull's buffer for `PeerId` to download, answering once it is exposed.
     ExposeLinkPull(RequestId, PeerId, LinkPull),
     /// What the link from the server at `PeerAddr` to the session's server delivers at the pull's
@@ -574,6 +573,8 @@ pub enum TaskResponseContent {
     Memory(Option<MemoryReport>),
     /// The answer to [`MeasurePeaks`](Task::MeasurePeaks), one per key in order.
     Peaks(Vec<Result<Peak, PeakError>>),
+    /// The answer to [`GrantLink`](Task::GrantLink), once the grant is registered.
+    LinkGranted,
     /// The answer to [`MeasureLinkLocal`](Task::MeasureLinkLocal).
     Link(Result<Vec<LinkPoint>, PeakError>),
     /// The answer to [`ExposeLinkPull`](Task::ExposeLinkPull): whether the buffer is exposed.

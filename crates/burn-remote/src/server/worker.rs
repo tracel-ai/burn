@@ -34,7 +34,7 @@
 //! cannot host co-located collective / same-host-transfer participants (the single thread would
 //! stall on the blocking tasks above). Ordinary compute is unaffected.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use burn_backend::PeakError;
@@ -56,13 +56,12 @@ use crate::server::DeviceQueries;
 use crate::server::ServerStreams;
 use crate::server::link_probe::{link_buffer, time_link_pull};
 use crate::server::local_comm::LocalCommService;
-use crate::server::session::SessionDevices;
 use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
 use crate::server::transfer::TensorTransfer;
 use crate::server::{DeviceCaptureLock, SessionCaptures, SessionExecutionModes};
 use crate::shared::{
-    LINK_PULL_TTL, LocalAllReducePart, RequestId, SessionId, Task, TaskResponse,
-    TaskResponseContent,
+    LocalAllReducePart, RequestId, SessionId, Task, TaskResponse, TaskResponseContent,
+    TransferCapability,
 };
 use crate::telemetry::{
     TelemetryEvent, TelemetryProbe, TransferPhase, TransferScope, serialized_len,
@@ -82,8 +81,6 @@ const TASK_CHANNEL_CAPACITY: usize = 64;
 pub struct SessionServices<B: BackendIr, T> {
     pub transfer: Arc<T>,
     pub local_comm: Arc<LocalCommService<B>>,
-    /// The device each of the server's open sessions is on, for a link probe to reach another.
-    pub sessions: Arc<SessionDevices<B>>,
     pub queries: DeviceQueries<B>,
     pub probe: TelemetryProbe,
 }
@@ -104,7 +101,6 @@ where
     response_tasks: ResponseTasks,
     transfer: Arc<T>,
     local_comm: Arc<LocalCommService<B>>,
-    sessions: Arc<SessionDevices<B>>,
     /// Cache of client-registered reusable op-graphs, keyed by id (see
     /// [`Task::RegisterAndExecuteGraph`]).
     ///
@@ -114,6 +110,8 @@ where
     /// the cache from becoming a serialization point if graph execution is ever driven from more
     /// than the current single-FIFO worker.
     graphs: Mutex<HashMap<GraphId, Graph>>,
+    /// Link probe buffers this session exposed and no client withdrew yet, withdrawn when it closes.
+    link_pulls: HashSet<TransferCapability>,
     queries: DeviceQueries<B>,
     captures: SessionCaptures<B>,
     execution_modes: SessionExecutionModes,
@@ -137,7 +135,6 @@ where
         let SessionServices {
             transfer,
             local_comm,
-            sessions,
             queries,
             probe,
         } = services;
@@ -149,7 +146,7 @@ where
             response_tasks: ResponseTasks::default(),
             transfer,
             local_comm,
-            sessions,
+            link_pulls: HashSet::new(),
             graphs: Mutex::new(HashMap::new()),
             queries,
             captures: SessionCaptures::new(session_id, capture_lock),
@@ -229,6 +226,9 @@ where
         // half-finished transfer doesn't strand device memory in the shared registry.
         self.local_comm.purge_session(session_id).await;
         self.local_comm.abandon_session(session_id).await;
+        for capability in &self.link_pulls {
+            self.transfer.withdraw(*capability).await;
+        }
 
         log::debug!("Session {session_id} worker draining and exiting");
 
@@ -646,8 +646,16 @@ where
                 self.send_response(request_id, TaskResponseContent::Peaks(peaks))
                     .await
             }
-            Task::MeasureLinkLocal(request_id, target) => {
-                let link = match self.sessions.device_of(target) {
+            Task::GrantLink(request_id, capability) => {
+                let device = self.runner.device();
+                self.local_comm
+                    .grant_link(self.session_id, capability, device)
+                    .await;
+                self.send_response(request_id, TaskResponseContent::LinkGranted)
+                    .await
+            }
+            Task::MeasureLinkLocal(request_id, capability) => {
+                let link = match self.local_comm.take_link(capability).await {
                     Some(to) => self.runner.measure_link(&to),
                     None => Err(PeakError::Unsupported),
                 };
@@ -660,12 +668,7 @@ where
                     self.transfer
                         .expose_data(link_buffer(&pull), pull.downloads, pull.capability, target)
                         .await;
-                    let transfer = self.transfer.clone();
-                    // A client whose session dropped before withdrawing it never will.
-                    spawn_detached(async move {
-                        crate::time::sleep(LINK_PULL_TTL).await;
-                        transfer.withdraw(pull.capability).await;
-                    });
+                    self.link_pulls.insert(pull.capability);
                 }
                 self.send_response(request_id, TaskResponseContent::LinkExposed(exposed))
                     .await
@@ -676,7 +679,9 @@ where
                     .await
             }
             Task::WithdrawLinkPull(capability) => {
-                self.transfer.withdraw(capability).await;
+                if self.link_pulls.remove(&capability) {
+                    self.transfer.withdraw(capability).await;
+                }
                 Ok(())
             }
         }
@@ -1236,7 +1241,6 @@ mod tests {
             Self {
                 transfer: Arc::new(NoTransfer),
                 local_comm,
-                sessions: Arc::new(SessionDevices::new(vec![Default::default()])),
                 queries: DeviceQueries::default(),
                 probe: TelemetryProbe::disabled(),
             }
@@ -1257,7 +1261,7 @@ mod tests {
                 response_tasks: ResponseTasks::default(),
                 transfer: Arc::new(NoTransfer),
                 local_comm: Arc::new(LocalCommService::<Flex>::new(1)),
-                sessions: Arc::new(SessionDevices::new(vec![Default::default()])),
+                link_pulls: HashSet::new(),
                 graphs: Mutex::new(HashMap::new()),
                 queries: DeviceQueries::default(),
                 captures: SessionCaptures::new(session_id, capture_lock),

@@ -943,23 +943,30 @@ impl RemoteService {
         .unwrap_or_else(|| vec![Err(PeakError::Unsupported); count])
     }
 
-    /// What the link from the server's device to the device of its open session `target`
-    /// delivers; unsupported when the server could not be asked.
-    pub fn measure_link_local(&mut self, target: SessionId) -> Result<Vec<LinkPoint>, PeakError> {
+    /// Grant this device to the same-server link probe that presents `capability`, waiting until
+    /// it is granted; false when the server could not be asked.
+    pub fn grant_link(&mut self, capability: TransferCapability) -> bool {
         self.report(
-            |id| Task::MeasureLinkLocal(id, target),
+            |id| Task::GrantLink(id, capability),
+            |answer| matches!(answer, TaskResponseContent::LinkGranted).then_some(()),
+        )
+        .is_some()
+    }
+
+    /// What the link from the server's device to the device granted under `capability` delivers;
+    /// unsupported when the server could not be asked.
+    pub fn measure_link_local(
+        &mut self,
+        capability: TransferCapability,
+    ) -> Result<Vec<LinkPoint>, PeakError> {
+        self.report(
+            |id| Task::MeasureLinkLocal(id, capability),
             |answer| match answer {
                 TaskResponseContent::Link(link) => Some(link),
                 _ => None,
             },
         )
         .unwrap_or(Err(PeakError::Unsupported))
-    }
-
-    /// This device's session, opening it first; `None` when the server refused or could not be
-    /// reached.
-    pub(crate) fn open_session(&mut self) -> Option<SessionId> {
-        self.try_connect().ok().map(|()| self.session_id)
     }
 
     /// Expose the pull's buffer for `target` to download, waiting until it is exposed; false when

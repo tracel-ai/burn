@@ -19,7 +19,7 @@ pub(crate) fn link_buffer(pull: &LinkPull) -> TensorData {
 const MIN_TIMED_DOWNLOADS: usize = 3;
 const SAMPLING_BUDGET: Duration = Duration::from_millis(500);
 /// Past this, one timed download is enough: a link that slowed mid-sweep must still finish the
-/// size inside the source's [`LINK_PULL_TTL`](crate::shared::LINK_PULL_TTL).
+/// size before an Iroh source lets its capability expire, five minutes after exposing it.
 const SAMPLING_DEADLINE: Duration = Duration::from_secs(60);
 
 /// What the link from `source` delivers at the pull's size, timing every download after the first

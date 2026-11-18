@@ -461,6 +461,11 @@ fn a_link_between_two_servers_is_timed_at_each_size() {
 
     let link = device_1.measure_link(&device_2).unwrap();
 
+    assert_eq!(
+        link.first().map(|point| point.bytes),
+        Some(4096),
+        "{link:?}"
+    );
     assert!(
         link.windows(2).all(|pair| pair[0].bytes < pair[1].bytes),
         "{link:?}"
