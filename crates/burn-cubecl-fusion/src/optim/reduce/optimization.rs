@@ -25,7 +25,7 @@ use cubecl::{
     tile::{Geometry, launch::Refusal},
 };
 use cubek::microkernel::reduce::ReduceOperation;
-use cubek::reduce::kernels::{ReduceElements, ReduceKey, ReduceTensors, fastest_reduce_candidate};
+use cubek::reduce::kernels::{ReduceElements, ReduceKey, ReduceTensors, ReduceCandidate};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -391,7 +391,7 @@ impl TraceRunner for FusedReduceLaunch<'_> {
                 out: dtype_to_storage_type(self.reduce.op.out.dtype),
             },
         );
-        let candidate = fastest_reduce_candidate(client, self.device, &ReduceKey::from(&tensors))
+        let candidate = ReduceCandidate::fastest(client, self.device, &ReduceKey::from(&tensors))
             .ok_or(FusedReduceError::NoRoutineElected)?;
         candidate
             .launch_unbound::<TraceReadTileOperand>(&tensors, |source| {

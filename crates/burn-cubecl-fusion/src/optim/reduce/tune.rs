@@ -13,7 +13,7 @@ use cubecl::{
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
 use cubek::reduce::kernels::{
-    ReduceElements, ReduceKey, ReduceRoutineProblem, fastest_reduce_candidate,
+    ReduceElements, ReduceKey, ReduceRoutineProblem, ReduceCandidate,
 };
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
@@ -44,7 +44,7 @@ pub fn fused_reduce_autotune(
     // has nothing to run. The fallback runs alone, outside a round, and its unfused reduce settles
     // that election; a round raced before it would settle the fused key on the fallback for good.
     let reduce_key = reduce_key(&arg.info, &context.tensors);
-    if fastest_reduce_candidate(&arg.info.client, &arg.info.device, &reduce_key).is_none() {
+    if ReduceCandidate::fastest(&arg.info.client, &arg.info.device, &reduce_key).is_none() {
         arg.execute_fallback(context);
         return;
     }

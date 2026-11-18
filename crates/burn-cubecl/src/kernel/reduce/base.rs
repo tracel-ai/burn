@@ -421,16 +421,16 @@ pub fn reduce_dim(
     }
 
     let device = input.device.clone();
-    cubek::reduce::kernels::reduce(
-        &client,
-        &device,
-        input.binding(),
-        output.clone().binding(),
-        dim,
-        strategy.into(),
-        config,
-        elements,
-    )
+    cubek::reduce::kernels::Reduce::new(strategy.into())
+        .execute(
+            &client,
+            &device,
+            input.binding(),
+            output.clone().binding(),
+            dim,
+            config,
+            elements,
+        )
     .map(|_| output)
 }
 
@@ -505,18 +505,18 @@ pub fn reduce_dim_with_indices(
     let client = input.client.clone();
 
     let device = input.device.clone();
-    cubek::reduce::kernels::reduce_with_indices(
-        &client,
-        &device,
-        input.binding(),
-        values.clone().binding(),
-        indices.clone().binding(),
-        dim,
-        strategy.into(),
-        config,
-        elements,
-        dtype_to_elem_type(indices_dtype),
-    )
+    cubek::reduce::kernels::Reduce::new(strategy.into())
+        .execute_with_indices(
+            &client,
+            &device,
+            input.binding(),
+            values.clone().binding(),
+            indices.clone().binding(),
+            dim,
+            config,
+            elements,
+            dtype_to_elem_type(indices_dtype),
+        )
     .map(|_| (values, indices))
 }
 
