@@ -392,7 +392,7 @@ fn softmax_row_f32_scalar(input: &[f32], output: &mut [f32]) {
 #[cfg(feature = "simd")]
 #[inline(always)]
 fn softmax_row_f32_simd<S: macerator::Simd>(input: &[f32], output: &mut [f32]) {
-    use macerator::{Scalar, vload_unaligned, vstore_unaligned};
+    use macerator::{Scalar, vload_partial, vload_unaligned, vstore_partial, vstore_unaligned};
     let lanes = <f32 as Scalar>::lanes::<S>();
     let len = input.len();
     let simd_len = len / lanes * lanes;
@@ -418,7 +418,7 @@ fn softmax_row_f32_simd<S: macerator::Simd>(input: &[f32], output: &mut [f32]) {
     }
 
     // Pass 2: compute exp(x - max), store in output, accumulate sum.
-    // The tail runs through the same SIMD exp in a padded buffer, so every
+    // The tail runs through the same SIMD exp as a partial vector, so every
     // element of the row is computed the same way.
     let max_vec = max_val.splat::<S>();
     let mut sum_vec = 0.0f32.splat::<S>();
@@ -435,19 +435,13 @@ fn softmax_row_f32_simd<S: macerator::Simd>(input: &[f32], output: &mut [f32]) {
     let mut sum = sum_vec.reduce_add();
     let tail = len - simd_len;
     if tail > 0 {
-        let mut buf = [0.0f32; crate::simd::MAX_LANES];
-        assert!(
-            lanes <= buf.len(),
-            "SIMD f32 lane count {lanes} exceeds the buffer"
-        );
-        buf[..tail].copy_from_slice(&input[simd_len..]);
-        // SAFETY: the assertion above keeps one vector within `buf`.
+        // SAFETY: the tail is in bounds of `input` and `output`.
         unsafe {
-            let x = vload_unaligned::<S, _>(buf.as_ptr());
-            vstore_unaligned::<S, _>(buf.as_mut_ptr(), crate::simd::exp_f32::<S>(x - max_vec));
+            let x = vload_partial::<S, _>(input.as_ptr().add(simd_len), tail);
+            let e = crate::simd::exp_f32::<S>(x - max_vec);
+            vstore_partial::<S, _>(output.as_mut_ptr().add(simd_len), e, tail);
         }
-        output[simd_len..].copy_from_slice(&buf[..tail]);
-        sum += buf[..tail].iter().sum::<f32>();
+        sum += output[simd_len..].iter().sum::<f32>();
     }
 
     // Pass 3: normalize.
