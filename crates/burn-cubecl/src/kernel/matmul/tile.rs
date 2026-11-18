@@ -11,6 +11,7 @@ use crate::{
 };
 use burn_backend::DType;
 use burn_backend::cubecl::dtype_to_storage_type;
+use burn_std::Metadata;
 use cubecl::std::tensor::TensorHandle;
 use cubecl::tile::{Axis, launch::Refusal};
 use cubek::matmul::{
@@ -18,7 +19,10 @@ use cubek::matmul::{
     kernels::{
         MatmulOpStrategy,
         plan::{FrameworkDequantize, MatmulCall, MatmulCallInput},
-        select::{problem::MatmulProblem, selector::select},
+        select::{
+            problem::{MatmulProblem, OperandKind},
+            selector::select,
+        },
         tensor::StoredTensor,
         tune::MatmulAutotuneGroups,
     },
@@ -54,20 +58,13 @@ pub(crate) fn launch(
         lhs.client.clone(),
         CubeTuneId::new(&lhs.client, &lhs.device),
     );
-    let lhs_shape = lhs
-        .meta
-        .logical_shape()
-        .map_err(|why| invalid(format!("{why:?}")))?;
-    let rhs_shape = rhs
-        .meta
-        .logical_shape()
-        .map_err(|why| invalid(format!("{why:?}")))?;
+    let (lhs_meta, rhs_meta) = (lhs.meta.clone(), rhs.meta.clone());
     let lhs = call_input(lhs, [M, K], out_dtype).map_err(invalid)?;
     let rhs = call_input(rhs, [K, N], out_dtype).map_err(invalid)?;
-    let problem = MatmulProblem::new(
-        (&lhs_shape, lhs.tensor.kind()),
-        (&rhs_shape, rhs.tensor.kind()),
-    );
+    let problem = problem(
+        (&lhs_meta, lhs.tensor.kind()),
+        (&rhs_meta, rhs.tensor.kind()),
+    )?;
     let plan = select(strategy, &problem, &hw, MatmulAutotuneGroups::default()).map_err(invalid)?;
     let call = MatmulCall {
         hw,
@@ -80,6 +77,22 @@ pub(crate) fn launch(
     };
     plan.launch(&call).map_err(invalid)?;
     Ok(())
+}
+
+/// cubek's view of `lhs · rhs`, from each operand's logical extents: a storage-tiled operand's
+/// metadata shape is physical, its tiles counted as dims of their own.
+pub(crate) fn problem(
+    (lhs, lhs_kind): (&Metadata, OperandKind),
+    (rhs, rhs_kind): (&Metadata, OperandKind),
+) -> Result<MatmulProblem, MatmulSetupError> {
+    let logical = |meta: &Metadata| {
+        meta.logical_shape()
+            .map_err(|why| invalid(format!("{why:?}")))
+    };
+    Ok(MatmulProblem::new(
+        (&logical(lhs)?, lhs_kind),
+        (&logical(rhs)?, rhs_kind),
+    ))
 }
 
 /// What cubek answered, as the error burn's matmul reports.

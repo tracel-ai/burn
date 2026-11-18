@@ -189,12 +189,13 @@ mod storage_tiled {
         ops::FloatTensorOps,
     };
     use burn_std::{Shape, TensorData};
+    use cubek::matmul::kernels::{select::problem::OperandKind, tune::MatmulAutotune};
 
     use crate::{
         CubeBackend, CubeDevice,
         kernel::{
             into_contiguous,
-            matmul::{MatmulStrategy, matmul},
+            matmul::{MatmulStrategy, matmul, tile::problem},
             slice, untile,
         },
         ops::{expand, from_data, into_data_sync, permute, reshape, swap_dims},
@@ -231,6 +232,22 @@ mod storage_tiled {
             let from_tiles = matmul(lhs.clone(), weight.clone(), None, strategy, DType::F32);
             assert_close(&values(from_tiles.unwrap()), &plain, "decode, tiled weight");
         }
+    }
+
+    /// Both autotunes compute a decode product alike, so only its routing shows the weight's
+    /// logical shape reached cubek.
+    #[test]
+    fn a_decode_product_against_a_tiled_weight_goes_to_the_few_rows_autotune() {
+        let device = CubeDevice::default();
+        let lhs = tensor(&[1, 256], &device, 1);
+        let weight = tiled(&tensor(&[256, 512], &device, 2), (32, 64));
+        let problem = problem(
+            (&lhs.meta, OperandKind::Float),
+            (&weight.meta, OperandKind::Float),
+        )
+        .unwrap();
+        assert_eq!(problem.streamed_rows, Some(1));
+        assert_eq!(MatmulAutotune::new(&problem), MatmulAutotune::FewRows);
     }
 
     /// Training multiplies by the transposed weight: a transpose keeps the tiles, stored a
