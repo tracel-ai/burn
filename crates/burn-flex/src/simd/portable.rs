@@ -216,7 +216,8 @@ const MAX_LANES: usize = 64;
 
 /// An elementwise op on vectors, run over slices by [`map_inplace`] and
 /// [`map_to_vec`]. Each output lane must depend only on the same input lane,
-/// since the drivers also apply it to the padding lanes of a short tail.
+/// since the drivers also apply it to the zeroed lanes of a partial tail
+/// vector.
 pub trait LaneOp<F: Scalar>: Copy + Send + Sync {
     fn apply<S: Simd>(self, v: Vector<S, F>) -> Vector<S, F>;
 }
@@ -273,14 +274,13 @@ fn map_into_seq<S: Simd, F: Scalar, O: LaneOp<F>>(src: &[F], dst: &mut [MaybeUni
 }
 
 /// Writes `op(src[i])` to `dst[i]` for every `i < len`. The tail shorter than
-/// a vector goes through `op` in a padded buffer, so each element gets the
+/// a vector goes through `op` as a partial vector, so each element gets the
 /// same result wherever it sits in the slice.
 ///
 /// # Safety
 ///
-/// `src` must be valid for `len` reads and `dst` for `len` writes, both
-/// aligned to `F`: the vector loads and stores are unaligned, but the tail
-/// copies use `copy_nonoverlapping`. They are either equal or don't overlap.
+/// `src` must be valid for `len` reads and `dst` for `len` writes. They are
+/// either equal or don't overlap.
 #[inline(always)]
 unsafe fn map_raw<S: Simd, F: Scalar, O: LaneOp<F>>(src: *const F, dst: *mut F, len: usize, op: O) {
     let lanes = F::lanes::<S>();
@@ -400,13 +400,13 @@ fn zip_into_seq<S: Simd, F: Scalar, O: LaneOp2<F>>(
     unsafe { zip_raw::<S, F, O>(a.as_ptr(), b.as_ptr(), dst.as_mut_ptr().cast(), a.len(), op) }
 }
 
-/// Writes `op(a[i], b[i])` to `dst[i]` for every `i < len`, with a short tail
-/// through `op` in padded buffers as in [`map_raw`].
+/// Writes `op(a[i], b[i])` to `dst[i]` for every `i < len`, with the short
+/// tail as a partial vector as in [`map_raw`].
 ///
 /// # Safety
 ///
-/// `a` and `b` must be valid for `len` reads and `dst` for `len` writes, all
-/// aligned to `F`. `dst` either equals `a` or overlaps neither input.
+/// `a` and `b` must be valid for `len` reads and `dst` for `len` writes.
+/// `dst` either equals `a` or overlaps neither input.
 #[inline(always)]
 unsafe fn zip_raw<S: Simd, F: Scalar, O: LaneOp2<F>>(
     a: *const F,
@@ -559,8 +559,9 @@ pub fn exp_f32<S: Simd>(x: Vector<S, f32>) -> Vector<S, f32> {
     // exp(-104) rounds to 0 and exp(89) overflows, so clamping changes no
     // result and bounds `n` for the exponent bits below.
     let xc = x.max((-104.0f32).splat()).min(89.0f32.splat());
-    // The clamp keeps `x * log2(e)` in i32 range, so the unchecked rounding
-    // skips the saturation `round_to_int` pays for.
+    // The clamp keeps `x * log2(e)` in i32 range, so the rounding needs no
+    // saturation. A NaN lane gets an unspecified `n` and is replaced at the
+    // end.
     let n = (xc * core::f32::consts::LOG2_E.splat()).round_to_int_unchecked();
     let nf = n.to_float();
     // ln(2) split in two; the high part has 9 significant bits, so the first
@@ -1012,11 +1013,10 @@ const TRIG_MAX: f32 = 6433.0;
 /// at most 12 significant bits.
 #[inline(always)]
 fn reduce_half_pi<S: Simd>(a: Vector<S, f32>) -> (Vector<S, f32>, Vector<S, i32>) {
-    // Rounds a * 2/pi to an integer as in `exp_f32`.
-    let magic = 12_582_912.0f32.splat::<S>();
-    let t = a * core::f32::consts::FRAC_2_PI.splat() + magic;
-    let jf = t - magic;
-    let j = t.reinterpret::<i32>() - magic.reinterpret::<i32>();
+    // `a` is at most `TRIG_MAX`, so `a * 2/pi` is in i32 range. A NaN lane
+    // gets an unspecified `j`, but its `r` stays NaN.
+    let j = (a * core::f32::consts::FRAC_2_PI.splat()).round_to_int_unchecked();
+    let jf = j.to_float();
     let r = a - jf * f32::from_bits(0x3fc9_0000).splat();
     let r = r - jf * f32::from_bits(0x39fd_a000).splat();
     let r = r - jf * f32::from_bits(0x33a2_2000).splat();

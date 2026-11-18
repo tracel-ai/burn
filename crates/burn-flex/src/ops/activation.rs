@@ -393,6 +393,8 @@ fn softmax_row_f32_scalar(input: &[f32], output: &mut [f32]) {
 #[inline(always)]
 fn softmax_row_f32_simd<S: macerator::Simd>(input: &[f32], output: &mut [f32]) {
     use macerator::{Scalar, vload_partial, vload_unaligned, vstore_partial, vstore_unaligned};
+    // The raw loads and stores below index `output` by `input`'s length.
+    debug_assert_eq!(input.len(), output.len());
     let lanes = <f32 as Scalar>::lanes::<S>();
     let len = input.len();
     let simd_len = len / lanes * lanes;
