@@ -54,7 +54,14 @@ pub(crate) fn launch(
         lhs.client.clone(),
         CubeTuneId::new(&lhs.client, &lhs.device),
     );
-    let (lhs_shape, rhs_shape) = (lhs.meta.shape().clone(), rhs.meta.shape().clone());
+    let lhs_shape = lhs
+        .meta
+        .logical_shape()
+        .map_err(|why| invalid(format!("{why:?}")))?;
+    let rhs_shape = rhs
+        .meta
+        .logical_shape()
+        .map_err(|why| invalid(format!("{why:?}")))?;
     let lhs = call_input(lhs, [M, K], out_dtype).map_err(invalid)?;
     let rhs = call_input(rhs, [K, N], out_dtype).map_err(invalid)?;
     let problem = MatmulProblem::new(
