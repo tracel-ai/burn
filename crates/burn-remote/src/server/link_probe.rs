@@ -6,46 +6,80 @@ use burn_ir::BackendIr;
 use burn_std::profile::Instant;
 use core::time::Duration;
 
-use crate::PeerAddr;
 use crate::server::transfer::TensorTransfer;
 use crate::shared::LinkPull;
+use crate::{PeerAddr, PeerId};
 
-/// The buffer a source exposes for `pull`, which only its size matters for.
-pub(crate) fn link_buffer(pull: &LinkPull) -> TensorData {
-    TensorData::zeros::<u8, _>([pull.bytes as usize])
+/// Serves a link probe's pulls through the server's transfers: as the source, it exposes a buffer
+/// per pull; as the target, it times its downloads of one.
+pub(crate) struct LinkPuller<'a, T> {
+    transfer: &'a T,
 }
 
-/// The peak throughput of the link from `source` at the pull's size, timing every download after
-/// the first. It makes every download the pull names, so the source's transport releases the buffer
-/// after the last one; a link lost partway answers with the downloads it timed.
-///
-/// # Errors
-///
-/// [`Unsupported`](PeakError::Unsupported) for a pull outside the bounds a client sends, and
-/// [`Transfer`](PeakError::Transfer) when a download fails before one is timed.
-pub(crate) async fn time_link_pull<B: BackendIr, T: TensorTransfer<B>>(
-    transfer: &T,
-    source: &PeerAddr,
-    pull: &LinkPull,
-) -> Result<Peak, PeakError> {
-    if !pull.is_bounded() {
-        return Err(PeakError::Unsupported);
+impl<'a, T> LinkPuller<'a, T> {
+    pub(crate) fn new(transfer: &'a T) -> Self {
+        Self { transfer }
     }
-    let mut samples = Vec::with_capacity(pull.downloads as usize);
-    for _ in 0..pull.downloads {
-        let start = Instant::now();
-        if transfer
-            .download_tensor(source.clone(), pull.capability)
-            .await
-            .is_none()
-        {
-            break;
+
+    /// Exposes a buffer of the pull's size for `target` to download as many times as the pull
+    /// names, and whether it did: not for a pull outside the bounds a client sends.
+    pub(crate) async fn expose<B: BackendIr>(&self, target: PeerId, pull: &LinkPull) -> bool
+    where
+        T: TensorTransfer<B>,
+    {
+        if !pull.is_bounded() {
+            return false;
         }
-        samples.push(start.elapsed());
+        let buffer = TensorData::zeros::<u8, _>([pull.bytes as usize]);
+        self.transfer
+            .expose_data(buffer, pull.downloads, pull.capability, target)
+            .await;
+        true
     }
-    match samples.get(1..) {
-        Some(timed) if !timed.is_empty() => fastest_rate(pull.bytes, timed),
-        _ => Err(PeakError::Transfer),
+
+    /// The peak throughput of the link from `source` at the pull's size, timing every download
+    /// after the first. It makes every download the pull names, so the source's transport
+    /// releases the buffer after the last one; a link lost partway answers with the downloads it
+    /// timed.
+    ///
+    /// # Errors
+    ///
+    /// [`Unsupported`](PeakError::Unsupported) for a pull outside the bounds a client sends, and
+    /// [`Transfer`](PeakError::Transfer) when a download fails before one is timed.
+    pub(crate) async fn time<B: BackendIr>(
+        &self,
+        source: &PeerAddr,
+        pull: &LinkPull,
+    ) -> Result<Peak, PeakError>
+    where
+        T: TensorTransfer<B>,
+    {
+        if !pull.is_bounded() {
+            return Err(PeakError::Unsupported);
+        }
+        let mut samples = Vec::with_capacity(pull.downloads as usize);
+        for _ in 0..pull.downloads {
+            let start = Instant::now();
+            if self
+                .transfer
+                .download_tensor(source.clone(), pull.capability)
+                .await
+                .is_none()
+            {
+                break;
+            }
+            samples.push(start.elapsed());
+        }
+        match samples.get(1..) {
+            Some(timed) if !timed.is_empty() => fastest_rate(pull.bytes, timed),
+            _ => Err(PeakError::Transfer),
+        }
+    }
+}
+
+impl<T> core::fmt::Debug for LinkPuller<'_, T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("LinkPuller").finish_non_exhaustive()
     }
 }
 
@@ -86,7 +120,6 @@ mod tests {
     #[cfg(feature = "websocket")]
     mod lost_link {
         use super::*;
-        use crate::PeerId;
         use crate::shared::TransferCapability;
         use burn_flex::Flex;
         use std::sync::atomic::{AtomicU32, Ordering};
@@ -124,7 +157,9 @@ mod tests {
                 downloads: 4,
                 capability: TransferCapability::random(),
             };
-            time_link_pull::<Flex, _>(&transfer, &source, &pull).await
+            LinkPuller::new(&transfer)
+                .time::<Flex>(&source, &pull)
+                .await
         }
 
         #[tokio::test]

@@ -54,7 +54,7 @@ use tokio::sync::mpsc;
 
 use crate::server::DeviceQueries;
 use crate::server::ServerStreams;
-use crate::server::link_probe::{link_buffer, time_link_pull};
+use crate::server::link_probe::LinkPuller;
 use crate::server::local_comm::LocalCommService;
 use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
 use crate::server::transfer::TensorTransfer;
@@ -656,18 +656,13 @@ where
                     .await
             }
             Task::ExposeLinkPull(request_id, target, pull) => {
-                let exposed = pull.is_bounded();
-                if exposed {
-                    self.transfer
-                        .expose_data(link_buffer(&pull), pull.downloads, pull.capability, target)
-                        .await;
-                }
+                let exposed = LinkPuller::new(&*self.transfer).expose(target, &pull).await;
                 self.send_response(request_id, TaskResponseContent::LinkExposed(exposed))
                     .await
             }
             Task::MeasureLinkPull(request_id, source, pull) => {
-                let point = time_link_pull(&*self.transfer, &source, &pull).await;
-                self.send_response(request_id, TaskResponseContent::LinkPulled(point))
+                let peak = LinkPuller::new(&*self.transfer).time(&source, &pull).await;
+                self.send_response(request_id, TaskResponseContent::LinkPulled(peak))
                     .await
             }
             Task::WithdrawLinkPull(capability) => {

@@ -470,7 +470,8 @@ fn a_link_between_two_servers_is_timed_at_each_size_asked() {
             .all(|peak| peak.is_ok_and(|peak| peak.per_second > 0.0)),
         "{peaks:?}"
     );
-    assert_eq!(device_1.measure_link(&device_2, &sizes), peaks);
+    let reversed = device_1.measure_link(&device_2, &[4096, 1 << 20]);
+    assert_eq!(reversed, [peaks[1], peaks[0]]);
 
     rt.shutdown_background();
 }

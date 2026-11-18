@@ -80,8 +80,9 @@ impl<'a> LinkProber<'a> {
             .unwrap_or_else(|_| unsupported(sizes))
     }
 
-    /// Smallest size first, so each size's downloads are fitted to the rate of the one below it.
-    /// One probe at a time in the process, so a second caller for the pair finds the first one's
+    /// Smallest size first, so each size's downloads are fitted to the rate of the one below it,
+    /// and the first that fails ends the probe, its error answering every larger size not cached:
+    /// no further buffer is exposed for a target that may be gone. One probe at a time in the process, so a second caller for the pair finds the first one's
     /// peaks whichever sessions it reaches the servers through.
     fn measure_between_servers(&self, sizes: &[u64]) -> Vec<Result<Peak, PeakError>> {
         let mut measured = measured();
@@ -91,18 +92,21 @@ impl<'a> LinkProber<'a> {
         ascending.sort_unstable();
         ascending.dedup();
         let mut below = None;
+        let mut failed = None;
         let mut peaks = HashMap::new();
         for bytes in ascending {
             let key = (ends.0.clone(), ends.1.clone(), bytes);
-            let peak = match measured.get(&key) {
-                Some(peak) => Ok(*peak),
-                None => self.pull(bytes, downloads_at(bytes, below)),
+            let peak = match (measured.get(&key), failed) {
+                (Some(peak), _) => Ok(*peak),
+                (None, Some(error)) => Err(error),
+                (None, None) => self.pull(bytes, downloads_at(bytes, below)),
             };
+            peaks.insert(bytes, peak);
+            failed = failed.or(peak.err());
+            below = peak.ok().or(below);
             if let Ok(peak) = peak {
                 measured.insert(key, peak);
-                below = Some(peak);
             }
-            peaks.insert(bytes, peak);
         }
         sizes.iter().map(|bytes| peaks[bytes]).collect()
     }
