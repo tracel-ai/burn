@@ -43,7 +43,9 @@ pub struct Lora {
     pub rank: usize,
     /// Scaling numerator; the adapter contribution is scaled by `alpha / rank`.
     pub alpha: f64,
-    /// Standard deviation used to initialize the `A` factor. Defaults to `1 / rank`.
+    /// When set, the `A` factor is drawn from `Normal(0, init_std)`. By default it is uniform in
+    /// `±1 / sqrt(d_in)`, the Kaiming-uniform init that Hugging Face PEFT uses, so learning rates
+    /// tuned for PEFT carry over.
     pub init_std: Option<f64>,
     /// Precision the factors are built at. Defaults to the base weight's own
     /// float dtype; a *quantized* base has none, so a model that computes in
@@ -126,16 +128,23 @@ impl Reparameterizer for Lora {
         let base = param.set_require_grad(false);
 
         if self.param_group.matches(&id, Some(path)) {
-            // Standard LoRA init: A ~ N(0, std) and B = 0, so the initial delta (and the model output)
-            // is unchanged when the adapter is first attached.
+            // B = 0, so the initial delta (and the model output) is unchanged when the adapter is
+            // first attached. A's spread sets how strongly the first updates to B act; PEFT draws
+            // it with `kaiming_uniform_(a=sqrt(5))`, whose bound reduces to 1 / sqrt(d_in).
             //
             // Built under a persistent-allocation window, as `Param::from_data` places its
             // value: the factors are parameters, alive as long as the module they attach to,
             // and this is the code that knows it. A caller sizing or capping the dynamic
             // pools around a prepared model must not find its trainable weights living there.
-            let std = self.init_std.unwrap_or(1.0 / rank as f64);
+            let distribution = match self.init_std {
+                Some(std) => Distribution::Normal(0.0, std),
+                None => {
+                    let bound = 1.0 / (d_in as f64).sqrt();
+                    Distribution::Uniform(-bound, bound)
+                }
+            };
             let (a, b) = device.memory_persistent_allocations((), |_| {
-                let a = Tensor::<2>::random([d_in, rank], Distribution::Normal(0.0, std), &device);
+                let a = Tensor::<2>::random([d_in, rank], distribution, &device);
                 let b = Tensor::<2>::zeros([rank, d_out], &device);
                 match dtype {
                     Some(dtype) => (a.cast(dtype), b.cast(dtype)),
@@ -297,6 +306,30 @@ mod tests {
         // num_params includes the adapter factors:
         // weight [6,4]=24, bias [6]=6, a [6,2]=12, b [2,4]=8.
         assert_eq!(model.num_params(), 24 + 6 + 12 + 8);
+    }
+
+    #[test]
+    fn lora_a_defaults_to_peft_kaiming_uniform() {
+        let device = test_device();
+        // Burn stores weights as [d_in, d_out].
+        let model = FlaggedWeight {
+            weight: Param::from_tensor(Tensor::random([64, 8], Distribution::Default, &device)),
+            training: Param::from_bool(true),
+        }
+        .apply_lora(Lora::new(4, 8.0));
+        let a = model.weight.adapter().unwrap().a.val();
+        assert_eq!(a.dims(), [64, 4]);
+        let largest = a.abs().max().into_scalar::<f32>();
+
+        // PEFT's bound for 64 inputs is 1/8; the former Normal(0, 1/rank) default exceeds it.
+        assert!(
+            largest <= 0.125,
+            "A must stay within ±1/sqrt(d_in), got {largest}"
+        );
+        assert!(
+            largest > 0.0625,
+            "A must spread over the bound, got {largest}"
+        );
     }
 
     #[test]
