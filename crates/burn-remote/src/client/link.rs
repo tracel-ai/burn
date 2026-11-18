@@ -80,20 +80,29 @@ impl<'a> LinkProber<'a> {
             .unwrap_or_else(|_| unsupported(sizes))
     }
 
-    /// Smallest size first, so each size's downloads are fitted to the rate of the one below it,
-    /// and the first that fails ends the probe, its error answering every larger size not cached:
-    /// no further buffer is exposed for a target that may be gone. One probe at a time in the process, so a second caller for the pair finds the first one's
+    /// A size no server serves is unsupported on its own. The rest go smallest first, so each
+    /// size's downloads are fitted to the rate of the one below it, and the first that fails ends
+    /// the probe, its error answering every larger size not cached: no further buffer is exposed
+    /// for a target that may be gone. One probe at a time in the process, so a second caller for the pair finds the first one's
     /// peaks whichever sessions it reaches the servers through.
     fn measure_between_servers(&self, sizes: &[u64]) -> Vec<Result<Peak, PeakError>> {
         let mut measured = measured();
         let ends = (link_end(&self.source.device), link_end(&self.target.device));
         let _order = session_order([&self.source.device, &self.target.device]);
-        let mut ascending = sizes.to_vec();
+        let mut peaks: HashMap<u64, Result<Peak, PeakError>> = sizes
+            .iter()
+            .filter(|bytes| !LinkPull::serves_bytes(**bytes))
+            .map(|bytes| (*bytes, Err(PeakError::Unsupported)))
+            .collect();
+        let mut ascending: Vec<u64> = sizes
+            .iter()
+            .copied()
+            .filter(|bytes| LinkPull::serves_bytes(*bytes))
+            .collect();
         ascending.sort_unstable();
         ascending.dedup();
         let mut below = None;
         let mut failed = None;
-        let mut peaks = HashMap::new();
         for bytes in ascending {
             let key = (ends.0.clone(), ends.1.clone(), bytes);
             let peak = match (measured.get(&key), failed) {

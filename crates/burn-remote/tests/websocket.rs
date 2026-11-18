@@ -472,6 +472,10 @@ fn a_link_between_two_servers_is_timed_at_each_size_asked() {
     );
     let reversed = device_1.measure_link(&device_2, &[4096, 1 << 20]);
     assert_eq!(reversed, [peaks[1], peaks[0]]);
+    // A size no server serves does not keep an uncached one from being measured.
+    let with_empty = device_1.measure_link(&device_2, &[0, 16 << 10]);
+    assert_eq!(with_empty[0], Err(burn_tensor::PeakError::Unsupported));
+    assert!(with_empty[1].is_ok(), "{with_empty:?}");
 
     rt.shutdown_background();
 }

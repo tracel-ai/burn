@@ -284,8 +284,12 @@ impl LinkPull {
     /// Whether a server serves this pull: no more than a client sends, and a warmup and one timed
     /// download at least.
     pub fn is_bounded(&self) -> bool {
-        (1..=Self::MAX_BYTES).contains(&self.bytes)
-            && (2..=Self::MAX_DOWNLOADS).contains(&self.downloads)
+        Self::serves_bytes(self.bytes) && (2..=Self::MAX_DOWNLOADS).contains(&self.downloads)
+    }
+
+    /// Whether a server serves a pull of `bytes`, whatever its downloads.
+    pub fn serves_bytes(bytes: u64) -> bool {
+        (1..=Self::MAX_BYTES).contains(&bytes)
     }
 }
 
