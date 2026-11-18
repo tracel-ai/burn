@@ -449,6 +449,54 @@ fn random_requests_keep_their_seeds_across_remote_reseeding() {
 }
 
 #[test]
+fn a_link_between_two_servers_is_timed_at_each_size() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host_1 = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let host_2 = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device_1 = Device::remote_options(&host_1).init().unwrap();
+    let device_2 = Device::remote_options(&host_2).init().unwrap();
+
+    let link = device_1.measure_link(&device_2).unwrap();
+
+    assert!(
+        link.windows(2).all(|pair| pair[0].bytes < pair[1].bytes),
+        "{link:?}"
+    );
+    assert!(link.iter().all(|point| point.per_second > 0.0), "{link:?}");
+    assert_eq!(device_1.measure_link(&device_2).unwrap(), link);
+
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_link_within_a_server_is_its_backends_to_answer() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default(), Default::default()]),
+    );
+    let device_0 = Device::remote_options(&host).init().unwrap();
+    let device_1 = Device::remote_options(&host)
+        .device_index(1)
+        .init()
+        .unwrap();
+
+    // Flex runs no link probe.
+    assert_eq!(
+        device_0.measure_link(&device_1),
+        Err(burn_tensor::PeakError::Unsupported)
+    );
+
+    rt.shutdown_background();
+}
+
+#[test]
 fn test_to_device_over_websocket() {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_io()

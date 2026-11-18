@@ -124,3 +124,13 @@ fn every_peak_key_is_answered_in_order() {
     assert_eq!(peaks.len(), keys.len());
     assert!(peaks[2].is_err(), "{peaks:?}");
 }
+
+#[test]
+fn a_device_has_no_link_to_itself() {
+    let device = Device::default();
+
+    assert_eq!(
+        device.measure_link(&device),
+        Err(burn_tensor::PeakError::Unsupported)
+    );
+}

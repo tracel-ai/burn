@@ -1,12 +1,15 @@
 use crate::execution::OPEN_MODES;
 use crate::{CubeDevice, tensor::CubeTensor};
 use burn_backend::RandomKey;
-use burn_backend::cubecl::{ThroughputKey, dtype_to_storage_type, measure_peak_throughput};
+use burn_backend::cubecl::{
+    LinkRoute, ThroughputKey, dtype_to_storage_type, measure_link_curve, measure_peak_throughput,
+    transfer_route,
+};
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceDescription,
     DeviceTelemetry, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-    MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
-    ProfileToken, SlicedPoolReport, TensorData, profile_with_tokens,
+    LinkPoint, MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration,
+    ProfileOptions, ProfileToken, SlicedPoolReport, TensorData, profile_with_tokens,
 };
 burn_std::native_persistence! {
     use burn_backend::{
@@ -443,6 +446,29 @@ impl Backend for CubeBackend {
                 Ok(Peak { per_second })
             })
             .collect()
+    }
+
+    /// Runs cubecl's link probe over the route a transfer between the two takes, at every size
+    /// it sweeps.
+    fn measure_link(from: &Self::Device, to: &Self::Device) -> Result<Vec<LinkPoint>, PeakError> {
+        if from == to {
+            return Err(PeakError::Unsupported);
+        }
+        let members = [from.client(), to.client()];
+        let route = LinkRoute::Transfer(transfer_route(&members[0], &members[1]));
+        let curve = measure_link_curve(&members, route);
+        if curve.points().is_empty() {
+            return Err(PeakError::Unsupported);
+        }
+        Ok(curve
+            .points()
+            .iter()
+            .map(|point| LinkPoint {
+                bytes: point.bytes,
+                per_second: point.value.ops_per_s(),
+                relative_std_dev: point.value.relative_std_dev(),
+            })
+            .collect())
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)

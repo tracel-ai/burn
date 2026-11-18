@@ -15,7 +15,9 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
 use super::profile::profile_unsupported;
-use super::{DeviceDescription, DeviceTelemetry, MemoryReport, Peak, PeakError, PeakKey};
+use super::{
+    DeviceDescription, DeviceTelemetry, LinkPoint, MemoryReport, Peak, PeakError, PeakKey,
+};
 use super::{
     EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
     PruneOptions, Pruned, SaveOptions,
@@ -191,6 +193,14 @@ pub trait Backend:
     #[allow(unused_variables)]
     fn measure_peaks(device: &Self::Device, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
         keys.iter().map(|_| Err(PeakError::Unsupported)).collect()
+    }
+
+    /// What the link from `from` to `to` delivers across transfer sizes, ascending, by moving
+    /// data from one to the other: or why the two have none. [Unsupported](PeakError::Unsupported)
+    /// by a backend that runs no link probe, and between a device and itself.
+    #[allow(unused_variables)]
+    fn measure_link(from: &Self::Device, to: &Self::Device) -> Result<Vec<LinkPoint>, PeakError> {
+        Err(PeakError::Unsupported)
     }
 
     /// Name of the backend.

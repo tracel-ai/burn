@@ -171,6 +171,11 @@ where
                 SessionServices {
                     transfer: self.transfer.clone(),
                     local_comm: self.local_comm.clone(),
+                    devices: self
+                        .devices
+                        .iter()
+                        .map(|hosted| hosted.device.clone())
+                        .collect(),
                     queries: self.queries.clone(),
                     probe: self.probe.clone(),
                 },

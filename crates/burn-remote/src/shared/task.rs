@@ -1,7 +1,7 @@
 use burn_backend::{
     DTypeUsageSet, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
     EnvironmentId, EnvironmentOrigin, EnvironmentSummary, ExecutionError, ExecutionMode,
-    ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
+    ExecutionModeToken, ExecutionStatistics, LinkPoint, MemoryReport, Peak, PeakError, PeakKey,
     ProfileOptions, ProfileToken, PruneOptions, Pruned, SaveOptions, TensorData,
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
@@ -25,7 +25,7 @@ use crate::{
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 14;
+pub const PROTOCOL_VERSION: u16 = 15;
 
 /// Routing id for a task whose result is fetched back.
 ///
@@ -266,6 +266,15 @@ pub struct TensorRemote {
     pub peer: PeerAddr,
 }
 
+/// One transfer size of a link probe between two servers: the source exposes a buffer of `bytes`
+/// under `capability` for the target to download `downloads` times.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct LinkPull {
+    pub bytes: u64,
+    pub downloads: u32,
+    pub capability: TransferCapability,
+}
+
 #[allow(missing_docs, clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Task {
@@ -434,6 +443,19 @@ pub enum Task {
     MeasureMemory(RequestId, StreamId),
     /// The peak throughput of the session's device for each key.
     MeasurePeaks(RequestId, Vec<PeakKey>),
+    /// What the link from the session's device to the device at this index of the same server
+    /// delivers.
+    MeasureLinkLocal(RequestId, u32),
+    /// Expose a buffer for each pull, for `target` to download as [`MeasureLinkPull`] asks.
+    ///
+    /// [`MeasureLinkPull`]: Task::MeasureLinkPull
+    ExposeLinkProbe {
+        target: PeerId,
+        pulls: Vec<LinkPull>,
+    },
+    /// What the link from the server at `PeerAddr` to the session's server delivers, timed by
+    /// downloading each pull its source exposed.
+    MeasureLinkPull(RequestId, PeerAddr, Vec<LinkPull>),
 }
 
 /// The id a server registers a device query under, and a client asks it by.
@@ -538,6 +560,9 @@ pub enum TaskResponseContent {
     Memory(Option<MemoryReport>),
     /// The answer to [`MeasurePeaks`](Task::MeasurePeaks), one per key in order.
     Peaks(Vec<Result<Peak, PeakError>>),
+    /// The answer to [`MeasureLinkLocal`](Task::MeasureLinkLocal) and
+    /// [`MeasureLinkPull`](Task::MeasureLinkPull).
+    Link(Result<Vec<LinkPoint>, PeakError>),
     /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init),
     /// before it closes the session.
     InitRefused(SessionRefusal),

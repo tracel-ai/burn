@@ -8,9 +8,9 @@ pub use burn_backend::cubecl::{
 };
 use burn_backend::{Backend, DeviceOps};
 pub use burn_backend::{
-    DeviceDescription, DeviceTelemetry, HardwareKind, MatmulTile, MemoryAccess, MemoryPoolUsage,
-    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileTicks,
-    SlicedPoolReport, TimingMethod,
+    DeviceDescription, DeviceTelemetry, HardwareKind, LinkPoint, MatmulTile, MemoryAccess,
+    MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
+    ProfileTicks, SlicedPoolReport, TimingMethod,
 };
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
@@ -828,6 +828,18 @@ impl Device {
     /// runs for a while, so measure once and keep the answer.
     pub fn measure_peaks(&self, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
         Dispatch::measure_peaks(self.as_dispatch(), keys)
+    }
+
+    /// What the link from this device to `to` delivers, in bytes per second, at each transfer size
+    /// a probe sweeps, ascending. The probe moves data between the two for a while, so measure
+    /// once and keep the answer.
+    ///
+    /// # Errors
+    ///
+    /// [`Unsupported`](PeakError::Unsupported) between a device and itself, between devices of two
+    /// backends, and from a backend that runs no link probe.
+    pub fn measure_link(&self, to: &Device) -> Result<Vec<LinkPoint>, PeakError> {
+        Dispatch::measure_link(self.as_dispatch(), to.as_dispatch())
     }
 
     /// Prepares the given data for transfer between the CPU and accelerator devices such as GPUs.

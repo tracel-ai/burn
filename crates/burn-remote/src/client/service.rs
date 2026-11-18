@@ -1,7 +1,7 @@
 use crate::{
     metrics::{MetricSide, TelemetryLogger, logger_task},
     shared::{
-        DeviceQueryId, Encode, LocalAllReducePart, LocalTransferId, PROTOCOL_VERSION,
+        DeviceQueryId, Encode, LinkPull, LocalAllReducePart, LocalTransferId, PROTOCOL_VERSION,
         RemoteMessage, RequestId, SessionId, SessionInfo, SessionInit, Task, TaskResponse,
         TaskResponseContent, TensorRemote, TransferCapability,
     },
@@ -14,7 +14,7 @@ use crate::{
 use burn_backend::{
     DTypeUsageSet, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
     EnvironmentId, EnvironmentOrigin, EnvironmentSummary, ExecutionError, ExecutionMode,
-    ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
+    ExecutionModeToken, ExecutionStatistics, LinkPoint, MemoryReport, Peak, PeakError, PeakKey,
     ProfileDuration, ProfileOptions, ProfileTicks, ProfileToken, PruneOptions, Pruned, SaveOptions,
     TensorData,
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
@@ -943,6 +943,31 @@ impl RemoteService {
         .unwrap_or_else(|| vec![Err(PeakError::Unsupported); count])
     }
 
+    /// What the link from the server's device to its device at `device_index` delivers;
+    /// unsupported when the server could not be asked.
+    pub fn measure_link_local(&mut self, device_index: u32) -> Result<Vec<LinkPoint>, PeakError> {
+        self.report(|id| Task::MeasureLinkLocal(id, device_index), link_answer)
+            .unwrap_or(Err(PeakError::Unsupported))
+    }
+
+    /// Expose a buffer per pull for `target` to download, sending it immediately so the target's
+    /// downloads find it.
+    pub fn expose_link_probe(&mut self, target: crate::PeerId, pulls: Vec<LinkPull>) {
+        self.submit_task(Task::ExposeLinkProbe { target, pulls });
+        self.send_batch();
+    }
+
+    /// What the link from `source`'s server to this one delivers, timed by downloading each pull;
+    /// unsupported when the server could not be asked.
+    pub fn measure_link_pull(
+        &mut self,
+        source: crate::PeerAddr,
+        pulls: Vec<LinkPull>,
+    ) -> Result<Vec<LinkPoint>, PeakError> {
+        self.report(|id| Task::MeasureLinkPull(id, source, pulls), link_answer)
+            .unwrap_or(Err(PeakError::Unsupported))
+    }
+
     /// Send a report request and wait on the server's answer, which `answer` takes out of the
     /// response. `None` when the server could not be asked, answered with another kind of
     /// response, or ended the session first: a report is not work, so an unreachable server
@@ -1309,6 +1334,13 @@ impl Drop for RemoteService {
             .as_mut()
             .expect("writer present (checked above)");
         writer.shutdown(&self.executor, Some(batch));
+    }
+}
+
+fn link_answer(answer: TaskResponseContent) -> Option<Result<Vec<LinkPoint>, PeakError>> {
+    match answer {
+        TaskResponseContent::Link(link) => Some(link),
+        _ => None,
     }
 }
 
