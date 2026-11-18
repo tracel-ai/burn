@@ -1,5 +1,5 @@
 mod base;
-pub(crate) mod tile;
+mod tile;
 
 /// Contains utilities for matmul operation
 pub mod utils;

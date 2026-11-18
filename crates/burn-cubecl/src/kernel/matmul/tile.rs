@@ -58,12 +58,11 @@ pub(crate) fn launch(
         lhs.client.clone(),
         CubeTuneId::new(&lhs.client, &lhs.device),
     );
-    let (lhs_meta, rhs_meta) = (lhs.meta.clone(), rhs.meta.clone());
     let lhs = call_input(lhs, [M, K], out_dtype).map_err(invalid)?;
     let rhs = call_input(rhs, [K, N], out_dtype).map_err(invalid)?;
     let problem = problem(
-        (&lhs_meta, lhs.tensor.kind()),
-        (&rhs_meta, rhs.tensor.kind()),
+        (&lhs.meta, lhs.tensor.kind()),
+        (&rhs.meta, rhs.tensor.kind()),
     )?;
     let plan = select(strategy, &problem, &hw, MatmulAutotuneGroups::default()).map_err(invalid)?;
     let call = MatmulCall {
@@ -81,7 +80,7 @@ pub(crate) fn launch(
 
 /// cubek's view of `lhs · rhs`, from each operand's logical extents: a storage-tiled operand's
 /// metadata shape is physical, its tiles counted as dims of their own.
-pub(crate) fn problem(
+fn problem(
     (lhs, lhs_kind): (&Metadata, OperandKind),
     (rhs, rhs_kind): (&Metadata, OperandKind),
 ) -> Result<MatmulProblem, MatmulSetupError> {
@@ -162,4 +161,25 @@ fn handle_of(tensor: CubeTensor) -> TensorHandle {
         strides,
         dtype_to_storage_type(tensor.dtype),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cubecl::zspace::Tiling;
+    use cubek::matmul::kernels::tune::MatmulAutotune;
+
+    /// Both autotunes compute a decode product alike, so only its routing shows the weight's
+    /// logical shape reached cubek.
+    #[test]
+    fn a_decode_product_against_a_tiled_weight_goes_to_the_few_rows_autotune() {
+        let input = Metadata::new([1, 256], [256, 1]);
+        // `[256, 512]` in `[32, 64]` tiles.
+        let weight = Metadata::new([8, 8, 32, 64], [16384, 2048, 64, 1])
+            .with_tiling(Tiling::new(&[2, 2]).unwrap())
+            .unwrap();
+        let problem = problem((&input, OperandKind::Float), (&weight, OperandKind::Float)).unwrap();
+        assert_eq!(problem.streamed_rows, Some(1));
+        assert_eq!(MatmulAutotune::new(&problem), MatmulAutotune::FewRows);
+    }
 }
