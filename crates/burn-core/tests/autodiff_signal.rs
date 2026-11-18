@@ -37,7 +37,7 @@ fn a_cut_signal_tracks_its_float_tensors_and_carries_the_rest() {
     let signal = encoded(&device);
     let mask = signal.mask.clone();
 
-    let cut = signal.detach_require_grad();
+    let cut = signal.detach_require_grad(&device);
     let grads = (cut.hidden.clone() * 2.0).sum().backward();
     let grad = cut.grad(&grads);
 
@@ -68,13 +68,15 @@ fn a_signal_weighs_each_float_tensor_by_its_gradient() {
 }
 
 #[test]
-fn a_tensor_made_without_autodiff_is_cut_into_a_tracked_one() {
-    let device = device();
+fn a_tensor_made_without_autodiff_is_cut_into_one_tracked_on_the_receiving_strategy() {
+    let device = device().gradient_checkpointing();
     let cut = Tensor::<2>::ones([2, 3], &Device::flex())
         .to_device(&device)
-        .detach_require_grad();
+        .detach_require_grad(&device);
 
-    let grads = (cut.clone() * 2.0).sum().backward();
+    let grads = (cut.clone() * Tensor::full([2, 3], 2.0, &device))
+        .sum()
+        .backward();
 
     AutodiffSignal::grad(&cut, &grads)
         .into_data()
@@ -82,6 +84,19 @@ fn a_tensor_made_without_autodiff_is_cut_into_a_tracked_one() {
             &Tensor::<2>::full([2, 3], 2.0, &device).into_data(),
             Tolerance::default(),
         );
+}
+
+#[test]
+fn an_unread_tensor_sends_back_zeros_any_sender_can_combine() {
+    let device = device().gradient_checkpointing();
+    let cut = Tensor::<2>::ones([2, 3], &device).detach_require_grad(&device);
+    let read = Tensor::<2>::ones([2, 3], &device).detach_require_grad(&device);
+
+    let grads = read.sum().backward();
+    let grad = AutodiffSignal::grad(&cut, &grads);
+
+    assert!(!grad.is_autodiff());
+    assert_eq!(grad.sum().into_scalar::<f32>(), 0.0);
 }
 
 #[test]

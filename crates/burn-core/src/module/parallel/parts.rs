@@ -147,6 +147,13 @@ pub struct InputPart<M: LayerParallelism> {
 }
 
 impl<M: LayerParallelism> InputPart<M> {
+    /// Where the part gives the hidden signal: its stage's device, or its own.
+    pub fn signal_device(&self) -> &Device {
+        self.stage
+            .as_ref()
+            .map_or(&self.device, |stage| &stage.device)
+    }
+
     /// The input layer on `input`, moved to its device first, then the stage if it holds one.
     pub fn forward(&self, input: InputSignal<M>) -> HiddenSignal<M> {
         let signal = self.layer.forward(input.to_device(&self.device));
@@ -190,6 +197,13 @@ pub struct OutputPart<M: LayerParallelism> {
 }
 
 impl<M: LayerParallelism> OutputPart<M> {
+    /// Where the part takes the hidden signal: its stage's device, or its own.
+    pub fn signal_device(&self) -> &Device {
+        self.stage
+            .as_ref()
+            .map_or(&self.device, |stage| &stage.device)
+    }
+
     /// The stage if it holds one, then the output layer, `signal` moved to its device first.
     pub fn forward(&self, signal: HiddenSignal<M>) -> OutputSignal<M> {
         let signal = match &self.stage {
