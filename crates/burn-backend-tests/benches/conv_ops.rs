@@ -239,6 +239,24 @@ macro_rules! bench_backend {
                     bencher
                         .bench_synced(|| module::conv1d(x.clone(), w.clone(), None, opts.clone()));
                 }
+
+                #[divan::bench]
+                fn conv1d_tcn_dilated_8x64x160_k5_d2(bencher: Bencher) {
+                    let x = make_input_1d(8, 64, 160);
+                    let w = make_kernel_1d(64, 64, 5);
+                    let opts = ConvOptions::new([1], [4], [2], 1);
+                    bencher
+                        .bench_synced(|| module::conv1d(x.clone(), w.clone(), None, opts.clone()));
+                }
+
+                #[divan::bench]
+                fn conv1d_wav2vec2_stride2_1x64x100_k3(bencher: Bencher) {
+                    let x = make_input_1d(1, 64, 100);
+                    let w = make_kernel_1d(32, 64, 3);
+                    let opts = ConvOptions::new([2], [0], [1], 1);
+                    bencher
+                        .bench_synced(|| module::conv1d(x.clone(), w.clone(), None, opts.clone()));
+                }
             }
 
             // Depthwise conv1d (groups == channels_in == channels_out).
