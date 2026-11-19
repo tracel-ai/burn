@@ -285,6 +285,9 @@ Reports also include the measured cost of a kernel launch.
   [#5970](https://github.com/tracel-ai/burn/pull/5970),
   [#5986](https://github.com/tracel-ai/burn/pull/5986))
 
+- Fusion autotune copies only the handles of the tensors its queue maps, not every live tensor's, so
+  a launch that is not yet tuned no longer costs a pass over every live handle.
+
 #### Graph capture
 
 - Add `CaptureScope::input`, `CaptureScope::complete_with`, and `Tensor::capture_id` helpers for

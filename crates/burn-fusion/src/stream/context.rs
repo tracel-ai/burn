@@ -30,9 +30,22 @@ impl<H: Clone> Context<H> {
     /// back. `HandleContainer::fork` clones the id→handle map; actual GPU buffers are
     /// refcounted so only the map itself is duplicated.
     pub fn fork(&self) -> Self {
+        self.with_handles(self.handles.fork())
+    }
+
+    /// [Fork](Self::fork) with only the handles of the tensors this context maps, the only ones
+    /// the work it was built for reaches.
+    pub fn fork_tensors(&self) -> Self {
+        self.with_handles(
+            self.handles
+                .fork_only(self.tensors.values().map(|tensor| &tensor.id)),
+        )
+    }
+
+    fn with_handles(&self, handles: HandleContainer<H>) -> Self {
         Self {
             tensors: self.tensors.clone(),
-            handles: self.handles.fork(),
+            handles,
             scalars: self.scalars.clone(),
             shapes_relative2global: self.shapes_relative2global.clone(),
             ranges: self.ranges.clone(),
@@ -1807,6 +1820,37 @@ mod tests {
 
         // But the original does NOT — isolation is the point of `fork()`.
         assert!(original.handles.get_handle_ref(&output_id).is_none());
+    }
+
+    #[test]
+    fn fork_tensors_keeps_the_handles_of_the_global_ids_it_maps() {
+        let mut original = make_test_context();
+        let relative = TensorId::new(0);
+        let global = TensorId::new(42);
+        original.tensors.insert(
+            relative,
+            TensorIr {
+                id: global,
+                shape: Shape::new([4, 4]),
+                status: TensorStatus::ReadOnly,
+                dtype: DType::F32,
+            },
+        );
+        original
+            .handles
+            .register_handle(relative, "relative_handle".to_string());
+        original
+            .handles
+            .register_handle(global, "global_handle".to_string());
+        original
+            .handles
+            .register_handle(TensorId::new(7), "unmapped_handle".to_string());
+
+        let fork = original.fork_tensors();
+
+        assert!(fork.handles.get_handle_ref(&global).is_some());
+        assert!(fork.handles.get_handle_ref(&relative).is_none());
+        assert!(fork.handles.get_handle_ref(&TensorId::new(7)).is_none());
     }
 
     #[test]

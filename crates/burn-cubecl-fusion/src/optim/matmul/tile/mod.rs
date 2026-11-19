@@ -115,9 +115,13 @@ pub(crate) fn execute(arg: MatmulOptimizationTuneArg, context: &mut Context<Cube
 /// The autotune is the one the unfused product races on, under the same device identity, so the
 /// fused product launches whichever routine the unfused one settled.
 fn elected<V: SinkLaunchVisitor>(call: &MatmulCall, visitor: V) -> Option<V::Output> {
+    let (lhs_shape, rhs_shape) = (
+        call.lhs.meta.logical_shape().ok()?,
+        call.rhs.meta.logical_shape().ok()?,
+    );
     let problem = MatmulProblem::new(
-        (call.lhs.meta.shape(), call.lhs.tensor.kind()),
-        (call.rhs.meta.shape(), call.rhs.tensor.kind()),
+        (&lhs_shape, call.lhs.tensor.kind()),
+        (&rhs_shape, call.rhs.tensor.kind()),
     );
     let autotune = measured_autotune(MatmulOpStrategy::Autotune, &problem, &call.hw)?;
     let (settings, _) = autotune.fastest_routine(call, MatmulAutotuneGroups::default())?;
