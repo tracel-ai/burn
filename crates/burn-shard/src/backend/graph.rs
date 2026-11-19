@@ -46,10 +46,12 @@ impl<B: BackendIr> MemberGraphs<B> {
     /// [`Backend::graph_end_run`](burn_backend::Backend::graph_end_run)), so the others' are
     /// ended too, and the work runs on every member again.
     pub fn end_run(&self, members: &[TensorInterpreter<B>]) -> Result<bool, ExecutionError> {
-        let settled = members.iter().fold(Ok(true), |settled, member| {
+        // Every member's run ends, whichever fails first: no short-circuit.
+        let mut settled = Ok(true);
+        for member in members {
             let answer = member.graph_end_run();
-            Ok(settled? & answer?)
-        });
+            settled = settled.and_then(|settled| Ok(settled & answer?));
+        }
         if settled.is_err() {
             stop_every(members);
         }

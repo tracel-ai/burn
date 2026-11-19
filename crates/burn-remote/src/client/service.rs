@@ -707,23 +707,13 @@ impl RemoteService {
     /// End one planning run of the work on `stream_id`, after every task sent before, and
     /// answer whether it settled.
     pub fn graph_end_run(&mut self, stream_id: StreamId) -> Result<bool, ExecutionError> {
-        #[cfg(not(target_family = "wasm"))]
-        {
-            let rx = self.submit_request(|id| Task::CaptureEndRun(id, stream_id));
-            match self.executor.block_on(rx) {
-                Ok(TaskResponseContent::CaptureEndRun(res)) => res,
-                Ok(other) => panic!("Invalid response for a planning run request: {other:?}"),
-                Err(_) => Err(self.session.unanswered()),
-            }
-        }
-        #[cfg(target_family = "wasm")]
-        {
-            let _ = stream_id;
-            Err(ExecutionError::with_context(
-                "a remote device cannot capture a graph from a browser thread, which cannot wait \
-                 on the server",
-            ))
-        }
+        self.capture_exchange(
+            |id| Task::CaptureEndRun(id, stream_id),
+            |content| match content {
+                TaskResponseContent::CaptureEndRun(res) => Ok(res),
+                other => Err(other),
+            },
+        )
     }
 
     /// Start recording the server backend's launches on `stream_id` into a graph, after every
@@ -760,18 +750,33 @@ impl RemoteService {
         &mut self,
         make_task: impl FnOnce(RequestId) -> Task,
     ) -> Result<(), ExecutionError> {
+        self.capture_exchange(make_task, |content| match content {
+            TaskResponseContent::Capture(res) => Ok(res),
+            other => Err(other),
+        })
+    }
+
+    /// Send the capture task `make_task` builds and wait for its answer, which `answer` takes out
+    /// of the response, or hands back when the response is not the one the task asked for.
+    fn capture_exchange<R>(
+        &mut self,
+        make_task: impl FnOnce(RequestId) -> Task,
+        answer: impl FnOnce(
+            TaskResponseContent,
+        ) -> Result<Result<R, ExecutionError>, TaskResponseContent>,
+    ) -> Result<R, ExecutionError> {
         #[cfg(not(target_family = "wasm"))]
         {
             let rx = self.submit_request(make_task);
-            match self.executor.block_on(rx) {
-                Ok(TaskResponseContent::Capture(res)) => res,
-                Ok(other) => panic!("Invalid response for a graph capture request: {other:?}"),
+            match self.executor.block_on(rx).map(answer) {
+                Ok(Ok(res)) => res,
+                Ok(Err(other)) => panic!("Invalid response for a graph capture request: {other:?}"),
                 Err(_) => Err(self.session.unanswered()),
             }
         }
         #[cfg(target_family = "wasm")]
         {
-            let _ = make_task;
+            let _ = (make_task, answer);
             Err(ExecutionError::with_context(
                 "a remote device cannot capture a graph from a browser thread, which cannot wait \
                  on the server",

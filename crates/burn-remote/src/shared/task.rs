@@ -31,8 +31,8 @@ pub const PROTOCOL_VERSION: u16 = 16;
 ///
 /// Only the result-producing tasks ([`Task::ReadTensors`], [`Task::SyncBackend`],
 /// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`], [`Task::CapturePrepare`],
-/// [`Task::CaptureEndRun`], [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`], the execution-mode,
-/// environment, description and measurement tasks) carry a
+/// [`Task::CaptureEndRun`], [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`],
+/// the execution-mode, environment, description and measurement tasks) carry a
 /// `RequestId`; the server echoes it on its [`TaskResponse`] so the client demultiplexes results
 /// back to the right pending callback. Fire-and-forget tasks have no id because no result ever
 /// comes back.
