@@ -503,6 +503,10 @@ whose tensors are split over `devices` (crate `burn-shard`).
   ([#6387](https://github.com/tracel-ai/burn/pull/6387))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- `repeat_dim` on a sharded compute device keeps a split of any dim other than the repeated one,
+  instead of gathering its input, so key heads split by member and repeated to the value heads
+  they serve stay on their member. ([#6559](https://github.com/tracel-ai/burn/pull/6559))
+
 - A quantized tensor splits over a sharded compute device, its codes and scales cut as they are,
   so a quantized model's weights split for tensor parallelism. A split must give every member whole
   quantization blocks, and whole packed words along the packed axis, which `from_shards` checks. **Breaking:**
