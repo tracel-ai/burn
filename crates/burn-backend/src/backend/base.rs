@@ -193,6 +193,19 @@ pub trait Backend:
         keys.iter().map(|_| Err(PeakError::Unsupported)).collect()
     }
 
+    /// The peak throughput of the link from `from` to `to` for each of `sizes`, in order, in bytes
+    /// per second when one transfer moves that many bytes: the peak, or why the link has none.
+    /// Every size is [unsupported](PeakError::Unsupported) by a backend that runs no link probe,
+    /// and between a device and itself.
+    #[allow(unused_variables)]
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
+    }
+
     /// Name of the backend.
     fn name(device: &Self::Device) -> String;
 

@@ -2610,6 +2610,11 @@ impl<B: BackendIr> TensorInterpreter<B> {
         B::measure_peaks(&self.device, keys)
     }
 
+    /// What the link from the interpreter's device to `to` delivers across transfer sizes.
+    pub fn measure_link(&self, to: &B::Device, sizes: &[u64]) -> Vec<Result<Peak, PeakError>> {
+        B::measure_link(&self.device, to, sizes)
+    }
+
     /// Prepare the backend for a graph capture.
     pub fn graph_prepare(&self) -> Result<(), ExecutionError> {
         B::graph_prepare(&self.device)

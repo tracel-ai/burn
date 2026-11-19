@@ -194,6 +194,14 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::measure_peaks(device, keys)
     }
 
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        B::measure_link(from, to, sizes)
+    }
+
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
     where
         Iter: Iterator<Item = &'a mut burn_backend::TensorData>,

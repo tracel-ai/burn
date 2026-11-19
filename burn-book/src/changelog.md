@@ -158,6 +158,13 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   backends without a reported capacity return `None`. ([#6250](https://github.com/tracel-ai/burn/pull/6250))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- `Device::measure_link(&to, &sizes)` measures the peak throughput of the link from one device to
+  another for each transfer size, as `measure_peaks` does for a device's own peaks. Two devices of
+  one server run their backend's link probe there; between two servers, the target times its
+  downloads from the source. `PeakError::Transfer` reports a transfer the probe lost.
+  ([#6551](https://github.com/tracel-ai/burn/pull/6551))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 #### Device transfers
 
 - Fix concurrent CUDA transfers between devices returning another transfer's data or deadlocking.

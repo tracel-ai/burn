@@ -222,6 +222,10 @@ impl RouterClient for RemoteClient {
             .unwrap_or_else(|_| vec![Err(PeakError::Unsupported); keys.len()])
     }
 
+    fn measure_link(&self, to: &RemoteDevice, sizes: &[u64]) -> Vec<Result<Peak, PeakError>> {
+        super::link::LinkProber::new(self, to).measure(sizes)
+    }
+
     fn graph_prepare(&self) -> Result<(), ExecutionError> {
         let stream_id = StreamId::current();
         self.call(move |s| s.graph_prepare(stream_id))
