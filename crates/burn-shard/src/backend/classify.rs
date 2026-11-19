@@ -112,6 +112,11 @@ impl<'a> OpClass<'a> {
             BaseOperationIr::AllDim(desc) | BaseOperationIr::AnyDim(desc) => {
                 Self::reduce_dim(desc, ReductionKind::Nonlinear)
             }
+            BaseOperationIr::RepeatDim(desc) => Self::of_kind(
+                OpKind::AlongDim { dim: desc.dim },
+                [&desc.tensor],
+                &desc.out,
+            ),
             BaseOperationIr::Flip(_)
             | BaseOperationIr::Unfold(_)
             | BaseOperationIr::Select(_)
@@ -120,7 +125,6 @@ impl<'a> OpClass<'a> {
             | BaseOperationIr::Scatter(_)
             | BaseOperationIr::ScatterNd(_)
             | BaseOperationIr::GatherNd(_)
-            | BaseOperationIr::RepeatDim(_)
             | BaseOperationIr::Empty(_)
             | BaseOperationIr::Ones(_)
             | BaseOperationIr::Zeros(_) => Self::Gathered,
