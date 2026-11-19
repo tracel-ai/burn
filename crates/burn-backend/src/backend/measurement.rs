@@ -93,6 +93,8 @@ pub enum PeakError {
     /// The probe did not run: it failed to compile or launch, or the device
     /// faulted under it.
     Launch,
+    /// A link probe's transfer between two devices failed.
+    Transfer,
 }
 
 impl core::fmt::Display for PeakError {
@@ -102,6 +104,7 @@ impl core::fmt::Display for PeakError {
             Self::NoTiming => "no timing",
             Self::Allocation => "allocation failed",
             Self::Launch => "launch failed",
+            Self::Transfer => "transfer failed",
         })
     }
 }

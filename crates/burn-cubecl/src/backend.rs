@@ -1,21 +1,25 @@
 use crate::execution::OPEN_MODES;
 use crate::{CubeDevice, tensor::CubeTensor};
 use burn_backend::RandomKey;
-use burn_backend::cubecl::{ThroughputKey, dtype_to_storage_type, measure_peak_throughput};
+use burn_backend::cubecl::{
+    LinkKey, LinkRoute, ThroughputKey, dtype_to_storage_type, measure_link_throughput,
+    measure_peak_throughput, transfer_route,
+};
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceDescription,
     DeviceTelemetry, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
     MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
     ProfileToken, SlicedPoolReport, TensorData, profile_with_tokens,
 };
-#[cfg(all(feature = "persistence", not(target_family = "wasm")))]
-use burn_backend::{
-    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, PruneOptions, Pruned,
-};
+burn_std::native_persistence! {
+    use burn_backend::{
+        EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
+        PruneOptions, Pruned, SaveOptions,
+    };
+    use cubecl::prune::Prune;
+}
 use burn_std::{BoolStore, DType, id::StreamId, quantization::quantizable};
 use cubecl::device::DeviceId;
-#[cfg(all(feature = "persistence", not(target_family = "wasm")))]
-use cubecl::prune::Prune;
 use cubecl::{
     MemoryPoolKind, MemoryScope,
     client::{Client, ProfileWindow},
@@ -233,70 +237,76 @@ impl Backend for CubeBackend {
         flushed.and(closed)
     }
 
-    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
-    fn environment_create(
-        _device: &Self::Device,
-        name: String,
-        origin: EnvironmentOrigin,
-    ) -> Result<EnvironmentId, EnvironmentError> {
-        Ok(EnvironmentId::create(&name, origin)?)
-    }
+    burn_std::native_persistence! {
+        fn environment_create(
+            _device: &Self::Device,
+            name: String,
+            origin: EnvironmentOrigin,
+        ) -> Result<EnvironmentId, EnvironmentError> {
+            Ok(EnvironmentId::create(&name, origin)?)
+        }
 
-    /// Activated for the whole process, as cubecl keeps one environment
-    /// active per process. The launches the calling stream's client still
-    /// buffers are flushed first, so they compile into the environment they
-    /// were issued in.
-    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
-    fn environment_activate(
-        device: &Self::Device,
-        id: EnvironmentId,
-    ) -> Result<EnvironmentId, EnvironmentError> {
-        device.client().flush().map_err(server_err)?;
-        Ok(id.activate()?)
-    }
+        /// Activated for the whole process, as cubecl keeps one environment
+        /// active per process. The launches the calling stream's client still
+        /// buffers are flushed first, so they compile into the environment they
+        /// were issued in.
+        fn environment_activate(
+            device: &Self::Device,
+            id: EnvironmentId,
+        ) -> Result<EnvironmentId, EnvironmentError> {
+            device.client().flush().map_err(server_err)?;
+            Ok(id.activate()?)
+        }
 
-    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
-    fn environment_active(_device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
-        Ok(EnvironmentId::active())
-    }
+        fn environment_active(_device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
+            Ok(EnvironmentId::active())
+        }
 
-    /// The launches the calling stream's client still buffers are flushed
-    /// first, so what they compile is saved with the rest.
-    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
-    fn environment_save(
-        device: &Self::Device,
-        id: EnvironmentId,
-    ) -> Result<EnvironmentBundle, EnvironmentError> {
-        device.client().flush().map_err(server_err)?;
-        Ok(id.save(burn_std::environment::SaveOptions::new())?)
-    }
+        /// The launches the calling stream's client still buffers are flushed
+        /// first, so what they compile is saved with the rest.
+        fn environment_save(
+            device: &Self::Device,
+            id: EnvironmentId,
+            options: SaveOptions,
+        ) -> Result<EnvironmentBundle, EnvironmentError> {
+            device.client().flush().map_err(server_err)?;
+            Ok(id.save(options)?)
+        }
 
-    /// The launches the calling stream's client still buffers are flushed
-    /// first, so they compile into the environment as it was before the
-    /// merge.
-    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
-    fn environment_merge(
-        device: &Self::Device,
-        id: EnvironmentId,
-        origin: EnvironmentOrigin,
-    ) -> Result<(), EnvironmentError> {
-        device.client().flush().map_err(server_err)?;
-        Ok(id.merge(origin)?)
-    }
+        /// Counted from the storage as it stands: nothing is flushed, so a count
+        /// asked while the work runs never waits on it.
+        fn environment_summary(
+            _device: &Self::Device,
+            id: EnvironmentId,
+        ) -> Result<EnvironmentSummary, EnvironmentError> {
+            Ok(id.summary()?)
+        }
 
-    /// The kernels a compile-only pass queued are compiled and the launches
-    /// the calling stream's client still buffers flushed first, so what they
-    /// compile is pruned or kept with the rest rather than stored after it.
-    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
-    fn environment_prune(
-        device: &Self::Device,
-        id: EnvironmentId,
-        options: PruneOptions,
-    ) -> Result<Pruned, EnvironmentError> {
-        let client = device.client();
-        client.compile_queued();
-        client.flush().map_err(server_err)?;
-        Ok(id.prune(options)?)
+        /// The launches the calling stream's client still buffers are flushed
+        /// first, so they compile into the environment as it was before the
+        /// merge.
+        fn environment_merge(
+            device: &Self::Device,
+            id: EnvironmentId,
+            origin: EnvironmentOrigin,
+        ) -> Result<(), EnvironmentError> {
+            device.client().flush().map_err(server_err)?;
+            Ok(id.merge(origin)?)
+        }
+
+        /// The kernels a compile-only pass queued are compiled and the launches
+        /// the calling stream's client still buffers flushed first, so what they
+        /// compile is pruned or kept with the rest rather than stored after it.
+        fn environment_prune(
+            device: &Self::Device,
+            id: EnvironmentId,
+            options: PruneOptions,
+        ) -> Result<Pruned, EnvironmentError> {
+            let client = device.client();
+            client.compile_queued();
+            client.flush().map_err(server_err)?;
+            Ok(id.prune(options)?)
+        }
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
@@ -434,6 +444,32 @@ impl Backend for CubeBackend {
                     _ => value.ops_per_s(),
                 };
                 Ok(Peak { per_second })
+            })
+            .collect()
+    }
+
+    /// Runs cubecl's link probe over the route a transfer between the two takes.
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        if from == to {
+            return sizes.iter().map(|_| Err(PeakError::Unsupported)).collect();
+        }
+        let members = [from.client(), to.client()];
+        let route = LinkRoute::Transfer(transfer_route(&members[0], &members[1]));
+        sizes
+            .iter()
+            .map(|&bytes| {
+                // cubecl's probe sizes its buffers in `usize`, which a 32-bit target would wrap.
+                if usize::try_from(bytes).is_err() {
+                    return Err(PeakError::Unsupported);
+                }
+                let value = measure_link_throughput(&members, LinkKey { route, bytes })?;
+                Ok(Peak {
+                    per_second: value.ops_per_s(),
+                })
             })
             .collect()
     }

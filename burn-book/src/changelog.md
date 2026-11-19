@@ -88,8 +88,25 @@ and saved on any device that reaches its storage, a remote server's included.
   `PruneOptions::records` does not keep (`RecordPruning::RemoveAll` by default). Every kernel the
   work loaded stays, with the autotune answers; prune from the executable that runs the
   environment. A remote device prunes on its server, so remote clients and servers must be
-  upgraded together (protocol version 13).
+  upgraded together (protocol version 14).
   ([#6472](https://github.com/tracel-ai/burn/pull/6472))
+- A saved `EnvironmentBundle` says what it is without being loaded, through `ReadBundle` (with the
+  `persistence` feature): `EnvironmentBundle::read` opens a saved file and holds it, and
+  `describe` reads, in one opening of the file, a `BundleDescription` of its name, when it was
+  saved, the `BuildStamp` of the executable that saved it (compared with `BuildStamp::current()`)
+  and an `EnvironmentSummary` of its kernels, autotune answers and records; `name`, `saved_at`,
+  `saved_by` and `summary` are views of it. Each fails with `EnvironmentError`, never a panic.
+  `ComputeEnvironment::save_named` names the bundle, and `ComputeEnvironment::summary` counts an
+  environment as it stands, without saving it and without waiting on queued work: work not yet
+  executed is not counted, and an environment keeps every autotune answer, so one to a candidate
+  list no tuner runs any more still counts. The `persistence` feature of `burn-tensor` now links
+  the environment database engine on its own.
+  **Breaking:** `Backend::environment_save` takes `SaveOptions`, and backends gain
+  `environment_summary`; `SaveOptions` and `PruneOptions` are non-exhaustive, built with `new()`
+  and a setter per option. A remote device saves and counts on its server, so remote clients and
+  servers must be upgraded together (protocol version 14).
+  ([#6485](https://github.com/tracel-ai/burn/pull/6485),
+  [CubeCL #2144](https://github.com/tracel-ai/cubecl/pull/2144))
 
 #### CubeK tile kernels
 
@@ -139,6 +156,13 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
 - Report the runtime-stated capacity in bytes for workload sizing, now
   `Device::description()`'s `max_memory`. The value is distinct from currently free memory;
   backends without a reported capacity return `None`. ([#6250](https://github.com/tracel-ai/burn/pull/6250))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- `Device::measure_link(&to, &sizes)` measures the peak throughput of the link from one device to
+  another for each transfer size, as `measure_peaks` does for a device's own peaks. Two devices of
+  one server run their backend's link probe there; between two servers, the target times its
+  downloads from the source. `PeakError::Transfer` reports a transfer the probe lost.
+  ([#6551](https://github.com/tracel-ai/burn/pull/6551))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Device transfers
@@ -578,7 +602,7 @@ Backend implementors must provide `Backend::next_random_key` and accept a `Rando
 implicit generator. `Tensor::random` and `random_like` reserve keys at the tensor bridge;
 direct backend callers must supply a key. Use `RandomKey::split` to derive child keys.
 Router clients must also implement `next_random_key`; random-operation IR now carries a key
-scalar, so remote clients and servers must be upgraded together (protocol version 13).
+scalar, so remote clients and servers must be upgraded together (protocol version 14).
 Remote clients reserve keys locally without waiting for queued service work.
 
 Capture preserves explicit backend keys. Implicit random operations (`Tensor::random` and
@@ -751,7 +775,7 @@ backends do). Autodiff composes it from tensor operations.
 **Breaking:** `attention` and `ModuleOps::attention` take the cache as a new argument before
 `options`; pass `None` for an attention over the key and value as given. `AttentionOpIr` gains
 `lengths` and `pages`, so remote clients and servers must be upgraded together (protocol
-version 13).
+version 14).
 
 #### Config derivation
 

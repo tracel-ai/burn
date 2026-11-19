@@ -12,6 +12,7 @@ mod capture;
 mod device_query;
 mod error;
 mod execution;
+mod link_probe;
 mod logging;
 mod settings;
 mod streams;

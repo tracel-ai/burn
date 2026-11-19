@@ -15,8 +15,9 @@ use burn_backend::distributed::{DistributedParamId, DistributedParams};
 use burn_backend::{
     AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, DeviceDescription,
     DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
-    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
-    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
+    EnvironmentSummary, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
+    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
+    PruneOptions, Pruned, SaveOptions,
 };
 
 /// A captured graph from one of the dispatched backends (see
@@ -264,8 +265,16 @@ impl Backend for Dispatch {
     fn environment_save(
         device: &Self::Device,
         id: EnvironmentId,
+        options: SaveOptions,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
-        dispatch_device!(device, |device| B::environment_save(device, id))
+        dispatch_device!(device, |device| B::environment_save(device, id, options))
+    }
+
+    fn environment_summary(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentSummary, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_summary(device, id))
     }
 
     fn environment_merge(
@@ -365,6 +374,20 @@ impl Backend for Dispatch {
 
     fn measure_peaks(device: &Self::Device, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
         dispatch_device!(device, |device| B::measure_peaks(device, keys))
+    }
+
+    /// Unsupported between devices of two backends: no backend moves data across that link.
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        dispatch_device_pair!(
+            measured(from),
+            measured(to),
+            |from, to| B::measure_link(from, to, sizes),
+            sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
+        )
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
@@ -1294,4 +1317,13 @@ pub(crate) fn cube_devices(runtime: RuntimeId) -> Vec<CubeDevice> {
         .into_iter()
         .filter(|device| device.runtime() == runtime)
         .collect()
+}
+
+/// The device under an autodiff wrapper, which a measurement of the device itself runs on.
+fn measured(device: &DispatchDevice) -> &DispatchDevice {
+    match device {
+        #[cfg(feature = "autodiff")]
+        DispatchDevice::Autodiff(inner) => &inner.inner,
+        other => other,
+    }
 }

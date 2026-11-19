@@ -1,8 +1,8 @@
 use burn_backend::{
     DTypeUsageSet, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
-    EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken,
-    ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey, ProfileOptions, ProfileToken,
-    PruneOptions, Pruned, TensorData,
+    EnvironmentId, EnvironmentOrigin, EnvironmentSummary, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
+    ProfileOptions, ProfileToken, PruneOptions, Pruned, SaveOptions, TensorData,
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
@@ -25,7 +25,7 @@ use crate::{
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 13;
+pub const PROTOCOL_VERSION: u16 = 15;
 
 /// Routing id for a task whose result is fetched back.
 ///
@@ -111,7 +111,7 @@ impl LocalAllReducePart {
 pub struct TransferCapability([u8; 32]);
 
 impl TransferCapability {
-    #[cfg(feature = "client")]
+    #[cfg(any(feature = "client", test))]
     pub fn random() -> Self {
         Self(rand::random())
     }
@@ -266,6 +266,33 @@ pub struct TensorRemote {
     pub peer: PeerAddr,
 }
 
+/// One transfer size of a link probe between two servers: the source exposes a buffer of `bytes`
+/// under `capability` for the target to download up to `downloads` times.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct LinkPull {
+    pub bytes: u64,
+    pub downloads: u32,
+    pub capability: TransferCapability,
+}
+
+impl LinkPull {
+    /// The largest buffer a server exposes for a link probe.
+    pub const MAX_BYTES: u64 = 64 << 20;
+    /// The most downloads a target makes of one size, the first of which is not timed.
+    pub const MAX_DOWNLOADS: u32 = 11;
+
+    /// Whether a server serves this pull: no more than a client sends, and a warmup and one timed
+    /// download at least.
+    pub fn is_bounded(&self) -> bool {
+        Self::serves_bytes(self.bytes) && (2..=Self::MAX_DOWNLOADS).contains(&self.downloads)
+    }
+
+    /// Whether a server serves a pull of `bytes`, whatever its downloads.
+    pub fn serves_bytes(bytes: u64) -> bool {
+        (1..=Self::MAX_BYTES).contains(&bytes)
+    }
+}
+
 #[allow(missing_docs, clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Task {
@@ -416,7 +443,9 @@ pub enum Task {
     /// The environment of the server's backend.
     EnvironmentActive(RequestId),
     /// Serialize an environment where `stream_id` stands, after every earlier task.
-    EnvironmentSave(RequestId, StreamId, EnvironmentId),
+    EnvironmentSave(RequestId, StreamId, EnvironmentId, SaveOptions),
+    /// Count what an environment of the server's backend holds as it stands.
+    EnvironmentSummarize(RequestId, EnvironmentId),
     /// Bring what the origin holds into an environment where `stream_id` stands, after every
     /// earlier task.
     EnvironmentMerge(RequestId, StreamId, EnvironmentId, EnvironmentOrigin),
@@ -432,6 +461,18 @@ pub enum Task {
     MeasureMemory(RequestId, StreamId),
     /// The peak throughput of the session's device for each key.
     MeasurePeaks(RequestId, Vec<PeakKey>),
+    /// Grant the session's device to the same-server link probe that presents the capability.
+    GrantLink(RequestId, TransferCapability),
+    /// The peak throughput of the link from the session's device to the device another session of
+    /// the same server granted under the capability, for each size in bytes.
+    MeasureLinkLocal(RequestId, TransferCapability, Vec<u64>),
+    /// Expose the pull's buffer for `PeerId` to download, answering once it is exposed.
+    ExposeLinkPull(RequestId, PeerId, LinkPull),
+    /// What the link from the server at `PeerAddr` to the session's server delivers at the pull's
+    /// size, timed by downloading the buffer its source exposed.
+    MeasureLinkPull(RequestId, PeerAddr, LinkPull),
+    /// Stop serving the pull's buffer, whatever downloads it has left.
+    WithdrawLinkPull(TransferCapability),
 }
 
 /// The id a server registers a device query under, and a client asks it by.
@@ -526,6 +567,8 @@ pub enum TaskResponseContent {
     EnvironmentMerged(Result<(), EnvironmentError>),
     /// The answer to [`EnvironmentPrune`](Task::EnvironmentPrune).
     EnvironmentPruned(Result<Pruned, EnvironmentError>),
+    /// The answer to [`EnvironmentSummary`](Task::EnvironmentSummarize).
+    EnvironmentSummarized(Result<EnvironmentSummary, EnvironmentError>),
     /// The answer to [`DeviceDescription`](Task::DeviceDescription).
     DeviceDescription(Option<DeviceDescription>),
     /// The answer to [`MeasureTelemetry`](Task::MeasureTelemetry).
@@ -534,6 +577,14 @@ pub enum TaskResponseContent {
     Memory(Option<MemoryReport>),
     /// The answer to [`MeasurePeaks`](Task::MeasurePeaks), one per key in order.
     Peaks(Vec<Result<Peak, PeakError>>),
+    /// The answer to [`GrantLink`](Task::GrantLink), once the grant is registered.
+    LinkGranted,
+    /// The answer to [`MeasureLinkLocal`](Task::MeasureLinkLocal), one per size in order.
+    Link(Vec<Result<Peak, PeakError>>),
+    /// The answer to [`ExposeLinkPull`](Task::ExposeLinkPull): whether the buffer is exposed.
+    LinkExposed(bool),
+    /// The answer to [`MeasureLinkPull`](Task::MeasureLinkPull).
+    LinkPulled(Result<Peak, PeakError>),
     /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init),
     /// before it closes the session.
     InitRefused(SessionRefusal),
@@ -542,6 +593,21 @@ pub enum TaskResponseContent {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_pull_past_what_a_client_sends_is_not_served() {
+        let pull = |bytes, downloads| LinkPull {
+            bytes,
+            downloads,
+            capability: TransferCapability([0; 32]),
+        };
+
+        assert!(pull(LinkPull::MAX_BYTES, LinkPull::MAX_DOWNLOADS).is_bounded());
+        assert!(!pull(LinkPull::MAX_BYTES + 1, 2).is_bounded());
+        assert!(!pull(4096, LinkPull::MAX_DOWNLOADS + 1).is_bounded());
+        assert!(!pull(0, 2).is_bounded());
+        assert!(!pull(4096, 1).is_bounded());
+    }
 
     #[test]
     fn an_incompatible_protocol_refusal_keeps_its_wire_encoding() {

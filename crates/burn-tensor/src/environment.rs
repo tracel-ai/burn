@@ -1,10 +1,11 @@
 pub use burn_backend::{
-    EnvironmentBundle, EnvironmentError, PruneOptions, PruneTally, Pruned, RecordPruning,
+    BuildStamp, EnvironmentBundle, EnvironmentError, EnvironmentSummary, PruneOptions, PruneTally,
+    Pruned, RecordPruning,
 };
 
 use crate::Device;
 use alloc::string::String;
-use burn_backend::{Backend, EnvironmentId, EnvironmentOrigin};
+use burn_backend::{Backend, EnvironmentId, EnvironmentOrigin, SaveOptions};
 use burn_dispatch::Dispatch;
 
 /// A compute environment: the compiled kernels and autotune answers the work
@@ -27,12 +28,15 @@ use burn_dispatch::Dispatch;
 /// // ... compile-only and tune passes ...
 /// // Keep the kernels the work loaded; drop those only an autotune race loaded.
 /// built.prune(PruneOptions::default())?;
-/// std::fs::write(path, &*built.save()?.bytes)?;
+/// std::fs::write(path, &*built.save_named("model on this device")?.bytes)?;
 /// previous.activate(&device)?;
 ///
-/// // Later, or elsewhere: run in what the build kept.
-/// let bundle = EnvironmentBundle { bytes: Bytes::from_bytes_vec(std::fs::read(path)?) };
-/// ComputeEnvironment::load(&device, "model", bundle.clone())?.activate(&device)?;
+/// // Later, or elsewhere: run in what the build kept, if this executable built it.
+/// // Reading a saved bundle's file takes `ReadBundle`, with the `persistence` feature.
+/// let bundle = EnvironmentBundle::read(path)?;
+/// if bundle.describe()?.saved_by == Some(BuildStamp::current()) {
+///     ComputeEnvironment::load(&device, "model", bundle.clone())?.activate(&device)?;
+/// }
 ///
 /// // Or run in what it kept beside what the application already holds.
 /// ComputeEnvironment::active(&device)?.merge_bundle(bundle)?;
@@ -120,13 +124,41 @@ impl ComputeEnvironment {
     }
 
     /// Serialize the environment whole, every device's entries in it, after
-    /// every operation registered so far on the calling stream.
+    /// every operation registered so far on the calling stream. The bundle
+    /// carries the environment's name and the [stamp](BuildStamp) of the
+    /// executable that saved it, the server's for a remote device.
     ///
     /// # Errors
     ///
     /// The storage refused the read, or the device could not be reached.
     pub fn save(&self) -> Result<EnvironmentBundle, EnvironmentError> {
-        Dispatch::environment_save(self.home.as_dispatch(), self.id.clone())
+        self.save_with(SaveOptions::new())
+    }
+
+    /// [Save](Self::save) the environment into a bundle whose manifest calls
+    /// it `name`, for a person reading the bundle back (`ReadBundle::name`,
+    /// with the `persistence` feature).
+    ///
+    /// # Errors
+    ///
+    /// As [`save`](Self::save).
+    pub fn save_named(
+        &self,
+        name: impl Into<String>,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        self.save_with(SaveOptions::new().name(name))
+    }
+
+    /// What the environment holds now, counted, without saving it and
+    /// without waiting on the operations registered before: cheap enough to
+    /// ask after every step of a build.
+    ///
+    /// # Errors
+    ///
+    /// The device keeps no compute environment, the storage refused the
+    /// read, or the device could not be reached.
+    pub fn summary(&self) -> Result<EnvironmentSummary, EnvironmentError> {
+        Dispatch::environment_summary(self.home.as_dispatch(), self.id.clone())
     }
 
     /// Bring what `other` holds now into this environment, after every
@@ -184,6 +216,10 @@ impl ComputeEnvironment {
     /// The environment's name in the storage it lives in.
     pub fn name(&self) -> &str {
         &self.id.name
+    }
+
+    fn save_with(&self, options: SaveOptions) -> Result<EnvironmentBundle, EnvironmentError> {
+        Dispatch::environment_save(self.home.as_dispatch(), self.id.clone(), options)
     }
 
     fn merge_from(&self, origin: EnvironmentOrigin) -> Result<(), EnvironmentError> {
