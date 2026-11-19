@@ -27,14 +27,17 @@ fn scales_region_len(total: usize, scheme: &QuantScheme) -> usize {
         .expect("quantized tensor data is shorter than the scheme's global scale")
 }
 
-/// Create a quantized tensor with packed values (u32).
-fn new_qtensor_optimized(
+/// A quantized tensor copied from `data`, its rows padded to whole vector loads only
+/// ([`MemoryLayoutStrategy::LoadAligned`]). What a load copies is a weight, whose packed rows
+/// are a few hundred bytes: [`Optimized`](MemoryLayoutStrategy::Optimized) pads each to the
+/// power of two above it, up to 512 bytes on CUDA, which no kernel reads.
+fn new_qtensor_load_aligned(
     data: Bytes,
     shape: impl Into<Shape>,
     scheme: QuantScheme,
     device: &CubeDevice,
 ) -> CubeTensor {
-    new_qtensor(data, shape, scheme, device, MemoryLayoutStrategy::Optimized)
+    new_qtensor(data, shape, scheme, device, MemoryLayoutStrategy::LoadAligned)
 }
 
 /// Create a quantized tensor with packed values (u32).
@@ -261,7 +264,7 @@ impl QTensorOps<Self> for CubeBackend {
                     // TensorData quantized representation is the same, with multiple quantized values
                     // packed into u32 and quantization parameters appended to the bytes
                     let (bytes, shape, _) = data.into_parts();
-                    new_qtensor_optimized(bytes, shape, scheme, device)
+                    new_qtensor_load_aligned(bytes, shape, scheme, device)
                 }
                 QuantScheme {
                     mode: QuantMode::Lookup,
