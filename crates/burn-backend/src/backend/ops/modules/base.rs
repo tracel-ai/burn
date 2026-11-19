@@ -1097,8 +1097,8 @@ pub trait ModuleOps<B: Backend> {
         options: AttentionModuleOptions,
     ) -> FloatTensor<B>;
 
-    /// Returns `true` if this backend implements
-    /// [attention_backward](ModuleOps::attention_backward) natively.
+    /// Returns `true` if an explicit [attention_backward](ModuleOps::attention_backward) is
+    /// available: this backend's native kernel or the default composition.
     ///
     /// Autodiff queries this flag, for an attention with no mask and no additive bias, to decide
     /// between two paths:
@@ -1108,7 +1108,9 @@ pub trait ModuleOps<B: Backend> {
     /// - `false`: autodiff differentiates the decomposed
     ///   [attention_fallback](attention::attention_fallback).
     ///
-    /// Backends that override `attention_backward` must also override this to return `true`.
+    /// Backends that override `attention_backward` return `true`. A decorator that cannot know
+    /// statically which backend answers, such as Dispatch or Router, also returns `true`: its
+    /// `attention_backward` forwards to that backend's kernel or to the default composition.
     fn has_attention_backward() -> bool {
         false
     }
@@ -1223,8 +1225,8 @@ pub trait ModuleOps<B: Backend> {
         ctc::ctc_loss_default::<B>(log_probs, targets, input_lengths, target_lengths, blank)
     }
 
-    /// Returns `true` if this backend implements [ctc_loss_backward](ModuleOps::ctc_loss_backward)
-    /// natively.
+    /// Returns `true` if an explicit [ctc_loss_backward](ModuleOps::ctc_loss_backward) is
+    /// available: this backend's native kernel or the default composition.
     ///
     /// Autodiff queries this flag to decide between two paths:
     /// - `true`: use the backend's [ctc_loss](ModuleOps::ctc_loss) and
@@ -1232,8 +1234,9 @@ pub trait ModuleOps<B: Backend> {
     /// - `false`: call [ctc::ctc_loss_default] for the forward pass; autodiff
     ///   then differentiates through the decomposed tensor ops.
     ///
-    /// Backends that override `ctc_loss_backward` must also override this to
-    /// return `true`.
+    /// Backends that override `ctc_loss_backward` return `true`. A decorator that cannot know
+    /// statically which backend answers, such as Dispatch or Router, also returns `true`: its
+    /// `ctc_loss_backward` forwards to that backend's kernel or to the default composition.
     fn has_ctc_loss_backward() -> bool {
         false
     }
@@ -1241,9 +1244,10 @@ pub trait ModuleOps<B: Backend> {
     /// Backward pass for [ctc_loss](ModuleOps::ctc_loss): gradient w.r.t. `log_probs`.
     ///
     /// Autodiff only calls it when [has_ctc_loss_backward](ModuleOps::has_ctc_loss_backward)
-    /// returns `true`. Backends without a native implementation should leave
-    /// both methods at their defaults; the gradient is computed automatically by
-    /// autodiff against the decomposed [ctc::ctc_loss_default] forward.
+    /// returns `true`. Backends without a native implementation can leave
+    /// both methods at their defaults; the default below still gives a valid
+    /// gradient, though such backends normally return `false` so autodiff
+    /// differentiates the decomposed [ctc::ctc_loss_default] forward instead.
     ///
     /// The default composes the gradient from tensor operations
     /// ([ctc::ctc_loss_backward_default]). It serves callers that hold no autodiff

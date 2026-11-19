@@ -83,8 +83,8 @@ fn all_tensorless_input_panics() {
 #[cfg(feature = "autodiff")]
 mod associated_integer_output {
     use super::*;
-    use burn::backend::Autodiff;
     use burn::backend::autodiff::checkpoint::strategy::CheckpointStrategy;
+    use burn::backend::{Autodiff, Backend};
 
     #[backend_extension(Autodiff, Flex)]
     trait AssociatedBackend: burn::backend::Backend {
@@ -99,7 +99,7 @@ mod associated_integer_output {
 
     // Required for the statically generated float-input route, even though this operation has no
     // float input and therefore executes the concrete implementation at runtime.
-    impl<C: CheckpointStrategy> AssociatedBackend for Autodiff<Flex, C> {
+    impl<B: Backend, C: CheckpointStrategy> AssociatedBackend for Autodiff<B, C> {
         fn int_to_float(x: IntTensor<Self>) -> FloatTensor<Self> {
             Self::int_into_float(x, FloatDType::F32)
         }
@@ -182,7 +182,7 @@ mod checkpoint_strategy_routing {
         }
     }
 
-    impl<C: CheckpointStrategy> StrategyBackend for Autodiff<Flex, C> {
+    impl<B: Backend, C: CheckpointStrategy> StrategyBackend for Autodiff<B, C> {
         fn identity(x: FloatTensor<Self>) -> FloatTensor<Self> {
             let selected = if TypeId::of::<C>() == TypeId::of::<BalancedCheckpointing>() {
                 2
@@ -243,7 +243,7 @@ mod extension_context_contract {
     use super::*;
     use burn::backend::autodiff::checkpoint::strategy::CheckpointStrategy;
     use burn::backend::{
-        Autodiff, Backend, BackendTensor, DispatchAutodiffContext, DispatchTensor,
+        Autodiff, AutodiffBackend, Backend, BackendTensor, DispatchAutodiffContext, DispatchTensor,
         DispatchTensorKind, GradientCheckpointingStrategy,
     };
     use core::sync::atomic::{AtomicBool, Ordering};
@@ -342,7 +342,7 @@ mod extension_context_contract {
         }
     }
 
-    impl<C: CheckpointStrategy> ContextBackend for Autodiff<Flex, C> {
+    impl<B: Backend, C: CheckpointStrategy> ContextBackend for Autodiff<B, C> {
         fn select(inputs: NestedInputs<Self>) -> IntTensor<Self> {
             inputs.pair.left
         }
@@ -438,6 +438,29 @@ mod extension_context_contract {
             output.device().gradient_checkpointing_strategy(),
             autodiff_device.gradient_checkpointing_strategy()
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "an autodiff float primitive must have an enabled autodiff context")]
+    fn tracked_field_with_disabled_context_panics() {
+        let tracked = Tensor::<1>::from_floats([1.0], &Device::flex().autodiff())
+            .require_grad()
+            .into_dispatch();
+        // An autodiff primitive whose context says it is not autodiff-associated.
+        let malformed = DispatchTensor {
+            kind: DispatchTensorKind::Autodiff(Box::new(
+                <Autodiff<Dispatch> as AutodiffBackend>::from_inner(
+                    Tensor::<1>::from_floats([2.0], &Device::flex()).into_dispatch(),
+                ),
+            )),
+            autodiff: DispatchAutodiffContext::Disabled,
+        };
+
+        let _ = <Dispatch as ContextBackend>::mixed_route(MixedRouteInputs {
+            first: tracked,
+            second: malformed,
+            indices: Tensor::<1, Int>::from_ints([0], &Device::flex()).into_dispatch(),
+        });
     }
 
     #[test]
@@ -537,7 +560,7 @@ mod autodiff_gradients {
     }
 
     // Autodiff: register the backward step over the struct's two tracked float fields.
-    impl<C: CheckpointStrategy> GradBackend for Autodiff<Flex, C> {
+    impl<B: Backend, C: CheckpointStrategy> GradBackend for Autodiff<B, C> {
         fn mul_pair(p: FloatPair<Self>) -> FloatTensor<Self> {
             #[derive(Debug)]
             struct MulPairBackward;
@@ -573,11 +596,11 @@ mod autodiff_gradients {
                 OpsKind::Tracked(prep) => {
                     let x = p.x.primitive().clone();
                     let y = p.y.primitive().clone();
-                    let output = Flex::float_mul(x.clone(), y.clone());
+                    let output = B::float_mul(x.clone(), y.clone());
                     prep.finish((x, y), output)
                 }
                 OpsKind::UnTracked(prep) => {
-                    prep.finish(Flex::float_mul(p.x.into_primitive(), p.y.into_primitive()))
+                    prep.finish(B::float_mul(p.x.into_primitive(), p.y.into_primitive()))
                 }
             }
         }

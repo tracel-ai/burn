@@ -5,12 +5,12 @@
 //! input to route from.
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{FnArg, GenericArgument, ImplItem, ItemImpl, Pat, PathArguments, Type};
 
 use crate::{
     BACKENDS,
-    ir::{Backend, InputKind, Invocation, Operation, OperationInput, OperationOutput, TensorKind},
+    ir::{Backend, InputKind, Invocation, Operation, OperationInput, OperationOutput},
     routing::{self, OutputRoute},
 };
 
@@ -133,11 +133,6 @@ fn expand_from_input(operation: &Operation, source: &OperationInput) -> TokenStr
     } else {
         quote!(#name.kind)
     };
-    let inner_kind = if borrowed {
-        quote!(__inner.as_ref())
-    } else {
-        quote!(*__inner)
-    };
     let paths = routing::RoutingPaths::dispatch();
     let (autodiff_routing, can_have_float) = routing::operation_autodiff_routing(operation, &paths);
     expand_backend_match(
@@ -148,7 +143,6 @@ fn expand_from_input(operation: &Operation, source: &OperationInput) -> TokenStr
             #autodiff_routing
         },
         source_kind,
-        inner_kind,
         can_have_float,
     )
 }
@@ -169,7 +163,6 @@ fn expand_from_candidates(operation: &Operation) -> TokenStream {
             #autodiff_routing
         },
         quote!(&__routing_tensor.kind),
-        quote!(__inner.as_ref()),
         can_have_float,
     )
 }
@@ -179,58 +172,41 @@ fn expand_backend_match(
     source: Option<&OperationInput>,
     selection: TokenStream,
     source_kind: TokenStream,
-    inner_kind: TokenStream,
     can_have_float: bool,
 ) -> TokenStream {
-    let autodiff_float_inputs = if can_have_float {
-        routing::AutodiffFloatInputPresence::Runtime(quote!(__has_autodiff_float_input))
-    } else {
-        routing::AutodiffFloatInputPresence::Never
-    };
     let backends = dispatch_backends();
-    let source_is_non_float = source.is_some_and(|source| {
-        matches!(
-            source.kind,
-            InputKind::Tensor { kind, .. } if kind != TensorKind::Float
-        )
-    });
     let paths = routing::RoutingPaths::dispatch();
+    let dispatch_kind = quote!(crate::DispatchTensorKind);
+    let context = quote!(crate::DispatchAutodiffContext);
     let selected =
         source.map(|_| syn::Ident::new("__burn_selected", proc_macro2::Span::call_site()));
-    let autodiff_match = (!source_is_non_float).then(|| routing::AutodiffKindMatch {
-        cfg_attr: Some(quote!(#[cfg(feature = "autodiff")])),
-        inner_kind,
-        nested_autodiff: Some(quote! {
-            panic!("Autodiff should not wrap an autodiff tensor.")
-        }),
-        fallback: quote!(panic!("unsupported dispatch backend")),
-    });
-    let arms = routing::backend_kind_arms(
-        &paths,
-        &backends,
-        selected.as_ref(),
-        autodiff_match,
-        |_, backend, autodiff| {
-            backend_route_body(backend, operation, &autodiff_float_inputs, autodiff, source)
-        },
-    );
-    let direct_arms = arms.concrete;
-    let autodiff_route = if source_is_non_float {
+
+    let autodiff_guard = can_have_float.then(|| {
+        let route = routing::autodiff_route(operation, &paths);
         quote! {
             #[cfg(feature = "autodiff")]
-            crate::DispatchTensorKind::Autodiff(_) => {
-                panic!("only float tensors may use an autodiff primitive")
+            if __has_autodiff_float_input {
+                let #context::Enabled(__strategy) = __ad_ctx else {
+                    panic!("an autodiff float primitive must have an enabled autodiff context")
+                };
+                return #route;
             }
         }
-    } else {
-        arms.autodiff.expect("autodiff backend arms should exist")
-    };
+    });
+
+    let arms = routing::backend_kind_arms(&paths, &backends, selected.as_ref(), |_, backend| {
+        backend_route_body(backend, operation, source)
+    });
 
     quote! {
         #selection
+        #autodiff_guard
         match #source_kind {
-            #(#direct_arms)*
-            #autodiff_route
+            #(#arms)*
+            #[cfg(feature = "autodiff")]
+            #dispatch_kind::Autodiff(_) => {
+                panic!("autodiff tensors must run through `Autodiff<Dispatch>`")
+            }
             #[allow(unreachable_patterns)]
             _ => panic!("unsupported dispatch backend"),
         }
@@ -254,22 +230,9 @@ fn dispatch_backends() -> Vec<Backend> {
 fn backend_route_body(
     backend: &Backend,
     operation: &Operation,
-    autodiff_float_inputs: &routing::AutodiffFloatInputPresence,
-    routing_tensor_is_autodiff: bool,
     source: Option<&OperationInput>,
 ) -> TokenStream {
-    let ident = &backend.ident;
-    let autodiff_attr = quote!(#[cfg(feature = "autodiff")]);
-    let no_autodiff_attr = quote!(#[cfg(not(feature = "autodiff"))]);
-    routing::dispatch_backend_routes(
-        operation,
-        ident,
-        autodiff_float_inputs,
-        routing_tensor_is_autodiff,
-        source,
-        &autodiff_attr,
-        &no_autodiff_attr,
-    )
+    routing::dispatch_backend_routes(operation, &backend.ident, source)
 }
 
 fn parse_output(output: &syn::ReturnType) -> syn::Result<OperationOutput> {
@@ -296,23 +259,29 @@ fn expand_creation(
     output: &OperationOutput,
     body: &syn::Block,
 ) -> TokenStream {
+    let paths = routing::RoutingPaths::dispatch();
     let direct_arms = BACKENDS
         .iter()
-        .map(|backend| creation_arm(backend, output, body, false));
-    let autodiff_arms = BACKENDS
-        .iter()
-        .map(|backend| creation_arm(backend, output, body, true));
+        .map(|backend| creation_arm(backend, output, body));
+    let wrapped = routing::wrap_output(output, &paths, OutputRoute::Autodiff, quote!(__output));
+    let autodiff_arm = routing::with_autodiff_backend(
+        &paths,
+        quote!(__strategy),
+        &format_ident!("B"),
+        quote! {
+            let __ad_ctx = crate::DispatchAutodiffContext::Enabled(__strategy);
+            let __output = #body;
+            #wrapped
+        },
+    );
     quote! {
         match #device {
             #(#direct_arms)*
             #[cfg(feature = "autodiff")]
-            crate::DispatchDevice::Autodiff(__device) => match __device.inner.as_ref() {
-                #(#autodiff_arms)*
-                crate::DispatchDevice::Autodiff(_) => {
-                    panic!("Autodiff should not wrap an autodiff device.")
-                }
-                #[allow(unreachable_patterns)]
-                __other => panic!("unsupported dispatch device: {__other:?}"),
+            crate::DispatchDevice::Autodiff(__device) => {
+                let __strategy = __device.checkpointing;
+                let #device = &*__device.inner;
+                #autodiff_arm
             },
             #[allow(unreachable_patterns)]
             __other => panic!("unsupported dispatch device: {__other:?}"),
@@ -324,72 +293,23 @@ fn creation_arm(
     backend: &crate::BackendSpec,
     output: &OperationOutput,
     body: &syn::Block,
-    autodiff_device: bool,
 ) -> TokenStream {
     let ident = syn::Ident::new(backend.name, proc_macro2::Span::call_site());
     let cfg: TokenStream = backend.cfg.parse().expect("valid backend cfg");
-    if !autodiff_device {
-        let wrapped = routing::wrap_output(
-            output,
-            &routing::RoutingPaths::dispatch(),
-            &ident,
-            OutputRoute::ConcreteDisabled,
-            quote!(__output),
-        );
-        quote! {
-            #[cfg(#cfg)]
-            crate::DispatchDevice::#ident(device) => {
-                type B = crate::backends::#ident;
-                let __ad_ctx = crate::DispatchAutodiffContext::Disabled;
-                let __output = #body;
-                #wrapped
-            },
-        }
-    } else if output.contains_float() {
-        let wrapped = routing::wrap_output(
-            output,
-            &routing::RoutingPaths::dispatch(),
-            &ident,
-            OutputRoute::Autodiff,
-            quote!(__output),
-        );
-        let alias = syn::Ident::new("B", proc_macro2::Span::call_site());
-        let call = routing::with_autodiff_backend(
-            &routing::RoutingPaths::dispatch(),
-            &ident,
-            quote!(__strategy),
-            &alias,
-            quote! {
-                let __ad_ctx = crate::DispatchAutodiffContext::Enabled(__strategy);
-                let __output = #body;
-                #wrapped
-            },
-        );
-        quote! {
-            #[cfg(#cfg)]
-            crate::DispatchDevice::#ident(device) => {
-                let __strategy = __device.checkpointing;
-                #call
-            },
-        }
-    } else {
-        let wrapped = routing::wrap_output(
-            output,
-            &routing::RoutingPaths::dispatch(),
-            &ident,
-            OutputRoute::ConcreteEnabled,
-            quote!(__output),
-        );
-        quote! {
-            #[cfg(#cfg)]
-            crate::DispatchDevice::#ident(device) => {
-                type B = crate::backends::#ident;
-                let __strategy = __device.checkpointing;
-                let __ad_ctx = crate::DispatchAutodiffContext::Enabled(__strategy);
-                let __output = #body;
-                #wrapped
-            },
-        }
+    let wrapped = routing::wrap_output(
+        output,
+        &routing::RoutingPaths::dispatch(),
+        OutputRoute::ConcreteDisabled(&ident),
+        quote!(__output),
+    );
+    quote! {
+        #[cfg(#cfg)]
+        crate::DispatchDevice::#ident(device) => {
+            type B = crate::backends::#ident;
+            let __ad_ctx = crate::DispatchAutodiffContext::Disabled;
+            let __output = #body;
+            #wrapped
+        },
     }
 }
 

@@ -102,23 +102,13 @@ macro_rules! graph_replay_arms {
 macro_rules! is_tracked_arms {
     ($tensor:expr; $([$Backend:ident, $cfg:meta]),*) => {
         match &$tensor.kind {
-            DispatchTensorKind::Autodiff(inner) => match &**inner {
-                $(
-                    #[cfg($cfg)]
-                    DispatchTensorKind::$Backend(tensor) => tensor.as_autodiff().is_tracked(),
-                )*
-                DispatchTensorKind::Autodiff(_) => {
-                    unreachable!("Autodiff should not wrap an autodiff tensor")
-                }
-                #[allow(unreachable_patterns)]
-                _ => false,
-            },
+            DispatchTensorKind::Autodiff(tensor) => tensor.is_tracked(),
             _ => false,
         }
     };
 }
 
-#[cfg(all(feature = "autodiff", executing_backend))]
+#[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
 use burn_autodiff::grads::Gradients;
@@ -169,6 +159,15 @@ impl Dispatch {
     }
 }
 
+/// The name of the backend behind `device`, one `autodiff<...>` per level.
+fn dispatch_name(device: &DispatchDevice) -> String {
+    #[cfg(feature = "autodiff")]
+    if let DispatchDevice::Autodiff(device) = device {
+        return format!("autodiff<{}>", dispatch_name(&device.inner));
+    }
+    dispatch_device!(device, |device| B::name(device))
+}
+
 impl BackendTypes for Dispatch {
     type Device = DispatchDevice;
 
@@ -182,8 +181,7 @@ impl BackendTypes for Dispatch {
 
 impl Backend for Dispatch {
     fn name(device: &Self::Device) -> String {
-        let inner = dispatch_device!(device, |device| B::name(device));
-        format!("dispatch<{inner}>")
+        format!("dispatch<{}>", dispatch_name(device))
     }
 
     fn seed(device: &Self::Device, seed: u64) {
@@ -426,6 +424,20 @@ fn enable_autodiff_context(context: DispatchAutodiffContext) -> DispatchAutodiff
 }
 
 #[cfg(feature = "autodiff")]
+/// Panics unless the tensor's concrete backend supports distributed gradients.
+fn require_distributed_kind(kind: &DispatchTensorKind) {
+    match kind {
+        DispatchTensorKind::Autodiff(tensor) => require_distributed_kind(&tensor.primitive().kind),
+        #[cfg(cube_backend)]
+        DispatchTensorKind::Cube(_) => {}
+        #[cfg(feature = "remote")]
+        DispatchTensorKind::Remote(_) => {}
+        #[allow(unreachable_patterns)]
+        other => panic!("Distributed operations are not supported for tensor kind {other:?}"),
+    }
+}
+
+#[cfg(feature = "autodiff")]
 // Capture does not support autodiff. Without an execution backend, the dispatch
 // arms below only panic, leaving gradient arguments unused and return code unreachable.
 #[cfg_attr(not(executing_backend), allow(unused_variables, unreachable_code))]
@@ -435,199 +447,42 @@ impl AutodiffBackend for Dispatch {
     type Gradients = Gradients;
 
     fn backward(tensor: DispatchTensor) -> Self::Gradients {
-        let DispatchTensor { kind, .. } = tensor;
-
-        match kind {
-            DispatchTensorKind::Autodiff(tensor) => match *tensor {
-                #[cfg(not(backend_enabled))]
-                DispatchTensorKind::Unavailable(never) => never.unreachable(),
-                #[cfg(cube_backend)]
-                DispatchTensorKind::Cube(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "flex")]
-                DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "remote")]
-                DispatchTensorKind::Remote(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "shard")]
-                DispatchTensorKind::ShardedCompute(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "capture")]
-                DispatchTensorKind::Capture(_) => {
-                    panic!("Capture tensors do not support autodiff")
-                }
-                DispatchTensorKind::Autodiff(_) => {
-                    panic!("Autodiff should not wrap an autodiff tensor.")
-                }
-            },
+        match tensor.kind {
+            DispatchTensorKind::Autodiff(tensor) => tensor.backward(),
             _ => panic!("Requires autodiff tensor."),
         }
     }
 
     fn grad(tensor: &DispatchTensor, grads: &Self::Gradients) -> Option<DispatchTensor> {
-        let DispatchTensor { kind, .. } = tensor;
-        let grad: Option<DispatchTensorKind> = match &kind {
-            DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
-                #[cfg(not(backend_enabled))]
-                DispatchTensorKind::Unavailable(never) => never.unreachable(),
-                #[cfg(cube_backend)]
-                DispatchTensorKind::Cube(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::Cube(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "flex")]
-                DispatchTensorKind::Flex(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::Flex(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "remote")]
-                DispatchTensorKind::Remote(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::Remote(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "shard")]
-                DispatchTensorKind::ShardedCompute(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::ShardedCompute(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "capture")]
-                DispatchTensorKind::Capture(_) => {
-                    panic!("Capture tensors do not support autodiff")
-                }
-                DispatchTensorKind::Autodiff(_) => {
-                    panic!("Autodiff should not wrap an autodiff tensor.")
-                }
-            },
+        match &tensor.kind {
+            DispatchTensorKind::Autodiff(tensor) => tensor.grad(grads),
             _ => panic!("Requires autodiff tensor."),
-        };
-        grad.map(|kind| DispatchTensor {
-            kind,
-            autodiff: DispatchAutodiffContext::Disabled,
-        })
+        }
     }
 
     fn grad_remove(tensor: &DispatchTensor, grads: &mut Self::Gradients) -> Option<DispatchTensor> {
-        let DispatchTensor { kind, .. } = tensor;
-        let grad: Option<DispatchTensorKind> = match &kind {
-            DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
-                #[cfg(not(backend_enabled))]
-                DispatchTensorKind::Unavailable(never) => never.unreachable(),
-                #[cfg(cube_backend)]
-                DispatchTensorKind::Cube(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::Cube(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "flex")]
-                DispatchTensorKind::Flex(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::Flex(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "remote")]
-                DispatchTensorKind::Remote(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::Remote(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "shard")]
-                DispatchTensorKind::ShardedCompute(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::ShardedCompute(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "capture")]
-                DispatchTensorKind::Capture(_) => {
-                    panic!("Capture tensors do not support autodiff")
-                }
-                DispatchTensorKind::Autodiff(_) => {
-                    panic!("Autodiff should not wrap an autodiff tensor.")
-                }
-            },
+        match &tensor.kind {
+            DispatchTensorKind::Autodiff(tensor) => tensor.grad_remove(grads),
             _ => panic!("Requires autodiff tensor."),
-        };
-        grad.map(|kind| DispatchTensor {
-            kind,
-            autodiff: DispatchAutodiffContext::Disabled,
-        })
+        }
     }
 
     fn grad_replace(tensor: &DispatchTensor, grads: &mut Self::Gradients, grad: DispatchTensor) {
-        let DispatchTensor { kind, .. } = tensor;
-        let DispatchTensor {
-            kind: grad,
-            autodiff,
-        } = grad;
-        assert_eq!(
-            autodiff,
-            DispatchAutodiffContext::Disabled,
-            "replacement gradients must use the inner backend"
-        );
-
-        match &kind {
-            DispatchTensorKind::Autodiff(inner_kind) => match (&**inner_kind, grad) {
-                #[cfg(cube_backend)]
-                (DispatchTensorKind::Cube(tensor), DispatchTensorKind::Cube(grad)) => {
-                    tensor.as_autodiff().grad_replace(grads, grad.float())
-                }
-                #[cfg(feature = "flex")]
-                (DispatchTensorKind::Flex(tensor), DispatchTensorKind::Flex(grad)) => {
-                    tensor.as_autodiff().grad_replace(grads, grad.float())
-                }
-                #[cfg(feature = "remote")]
-                (DispatchTensorKind::Remote(tensor), DispatchTensorKind::Remote(grad)) => {
-                    tensor.as_autodiff().grad_replace(grads, grad.float())
-                }
-                #[cfg(feature = "shard")]
-                (
-                    DispatchTensorKind::ShardedCompute(tensor),
-                    DispatchTensorKind::ShardedCompute(grad),
-                ) => tensor.as_autodiff().grad_replace(grads, grad.float()),
-                (DispatchTensorKind::Autodiff(_), _) => {
-                    panic!("Autodiff should not wrap an autodiff tensor.")
-                }
-                // TODO: distributed message?
-                (t, g) => panic!(
-                    "The provided tensors are not on the same backend. Got backends {t:?} and {g:?}."
-                ),
-            },
+        match &tensor.kind {
+            DispatchTensorKind::Autodiff(tensor) => tensor.grad_replace(grads, grad),
             _ => panic!("Requires autodiff tensor."),
         }
     }
 
     fn inner(tensor: DispatchTensor) -> DispatchTensor {
-        let DispatchTensor { kind, autodiff } = tensor;
         assert!(
-            matches!(autodiff, DispatchAutodiffContext::Enabled(_)),
+            matches!(tensor.autodiff, DispatchAutodiffContext::Enabled(_)),
             "Requires autodiff tensor."
         );
 
-        let kind = match kind {
-            DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
-                #[cfg(not(backend_enabled))]
-                DispatchTensorKind::Unavailable(ref never) => never.unreachable(),
-                #[cfg(cube_backend)]
-                DispatchTensorKind::Cube(tensor) => DispatchTensorKind::Cube(
-                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
-                ),
-                #[cfg(feature = "flex")]
-                DispatchTensorKind::Flex(tensor) => DispatchTensorKind::Flex(
-                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
-                ),
-                #[cfg(feature = "remote")]
-                DispatchTensorKind::Remote(tensor) => DispatchTensorKind::Remote(
-                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
-                ),
-                #[cfg(feature = "shard")]
-                DispatchTensorKind::ShardedCompute(tensor) => DispatchTensorKind::ShardedCompute(
-                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
-                ),
-                #[cfg(feature = "capture")]
-                DispatchTensorKind::Capture(_) => {
-                    panic!("Capture tensors do not support autodiff")
-                }
-                DispatchTensorKind::Autodiff(_) => {
-                    panic!("Autodiff should not wrap an autodiff tensor.")
-                }
-            },
+        match tensor.kind {
+            DispatchTensorKind::Autodiff(tensor) => tensor.into_primitive(),
             _ => panic!("Requires autodiff tensor."),
-        };
-        DispatchTensor {
-            kind,
-            autodiff: DispatchAutodiffContext::Disabled,
         }
     }
 
@@ -647,51 +502,12 @@ impl AutodiffBackend for Dispatch {
     }
 
     fn from_inner(tensor: DispatchTensor) -> DispatchTensor {
-        let DispatchTensor { kind, autodiff } = tensor;
-        assert_eq!(
-            autodiff,
-            DispatchAutodiffContext::Disabled,
-            "tensor is already associated with autodiff"
-        );
-
-        let kind = match kind {
-            #[cfg(cube_backend)]
-            DispatchTensorKind::Cube(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Cube(
-                    crate::BackendTensor::Autodiff(Autodiff::<Cube>::from_inner(tensor.float())),
-                )))
-            }
-            #[cfg(feature = "flex")]
-            DispatchTensorKind::Flex(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Flex(
-                    crate::BackendTensor::Autodiff(Autodiff::<Flex>::from_inner(tensor.float())),
-                )))
-            }
-            #[cfg(feature = "remote")]
-            DispatchTensorKind::Remote(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Remote(
-                    crate::BackendTensor::Autodiff(Autodiff::<Remote>::from_inner(tensor.float())),
-                )))
-            }
-            #[cfg(feature = "shard")]
-            DispatchTensorKind::ShardedCompute(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::ShardedCompute(
-                    crate::BackendTensor::Autodiff(Autodiff::<ShardedCompute>::from_inner(
-                        tensor.float(),
-                    )),
-                )))
-            }
-            #[cfg(feature = "capture")]
-            DispatchTensorKind::Capture(_) => {
-                panic!("Capture tensors do not support autodiff")
-            }
-            DispatchTensorKind::Autodiff(_) => {
-                panic!("Autodiff should not wrap an autodiff tensor.")
-            }
-        };
-
         DispatchTensor {
-            kind,
+            kind: DispatchTensorKind::Autodiff(Box::new(<crate::backends::Autodiff<
+                crate::Dispatch,
+            > as AutodiffBackend>::from_inner(
+                tensor
+            ))),
             autodiff: DispatchAutodiffContext::Enabled(
                 crate::GradientCheckpointingStrategy::Disabled,
             ),
@@ -713,109 +529,50 @@ impl AutodiffBackend for Dispatch {
         tensor
     }
 
-    // Only the collective-capable backends (Cube/Remote) carry distributed params; in builds
-    // without them the match arms cfg out, leaving the bindings unused and the tail unreachable.
-    #[allow(unused_variables, unreachable_code)]
     fn set_distributed_params(
         tensor: DispatchTensor,
         param_id: DistributedParamId,
     ) -> DispatchTensor {
         let DispatchTensor { kind, autodiff } = tensor;
-        assert!(
-            matches!(autodiff, DispatchAutodiffContext::Enabled(_)),
-            "Requires autodiff tensor."
-        );
-
-        let kind = match kind {
-            DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
-                #[cfg(not(backend_enabled))]
-                DispatchTensorKind::Unavailable(ref never) => never.unreachable(),
-                #[cfg(cube_backend)]
-                DispatchTensorKind::Cube(tensor) => {
-                    DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Cube(
-                        crate::BackendTensor::Autodiff(Autodiff::<Cube>::set_distributed_params(
-                            tensor.as_autodiff().clone(),
-                            param_id,
-                        )),
-                    )))
-                }
-                #[cfg(feature = "remote")]
-                DispatchTensorKind::Remote(tensor) => {
-                    DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Remote(
-                        crate::BackendTensor::Autodiff(Autodiff::<Remote>::set_distributed_params(
-                            tensor.as_autodiff().clone(),
-                            param_id,
-                        )),
-                    )))
-                }
-                DispatchTensorKind::Autodiff(_) => {
-                    panic!("Autodiff should not wrap an autodiff tensor.")
-                }
-                #[allow(unreachable_patterns)]
-                other => {
-                    panic!("Distributed operations are not supported for tensor kind {other:?}")
-                }
-            },
-            _ => panic!("Requires autodiff tensor."),
+        let DispatchAutodiffContext::Enabled(strategy) = autodiff else {
+            panic!("Requires autodiff tensor.");
         };
+        let DispatchTensorKind::Autodiff(tensor) = kind else {
+            panic!("Requires autodiff tensor.");
+        };
+        require_distributed_kind(&tensor.primitive().kind);
 
-        DispatchTensor { kind, autodiff }
+        let tensor = with_autodiff_backend!(strategy, |AD| {
+            <AD as AutodiffBackend>::set_distributed_params(*tensor, param_id)
+        });
+        DispatchTensor {
+            kind: DispatchTensorKind::Autodiff(Box::new(tensor)),
+            autodiff,
+        }
     }
 
-    #[allow(unused_variables)]
     fn distributed_params(tensor: &DispatchTensor) -> Option<DistributedParams> {
-        let DispatchTensor { kind, autodiff: _ } = tensor;
-
-        match &kind {
-            DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
-                #[cfg(not(backend_enabled))]
-                DispatchTensorKind::Unavailable(never) => never.unreachable(),
-                #[cfg(cube_backend)]
-                DispatchTensorKind::Cube(tensor) => {
-                    Autodiff::<Cube>::distributed_params(tensor.as_autodiff())
-                }
-                #[cfg(feature = "remote")]
-                DispatchTensorKind::Remote(tensor) => {
-                    Autodiff::<Remote>::distributed_params(tensor.as_autodiff())
-                }
-
-                DispatchTensorKind::Autodiff(_) => {
-                    panic!("Autodiff should not wrap an autodiff tensor.")
-                }
-                // Backends without distributed support never carry distributed params.
-                #[allow(unreachable_patterns)]
-                _ => None,
-            },
-            _ => panic!("Requires autodiff tensor."),
-        }
+        let DispatchTensorKind::Autodiff(autodiff) = &tensor.kind else {
+            panic!("Requires autodiff tensor.");
+        };
+        let DispatchAutodiffContext::Enabled(strategy) = tensor.autodiff else {
+            panic!("Requires autodiff tensor.");
+        };
+        with_autodiff_backend!(strategy, |AD| {
+            <AD as AutodiffBackend>::distributed_params(autodiff)
+        })
     }
 
-    #[allow(unused_variables)]
     fn is_distributed(tensor: &DispatchTensor) -> bool {
-        let DispatchTensor { kind, autodiff: _ } = tensor;
-
-        match &kind {
-            DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
-                #[cfg(not(backend_enabled))]
-                DispatchTensorKind::Unavailable(never) => never.unreachable(),
-                #[cfg(cube_backend)]
-                DispatchTensorKind::Cube(tensor) => {
-                    Autodiff::<Cube>::is_distributed(tensor.as_autodiff())
-                }
-                #[cfg(feature = "remote")]
-                DispatchTensorKind::Remote(tensor) => {
-                    Autodiff::<Remote>::is_distributed(tensor.as_autodiff())
-                }
-
-                DispatchTensorKind::Autodiff(_) => {
-                    panic!("Autodiff should not wrap an autodiff tensor.")
-                }
-                // Backends without distributed support are never distributed.
-                #[allow(unreachable_patterns)]
-                _ => false,
-            },
-            _ => panic!("Requires autodiff tensor."),
-        }
+        let DispatchTensorKind::Autodiff(autodiff) = &tensor.kind else {
+            panic!("Requires autodiff tensor.");
+        };
+        let DispatchAutodiffContext::Enabled(strategy) = tensor.autodiff else {
+            panic!("Requires autodiff tensor.");
+        };
+        with_autodiff_backend!(strategy, |AD| {
+            <AD as AutodiffBackend>::is_distributed(autodiff)
+        })
     }
 }
 
@@ -1317,6 +1074,152 @@ pub(crate) fn cube_devices(runtime: RuntimeId) -> Vec<CubeDevice> {
         .into_iter()
         .filter(|device| device.runtime() == runtime)
         .collect()
+}
+
+#[cfg(all(test, feature = "autodiff", feature = "flex"))]
+mod autodiff_representation {
+    use super::*;
+    use crate::GradientCheckpointingStrategy;
+    use burn_backend::{
+        AutodiffBackend, TensorData,
+        ops::{FloatTensorOps, IntTensorOps, TransactionOps},
+        tensor::FloatTensor,
+    };
+
+    type Ad = crate::backends::Autodiff<crate::Dispatch>;
+
+    fn flex_device() -> DispatchDevice {
+        DispatchDevice::autodiff(DispatchDevice::Flex(Default::default()))
+    }
+
+    fn wrap(tensor: FloatTensor<Ad>) -> DispatchTensor {
+        DispatchTensor {
+            kind: DispatchTensorKind::Autodiff(Box::new(tensor)),
+            autodiff: DispatchAutodiffContext::Enabled(GradientCheckpointingStrategy::Disabled),
+        }
+    }
+
+    fn values(tensor: DispatchTensor) -> alloc::vec::Vec<f32> {
+        let data = burn_backend::read_sync(Dispatch::float_into_data(tensor)).expect("data");
+        data.as_slice::<f32>().expect("f32").to_vec()
+    }
+
+    /// Device queries must work on an autodiff device and on stacked autodiff devices.
+    #[test]
+    fn autodiff_devices_answer_backend_queries() {
+        let device = flex_device();
+        assert_eq!(Dispatch::name(&device), "dispatch<autodiff<flex>>");
+        assert!(Dispatch::ad_enabled(&device));
+        assert!(Dispatch::supports_dtype(&device, DType::F32));
+        Dispatch::sync(&device).expect("autodiff device sync");
+
+        let nested = DispatchDevice::autodiff(device.clone());
+        assert_eq!(
+            Dispatch::name(&nested),
+            "dispatch<autodiff<autodiff<flex>>>"
+        );
+        assert!(Dispatch::supports_dtype(&nested, DType::F32));
+        Dispatch::sync(&nested).expect("stacked autodiff device sync");
+    }
+
+    /// Reading a tracked tensor returns its value and leaves its graph usable.
+    #[test]
+    fn tracked_tensor_data_read_is_unchanged() {
+        let x = Dispatch::float_from_data(TensorData::from([2.0f32, 3.0]), &flex_device());
+        let x = Dispatch::float_set_require_grad(x, true);
+        let y = Dispatch::float_mul(x.clone(), x.clone());
+
+        assert_eq!(values(y.clone()), [4.0, 9.0]);
+
+        let grads = Dispatch::backward(y);
+        let grad = Dispatch::grad(&x, &grads).expect("gradient");
+        assert_eq!(values(grad), [4.0, 6.0]);
+    }
+
+    /// Flex has no distributed support: the queries answer, and setting params still panics.
+    #[test]
+    fn flex_autodiff_tensor_has_no_distributed_params() {
+        let x = Dispatch::float_from_data(TensorData::from([1.0f32]), &flex_device());
+        let x = Dispatch::float_set_require_grad(x, true);
+
+        assert!(Dispatch::distributed_params(&x).is_none());
+        assert!(!Dispatch::is_distributed(&x));
+    }
+
+    #[test]
+    #[should_panic(expected = "Distributed operations are not supported for tensor kind")]
+    fn flex_autodiff_tensor_cannot_set_distributed_params() {
+        let x = Dispatch::float_from_data(TensorData::from([1.0f32]), &flex_device());
+        let x = Dispatch::float_set_require_grad(x, true);
+
+        Dispatch::set_distributed_params(x, 0u64.into());
+    }
+
+    /// A transaction reads tracked floats by value without touching their graph.
+    #[test]
+    fn transaction_reads_tracked_floats() {
+        use burn_backend::ops::TransactionPrimitive;
+
+        let tracked = Dispatch::float_from_data(TensorData::from([1.0f32, 2.0]), &flex_device());
+        let tracked = Dispatch::float_set_require_grad(tracked, true);
+        let tracked = Dispatch::float_mul(tracked.clone(), tracked.clone());
+        let plain = Dispatch::float_from_data(
+            TensorData::from([3.0f32]),
+            &DispatchDevice::Flex(Default::default()),
+        );
+        let int = Dispatch::int_from_data(TensorData::from([7i32]), &flex_device());
+
+        let transaction = TransactionPrimitive::new(
+            alloc::vec![tracked, plain],
+            alloc::vec![],
+            alloc::vec![int],
+            alloc::vec![],
+        );
+        let data = burn_backend::read_sync(Dispatch::tr_execute(transaction)).expect("transaction");
+
+        assert_eq!(
+            data.read_floats[0].as_slice::<f32>().expect("f32"),
+            [1.0, 4.0]
+        );
+        assert_eq!(data.read_floats[1].as_slice::<f32>().expect("f32"), [3.0]);
+        assert_eq!(data.read_ints[0].as_slice::<i32>().expect("i32"), [7]);
+    }
+
+    /// The generated extraction rejects a tracked kind whose context says it is not associated.
+    #[test]
+    #[should_panic(expected = "an autodiff float primitive must have an enabled autodiff context")]
+    fn autodiff_input_with_disabled_context_panics() {
+        let tracked = Dispatch::float_from_data(TensorData::from([1.0f32]), &flex_device());
+        let tracked = Dispatch::float_set_require_grad(tracked, true);
+        let malformed = DispatchTensor {
+            kind: DispatchTensorKind::Autodiff(Box::new(<Ad as AutodiffBackend>::from_inner(
+                Dispatch::float_from_data(
+                    TensorData::from([2.0f32]),
+                    &DispatchDevice::Flex(Default::default()),
+                ),
+            ))),
+            autodiff: DispatchAutodiffContext::Disabled,
+        };
+
+        Dispatch::float_add(tracked, malformed);
+    }
+
+    /// Every autodiff level is stripped when reading a stacked tensor's value.
+    #[test]
+    fn stacked_tensor_data_read_is_unchanged() {
+        let device = flex_device();
+        let x = Dispatch::float_from_data(TensorData::from([2.0f32, 3.0]), &device);
+        let x = Dispatch::float_set_require_grad(x, true);
+        let d1 = wrap(<Ad as AutodiffBackend>::from_inner(x));
+        let d2 = wrap(<Ad as AutodiffBackend>::from_inner(d1.clone()).require_grad());
+
+        let y = Dispatch::float_mul(d2.clone(), d2.clone());
+        assert_eq!(values(y), [4.0, 9.0]);
+
+        let grads = Dispatch::backward(Dispatch::float_mul(d2.clone(), d2.clone()));
+        let first = Dispatch::grad(&d2, &grads).expect("first derivative");
+        assert!(matches!(first.kind, DispatchTensorKind::Autodiff(_)));
+    }
 }
 
 /// The device under an autodiff wrapper, which a measurement of the device itself runs on.
