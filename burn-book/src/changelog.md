@@ -847,6 +847,11 @@ to retain size-derived mapping. See the [interpolation guide](building-blocks/mo
 for configuration and backend limitations.
 ([#6154](https://github.com/tracel-ai/burn/pull/6154), [@Sadik00789](https://github.com/Sadik00789))
 
+- Fix `interpolate` on CubeCL backends returning zeros or stale values, without an error, when
+  autotune picked the staged kernel for an input larger than the device's shared memory, such as a
+  batch of 10 `[4, 8, 24]` images on Metal: each cube now stages only the window it reads.
+  ([#PR](https://github.com/tracel-ai/burn/pull/PR)) [@kongxinjun](https://github.com/kongxinjun)
+
 #### Lazy parameters
 
 - `Param::lazy_dtype` reports a parameter's data type without initializing it, beside
