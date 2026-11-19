@@ -1,6 +1,7 @@
 //! A link probe between the calling process and a remote device, which the client runs.
 
 use core::time::Duration;
+use std::sync::{LazyLock, Mutex, PoisonError};
 
 use burn_backend::{Bytes, DType, HostTransfer, Peak, PeakError, StreamId, TensorData};
 use burn_router::RouterClient;
@@ -16,6 +17,18 @@ const MAX_TIMED: usize = 10;
 const SAMPLING_BUDGET: Duration = Duration::from_millis(500);
 /// The largest transfer probed, the same as for a link between servers.
 const MAX_BYTES: u64 = LinkPull::MAX_BYTES;
+
+/// The stream every probe runs on, held for a whole probe so two probes never time each other.
+/// One per process, so a session's server keeps a single entry for it, and never stream 0, which
+/// a single-stream policy gives every caller.
+static PROBE_STREAM: LazyLock<Mutex<StreamId>> = LazyLock::new(|| {
+    let first = StreamId::allocate();
+    Mutex::new(if first.value == 0 {
+        StreamId::allocate()
+    } else {
+        first
+    })
+});
 
 /// Times the link between the calling process and a remote device through the device's client:
 /// an upload until the server holds the tensor on its device, a download by reading one back.
@@ -36,9 +49,10 @@ impl<'a> HostLinkProber<'a> {
         sizes: &[u64],
     ) -> Vec<Result<Peak, PeakError>> {
         // A stream of its own, so a sync never takes an error the caller's stream is owed.
-        StreamId::allocate().executes(|| {
+        let stream = PROBE_STREAM.lock().unwrap_or_else(PoisonError::into_inner);
+        stream.executes(|| {
             let mut failed = false;
-            let peaks = sizes
+            let peaks: Vec<_> = sizes
                 .iter()
                 .map(|&bytes| {
                     if failed {
@@ -53,7 +67,12 @@ impl<'a> HostLinkProber<'a> {
                 })
                 .collect();
             // The last drop waits in the batch for a flush, which nothing else sends this stream.
-            let _ = self.client.sync();
+            if peaks
+                .iter()
+                .any(|peak| *peak != Err(PeakError::Unsupported))
+            {
+                let _ = self.client.sync();
+            }
             peaks
         })
     }
@@ -63,7 +82,8 @@ impl<'a> HostLinkProber<'a> {
     /// # Errors
     ///
     /// [`Unsupported`](PeakError::Unsupported) for no bytes, past [`MAX_BYTES`] and in the
-    /// browser, and [`Transfer`](PeakError::Transfer) when the session fails under an upload.
+    /// browser, [`Allocation`](PeakError::Allocation) when the buffer cannot be allocated, and
+    /// [`Transfer`](PeakError::Transfer) when the session fails under an upload.
     fn upload(&self, bytes: u64) -> Result<Peak, PeakError> {
         let data = buffer(bytes)?;
         let samples = sample(|| {
@@ -83,7 +103,8 @@ impl<'a> HostLinkProber<'a> {
     /// # Errors
     ///
     /// [`Unsupported`](PeakError::Unsupported) for no bytes, past [`MAX_BYTES`] and in the
-    /// browser, and [`Transfer`](PeakError::Transfer) when the session fails under a download.
+    /// browser, [`Allocation`](PeakError::Allocation) when the buffer cannot be allocated, and
+    /// [`Transfer`](PeakError::Transfer) when the session fails under a download.
     fn download(&self, bytes: u64) -> Result<Peak, PeakError> {
         let tensor = self.client.register_tensor_data(buffer(bytes)?);
         self.client.sync().map_err(|_| PeakError::Transfer)?;
@@ -113,8 +134,13 @@ fn buffer(bytes: u64) -> Result<TensorData, PeakError> {
         return Err(PeakError::Unsupported);
     }
     let len = bytes as usize;
-    let zeros = Bytes::from_bytes_vec(vec![0; len]).shared();
-    Ok(TensorData::from_bytes(zeros, [len], DType::U8))
+    let mut zeros = Vec::<u8>::new();
+    zeros
+        .try_reserve_exact(len)
+        .map_err(|_| PeakError::Allocation)?;
+    zeros.resize(len, 0);
+    let shared = Bytes::from_elems(zeros).shared();
+    Ok(TensorData::from_bytes(shared, [len], DType::U8))
 }
 
 /// One warmup, then timed transfers until the time budget runs out past the fewest, or the most.
