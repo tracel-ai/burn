@@ -69,7 +69,7 @@ impl<'a> HostLinkProber<'a> {
             // The last drop waits in the batch for a flush, which nothing else sends this stream.
             if peaks
                 .iter()
-                .any(|peak| *peak != Err(PeakError::Unsupported))
+                .any(|peak| !matches!(peak, Err(PeakError::Unsupported | PeakError::Allocation)))
             {
                 let _ = self.client.sync();
             }
@@ -83,9 +83,13 @@ impl<'a> HostLinkProber<'a> {
     ///
     /// [`Unsupported`](PeakError::Unsupported) for no bytes, past [`MAX_BYTES`] and in the
     /// browser, [`Allocation`](PeakError::Allocation) when the buffer cannot be allocated, and
-    /// [`Transfer`](PeakError::Transfer) when the session fails under an upload.
+    /// [`Transfer`](PeakError::Transfer) when the session fails under an upload or the device
+    /// cannot hold what it was sent.
     fn upload(&self, bytes: u64) -> Result<Peak, PeakError> {
         let data = buffer(bytes)?;
+        // A sync succeeds over a buffer the server failed to allocate; only a read reports it.
+        let sent = self.client.register_tensor_data(data.clone());
+        block_on(self.client.read_tensor_async(sent.into_ir())).map_err(|_| PeakError::Transfer)?;
         let samples = sample(|| {
             let data = data.clone();
             let start = Instant::now();
