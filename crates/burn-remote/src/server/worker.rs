@@ -530,16 +530,16 @@ where
                 self.answer_when_ready(request_id, measured, TaskResponseContent::ProfileEnd);
                 Ok(())
             }
-            Task::CaptureRehearse(request_id, stream_id) => {
+            Task::CapturePrepare(request_id, stream_id) => {
                 let stream = self.streams.of(stream_id);
                 let res = self.captures.prepare(&self.runner, stream);
                 self.send_response(request_id, TaskResponseContent::Capture(res))
                     .await
             }
-            Task::CaptureRehearsed(request_id, stream_id) => {
+            Task::CaptureEndRun(request_id, stream_id) => {
                 let stream = self.streams.of(stream_id);
-                let res = self.captures.rehearsed(&self.runner, stream);
-                self.send_response(request_id, TaskResponseContent::CaptureRehearsed(res))
+                let res = self.captures.end_run(&self.runner, stream);
+                self.send_response(request_id, TaskResponseContent::CaptureEndRun(res))
                     .await
             }
             Task::CaptureStart(request_id, stream_id) => {
@@ -1069,7 +1069,7 @@ mod tests {
         ) -> Result<(), ExecutionError> {
             // Both sessions name the same client stream.
             let stream = StreamId { value: 0 };
-            tasks.send(Task::CaptureRehearse(0, stream)).await.unwrap();
+            tasks.send(Task::CapturePrepare(0, stream)).await.unwrap();
             match responses.recv().await.unwrap().content {
                 TaskResponseContent::Capture(res) => res,
                 other => panic!("expected a capture answer, got {other:?}"),

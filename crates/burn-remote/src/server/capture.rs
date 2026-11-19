@@ -94,24 +94,24 @@ impl<B: BackendIr> SessionCaptures<B> {
             return Err(open.refusal());
         }
         self.capture_lock.acquire(self.session)?;
-        let prepared = stream.executes(|| runner.graph_rehearse());
+        let prepared = stream.executes(|| runner.graph_prepare());
         self.set_open(prepared.is_ok().then_some(OpenCapture::Prepared(stream)));
         prepared
     }
 
-    /// End one rehearsal run of the work on `stream`, and answer whether it settled. A run the
+    /// End one planning run of the work on `stream`, and answer whether it settled. A run the
     /// backend fails to end leaves its stream out of capture, and the session's capture with it.
-    pub fn rehearsed(
+    pub fn end_run(
         &mut self,
         runner: &TensorInterpreter<B>,
         stream: StreamId,
     ) -> Result<bool, ExecutionError> {
         if !self.is_prepared_on(stream)? {
             return Err(ExecutionError::with_context(format!(
-                "no graph capture is rehearsing on {stream}"
+                "no graph capture is being planned on {stream}"
             )));
         }
-        let settled = stream.executes(|| runner.graph_rehearsed());
+        let settled = stream.executes(|| runner.graph_end_run());
         if settled.is_err() {
             self.set_open(None);
         }
@@ -134,7 +134,7 @@ impl<B: BackendIr> SessionCaptures<B> {
     }
 
     /// Stop the recording on `stream` and keep its graph under `graph`. A capture still
-    /// rehearsing on `stream` is ended with no graph, so the stream runs its launches again.
+    /// planning on `stream` is ended with no graph, so the stream runs its launches again.
     pub fn stop(
         &mut self,
         runner: &TensorInterpreter<B>,
@@ -261,7 +261,7 @@ impl<B: BackendIr> Drop for SessionCaptures<B> {
 /// A capture the session opened and has not ended, with the stream it runs on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum OpenCapture {
-    /// Prepared: the client is rehearsing its work before the recording starts.
+    /// Prepared: the client is planning its work before the recording starts.
     Prepared(StreamId),
     /// The backend records the stream's launches into a graph.
     Recording(StreamId),

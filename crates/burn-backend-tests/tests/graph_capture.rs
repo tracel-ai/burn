@@ -154,7 +154,7 @@ mod cube {
         let device = Device::default();
         let mut runs = 0;
 
-        // Each run asks for a size no earlier run allocated, so the rehearsals
+        // Each run asks for a size no earlier run allocated, so the planning runs
         // never settle and the recorded run allocates otherwise than the last one.
         // The output the graph hands back then comes from a run that executed.
         let graph = burn_tensor::capture(&device, || {

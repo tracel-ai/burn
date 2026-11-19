@@ -234,14 +234,14 @@ impl RouterClient for RemoteClient {
         super::host_link::HostLinkProber::new(self).measure(transfer, sizes)
     }
 
-    fn graph_rehearse(&self) -> Result<(), ExecutionError> {
+    fn graph_prepare(&self) -> Result<(), ExecutionError> {
         let stream_id = StreamId::current();
-        self.call(move |s| s.graph_rehearse(stream_id))
+        self.call(move |s| s.graph_prepare(stream_id))
     }
 
-    fn graph_rehearsed(&self) -> Result<bool, ExecutionError> {
+    fn graph_end_run(&self) -> Result<bool, ExecutionError> {
         let stream_id = StreamId::current();
-        self.call(move |s| s.graph_rehearsed(stream_id))
+        self.call(move |s| s.graph_end_run(stream_id))
     }
 
     fn graph_start_capture(&self) -> Result<(), ExecutionError> {

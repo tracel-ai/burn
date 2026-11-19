@@ -525,11 +525,11 @@ pub trait Backend:
         Err(EnvironmentError::unsupported())
     }
 
-    /// Prepare `device` for an upcoming graph capture and start rehearsing the work it will
+    /// Prepare `device` for an upcoming graph capture and start planning the work it will
     /// record: until [`graph_start_capture`](Backend::graph_start_capture), the work's launches
     /// do everything short of running, so kernels compile, tunes measure and the memory grows
     /// to what the recording needs. Each run of the work ends with
-    /// [`graph_rehearsed`](Backend::graph_rehearsed). No-op by default.
+    /// [`graph_end_run`](Backend::graph_end_run). No-op by default.
     ///
     /// The closure-based `capture` helper of `burn-tensor` drives this whole sequence.
     ///
@@ -537,25 +537,25 @@ pub trait Backend:
     ///
     /// An implementation fails when a capture is already under way on the calling stream,
     /// leaving it as it was.
-    fn graph_rehearse(_device: &Self::Device) -> Result<(), ExecutionError> {
+    fn graph_prepare(_device: &Self::Device) -> Result<(), ExecutionError> {
         Ok(())
     }
 
-    /// End one rehearsal run of the work, with what it returned still held, and answer whether
+    /// End one planning run of the work, with what it returned still held, and answer whether
     /// it allocated what the run before it did: the work has settled, and the recording can
     /// follow it. What the last run left allocated is the work's output, which the recording
     /// keeps off the memory the device's other graphs replay over.
     ///
     /// An implementation answers once every operation registered before it on the calling stream
-    /// has run its rehearsal, so the run's temporaries are released and only what the caller
-    /// holds counts as an output. `true` by default, for a backend that needs no rehearsal.
+    /// has been issued, so the run's temporaries are released and only what the caller holds
+    /// counts as an output. `true` by default, for a backend that needs no planning runs.
     ///
     /// # Errors
     ///
-    /// An implementation fails when the calling stream is not rehearsing a capture, and ends
-    /// the capture it was rehearsing when it fails for any other reason: the stream runs its
+    /// An implementation fails when the calling stream is not planning a capture, and ends
+    /// the capture it was planning when it fails for any other reason: the stream runs its
     /// launches again, and the caller has nothing left to end.
-    fn graph_rehearsed(_device: &Self::Device) -> Result<bool, ExecutionError> {
+    fn graph_end_run(_device: &Self::Device) -> Result<bool, ExecutionError> {
         Ok(true)
     }
 

@@ -24,14 +24,14 @@ impl<B: BackendIr> Default for MemberGraphs<B> {
 }
 
 impl<B: BackendIr> MemberGraphs<B> {
-    /// Prepares every member for a capture and starts rehearsing, and returns the first
+    /// Prepares every member for a capture and starts planning, and returns the first
     /// member's error.
     ///
     /// A member that refuses ends the captures its predecessors prepared, since a prepared member
     /// discards its launches.
-    pub fn rehearse(&self, members: &[TensorInterpreter<B>]) -> Result<(), ExecutionError> {
+    pub fn prepare(&self, members: &[TensorInterpreter<B>]) -> Result<(), ExecutionError> {
         for (index, member) in members.iter().enumerate() {
-            if let Err(error) = member.graph_rehearse() {
+            if let Err(error) = member.graph_prepare() {
                 stop_every(&members[..index]);
                 return Err(error);
             }
@@ -39,15 +39,15 @@ impl<B: BackendIr> MemberGraphs<B> {
         Ok(())
     }
 
-    /// Ends one rehearsal run on every member, and answers whether every member's settled. Every
+    /// Ends one planning run on every member, and answers whether every member's settled. Every
     /// member's run is ended whichever answers first, since a run left open spans the next one.
     ///
     /// A member that fails to end its run ends its own capture (see
-    /// [`Backend::graph_rehearsed`](burn_backend::Backend::graph_rehearsed)), so the others' are
+    /// [`Backend::graph_end_run`](burn_backend::Backend::graph_end_run)), so the others' are
     /// ended too, and the work runs on every member again.
-    pub fn rehearsed(&self, members: &[TensorInterpreter<B>]) -> Result<bool, ExecutionError> {
+    pub fn end_run(&self, members: &[TensorInterpreter<B>]) -> Result<bool, ExecutionError> {
         let settled = members.iter().fold(Ok(true), |settled, member| {
-            let answer = member.graph_rehearsed();
+            let answer = member.graph_end_run();
             Ok(settled? & answer?)
         });
         if settled.is_err() {

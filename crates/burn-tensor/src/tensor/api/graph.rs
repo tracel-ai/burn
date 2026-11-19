@@ -34,25 +34,25 @@ pub struct Graph<T, F> {
 
 /// Capture `closure` for repeated replay (see [`Graph`]).
 ///
-/// Runs `closure` several times. First as rehearsals, whose launches do everything short of
+/// Runs `closure` several times. First as planning runs, whose launches do everything short of
 /// running: kernels compile, tunes measure, and the memory grows to what the capture needs, since
-/// allocating mid-capture is illegal. The rehearsals repeat until two runs in a row allocate
+/// allocating mid-capture is illegal. The planning runs repeat until two runs in a row allocate
 /// alike, since a first run can take another path than the steady state: with fusion it builds
 /// and tunes the fused optimization, which allocates other buffers than the cached path does.
-/// Then once more, recorded. What the last rehearsal left allocated is the closure's output, and
+/// Then once more, recorded. What the last planning left allocated is the closure's output, and
 /// the recording places it on memory no other graph of the device writes, so it outlives every
 /// replay but its own graph's.
 ///
 /// The closure must therefore allocate the same buffers, and keep the same ones, on every run,
-/// and must not read a tensor's data: a rehearsal's launches never ran. On a backend without
-/// graph support the rehearsal is one ordinary run, and replay re-runs the closure.
+/// and must not read a tensor's data: a planning run's launches never ran. On a backend without
+/// graph support the planning run is one ordinary run, and replay re-runs the closure.
 pub fn capture<T, F>(device: &Device, mut closure: F) -> Graph<T, F>
 where
     F: FnMut() -> T,
 {
     let dispatch = device.as_dispatch();
     let closer = CaptureCloser { device: dispatch };
-    let hardware = rehearse(dispatch, &mut closure);
+    let hardware = plan_runs(dispatch, &mut closure);
     let (hardware, output) = match hardware.and_then(|()| Dispatch::graph_start_capture(dispatch)) {
         // Record the closure's launches into a graph.
         Ok(()) => {
@@ -67,7 +67,7 @@ where
                 Err(error) => (Err(error), closure()),
             }
         }
-        // No hardware graph support, or a rehearsal that failed: fall back to re-running the
+        // No hardware graph support, or a planning run that failed: fall back to re-running the
         // closure.
         Err(error) => (Err(error), closure()),
     };
@@ -94,23 +94,23 @@ impl Drop for CaptureCloser<'_> {
     }
 }
 
-/// Runs rehearsed before recording whatever the last one found: a cold fused path settles by its
+/// Runs planned before recording whatever the last one found: a cold fused path settles by its
 /// second run, and a closure that never settles is refused when the capture stops.
-const REHEARSALS_MAX: usize = 4;
+const PLANNING_RUNS_MAX: usize = 4;
 
-/// Rehearse `closure` on `device` until two runs allocate alike, or for [`REHEARSALS_MAX`] runs,
+/// Plan `closure` on `device` until two runs allocate alike, or for [`PLANNING_RUNS_MAX`] runs,
 /// leaving the capture prepared for its recording. A run the backend fails to end ends the
-/// capture with it (see [`Backend::graph_rehearsed`]), so the device may capture again.
-fn rehearse<T>(
+/// capture with it (see [`Backend::graph_end_run`]), so the device may capture again.
+fn plan_runs<T>(
     device: &DispatchDevice,
     closure: &mut impl FnMut() -> T,
 ) -> Result<(), ExecutionError> {
-    Dispatch::graph_rehearse(device)?;
-    for _ in 0..REHEARSALS_MAX {
+    Dispatch::graph_prepare(device)?;
+    for _ in 0..PLANNING_RUNS_MAX {
         // The output is held across the end of the run: what the run still holds when it ends
         // is what the capture keeps off the memory other graphs share.
         let output = closure();
-        let settled = Dispatch::graph_rehearsed(device);
+        let settled = Dispatch::graph_end_run(device);
         drop(output);
         if settled? {
             return Ok(());

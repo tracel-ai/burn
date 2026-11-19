@@ -699,20 +699,20 @@ impl RemoteService {
     }
 
     /// Prepare the server's backend for a graph capture where `stream_id` stands, and start
-    /// rehearsing its work.
-    pub fn graph_rehearse(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
-        self.capture_request(|id| Task::CaptureRehearse(id, stream_id))
+    /// planning its work.
+    pub fn graph_prepare(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
+        self.capture_request(|id| Task::CapturePrepare(id, stream_id))
     }
 
-    /// End one rehearsal run of the work on `stream_id`, after every task sent before, and
+    /// End one planning run of the work on `stream_id`, after every task sent before, and
     /// answer whether it settled.
-    pub fn graph_rehearsed(&mut self, stream_id: StreamId) -> Result<bool, ExecutionError> {
+    pub fn graph_end_run(&mut self, stream_id: StreamId) -> Result<bool, ExecutionError> {
         #[cfg(not(target_family = "wasm"))]
         {
-            let rx = self.submit_request(|id| Task::CaptureRehearsed(id, stream_id));
+            let rx = self.submit_request(|id| Task::CaptureEndRun(id, stream_id));
             match self.executor.block_on(rx) {
-                Ok(TaskResponseContent::CaptureRehearsed(res)) => res,
-                Ok(other) => panic!("Invalid response for a rehearsal request: {other:?}"),
+                Ok(TaskResponseContent::CaptureEndRun(res)) => res,
+                Ok(other) => panic!("Invalid response for a planning run request: {other:?}"),
                 Err(_) => Err(self.session.unanswered()),
             }
         }
