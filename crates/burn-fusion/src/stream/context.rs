@@ -1824,6 +1824,37 @@ mod tests {
     }
 
     #[test]
+    fn fork_tensors_keeps_the_handles_of_the_global_ids_it_maps() {
+        let mut original = make_test_context();
+        let relative = TensorId::new(0);
+        let global = TensorId::new(42);
+        original.tensors.insert(
+            relative,
+            TensorIr {
+                id: global,
+                shape: Shape::new([4, 4]),
+                status: TensorStatus::ReadOnly,
+                dtype: DType::F32,
+            },
+        );
+        original
+            .handles
+            .register_handle(relative, "relative_handle".to_string());
+        original
+            .handles
+            .register_handle(global, "global_handle".to_string());
+        original
+            .handles
+            .register_handle(TensorId::new(7), "unmapped_handle".to_string());
+
+        let fork = original.fork_tensors();
+
+        assert!(fork.handles.get_handle_ref(&global).is_some());
+        assert!(fork.handles.get_handle_ref(&relative).is_none());
+        assert!(fork.handles.get_handle_ref(&TensorId::new(7)).is_none());
+    }
+
+    #[test]
     fn context_fork_preserves_input_handles() {
         let original = make_test_context();
         let input_id = TensorId::new(1);
