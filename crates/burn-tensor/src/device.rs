@@ -842,9 +842,10 @@ impl Device {
     /// The peak throughput of the link between the calling process and this device for each of
     /// `sizes`, in order, in bytes per second when one transfer moves that many bytes the way
     /// `transfer` names: the peak, or why the link has none. A remote device answers for this
-    /// process's network, timed until the server holds an upload on its device; a local backend
-    /// reports every size [unsupported](PeakError::Unsupported) for now. A probe moves data for a
-    /// while, so measure once and keep the answer.
+    /// process's network, timed until the server holds an upload on its device, from a native
+    /// client only; a browser client and a local backend report every size
+    /// [unsupported](PeakError::Unsupported) for now. A probe moves data for a while, so measure
+    /// once and keep the answer.
     pub fn measure_host_link(
         &self,
         transfer: HostTransfer,

@@ -128,6 +128,10 @@ fn every_peak_key_is_answered_in_order() {
 #[test]
 fn a_local_device_runs_no_host_link_probe() {
     let device = Device::default();
+    #[cfg(feature = "remote")]
+    if let burn_dispatch::DispatchDevice::Remote(_) = device.as_dispatch() {
+        return;
+    }
 
     let peaks = device.measure_host_link(burn_tensor::HostTransfer::Upload, &[4096]);
 

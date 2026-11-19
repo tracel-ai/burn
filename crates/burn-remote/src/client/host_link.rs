@@ -2,18 +2,20 @@
 
 use core::time::Duration;
 
-use burn_backend::{HostTransfer, Peak, PeakError, TensorData};
+use burn_backend::{Bytes, DType, HostTransfer, Peak, PeakError, StreamId, TensorData};
 use burn_router::RouterClient;
 use burn_std::future::block_on;
 use burn_std::profile::Instant;
 
 use super::RemoteClient;
-use crate::shared::fastest_rate;
+use crate::shared::{LinkPull, fastest_rate};
 
 /// Timed transfers taken of one size before the time budget can end the sampling.
 const MIN_TIMED: usize = 3;
 const MAX_TIMED: usize = 10;
 const SAMPLING_BUDGET: Duration = Duration::from_millis(500);
+/// The largest transfer probed, the same as for a link between servers.
+const MAX_BYTES: u64 = LinkPull::MAX_BYTES;
 
 /// Times the link between the calling process and a remote device through the device's client:
 /// an upload until the server holds the tensor on its device, a download by reading one back.
@@ -33,29 +35,35 @@ impl<'a> HostLinkProber<'a> {
         transfer: HostTransfer,
         sizes: &[u64],
     ) -> Vec<Result<Peak, PeakError>> {
-        let mut failed = false;
-        sizes
-            .iter()
-            .map(|&bytes| {
-                if failed {
-                    return Err(PeakError::Transfer);
-                }
-                let peak = match transfer {
-                    HostTransfer::Upload => self.upload(bytes),
-                    HostTransfer::Download => self.download(bytes),
-                };
-                failed = peak == Err(PeakError::Transfer);
-                peak
-            })
-            .collect()
+        // A stream of its own, so a sync never takes an error the caller's stream is owed.
+        StreamId::allocate().executes(|| {
+            let mut failed = false;
+            let peaks = sizes
+                .iter()
+                .map(|&bytes| {
+                    if failed {
+                        return Err(PeakError::Transfer);
+                    }
+                    let peak = match transfer {
+                        HostTransfer::Upload => self.upload(bytes),
+                        HostTransfer::Download => self.download(bytes),
+                    };
+                    failed = peak == Err(PeakError::Transfer);
+                    peak
+                })
+                .collect();
+            // The last drop waits in the batch for a flush, which nothing else sends this stream.
+            let _ = self.client.sync();
+            peaks
+        })
     }
 
     /// The peak rate of uploading `bytes`.
     ///
     /// # Errors
     ///
-    /// [`Unsupported`](PeakError::Unsupported) for no bytes and in the browser, and
-    /// [`Transfer`](PeakError::Transfer) when the session fails under an upload.
+    /// [`Unsupported`](PeakError::Unsupported) for no bytes, past [`MAX_BYTES`] and in the
+    /// browser, and [`Transfer`](PeakError::Transfer) when the session fails under an upload.
     fn upload(&self, bytes: u64) -> Result<Peak, PeakError> {
         let data = buffer(bytes)?;
         let samples = sample(|| {
@@ -74,8 +82,8 @@ impl<'a> HostLinkProber<'a> {
     ///
     /// # Errors
     ///
-    /// [`Unsupported`](PeakError::Unsupported) for no bytes and in the browser, and
-    /// [`Transfer`](PeakError::Transfer) when the session fails under a download.
+    /// [`Unsupported`](PeakError::Unsupported) for no bytes, past [`MAX_BYTES`] and in the
+    /// browser, and [`Transfer`](PeakError::Transfer) when the session fails under a download.
     fn download(&self, bytes: u64) -> Result<Peak, PeakError> {
         let tensor = self.client.register_tensor_data(buffer(bytes)?);
         self.client.sync().map_err(|_| PeakError::Transfer)?;
@@ -98,17 +106,15 @@ impl core::fmt::Debug for HostLinkProber<'_> {
     }
 }
 
-/// A buffer of `bytes`, which only its size matters for. None in the browser, where a sync
-/// returns before the server has run what came before it, so nothing could be timed.
+/// A buffer of `bytes`, which only its size matters for, shared so a clone copies nothing. None
+/// in the browser, where a sync returns before the server has run what came before it.
 fn buffer(bytes: u64) -> Result<TensorData, PeakError> {
-    if cfg!(target_family = "wasm") {
+    if cfg!(target_family = "wasm") || !(1..=MAX_BYTES).contains(&bytes) {
         return Err(PeakError::Unsupported);
     }
-    let len = usize::try_from(bytes).map_err(|_| PeakError::Unsupported)?;
-    if len == 0 {
-        return Err(PeakError::Unsupported);
-    }
-    Ok(TensorData::zeros::<u8, _>([len]))
+    let len = bytes as usize;
+    let zeros = Bytes::from_bytes_vec(vec![0; len]).shared();
+    Ok(TensorData::from_bytes(zeros, [len], DType::U8))
 }
 
 /// One warmup, then timed transfers until the time budget runs out past the fewest, or the most.

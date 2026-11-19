@@ -489,7 +489,8 @@ fn a_remote_devices_host_link_is_timed_by_its_client() {
     let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
     let device = Device::remote_options(&host).init().unwrap();
 
-    let uploads = device.measure_host_link(burn_tensor::HostTransfer::Upload, &[1 << 20, 0]);
+    let uploads =
+        device.measure_host_link(burn_tensor::HostTransfer::Upload, &[1 << 20, 0, u64::MAX]);
     let downloads = device.measure_host_link(burn_tensor::HostTransfer::Download, &[4096]);
 
     assert!(
@@ -497,6 +498,7 @@ fn a_remote_devices_host_link_is_timed_by_its_client() {
         "{uploads:?}"
     );
     assert_eq!(uploads[1], Err(burn_tensor::PeakError::Unsupported));
+    assert_eq!(uploads[2], Err(burn_tensor::PeakError::Unsupported));
     assert!(
         downloads[0].is_ok_and(|peak| peak.per_second > 0.0),
         "{downloads:?}"
