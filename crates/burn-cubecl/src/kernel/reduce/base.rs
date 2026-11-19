@@ -1,5 +1,5 @@
 #[cfg(feature = "autotune")]
-use super::{autotune_reduce_dims_plan, autotune_sum};
+use super::autotune_reduce_dims_plan;
 use crate::ops::permute;
 use crate::{
     ops::numeric::{empty_device_contiguous_dtype, fill_device_dtype, zeros_client},
@@ -9,24 +9,12 @@ use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type, elem_type_
 use burn_backend::{DType, TensorMetadata};
 use burn_std::{BoolDType, Metadata};
 use burn_std::{Shape, Strides};
-use cubecl::{AutotuneKey, client::Client, features::AtomicUsage, ir::Type, prelude::InputScalar};
+use cubecl::prelude::InputScalar;
 use cubek::reduce::{
     ReduceDtypes, ReduceError, ReduceWithIndicesDtypes,
     components::instructions::ReduceOperationConfig,
     kernels::{ReduceKernel, ReduceKernelHeuristic, ReduceOpStrategy},
-    shared_sum,
 };
-use serde::{Deserialize, Serialize};
-
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
-/// Autotune key representative of sum versions
-pub struct SumAutotuneKey {
-    /// The type of the tensor
-    dtype: burn_backend::DType,
-    /// The anchored length of the tensor
-    #[autotune(anchor)]
-    length: usize,
-}
 
 /// The value a reduction over zero elements must produce, or `None` if there is none.
 ///
@@ -78,86 +66,24 @@ fn reduce_empty_axis(
     Ok(fill_device_dtype(output, identity))
 }
 
-/// Check if the client supports atomic add for the given element type.
-fn supports_atomic_add(client: &Client, dtype: DType) -> bool {
-    client
-        .properties()
-        .atomic_type_usage(Type::atomic(dtype_to_elem_type(dtype)))
-        .contains(AtomicUsage::Add)
-}
-
-/// [Sum](sum) with fallback when `client` doesn't support atomic add for the type `E`.
-pub fn sum_fallback(
-    tensor: CubeTensor,
-    mut strategy: SumStrategy,
-) -> Result<CubeTensor, ReduceError> {
-    // Early check before creating output and fallback
-    if matches!(strategy, SumStrategy::OneShot(_))
-        && !supports_atomic_add(&tensor.client, tensor.dtype)
-    {
-        strategy = SumStrategy::Chained(Default::default());
-    }
-    sum(tensor, strategy)
-}
-
-/// Specialize reduce function to compute the sum of all elements of the `input` tensor and return
-/// the value into a single-element tensor of shape `1 x 1 x 1 x ...` with the same rank as `input`.
-///
-/// This is expected to be faster for larger tensors than calling [reduce] with the `Sum` instruction.
-///
-/// Return an error if the `client` doesn't support atomic add for the type `E`.
-pub fn sum(tensor: CubeTensor, strategy: SumStrategy) -> Result<CubeTensor, ReduceError> {
-    let client = tensor.client.clone();
-    let device = tensor.device.clone();
-
-    // No strategy can launch a kernel over an empty input, so write the additive identity.
+/// The sum of every element of `tensor`, in a tensor of shape `[1]`: one reduction over the
+/// elements as one row where they lie contiguous, which cubek splits across cubes, and one a dim
+/// otherwise.
+pub fn sum(tensor: CubeTensor, strategy: KernelReduceStrategy) -> Result<CubeTensor, ReduceError> {
+    // No kernel launches over an empty input, so write the additive identity.
     if tensor.meta.num_elements() == 0 {
-        return Ok(zeros_client(client, device, [1].into(), tensor.dtype));
+        return Ok(zeros_client(
+            tensor.client.clone(),
+            tensor.device.clone(),
+            [1].into(),
+            tensor.dtype,
+        ));
     }
-
-    match strategy {
-        SumStrategy::OneShot(cube_count) => {
-            let output = zeros_client(client.clone(), device, [1].into(), tensor.dtype);
-            let dtype = tensor.dtype;
-
-            shared_sum(
-                &client,
-                tensor.binding(),
-                output.clone().binding(),
-                cube_count,
-                dtype_to_elem_type(dtype),
-            )?;
-
-            Ok(output)
-        }
-        SumStrategy::Chained(strategy) => {
-            reduce(tensor, None, strategy, ReduceOperationConfig::Sum)
-        }
-        #[cfg(feature = "autotune")]
-        SumStrategy::Autotune => Ok(autotune_sum(&client, tensor)),
+    let mut tensor = crate::kernel::untile(tensor);
+    if tensor.is_contiguous() {
+        *tensor.meta = Metadata::new([tensor.meta.num_elements()], [1]);
     }
-}
-
-/// Select a strategy to perform a sum.
-pub enum SumStrategy {
-    /// Run a single kernel with many cubes working in parallel to sum all elements.
-    /// The provided value is the number of elements summed per unit (up-to-rounding )
-    OneShot(u32),
-    /// Use multiple kernels
-    Chained(KernelReduceStrategy),
-    /// Use autotune to find the best cube count given the hardware and the input.
-    #[cfg(feature = "autotune")]
-    Autotune,
-}
-
-impl Default for SumStrategy {
-    fn default() -> Self {
-        #[cfg(feature = "autotune")]
-        return Self::Autotune;
-
-        #[cfg(not(feature = "autotune"))]
-        return Self::OneShot(4);
-    }
+    reduce(tensor, None, strategy, ReduceOperationConfig::Sum)
 }
 
 /// Reduce all elements of the `input` tensor using the instruction `Rd` and the given [strategy](KernelReduceStrategy).
