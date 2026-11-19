@@ -25,10 +25,7 @@ use cubecl::{
         tensor::layout::linear::{LinearView, LinearViewMut},
     },
 };
-use cubek::{
-    convolution::components::ConvSetupError,
-    reduce::ReduceOperation,
-};
+use cubek::{convolution::components::ConvSetupError, reduce::ReduceOperation};
 use std::marker::PhantomData;
 
 /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
@@ -67,22 +64,8 @@ pub(crate) fn deform_conv2d_backward(
             ReduceOperation::Sum,
         )
         .unwrap();
-        let grad = reduce_dim(
-            grad,
-            None,
-            2,
-            Default::default(),
-            ReduceOperation::Sum,
-        )
-        .unwrap();
-        let grad = reduce_dim(
-            grad,
-            None,
-            3,
-            Default::default(),
-            ReduceOperation::Sum,
-        )
-        .unwrap();
+        let grad = reduce_dim(grad, None, 2, Default::default(), ReduceOperation::Sum).unwrap();
+        let grad = reduce_dim(grad, None, 3, Default::default(), ReduceOperation::Sum).unwrap();
 
         reshape(grad, bias.meta.shape.clone())
     });

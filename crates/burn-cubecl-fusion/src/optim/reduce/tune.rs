@@ -12,9 +12,7 @@ use cubecl::{
     tile::Geometry,
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
-use cubek::reduce::kernels::{
-    ReduceElements, ReduceKey, ReduceRoutineProblem, ReduceCandidate,
-};
+use cubek::reduce::kernels::{ReduceCandidate, ReduceElements, ReduceKey, ReduceRoutineProblem};
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 

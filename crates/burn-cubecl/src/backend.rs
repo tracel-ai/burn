@@ -1,7 +1,10 @@
 use crate::execution::OPEN_MODES;
 use crate::{CubeDevice, tensor::CubeTensor};
 use burn_backend::RandomKey;
-use burn_backend::cubecl::{ThroughputKey, dtype_to_storage_type, measure_peak_throughput};
+use burn_backend::cubecl::{
+    LinkKey, LinkRoute, ThroughputKey, dtype_to_storage_type, measure_link_throughput,
+    measure_peak_throughput, transfer_route,
+};
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceDescription,
     DeviceTelemetry, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
@@ -441,6 +444,32 @@ impl Backend for CubeBackend {
                     _ => value.ops_per_s(),
                 };
                 Ok(Peak { per_second })
+            })
+            .collect()
+    }
+
+    /// Runs cubecl's link probe over the route a transfer between the two takes.
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        if from == to {
+            return sizes.iter().map(|_| Err(PeakError::Unsupported)).collect();
+        }
+        let members = [from.client(), to.client()];
+        let route = LinkRoute::Transfer(transfer_route(&members[0], &members[1]));
+        sizes
+            .iter()
+            .map(|&bytes| {
+                // cubecl's probe sizes its buffers in `usize`, which a 32-bit target would wrap.
+                if usize::try_from(bytes).is_err() {
+                    return Err(PeakError::Unsupported);
+                }
+                let value = measure_link_throughput(&members, LinkKey { route, bytes })?;
+                Ok(Peak {
+                    per_second: value.ops_per_s(),
+                })
             })
             .collect()
     }

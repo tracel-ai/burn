@@ -75,7 +75,7 @@ impl Destination for TraceSink {
     type Arg<E: Numeric> = TraceSinkArg;
     type Served<E: Numeric> = Tile;
 
-    fn serve<E: Numeric, V: Size>(arg: &TraceSinkArg, partitioning: &Partitioning) -> Tile {
+    fn serve<E: Numeric, V: Size>(arg: &mut TraceSinkArg, partitioning: &Partitioning) -> Tile {
         let config = comptime!(arg.config.clone());
         let mut outputs = arg.outputs.clone();
         multi_block_variables_init(&config, &mut outputs.variables);

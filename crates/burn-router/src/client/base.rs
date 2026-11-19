@@ -6,8 +6,8 @@ use burn_backend::RandomKey;
 use burn_backend::{
     DType, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId,
     EnvironmentOrigin, EnvironmentSummary, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
-    PruneOptions, Pruned, SaveOptions, TensorData, UnknownExecutionMode,
+    HostTransfer, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
+    ProfileToken, PruneOptions, Pruned, SaveOptions, TensorData, UnknownExecutionMode,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
@@ -251,6 +251,23 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     /// The peak throughput of the interpreter's device for each of `keys`.
     fn measure_peaks(&self, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
         keys.iter().map(|_| Err(PeakError::Unsupported)).collect()
+    }
+
+    /// The peak throughput of the link from the interpreter's device to `to` for each of `sizes`.
+    #[allow(unused_variables)]
+    fn measure_link(&self, to: &Self::Device, sizes: &[u64]) -> Vec<Result<Peak, PeakError>> {
+        sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
+    }
+
+    /// The peak throughput of the link between the calling process and the interpreter's device
+    /// for each of `sizes`.
+    #[allow(unused_variables)]
+    fn measure_host_link(
+        &self,
+        transfer: HostTransfer,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
     }
 
     /// Prepare the interpreter's backend for a graph capture — see

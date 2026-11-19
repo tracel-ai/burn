@@ -391,14 +391,7 @@ impl IntTensorOps<Self> for CubeBackend {
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim(
-            tensor,
-            None,
-            dim,
-            Default::default(),
-            ReduceOperation::Sum,
-        )
-        .unwrap()
+        reduce::reduce_dim(tensor, None, dim, Default::default(), ReduceOperation::Sum).unwrap()
     }
 
     fn int_any(tensor: IntTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
@@ -418,24 +411,11 @@ impl IntTensorOps<Self> for CubeBackend {
     }
 
     fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce(
-            tensor,
-            None,
-            Default::default(),
-            ReduceOperation::Prod,
-        )
-        .unwrap()
+        reduce::reduce(tensor, None, Default::default(), ReduceOperation::Prod).unwrap()
     }
 
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim(
-            tensor,
-            None,
-            dim,
-            Default::default(),
-            ReduceOperation::Prod,
-        )
-        .unwrap()
+        reduce::reduce_dim(tensor, None, dim, Default::default(), ReduceOperation::Prod).unwrap()
     }
 
     fn int_max(tensor: IntTensor<Self>) -> IntTensor<Self> {
@@ -443,14 +423,7 @@ impl IntTensorOps<Self> for CubeBackend {
     }
 
     fn int_max_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim(
-            tensor,
-            None,
-            dim,
-            Default::default(),
-            ReduceOperation::Max,
-        )
-        .unwrap()
+        reduce::reduce_dim(tensor, None, dim, Default::default(), ReduceOperation::Max).unwrap()
     }
 
     fn int_topk(tensor: IntTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
@@ -516,13 +489,7 @@ impl IntTensorOps<Self> for CubeBackend {
     }
 
     fn int_max_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce(
-            tensor,
-            None,
-            Default::default(),
-            ReduceOperation::MaxAbs,
-        )
-        .unwrap()
+        reduce::reduce(tensor, None, Default::default(), ReduceOperation::MaxAbs).unwrap()
     }
 
     fn int_max_abs_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
@@ -541,25 +508,11 @@ impl IntTensorOps<Self> for CubeBackend {
     }
 
     fn int_min_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim(
-            tensor,
-            None,
-            dim,
-            Default::default(),
-            ReduceOperation::Min,
-        )
-        .unwrap()
+        reduce::reduce_dim(tensor, None, dim, Default::default(), ReduceOperation::Min).unwrap()
     }
 
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim(
-            tensor,
-            None,
-            dim,
-            Default::default(),
-            ReduceOperation::Mean,
-        )
-        .unwrap()
+        reduce::reduce_dim(tensor, None, dim, Default::default(), ReduceOperation::Mean).unwrap()
     }
 
     fn int_cumsum(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {

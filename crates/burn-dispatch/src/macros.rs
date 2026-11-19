@@ -95,6 +95,41 @@ macro_rules! dispatch_device_arms {
     };
 }
 
+/// Match arm generator for `dispatch_device_pair`.
+macro_rules! dispatch_device_pair_arms {
+    (
+        $from:expr, $to:expr,
+        |$a:ident, $b:ident| $body:expr, $otherwise:expr;
+        $([$Backend:ident, $cfg:meta]),*
+    ) => {
+        match ($from, $to) {
+            $(
+                #[cfg($cfg)]
+                ($crate::DispatchDevice::$Backend($a), $crate::DispatchDevice::$Backend($b)) => {
+                    type B = $crate::backends::$Backend;
+                    $body
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            _ => $otherwise,
+        }
+    };
+}
+
+/// Dispatches an operation over two devices of one backend, or answers `$otherwise` for two
+/// devices of different backends.
+macro_rules! dispatch_device_pair {
+    ($from:expr, $to:expr, |$a:ident, $b:ident| $body:expr, $otherwise:expr) => {
+        backend_list!(
+            dispatch_device_pair_arms,
+            $from,
+            $to,
+            |$a, $b| $body,
+            $otherwise
+        )
+    };
+}
+
 /// Dispatches an operation body based on the provided device.
 macro_rules! dispatch_device {
     ($device:expr, |$inner:ident| $body:expr) => {

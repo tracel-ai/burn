@@ -37,6 +37,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use burn_backend::PeakError;
 use burn_backend::tensor::FloatTensor;
 use burn_ir::{BackendIr, GraphBindings, GraphId, HandleKind, TensorError, TensorId, TensorIr};
 use burn_router::{Graph, TensorInterpreter};
@@ -53,6 +54,7 @@ use tokio::sync::mpsc;
 
 use crate::server::DeviceQueries;
 use crate::server::ServerStreams;
+use crate::server::link_probe::LinkPuller;
 use crate::server::local_comm::LocalCommService;
 use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
 use crate::server::transfer::TensorTransfer;
@@ -637,6 +639,36 @@ where
                 self.send_response(request_id, TaskResponseContent::Peaks(peaks))
                     .await
             }
+            Task::GrantLink(request_id, capability) => {
+                let device = self.runner.device();
+                self.local_comm
+                    .grant_link(self.session_id, capability, device)
+                    .await;
+                self.send_response(request_id, TaskResponseContent::LinkGranted)
+                    .await
+            }
+            Task::MeasureLinkLocal(request_id, capability, sizes) => {
+                let link = match self.local_comm.take_link(capability).await {
+                    Some(to) => self.runner.measure_link(&to, &sizes),
+                    None => vec![Err(PeakError::Unsupported); sizes.len()],
+                };
+                self.send_response(request_id, TaskResponseContent::Link(link))
+                    .await
+            }
+            Task::ExposeLinkPull(request_id, target, pull) => {
+                let exposed = LinkPuller::new(&*self.transfer).expose(target, &pull).await;
+                self.send_response(request_id, TaskResponseContent::LinkExposed(exposed))
+                    .await
+            }
+            Task::MeasureLinkPull(request_id, source, pull) => {
+                let peak = LinkPuller::new(&*self.transfer).time(&source, &pull).await;
+                self.send_response(request_id, TaskResponseContent::LinkPulled(peak))
+                    .await
+            }
+            Task::WithdrawLinkPull(capability) => {
+                self.transfer.withdraw(capability).await;
+                Ok(())
+            }
         }
     }
 
@@ -840,6 +872,8 @@ mod tests {
         }
 
         async fn fail(&self, _: TransferCapability, _: PeerId, _: String) {}
+
+        async fn withdraw(&self, _: TransferCapability) {}
     }
 
     #[tokio::test(flavor = "multi_thread")]

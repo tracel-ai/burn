@@ -158,6 +158,20 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   backends without a reported capacity return `None`. ([#6250](https://github.com/tracel-ai/burn/pull/6250))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- `Device::measure_link(&to, &sizes)` measures the peak throughput of the link from one device to
+  another for each transfer size, as `measure_peaks` does for a device's own peaks. Two devices of
+  one server run their backend's link probe there; between two servers, the target times its
+  downloads from the source. `PeakError::Transfer` reports a transfer the probe lost.
+  ([#6551](https://github.com/tracel-ai/burn/pull/6551))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- `Device::measure_host_link(transfer, &sizes)` measures the peak throughput of the link between
+  the calling process and a device for each transfer size, as a `HostTransfer::Upload` or a
+  `HostTransfer::Download`. A remote device's client times it over the network, until the server
+  holds an upload on its device; local backends report it unsupported for now.
+  ([#6560](https://github.com/tracel-ai/burn/pull/6560))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 #### Device transfers
 
 - Fix concurrent CUDA transfers between devices returning another transfer's data or deadlocking.
@@ -277,6 +291,9 @@ Reports also include the measured cost of a kernel launch.
   reads as errors instead of panicking. ([#6086](https://github.com/tracel-ai/burn/pull/6086),
   [#5970](https://github.com/tracel-ai/burn/pull/5970),
   [#5986](https://github.com/tracel-ai/burn/pull/5986))
+
+- Fusion autotune copies only the handles of the tensors its queue maps, not every live tensor's, so
+  a launch that is not yet tuned no longer costs a pass over every live handle.
 
 #### Graph capture
 
@@ -492,6 +509,10 @@ whose tensors are split over `devices` (crate `burn-shard`).
   their input's split or partial sum where the math allows, instead of gathering it.
   ([#6387](https://github.com/tracel-ai/burn/pull/6387))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- `repeat_dim` on a sharded compute device keeps a split of any dim other than the repeated one,
+  instead of gathering its input, so key heads split by member and repeated to the value heads
+  they serve stay on their member. ([#6559](https://github.com/tracel-ai/burn/pull/6559))
 
 - A quantized tensor splits over a sharded compute device, its codes and scales cut as they are,
   so a quantized model's weights split for tensor parallelism. A split must give every member whole

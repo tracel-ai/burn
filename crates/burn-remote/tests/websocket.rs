@@ -449,6 +449,90 @@ fn random_requests_keep_their_seeds_across_remote_reseeding() {
 }
 
 #[test]
+fn a_link_between_two_servers_is_timed_at_each_size_asked() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host_1 = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let host_2 = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device_1 = Device::remote_options(&host_1).init().unwrap();
+    let device_2 = Device::remote_options(&host_2).init().unwrap();
+
+    let sizes = [1 << 20, 4096];
+
+    let peaks = device_1.measure_link(&device_2, &sizes);
+
+    assert_eq!(peaks.len(), sizes.len());
+    assert!(
+        peaks
+            .iter()
+            .all(|peak| peak.is_ok_and(|peak| peak.per_second > 0.0)),
+        "{peaks:?}"
+    );
+    let reversed = device_1.measure_link(&device_2, &[4096, 1 << 20]);
+    assert_eq!(reversed, [peaks[1], peaks[0]]);
+    // A size no server serves does not keep an uncached one from being measured.
+    let with_empty = device_1.measure_link(&device_2, &[0, 16 << 10]);
+    assert_eq!(with_empty[0], Err(burn_tensor::PeakError::Unsupported));
+    assert!(with_empty[1].is_ok(), "{with_empty:?}");
+
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_remote_devices_host_link_is_timed_by_its_client() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
+
+    let uploads =
+        device.measure_host_link(burn_tensor::HostTransfer::Upload, &[1 << 20, 0, u64::MAX]);
+    let downloads = device.measure_host_link(burn_tensor::HostTransfer::Download, &[4096]);
+
+    assert!(
+        uploads[0].is_ok_and(|peak| peak.per_second > 0.0),
+        "{uploads:?}"
+    );
+    assert_eq!(uploads[1], Err(burn_tensor::PeakError::Unsupported));
+    assert_eq!(uploads[2], Err(burn_tensor::PeakError::Unsupported));
+    assert!(
+        downloads[0].is_ok_and(|peak| peak.per_second > 0.0),
+        "{downloads:?}"
+    );
+
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_link_within_a_server_is_its_backends_to_answer() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default(), Default::default()]),
+    );
+    let device_0 = Device::remote_options(&host).init().unwrap();
+    let device_1 = Device::remote_options(&host)
+        .device_index(1)
+        .init()
+        .unwrap();
+
+    // Flex runs no link probe.
+    assert_eq!(
+        device_0.measure_link(&device_1, &[4096]),
+        [Err(burn_tensor::PeakError::Unsupported)]
+    );
+
+    rt.shutdown_background();
+}
+
+#[test]
 fn test_to_device_over_websocket() {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_io()

@@ -139,10 +139,7 @@ pub fn reduce_dims(
     #[cfg(feature = "autotune")]
     if matches!(strategy, KernelReduceStrategy::Autotune)
         && output_dtype.is_none()
-        && matches!(
-            config,
-            ReduceOperation::Sum | ReduceOperation::Mean
-        )
+        && matches!(config, ReduceOperation::Sum | ReduceOperation::Mean)
         && (matches!(config, ReduceOperation::Sum) || input.dtype.is_float())
         && (0..input.meta.num_dims())
             .filter(|dim| dims.contains(dim))
@@ -330,10 +327,7 @@ pub fn reduce_logical(
     out_dtype: BoolDType,
 ) -> CubeTensor {
     debug_assert!(
-        matches!(
-            config,
-            ReduceOperation::Any | ReduceOperation::All
-        ),
+        matches!(config, ReduceOperation::Any | ReduceOperation::All),
         "reduce_logical only supports Any / All, got {config:?}"
     );
     let out_bool = DType::Bool(out_dtype);
@@ -431,7 +425,7 @@ pub fn reduce_dim(
             config,
             elements,
         )
-    .map(|_| output)
+        .map(|_| output)
 }
 
 /// Reduce the given `axis` of `input`, returning the values **and** their indices from a
@@ -461,9 +455,7 @@ pub fn reduce_dim_with_indices(
         ReduceOperation::ArgMax => ReduceOperation::Max,
         ReduceOperation::ArgMin => ReduceOperation::Min,
         ReduceOperation::ArgTopK { k } => ReduceOperation::TopK { k },
-        ReduceOperation::Max
-        | ReduceOperation::Min
-        | ReduceOperation::TopK { .. } => config,
+        ReduceOperation::Max | ReduceOperation::Min | ReduceOperation::TopK { .. } => config,
         ReduceOperation::Sum => return Err(unsupported("Sum")),
         ReduceOperation::Prod => return Err(unsupported("Prod")),
         ReduceOperation::Mean => return Err(unsupported("Mean")),
@@ -517,7 +509,7 @@ pub fn reduce_dim_with_indices(
             elements,
             dtype_to_elem_type(indices_dtype),
         )
-    .map(|_| (values, indices))
+        .map(|_| (values, indices))
 }
 
 /// Creates an empty output tensor with the proper shape and decreasing strides to reduce the given `axis` of `input`

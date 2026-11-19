@@ -22,10 +22,10 @@ use burn_ir::ReduceDimOpIr;
 use cubecl::{
     client::Client,
     prelude::TensorBinding,
-    tile::{Geometry, launch::Refusal},
+    tile::{Geometry, launch::Decline},
 };
 use cubek::microkernel::reduce::ReduceOperation;
-use cubek::reduce::kernels::{ReduceElements, ReduceKey, ReduceTensors, ReduceCandidate};
+use cubek::reduce::kernels::{ReduceCandidate, ReduceElements, ReduceKey, ReduceTensors};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -176,7 +176,7 @@ pub enum FusedReduceError {
     /// No routine is elected for the reduce: the autotune has not measured its key yet.
     NoRoutineElected,
     /// The elected routine declined the reduce, as its read block states it.
-    Routine(Refusal),
+    Routine(Decline),
 }
 
 impl ReduceOptimizationTuneArg {

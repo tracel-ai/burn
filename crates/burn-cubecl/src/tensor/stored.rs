@@ -4,7 +4,7 @@
 use super::CubeTensor;
 use burn_backend::DType;
 use burn_backend::cubecl::dtype_to_storage_type;
-use cubecl::tile::{Dimension, launch::Refusal};
+use cubecl::tile::{Dimension, launch::Decline};
 use cubek::matmul::kernels::tensor::{PackedTensor, PlainTensor, StoredTensor};
 
 impl CubeTensor {
@@ -20,7 +20,7 @@ impl CubeTensor {
     /// # Errors
     ///
     /// For a quantized tensor, what [`PackedTensor::of_quantized`] declines.
-    pub fn stored(self, dimensions: [Dimension; 2]) -> Result<StoredTensor, Refusal> {
+    pub fn stored(self, dimensions: [Dimension; 2]) -> Result<StoredTensor, Decline> {
         let DType::QFloat(scheme) = self.dtype else {
             return Ok(StoredTensor::Plain(self.plain()));
         };

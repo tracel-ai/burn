@@ -447,14 +447,7 @@ impl FloatTensorOps<Self> for CubeBackend {
     }
 
     fn float_max_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim(
-            tensor,
-            None,
-            dim,
-            Default::default(),
-            ReduceOperation::Max,
-        )
-        .unwrap()
+        reduce::reduce_dim(tensor, None, dim, Default::default(), ReduceOperation::Max).unwrap()
     }
 
     fn float_min(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -462,24 +455,11 @@ impl FloatTensorOps<Self> for CubeBackend {
     }
 
     fn float_min_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim(
-            tensor,
-            None,
-            dim,
-            Default::default(),
-            ReduceOperation::Min,
-        )
-        .unwrap()
+        reduce::reduce_dim(tensor, None, dim, Default::default(), ReduceOperation::Min).unwrap()
     }
 
     fn float_max_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        reduce::reduce(
-            tensor,
-            None,
-            Default::default(),
-            ReduceOperation::MaxAbs,
-        )
-        .unwrap()
+        reduce::reduce(tensor, None, Default::default(), ReduceOperation::MaxAbs).unwrap()
     }
 
     fn float_max_abs_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
@@ -518,46 +498,19 @@ impl FloatTensorOps<Self> for CubeBackend {
     }
 
     fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim(
-            tensor,
-            None,
-            dim,
-            Default::default(),
-            ReduceOperation::Sum,
-        )
-        .unwrap()
+        reduce::reduce_dim(tensor, None, dim, Default::default(), ReduceOperation::Sum).unwrap()
     }
 
     fn float_sum_dims(tensor: FloatTensor<Self>, dims: &[usize]) -> FloatTensor<Self> {
-        reduce::reduce_dims(
-            tensor,
-            None,
-            dims,
-            Default::default(),
-            ReduceOperation::Sum,
-        )
-        .unwrap()
+        reduce::reduce_dims(tensor, None, dims, Default::default(), ReduceOperation::Sum).unwrap()
     }
 
     fn float_mean_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim(
-            tensor,
-            None,
-            dim,
-            Default::default(),
-            ReduceOperation::Mean,
-        )
-        .unwrap()
+        reduce::reduce_dim(tensor, None, dim, Default::default(), ReduceOperation::Mean).unwrap()
     }
 
     fn float_mean(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        reduce::reduce(
-            tensor,
-            None,
-            Default::default(),
-            ReduceOperation::Mean,
-        )
-        .unwrap()
+        reduce::reduce(tensor, None, Default::default(), ReduceOperation::Mean).unwrap()
     }
 
     fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
@@ -577,24 +530,11 @@ impl FloatTensorOps<Self> for CubeBackend {
     }
 
     fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        reduce::reduce(
-            tensor,
-            None,
-            Default::default(),
-            ReduceOperation::Prod,
-        )
-        .unwrap()
+        reduce::reduce(tensor, None, Default::default(), ReduceOperation::Prod).unwrap()
     }
 
     fn float_prod_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce::reduce_dim(
-            tensor,
-            None,
-            dim,
-            Default::default(),
-            ReduceOperation::Prod,
-        )
-        .unwrap()
+        reduce::reduce_dim(tensor, None, dim, Default::default(), ReduceOperation::Prod).unwrap()
     }
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
