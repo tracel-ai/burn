@@ -169,6 +169,7 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   the calling process and a device for each transfer size, as a `HostTransfer::Upload` or a
   `HostTransfer::Download`. A remote device's client times it over the network, until the server
   holds an upload on its device; local backends report it unsupported for now.
+  ([#6560](https://github.com/tracel-ai/burn/pull/6560))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Device transfers
