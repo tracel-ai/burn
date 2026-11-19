@@ -626,19 +626,75 @@ fn test_ctc_loss_grad_empty_target() {
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
 }
 
-/// Regression guard for NaN gradient on unreachable targets, driven through
-/// `.backward()` rather than a direct `ctc_loss_backward` call. The direct-path
-/// version is covered by `test_ctc_loss_backward_unreachable_is_finite`; this
-/// test exists because a lazy-backend regression in log_sum_exp or the
-/// grad-composition mask can leave NaN in the autodiff trace even when the
-/// direct backward call is finite.
-///
-/// Note: the direct backward asserts grad == 0 (the mask inside
-/// `ctc_grad_from_alpha_beta_default` zeroes entries for +inf nll). The autodiff
-/// path currently produces a non-zero but finite gradient for this case because
-/// `loss.sum().backward()` seeds through a +inf forward value. Finiteness is
-/// what guards training stability; the zero-vs-finite-nonzero difference is a
-/// separate concern.
+#[test]
+fn test_ctc_loss_grad_weighted_mixed_targets_custom_blank() {
+    use burn_tensor::DType;
+
+    let device = AutodiffDevice::new();
+    for dtype in [DType::F16, DType::BF16, DType::F32, DType::F64] {
+        if !device.supports_dtype(dtype) {
+            continue;
+        }
+        let logits = TestTensor::<3>::from_data(
+            [
+                [[0.25, 0.5, 0.25], [0.5, 0.25, 0.25], [0.25, 0.25, 0.5]],
+                [[0.5, 0.25, 0.25], [0.25, 0.25, 0.5], [0.5, 0.25, 0.25]],
+                [[0.25, 0.5, 0.25], [0.25, 0.5, 0.25], [0.25, 0.25, 0.5]],
+                [[0.25, 0.25, 0.5], [0.5, 0.25, 0.25], [0.5, 0.25, 0.25]],
+            ],
+            (&device, dtype),
+        )
+        .log()
+        .require_grad();
+        let targets = TestTensorInt::<2>::from_data([[1, 1, 0], [0, 1, 0], [0, 1, 1]], &device);
+        let input_lengths = TestTensorInt::<1>::from_data([4, 3, 2], &device);
+        let target_lengths = TestTensorInt::<1>::from_data([2, 1, 0], &device);
+        let weights = TestTensor::<1>::from_data([0.5, -2.0, 3.0], (&device, dtype));
+        let loss = ctc_loss(
+            log_softmax(logits.clone(), 2),
+            targets,
+            input_lengths,
+            target_lengths,
+            2,
+        );
+        let grads = (loss * weights).sum().backward();
+        let grad = logits.grad(&grads).unwrap();
+        assert_eq!(grad.dtype(), dtype);
+
+        // Enumerating collapsed paths gives five alignments for [1, 1], six
+        // for [0], and one for the empty target. Weight (p - posterior) per
+        // sample; timesteps beyond each input length contribute zero.
+        let expected = TensorData::from([
+            [
+                [0.125, -15.0 / 68.0, 13.0 / 136.0],
+                [1.0 / 3.0, -0.5, 1.0 / 6.0],
+                [0.75, 0.75, -1.5],
+            ],
+            [
+                [0.25, 5.0 / 136.0, -39.0 / 136.0],
+                [0.5, -0.5, 0.0],
+                [1.5, 0.75, -2.25],
+            ],
+            [
+                [0.125, -7.0 / 68.0, -3.0 / 136.0],
+                [1.0 / 3.0, -1.0, 2.0 / 3.0],
+                [0.0, 0.0, 0.0],
+            ],
+            [
+                [0.125, -19.0 / 136.0, 1.0 / 68.0],
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0],
+            ],
+        ]);
+        let tolerance = (4.0 * dtype.finfo().unwrap().epsilon).max(1e-5);
+        grad.into_data()
+            .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(tolerance, tolerance));
+    }
+}
+
+/// Unreachable targets must stay finite through the autodiff graph as well as
+/// the direct backward call. Decomposed autodiff can produce nonzero gradients
+/// where native backward masks to zero, so only finiteness is shared here.
 #[test]
 fn test_ctc_loss_grad_unreachable_is_finite() {
     let device = AutodiffDevice::new();

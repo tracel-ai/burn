@@ -50,6 +50,42 @@ fn test_ctc_loss_empty_target() {
 }
 
 #[test]
+fn test_ctc_loss_empty_target_storage_preserves_precision() {
+    use burn_tensor::{DType, Device, TensorData};
+
+    let device = Device::default();
+    for dtype in [DType::F16, DType::BF16, DType::F32, DType::F64] {
+        if !device.supports_dtype(dtype) {
+            continue;
+        }
+
+        let log_probs = TestTensor::<3>::from_data(
+            [
+                [[-0.123456789012345f64, -1.0], [-0.5, -1.0]],
+                [[-0.2, -1.0], [-0.75, -1.0]],
+                [[-0.4, -1.0], [-1.0, -1.0]],
+            ],
+            (&device, dtype),
+        );
+        let targets =
+            TestTensorInt::<2>::from_data(TensorData::new(Vec::<i32>::new(), [2, 0]), &device);
+        let input_lengths = TestTensorInt::<1>::from_data([3, 2], &device);
+        let target_lengths = TestTensorInt::<1>::from_data([0, 0], &device);
+        let loss = ctc_loss(log_probs, targets, input_lengths, target_lengths, 0);
+        assert_eq!(loss.dtype(), dtype);
+        assert_eq!(loss.dims(), [2]);
+
+        // Empty targets have only an all-blank path. The f64 fixture also
+        // distinguishes preserving its input precision from narrowing to f32.
+        let tolerance = 16.0 * dtype.finfo().unwrap().epsilon;
+        let values: Vec<f64> = loss.into_data().iter().collect();
+        for (actual, expected) in values.into_iter().zip([0.723456789012345f64, 1.25]) {
+            assert!((actual - expected).abs() <= tolerance * expected.max(1.0));
+        }
+    }
+}
+
+#[test]
 fn test_ctc_loss_uniform() {
     // T=3, N=1, C=2, blank=0, target=[1, 1], uniform P = 1/2.
     // Only valid path is (1, 0, 1) with prob (1/2)^3.
@@ -64,6 +100,152 @@ fn test_ctc_loss_uniform() {
     let expected = burn_tensor::TensorData::from([3.0f32 * 2.0f32.ln()]);
     loss.into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(1e-3, 1e-3));
+}
+
+#[test]
+fn test_ctc_loss_mixed_lengths_custom_blank() {
+    let probabilities = TestTensor::<3>::from([
+        [[0.25, 0.5, 0.25], [0.5, 0.25, 0.25], [0.25, 0.25, 0.5]],
+        [[0.5, 0.25, 0.25], [0.25, 0.25, 0.5], [0.5, 0.25, 0.25]],
+        [[0.25, 0.5, 0.25], [0.25, 0.5, 0.25], [0.25, 0.25, 0.5]],
+        [[0.25, 0.25, 0.5], [0.5, 0.25, 0.25], [0.5, 0.25, 0.25]],
+    ]);
+    let targets = TestTensorInt::<2>::from([[1, 1, 0], [0, 1, 0], [0, 1, 1]]);
+    let input_lengths = TestTensorInt::<1>::from([4, 3, 2]);
+    let target_lengths = TestTensorInt::<1>::from([2, 1, 0]);
+
+    let loss = ctc_loss(
+        probabilities.log(),
+        targets,
+        input_lengths,
+        target_lengths,
+        2,
+    );
+
+    // Enumerating collapsed paths gives five alignments for [1, 1], six
+    // for [0], and one for the empty target. Padding contributes to none.
+    let expected = burn_tensor::TensorData::from([
+        -(17.0f32 / 256.0).ln(),
+        -(3.0f32 / 16.0).ln(),
+        -(1.0f32 / 8.0).ln(),
+    ]);
+    // Allow rounding at each timestep for lower-precision recurrences.
+    let tolerance = (4.0 * loss.dtype().finfo().unwrap().epsilon).max(1e-5);
+    loss.into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(tolerance, tolerance));
+}
+
+#[test]
+fn test_ctc_loss_negative_infinity_emissions() {
+    let neg_inf = f32::NEG_INFINITY;
+    let half = (0.5f32).ln();
+    let log_probs = TestTensor::<3>::from([
+        [[neg_inf, half, half], [neg_inf, 0.0, neg_inf]],
+        [[0.0, neg_inf, neg_inf], [neg_inf, 0.0, neg_inf]],
+        [[half, neg_inf, half], [0.0, neg_inf, neg_inf]],
+    ]);
+    let targets = TestTensorInt::<2>::from([[1, 2], [1, 2]]);
+    let input_lengths = TestTensorInt::<1>::from([3, 3]);
+    let target_lengths = TestTensorInt::<1>::from([2, 2]);
+
+    let loss = ctc_loss(log_probs, targets, input_lengths, target_lengths, 0);
+    let tolerance = (4.0 * loss.dtype().finfo().unwrap().epsilon).max(1e-5);
+    let values: Vec<f32> = loss.into_data().iter::<f32>().collect();
+
+    // Only (1, 0, 2) can align the first sample, with probability 1/4.
+    // The second sample cannot emit label 2 at any timestep.
+    assert!((values[0] - 4.0f32.ln()).abs() as f64 <= tolerance * 4.0f64.ln());
+    assert!(values[1].is_infinite() && values[1].is_sign_positive());
+}
+
+#[test]
+fn test_ctc_loss_backward_repeated_and_unreachable_targets() {
+    use burn_backend::ops::ModuleOps;
+    use burn_dispatch::Dispatch;
+    use burn_tensor::{DType, Device};
+
+    let device = Device::default();
+    for dtype in [DType::F16, DType::BF16, DType::F32, DType::F64] {
+        if !device.supports_dtype(dtype) {
+            continue;
+        }
+
+        let probabilities = TestTensor::<3>::from([
+            [[0.25, 0.5, 0.25], [0.5, 0.25, 0.25]],
+            [[0.5, 0.25, 0.25], [0.25, 0.5, 0.25]],
+            [[0.25, 0.5, 0.25], [0.25, 0.25, 0.5]],
+        ])
+        .cast(dtype);
+        let targets = TestTensorInt::<2>::from([[1, 1], [1, 1]]);
+        let input_lengths = TestTensorInt::<1>::from([3, 2]);
+        let target_lengths = TestTensorInt::<1>::from([2, 2]);
+        let grad_loss = TestTensor::<1>::from([9.0, 2.0, -0.5])
+            .cast(dtype)
+            .narrow(0, 1, 2);
+        let grad = TestTensor::<3>::from_dispatch(Dispatch::ctc_loss_backward(
+            probabilities.log().into_dispatch(),
+            targets.into_dispatch(),
+            input_lengths.into_dispatch(),
+            target_lengths.into_dispatch(),
+            grad_loss.into_dispatch(),
+            0,
+        ));
+        assert_eq!(grad.dtype(), dtype);
+
+        // Only (1, 0, 1) aligns the first sample: its posterior is one at
+        // those classes. The second target is unreachable and has zero gradient.
+        let expected = burn_tensor::TensorData::from([
+            [[0.5, -1.0, 0.5], [0.0, 0.0, 0.0]],
+            [[-1.0, 0.5, 0.5], [0.0, 0.0, 0.0]],
+            [[0.5, -1.0, 0.5], [0.0, 0.0, 0.0]],
+        ]);
+        let tolerance = (16.0 * dtype.finfo().unwrap().epsilon).max(1e-5);
+        grad.into_data()
+            .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(tolerance, tolerance));
+    }
+}
+
+#[cfg(feature = "flex")]
+#[test]
+fn test_ctc_loss_backward_negative_infinity_emissions_flex() {
+    use burn_backend::ops::ModuleOps;
+    use burn_dispatch::Dispatch;
+    use burn_tensor::Device;
+
+    let device = Device::flex();
+    let neg_inf = f32::NEG_INFINITY;
+    let half = (0.5f32).ln();
+    let log_probs = TestTensor::<3>::from_data(
+        [
+            [[neg_inf, half, half], [neg_inf, 0.0, neg_inf]],
+            [[0.0, neg_inf, neg_inf], [neg_inf, 0.0, neg_inf]],
+            [[half, neg_inf, half], [0.0, neg_inf, neg_inf]],
+        ],
+        &device,
+    );
+    let targets = TestTensorInt::<2>::from_data([[1, 2], [1, 2]], &device);
+    let input_lengths = TestTensorInt::<1>::from_data([3, 3], &device);
+    let target_lengths = TestTensorInt::<1>::from_data([2, 2], &device);
+    let grad_loss = TestTensor::<1>::from_data([2.0, -0.5], &device);
+    let tolerance = (16.0 * log_probs.dtype().finfo().unwrap().epsilon).max(1e-5);
+    let grad = TestTensor::<3>::from_dispatch(Dispatch::ctc_loss_backward(
+        log_probs.into_dispatch(),
+        targets.into_dispatch(),
+        input_lengths.into_dispatch(),
+        target_lengths.into_dispatch(),
+        grad_loss.into_dispatch(),
+        0,
+    ));
+
+    // Only (1, 0, 2) aligns the first sample. Impossible emissions have
+    // zero posterior, and the unreachable second sample has zero gradient.
+    let expected = burn_tensor::TensorData::from([
+        [[0.0, -1.0, 1.0], [0.0, 0.0, 0.0]],
+        [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        [[1.0, 0.0, -1.0], [0.0, 0.0, 0.0]],
+    ]);
+    grad.into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(tolerance, tolerance));
 }
 
 #[test]
