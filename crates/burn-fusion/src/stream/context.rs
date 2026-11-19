@@ -38,6 +38,20 @@ impl<H: Clone> Context<H> {
             ranges: self.ranges.clone(),
         }
     }
+
+    /// [Fork](Self::fork) with only the handles of the tensors this context maps, the only ones
+    /// the work it was built for reaches.
+    pub fn fork_tensors(&self) -> Self {
+        Self {
+            tensors: self.tensors.clone(),
+            handles: self
+                .handles
+                .fork_only(self.tensors.values().map(|tensor| &tensor.id)),
+            scalars: self.scalars.clone(),
+            shapes_relative2global: self.shapes_relative2global.clone(),
+            ranges: self.ranges.clone(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]

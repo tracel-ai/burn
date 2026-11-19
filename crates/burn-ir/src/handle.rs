@@ -51,6 +51,22 @@ impl<H: Clone> HandleContainer<H> {
             errored: self.errored,
         }
     }
+
+    /// Fork only the handles of `ids`, for work that reads no other tensor: a full
+    /// [fork](Self::fork) copies every live handle, which can cost more than the work.
+    pub fn fork_only<'a>(&self, ids: impl IntoIterator<Item = &'a TensorId>) -> Self {
+        let mut fork = Self {
+            handles: HashMap::new(),
+            counter: self.counter,
+            errored: 0,
+        };
+        for id in ids {
+            if let Some(handle) = self.handles.get(id) {
+                fork.put(*id, handle.clone());
+            }
+        }
+        fork
+    }
 }
 
 impl<H> core::fmt::Debug for HandleContainer<H> {
@@ -650,6 +666,22 @@ mod tests {
         assert_eq!(container.num_handles(), 1);
         assert!(container.get_handle_ref(&tid(100)).is_none());
         assert!(container.get_handle_ref(&tid(101)).is_none());
+    }
+
+    #[test]
+    fn fork_only_keeps_the_named_handles_and_their_errors() {
+        let mut container = HandleContainer::<String>::new();
+        container.register_handle(tid(1), "named".to_string());
+        container.register_handle(tid(2), "unnamed".to_string());
+        let failure = TensorError::new(ExecutionError::generic("failed"));
+        container.set_error(tid(3), failure.clone());
+        container.set_error(tid(4), failure);
+
+        let fork = container.fork_only([tid(1), tid(3), tid(5)].iter());
+
+        assert_eq!(fork.num_handles(), 2);
+        assert!(fork.get_handle_ref(&tid(2)).is_none());
+        assert_eq!(fork.errored, 1);
     }
 
     #[test]

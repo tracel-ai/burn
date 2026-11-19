@@ -119,7 +119,7 @@ impl<'a, O> TuneInput<'a, O> {
     where
         O: TunedTrace,
     {
-        let mut context = self.context().fork();
+        let mut context = self.context().fork_tensors();
         // The launches that wrote the call's inputs were discarded, so the indices a gather or a
         // select reads hold whatever their memory held. Zeros are in range for any indexed dim.
         if ProcessMode::current() == ProcessMode::CompileAndAutotune {
@@ -196,7 +196,7 @@ impl<'a, O> Clone for TuneInput<'a, O> {
         Self {
             optimization: self.optimization.clone(),
             state: TuneState::Fork {
-                context: Box::new(self.context().fork()),
+                context: Box::new(self.context().fork_tensors()),
                 new_handles,
             },
         }
