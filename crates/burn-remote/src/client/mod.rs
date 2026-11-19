@@ -3,6 +3,7 @@ mod channel;
 mod custom_op;
 mod error;
 mod host;
+mod host_link;
 mod link;
 mod runner;
 pub(crate) mod runtime;

@@ -5,7 +5,7 @@ use burn_backend::RandomKey;
 use burn_backend::{
     DeviceDescription, DeviceId, DeviceOps, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
     EnvironmentId, EnvironmentOrigin, EnvironmentSummary, ExecutionError, ExecutionMode,
-    ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
+    ExecutionModeToken, ExecutionStatistics, HostTransfer, MemoryReport, Peak, PeakError, PeakKey,
     ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned, RouterDeviceType,
     SaveOptions, StreamId, TensorData,
 };
@@ -224,6 +224,14 @@ impl RouterClient for RemoteClient {
 
     fn measure_link(&self, to: &RemoteDevice, sizes: &[u64]) -> Vec<Result<Peak, PeakError>> {
         super::link::LinkProber::new(self, to).measure(sizes)
+    }
+
+    fn measure_host_link(
+        &self,
+        transfer: HostTransfer,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        super::host_link::HostLinkProber::new(self).measure(transfer, sizes)
     }
 
     fn graph_prepare(&self) -> Result<(), ExecutionError> {

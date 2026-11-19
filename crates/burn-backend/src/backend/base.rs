@@ -15,7 +15,9 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
 use super::profile::profile_unsupported;
-use super::{DeviceDescription, DeviceTelemetry, MemoryReport, Peak, PeakError, PeakKey};
+use super::{
+    DeviceDescription, DeviceTelemetry, HostTransfer, MemoryReport, Peak, PeakError, PeakKey,
+};
 use super::{
     EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
     PruneOptions, Pruned, SaveOptions,
@@ -201,6 +203,20 @@ pub trait Backend:
     fn measure_link(
         from: &Self::Device,
         to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
+    }
+
+    /// The peak throughput of the link between the calling process and `device` for each of
+    /// `sizes`, in order, in bytes per second when one transfer moves that many bytes the way
+    /// `transfer` names: the peak, or why the link has none. It depends on where the caller is, so
+    /// a remote device answers for this process's network. Every size is
+    /// [unsupported](PeakError::Unsupported) by a backend that runs no host link probe.
+    #[allow(unused_variables)]
+    fn measure_host_link(
+        device: &Self::Device,
+        transfer: HostTransfer,
         sizes: &[u64],
     ) -> Vec<Result<Peak, PeakError>> {
         sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
