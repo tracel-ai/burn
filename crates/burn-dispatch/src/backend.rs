@@ -16,8 +16,8 @@ use burn_backend::{
     AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, DeviceDescription,
     DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
     EnvironmentSummary, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
-    PruneOptions, Pruned, SaveOptions,
+    HostTransfer, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
+    ProfileToken, PruneOptions, Pruned, SaveOptions,
 };
 
 /// A captured graph from one of the dispatched backends (see
@@ -388,6 +388,16 @@ impl Backend for Dispatch {
             |from, to| B::measure_link(from, to, sizes),
             sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
         )
+    }
+
+    fn measure_host_link(
+        device: &Self::Device,
+        transfer: HostTransfer,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        dispatch_device!(device, |device| B::measure_host_link(
+            device, transfer, sizes
+        ))
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)

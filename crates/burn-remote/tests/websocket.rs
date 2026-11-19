@@ -481,6 +481,31 @@ fn a_link_between_two_servers_is_timed_at_each_size_asked() {
 }
 
 #[test]
+fn a_remote_devices_host_link_is_timed_by_its_client() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
+
+    let uploads = device.measure_host_link(burn_tensor::HostTransfer::Upload, &[1 << 20, 0]);
+    let downloads = device.measure_host_link(burn_tensor::HostTransfer::Download, &[4096]);
+
+    assert!(
+        uploads[0].is_ok_and(|peak| peak.per_second > 0.0),
+        "{uploads:?}"
+    );
+    assert_eq!(uploads[1], Err(burn_tensor::PeakError::Unsupported));
+    assert!(
+        downloads[0].is_ok_and(|peak| peak.per_second > 0.0),
+        "{downloads:?}"
+    );
+
+    rt.shutdown_background();
+}
+
+#[test]
 fn a_link_within_a_server_is_its_backends_to_answer() {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_io()

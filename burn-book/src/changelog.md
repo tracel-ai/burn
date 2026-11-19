@@ -165,6 +165,12 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   ([#6551](https://github.com/tracel-ai/burn/pull/6551))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- `Device::measure_host_link(transfer, &sizes)` measures the peak throughput of the link between
+  the calling process and a device for each transfer size, as a `HostTransfer::Upload` or a
+  `HostTransfer::Download`. A remote device's client times it over the network, until the server
+  holds an upload on its device; local backends report it unsupported for now.
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 #### Device transfers
 
 - Fix concurrent CUDA transfers between devices returning another transfer's data or deadlocking.
