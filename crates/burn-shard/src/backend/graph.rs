@@ -24,11 +24,24 @@ impl<B: BackendIr> Default for MemberGraphs<B> {
 }
 
 impl<B: BackendIr> MemberGraphs<B> {
-    /// Prepares every member for a capture, and returns the first member's error.
-    pub fn prepare(&self, members: &[TensorInterpreter<B>]) -> Result<(), ExecutionError> {
+    /// Prepares every member for a capture and starts rehearsing, and returns the first
+    /// member's error.
+    pub fn rehearse(&self, members: &[TensorInterpreter<B>]) -> Result<(), ExecutionError> {
         members
             .iter()
-            .try_for_each(TensorInterpreter::graph_prepare)
+            .try_for_each(TensorInterpreter::graph_rehearse)
+    }
+
+    /// Ends one rehearsal run on every member, and answers whether every member's settled. Every
+    /// member's run is ended whichever answers first, since a run left open spans the next one.
+    pub fn rehearsed(&self, members: &[TensorInterpreter<B>]) -> Result<bool, ExecutionError> {
+        let answers: Vec<_> = members
+            .iter()
+            .map(TensorInterpreter::graph_rehearsed)
+            .collect();
+        answers
+            .into_iter()
+            .try_fold(true, |settled, answer| Ok(settled & answer?))
     }
 
     /// Opens a window on every member, or none: a member that refuses closes the windows its

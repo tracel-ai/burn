@@ -525,14 +525,25 @@ pub trait Backend:
         Err(EnvironmentError::unsupported())
     }
 
-    /// Prepare `device` for an upcoming graph capture: route allocations into a
-    /// stable pool so every buffer allocated before graph_stop_capture can
-    /// be pinned. Call before the warmup run. No-op by default.
+    /// Prepare `device` for an upcoming graph capture and start rehearsing the work it will
+    /// record: until [`graph_start_capture`](Backend::graph_start_capture), the work's launches
+    /// do everything short of running, so kernels compile, tunes measure and the memory grows
+    /// to what the recording needs. Each run of the work ends with
+    /// [`graph_rehearsed`](Backend::graph_rehearsed). No-op by default.
     ///
-    /// See [`burn_graph`](crate) — the closure-based `capture` helper drives
-    /// this whole sequence.
-    fn graph_prepare(_device: &Self::Device) -> Result<(), ExecutionError> {
+    /// The closure-based `capture` helper of `burn-tensor` drives this whole sequence.
+    fn graph_rehearse(_device: &Self::Device) -> Result<(), ExecutionError> {
         Ok(())
+    }
+
+    /// End one rehearsal run of the work, with what it returned still held, and answer whether
+    /// it allocated what the run before it did: the work has settled, and the recording can
+    /// follow it. What the last run left allocated is the work's output, which the recording
+    /// keeps off the memory the device's other graphs replay over.
+    ///
+    /// `true` by default, for a backend that needs no rehearsal.
+    fn graph_rehearsed(_device: &Self::Device) -> Result<bool, ExecutionError> {
+        Ok(true)
     }
 
     /// Begin recording launches on `device` into a graph (see

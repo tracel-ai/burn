@@ -30,8 +30,8 @@ pub const PROTOCOL_VERSION: u16 = 15;
 /// Routing id for a task whose result is fetched back.
 ///
 /// Only the result-producing tasks ([`Task::ReadTensors`], [`Task::SyncBackend`],
-/// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`], [`Task::CapturePrepare`],
-/// [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`], the execution-mode,
+/// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`], [`Task::CaptureRehearse`],
+/// [`Task::CaptureRehearsed`], [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`], the execution-mode,
 /// environment, description and measurement tasks) carry a
 /// `RequestId`; the server echoes it on its [`TaskResponse`] so the client demultiplexes results
 /// back to the right pending callback. Fire-and-forget tasks have no id because no result ever
@@ -403,11 +403,16 @@ pub enum Task {
     /// something for as long as it stays open, so the client says so rather
     /// than leaving it.
     ProfileAbandon(StreamId, ProfileToken),
-    /// Prepare the server's backend for a graph capture where `stream_id` stands.
+    /// Prepare the server's backend for a graph capture where `stream_id` stands, and start
+    /// rehearsing its work.
     ///
     /// The session holds its device's capture from here until the capture ends, or the session
     /// does: another session's capture on the device is refused meanwhile.
-    CapturePrepare(RequestId, StreamId),
+    CaptureRehearse(RequestId, StreamId),
+    /// End one rehearsal run of the work on `stream_id`, after every earlier task, and answer
+    /// whether it settled — see
+    /// [`Backend::graph_rehearsed`](burn_backend::Backend::graph_rehearsed).
+    CaptureRehearsed(RequestId, StreamId),
     /// Start recording the server backend's launches on `stream_id` into a graph, after every
     /// earlier task. Answered, since a backend that cannot record one, or a device another
     /// session is capturing on, says so here and the client falls back to re-running.
@@ -545,10 +550,13 @@ pub enum TaskResponseContent {
     /// The window's duration on the server's clock; `None` when it carried no
     /// measurement.
     ProfileEnd(Result<Option<Duration>, ExecutionError>),
-    /// The answer to [`CapturePrepare`](Task::CapturePrepare),
+    /// The answer to [`CaptureRehearse`](Task::CaptureRehearse),
     /// [`CaptureStart`](Task::CaptureStart) and
     /// [`CaptureStop`](Task::CaptureStop).
     Capture(Result<(), ExecutionError>),
+    /// The answer to [`CaptureRehearsed`](Task::CaptureRehearsed): whether the rehearsal run
+    /// settled.
+    CaptureRehearsed(Result<bool, ExecutionError>),
     /// The answer to [`DeviceQuery`](Task::DeviceQuery).
     DeviceQuery(Result<serde_bytes::ByteBuf, DeviceQueryFailure>),
     /// The answer to [`ExecutionModeOpen`](Task::ExecutionModeOpen): `None` when the server's

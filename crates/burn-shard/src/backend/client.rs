@@ -198,8 +198,12 @@ impl RouterClient for ShardClient {
         Err(shard_environment())
     }
 
-    fn graph_prepare(&self) -> Result<(), ExecutionError> {
-        self.interpreter.lock().graph_prepare()
+    fn graph_rehearse(&self) -> Result<(), ExecutionError> {
+        self.interpreter.lock().graph_rehearse()
+    }
+
+    fn graph_rehearsed(&self) -> Result<bool, ExecutionError> {
+        self.interpreter.lock().graph_rehearsed()
     }
 
     fn graph_start_capture(&self) -> Result<(), ExecutionError> {

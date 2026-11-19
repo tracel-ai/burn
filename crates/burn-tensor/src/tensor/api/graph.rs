@@ -1,6 +1,6 @@
 use crate::{Device, ExecutionError};
 use burn_backend::{Backend, BackendGraph};
-use burn_dispatch::Dispatch;
+use burn_dispatch::{Dispatch, DispatchDevice};
 
 /// A captured computation.
 ///
@@ -34,41 +34,25 @@ pub struct Graph<T, F> {
 
 /// Capture `closure` for repeated replay (see [`Graph`]).
 ///
-/// Runs `closure` twice: once to warm up (trigger autotuning and allocate every
-/// buffer, so the capture itself needs no fresh device allocation — which is
-/// illegal mid-capture), then once under capture. On a backend without graph
-/// support the warmup/capture collapses to a single run and replay just re-runs
-/// the closure.
+/// Runs `closure` several times. First as rehearsals, whose launches do everything short of
+/// running: kernels compile, tunes measure, and the memory grows to what the capture needs, since
+/// allocating mid-capture is illegal. The rehearsals repeat until two runs in a row allocate
+/// alike, since a first run can take another path than the steady state: with fusion it builds
+/// and tunes the fused optimization, which allocates other buffers than the cached path does.
+/// Then once more, recorded. What the last rehearsal left allocated is the closure's output, and
+/// the recording places it on memory no other graph of the device writes, so it outlives every
+/// replay but its own graph's.
+///
+/// The closure must therefore allocate the same buffers, and keep the same ones, on every run,
+/// and must not read a tensor's data: a rehearsal's launches never ran. On a backend without
+/// graph support the rehearsal is one ordinary run, and replay re-runs the closure.
 pub fn capture<T, F>(device: &Device, mut closure: F) -> Graph<T, F>
 where
     F: FnMut() -> T,
 {
     let dispatch = device.as_dispatch();
-    // Prepare the allocator for capture, then warm up: this triggers all
-    // autotuning and allocates every buffer the capture will reuse.
-    //
-    // Several warmup iterations, not one: with fusion the first run builds and
-    // autotunes the fused optimization (a different execution path, allocating
-    // different scratch/metadata buffers than steady state). Only from the
-    // second run on does the closure take the cached fused path whose buffers
-    // the capture must reuse. Warming up a few times lets those steady-state
-    // allocations populate the persistent pool before capture opens — otherwise
-    // the capture run allocates them fresh, which faults mid-capture.
-    const WARMUP_ITERS: usize = 3;
-    let _ = Dispatch::graph_prepare(dispatch);
-    for _ in 0..WARMUP_ITERS {
-        // Hold the output alive across the sync. A lazy backend (fusion) elides
-        // a computation whose result is dropped before it drains — so dropping
-        // the warmup output would skip the very kernels (and allocations) the
-        // capture must reuse, and the capture run would then be the first to
-        // allocate them, faulting mid-capture. Keeping `out` until after `sync`
-        // forces the closure to actually execute and populate the pool.
-        let out = closure();
-        let _ = Dispatch::sync(dispatch);
-        drop(out);
-    }
-
-    let (hardware, output) = match Dispatch::graph_start_capture(dispatch) {
+    let hardware = rehearse(dispatch, &mut closure);
+    let (hardware, output) = match hardware.and_then(|()| Dispatch::graph_start_capture(dispatch)) {
         // Record the closure's launches into a graph.
         Ok(()) => {
             let output = closure();
@@ -77,7 +61,8 @@ where
             // on replay stays correct; we lose the graph, not stream health.
             (Dispatch::graph_stop_capture(dispatch), output)
         }
-        // No hardware graph support: fall back to re-running the closure.
+        // No hardware graph support, or a rehearsal that failed: fall back to re-running the
+        // closure.
         Err(error) => (Err(error), closure()),
     };
 
@@ -87,6 +72,35 @@ where
         closure,
         hardware,
     }
+}
+
+/// Rehearse `closure` on `device` until two runs allocate alike, leaving the capture prepared
+/// for its recording. A rehearsal that fails ends the capture, so the device may capture again.
+fn rehearse<T>(
+    device: &DispatchDevice,
+    closure: &mut impl FnMut() -> T,
+) -> Result<(), ExecutionError> {
+    /// Runs rehearsed before recording whatever the last one found: a cold fused path settles
+    /// by its second run, and a closure that never settles is refused when the capture stops.
+    const REHEARSALS_MAX: usize = 4;
+
+    Dispatch::graph_rehearse(device)?;
+    for _ in 0..REHEARSALS_MAX {
+        // The output is held across the end of the run: what the run still holds when it ends
+        // is what the capture keeps off the memory other graphs share.
+        let output = closure();
+        let settled = Dispatch::graph_rehearsed(device);
+        drop(output);
+        match settled {
+            Ok(true) => return Ok(()),
+            Ok(false) => continue,
+            Err(error) => {
+                let _ = Dispatch::graph_stop_capture(device);
+                return Err(error);
+            }
+        }
+    }
+    Ok(())
 }
 
 impl<T, F> Graph<T, F>

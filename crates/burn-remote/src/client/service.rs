@@ -698,9 +698,32 @@ impl RemoteService {
         ProfileDuration::new_device_time_maybe(async move { None })
     }
 
-    /// Prepare the server's backend for a graph capture where `stream_id` stands.
-    pub fn graph_prepare(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
-        self.capture_request(|id| Task::CapturePrepare(id, stream_id))
+    /// Prepare the server's backend for a graph capture where `stream_id` stands, and start
+    /// rehearsing its work.
+    pub fn graph_rehearse(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
+        self.capture_request(|id| Task::CaptureRehearse(id, stream_id))
+    }
+
+    /// End one rehearsal run of the work on `stream_id`, after every task sent before, and
+    /// answer whether it settled.
+    pub fn graph_rehearsed(&mut self, stream_id: StreamId) -> Result<bool, ExecutionError> {
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let rx = self.submit_request(|id| Task::CaptureRehearsed(id, stream_id));
+            match self.executor.block_on(rx) {
+                Ok(TaskResponseContent::CaptureRehearsed(res)) => res,
+                Ok(other) => panic!("Invalid response for a rehearsal request: {other:?}"),
+                Err(_) => Err(self.session.unanswered()),
+            }
+        }
+        #[cfg(target_family = "wasm")]
+        {
+            let _ = stream_id;
+            Err(ExecutionError::with_context(
+                "a remote device cannot capture a graph from a browser thread, which cannot wait \
+                 on the server",
+            ))
+        }
     }
 
     /// Start recording the server backend's launches on `stream_id` into a graph, after every

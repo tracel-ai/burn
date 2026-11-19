@@ -217,9 +217,14 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
         client.flush()
     }
 
-    fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
+    fn graph_rehearse(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = get_client::<R>(device);
-        client.graph_prepare()
+        client.graph_rehearse()
+    }
+
+    fn graph_rehearsed(device: &Self::Device) -> Result<bool, ExecutionError> {
+        let client = get_client::<R>(device);
+        client.graph_rehearsed()
     }
 
     // The interpreter records the graph on its own backend, so the capture opens and closes

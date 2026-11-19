@@ -94,9 +94,27 @@ impl<B: BackendIr> SessionCaptures<B> {
             return Err(open.refusal());
         }
         self.capture_lock.acquire(self.session)?;
-        let prepared = stream.executes(|| runner.graph_prepare());
+        let prepared = stream.executes(|| runner.graph_rehearse());
         self.set_open(prepared.is_ok().then_some(OpenCapture::Prepared(stream)));
         prepared
+    }
+
+    /// End one rehearsal run of the work on `stream`, and answer whether it settled.
+    pub fn rehearsed(
+        &mut self,
+        runner: &TensorInterpreter<B>,
+        stream: StreamId,
+    ) -> Result<bool, ExecutionError> {
+        match self.open {
+            Some(OpenCapture::Prepared(prepared)) if prepared == stream => {}
+            Some(open) => return Err(open.refusal()),
+            None => {
+                return Err(ExecutionError::with_context(format!(
+                    "no graph capture is rehearsing on {stream}"
+                )));
+            }
+        }
+        stream.executes(|| runner.graph_rehearsed())
     }
 
     /// Start recording `stream`'s launches, after the preparation on it if there was one.
@@ -222,7 +240,7 @@ impl<B: BackendIr> Drop for SessionCaptures<B> {
 /// A capture the session opened and has not ended, with the stream it runs on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum OpenCapture {
-    /// Prepared: the client is running its warmup before the recording starts.
+    /// Prepared: the client is rehearsing its work before the recording starts.
     Prepared(StreamId),
     /// The backend records the stream's launches into a graph.
     Recording(StreamId),

@@ -2615,9 +2615,14 @@ impl<B: BackendIr> TensorInterpreter<B> {
         B::measure_link(&self.device, to, sizes)
     }
 
-    /// Prepare the backend for a graph capture.
-    pub fn graph_prepare(&self) -> Result<(), ExecutionError> {
-        B::graph_prepare(&self.device)
+    /// Prepare the backend for a graph capture and start rehearsing its work.
+    pub fn graph_rehearse(&self) -> Result<(), ExecutionError> {
+        B::graph_rehearse(&self.device)
+    }
+
+    /// End one rehearsal run of the work, and answer whether it settled.
+    pub fn graph_rehearsed(&self) -> Result<bool, ExecutionError> {
+        B::graph_rehearsed(&self.device)
     }
 
     /// Start recording the backend's launches on the calling stream into a graph.

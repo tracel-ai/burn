@@ -309,9 +309,14 @@ impl Backend for CubeBackend {
         }
     }
 
-    fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
+    fn graph_rehearse(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = device.client();
-        client.graph_prepare().map_err(graph_err)
+        client.graph_rehearse().map_err(graph_err)
+    }
+
+    fn graph_rehearsed(device: &Self::Device) -> Result<bool, ExecutionError> {
+        let client = device.client();
+        client.graph_rehearsed().map_err(graph_err)
     }
 
     fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {

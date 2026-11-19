@@ -270,12 +270,21 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
         sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
     }
 
-    /// Prepare the interpreter's backend for a graph capture — see
-    /// [`Backend::graph_prepare`](burn_backend::Backend::graph_prepare).
+    /// Prepare the interpreter's backend for a graph capture and start rehearsing its work —
+    /// see [`Backend::graph_rehearse`](burn_backend::Backend::graph_rehearse).
     ///
-    /// `Ok`, the default, from an interpreter whose backend needs no preparing.
-    fn graph_prepare(&self) -> Result<(), ExecutionError> {
+    /// `Ok`, the default, from an interpreter whose backend needs no rehearsal.
+    fn graph_rehearse(&self) -> Result<(), ExecutionError> {
         Ok(())
+    }
+
+    /// End one rehearsal run of the work, after every operation registered so far on the
+    /// calling stream, and answer whether it settled — see
+    /// [`Backend::graph_rehearsed`](burn_backend::Backend::graph_rehearsed).
+    ///
+    /// `true`, the default, from an interpreter whose backend needs no rehearsal.
+    fn graph_rehearsed(&self) -> Result<bool, ExecutionError> {
+        Ok(true)
     }
 
     /// Start recording the interpreter backend's launches into a graph, after every operation
