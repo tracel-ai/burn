@@ -30,23 +30,22 @@ impl<H: Clone> Context<H> {
     /// back. `HandleContainer::fork` clones the id→handle map; actual GPU buffers are
     /// refcounted so only the map itself is duplicated.
     pub fn fork(&self) -> Self {
-        Self {
-            tensors: self.tensors.clone(),
-            handles: self.handles.fork(),
-            scalars: self.scalars.clone(),
-            shapes_relative2global: self.shapes_relative2global.clone(),
-            ranges: self.ranges.clone(),
-        }
+        self.with_handles(self.handles.fork())
     }
 
     /// [Fork](Self::fork) with only the handles of the tensors this context maps, the only ones
     /// the work it was built for reaches.
     pub fn fork_tensors(&self) -> Self {
+        self.with_handles(
+            self.handles
+                .fork_only(self.tensors.values().map(|tensor| &tensor.id)),
+        )
+    }
+
+    fn with_handles(&self, handles: HandleContainer<H>) -> Self {
         Self {
             tensors: self.tensors.clone(),
-            handles: self
-                .handles
-                .fork_only(self.tensors.values().map(|tensor| &tensor.id)),
+            handles,
             scalars: self.scalars.clone(),
             shapes_relative2global: self.shapes_relative2global.clone(),
             ranges: self.ranges.clone(),

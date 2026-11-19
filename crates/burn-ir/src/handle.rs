@@ -39,24 +39,15 @@ impl<H> Default for HandleContainer<H> {
 impl<H: Clone> HandleContainer<H> {
     /// Fork the container, useful for autotune.
     pub fn fork(&self) -> Self {
-        let mut handles = HashMap::with_capacity(self.handles.len());
-
-        for (id, handle) in self.handles.iter() {
-            handles.insert(*id, handle.clone());
-        }
-
-        Self {
-            handles,
-            counter: self.counter,
-            errored: self.errored,
-        }
+        self.fork_only(self.handles.keys())
     }
 
     /// Fork only the handles of `ids`, for work that reads no other tensor: a full
     /// [fork](Self::fork) copies every live handle, which can cost more than the work.
     pub fn fork_only<'a>(&self, ids: impl IntoIterator<Item = &'a TensorId>) -> Self {
+        let ids = ids.into_iter();
         let mut fork = Self {
-            handles: HashMap::new(),
+            handles: HashMap::with_capacity(ids.size_hint().0),
             counter: self.counter,
             errored: 0,
         };
