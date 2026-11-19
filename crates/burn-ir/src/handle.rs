@@ -47,7 +47,7 @@ impl<H: Clone> HandleContainer<H> {
     pub fn fork_only<'a>(&self, ids: impl IntoIterator<Item = &'a TensorId>) -> Self {
         let ids = ids.into_iter();
         let mut fork = Self {
-            handles: HashMap::with_capacity(ids.size_hint().0),
+            handles: HashMap::with_capacity(ids.size_hint().0.min(self.handles.len())),
             counter: self.counter,
             errored: 0,
         };
