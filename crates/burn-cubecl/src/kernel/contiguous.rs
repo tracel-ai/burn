@@ -613,9 +613,9 @@ mod storage_tiled {
     /// `tensor` stored in `(rows, cols)` tiles, a tile's rows one after another and the tiles
     /// row-major.
     fn tiled(tensor: &CubeTensor, (rows, cols): (usize, usize)) -> CubeTensor {
-        use cubek::matmul::tiled::storage::{Axis, StorageLevels, tile};
-        const ROW: Axis = Axis(0);
-        const COL: Axis = Axis(1);
+        use cubek::matmul::tiled::storage::{Dimension, StorageLevels, tile};
+        const ROW: Dimension = Dimension(0);
+        const COL: Dimension = Dimension(1);
         let client = tensor.client.clone();
         let storage = StorageLevels::new(&[(COL, cols), (ROW, rows)]).grid(&[COL, ROW]);
         let out = tile(
