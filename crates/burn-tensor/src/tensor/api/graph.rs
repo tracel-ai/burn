@@ -51,20 +51,28 @@ where
     F: FnMut() -> T,
 {
     let dispatch = device.as_dispatch();
+    let closer = CaptureCloser { device: dispatch };
     let hardware = rehearse(dispatch, &mut closure);
     let (hardware, output) = match hardware.and_then(|()| Dispatch::graph_start_capture(dispatch)) {
         // Record the closure's launches into a graph.
         Ok(()) => {
-            let output = closure();
+            let recorded = closure();
             // A failed stop still resets the stream out of capture mode (the
             // backend guarantees this even on error), so re-running the closure
-            // on replay stays correct; we lose the graph, not stream health.
-            (Dispatch::graph_stop_capture(dispatch), output)
+            // on replay stays correct; we lose the graph, not stream health. The
+            // recorded run's launches went into the graph refused, so the output
+            // comes from a run that executes.
+            match Dispatch::graph_stop_capture(dispatch) {
+                Ok(graph) => (Ok(graph), recorded),
+                Err(error) => (Err(error), closure()),
+            }
         }
         // No hardware graph support, or a rehearsal that failed: fall back to re-running the
         // closure.
         Err(error) => (Err(error), closure()),
     };
+    // Every path above ended the capture, or never had one to end.
+    core::mem::forget(closer);
 
     Graph {
         device: device.clone(),
@@ -74,16 +82,29 @@ where
     }
 }
 
-/// Rehearse `closure` on `device` until two runs allocate alike, leaving the capture prepared
-/// for its recording. A rehearsal that fails ends the capture, so the device may capture again.
+/// Ends the capture [`capture`] prepared should the closure panic: left prepared, the device
+/// would discard every launch that follows. Forgotten once the capture ended the way it should.
+struct CaptureCloser<'a> {
+    device: &'a DispatchDevice,
+}
+
+impl Drop for CaptureCloser<'_> {
+    fn drop(&mut self) {
+        let _ = Dispatch::graph_stop_capture(self.device);
+    }
+}
+
+/// Runs rehearsed before recording whatever the last one found: a cold fused path settles by its
+/// second run, and a closure that never settles is refused when the capture stops.
+const REHEARSALS_MAX: usize = 4;
+
+/// Rehearse `closure` on `device` until two runs allocate alike, or for [`REHEARSALS_MAX`] runs,
+/// leaving the capture prepared for its recording. A run the backend fails to end ends the
+/// capture with it (see [`Backend::graph_rehearsed`]), so the device may capture again.
 fn rehearse<T>(
     device: &DispatchDevice,
     closure: &mut impl FnMut() -> T,
 ) -> Result<(), ExecutionError> {
-    /// Runs rehearsed before recording whatever the last one found: a cold fused path settles
-    /// by its second run, and a closure that never settles is refused when the capture stops.
-    const REHEARSALS_MAX: usize = 4;
-
     Dispatch::graph_rehearse(device)?;
     for _ in 0..REHEARSALS_MAX {
         // The output is held across the end of the run: what the run still holds when it ends
@@ -91,13 +112,8 @@ fn rehearse<T>(
         let output = closure();
         let settled = Dispatch::graph_rehearsed(device);
         drop(output);
-        match settled {
-            Ok(true) => return Ok(()),
-            Ok(false) => continue,
-            Err(error) => {
-                let _ = Dispatch::graph_stop_capture(device);
-                return Err(error);
-            }
+        if settled? {
+            return Ok(());
         }
     }
     Ok(())

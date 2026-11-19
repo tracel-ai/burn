@@ -99,22 +99,23 @@ impl<B: BackendIr> SessionCaptures<B> {
         prepared
     }
 
-    /// End one rehearsal run of the work on `stream`, and answer whether it settled.
+    /// End one rehearsal run of the work on `stream`, and answer whether it settled. A run the
+    /// backend fails to end leaves its stream out of capture, and the session's capture with it.
     pub fn rehearsed(
         &mut self,
         runner: &TensorInterpreter<B>,
         stream: StreamId,
     ) -> Result<bool, ExecutionError> {
-        match self.open {
-            Some(OpenCapture::Prepared(prepared)) if prepared == stream => {}
-            Some(open) => return Err(open.refusal()),
-            None => {
-                return Err(ExecutionError::with_context(format!(
-                    "no graph capture is rehearsing on {stream}"
-                )));
-            }
+        if !self.is_prepared_on(stream)? {
+            return Err(ExecutionError::with_context(format!(
+                "no graph capture is rehearsing on {stream}"
+            )));
         }
-        stream.executes(|| runner.graph_rehearsed())
+        let settled = stream.executes(|| runner.graph_rehearsed());
+        if settled.is_err() {
+            self.set_open(None);
+        }
+        settled
     }
 
     /// Start recording `stream`'s launches, after the preparation on it if there was one.
@@ -123,10 +124,8 @@ impl<B: BackendIr> SessionCaptures<B> {
         runner: &TensorInterpreter<B>,
         stream: StreamId,
     ) -> Result<(), ExecutionError> {
-        match self.open {
-            Some(OpenCapture::Prepared(prepared)) if prepared == stream => {}
-            Some(open) => return Err(open.refusal()),
-            None => self.capture_lock.acquire(self.session)?,
+        if !self.is_prepared_on(stream)? {
+            self.capture_lock.acquire(self.session)?;
         }
         // A backend whose recording fails to start leaves its stream out of capture.
         let started = stream.executes(|| runner.graph_start_capture());
@@ -134,13 +133,21 @@ impl<B: BackendIr> SessionCaptures<B> {
         started
     }
 
-    /// Stop the recording on `stream` and keep its graph under `graph`.
+    /// Stop the recording on `stream` and keep its graph under `graph`. A capture still
+    /// rehearsing on `stream` is ended with no graph, so the stream runs its launches again.
     pub fn stop(
         &mut self,
         runner: &TensorInterpreter<B>,
         stream: StreamId,
         graph: CapturedGraphId,
     ) -> Result<(), ExecutionError> {
+        if self.open == Some(OpenCapture::Prepared(stream)) {
+            return self.end_recording(runner, stream).and_then(|_| {
+                Err(ExecutionError::with_context(format!(
+                    "the graph capture on {stream} ended before it recorded anything"
+                )))
+            });
+        }
         if self.open != Some(OpenCapture::Recording(stream)) {
             return Err(ExecutionError::with_context(format!(
                 "no graph capture is recording on {stream}"
@@ -192,13 +199,14 @@ impl<B: BackendIr> SessionCaptures<B> {
     /// End the capture the client left open, so its stream leaves capture mode, and drop the
     /// graphs nothing replays any more.
     ///
-    /// A prepared capture is started and stopped at once, since a backend leaves a prepared
-    /// stream only through a recording.
+    /// A prepared capture ends with no graph, which the backend reports as an error of its own:
+    /// it is the expected end of one, so only a recording's is logged.
     pub fn close(mut self, runner: &TensorInterpreter<B>) {
         let ended = match self.open {
-            Some(OpenCapture::Prepared(stream)) => self
-                .start(runner, stream)
-                .and_then(|()| self.end_recording(runner, stream).map(drop)),
+            Some(OpenCapture::Prepared(stream)) => {
+                let _ = self.end_recording(runner, stream);
+                Ok(())
+            }
             Some(OpenCapture::Recording(stream)) => self.end_recording(runner, stream).map(drop),
             None => Ok(()),
         };
@@ -219,6 +227,19 @@ impl<B: BackendIr> SessionCaptures<B> {
         let stopped = stream.executes(|| runner.graph_stop_capture());
         self.set_open(None);
         stopped
+    }
+
+    /// Whether the session's capture is prepared on `stream`: `false` when none is open.
+    ///
+    /// # Errors
+    ///
+    /// The refusal of a capture open otherwise: recording, or prepared on another stream.
+    fn is_prepared_on(&self, stream: StreamId) -> Result<bool, ExecutionError> {
+        match self.open {
+            Some(OpenCapture::Prepared(prepared)) if prepared == stream => Ok(true),
+            Some(open) => Err(open.refusal()),
+            None => Ok(false),
+        }
     }
 
     /// Record `open` as the session's open capture, holding the device's lock exactly while

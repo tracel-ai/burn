@@ -283,6 +283,10 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     /// [`Backend::graph_rehearsed`](burn_backend::Backend::graph_rehearsed).
     ///
     /// `true`, the default, from an interpreter whose backend needs no rehearsal.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::graph_rehearsed`](burn_backend::Backend::graph_rehearsed).
     fn graph_rehearsed(&self) -> Result<bool, ExecutionError> {
         Ok(true)
     }

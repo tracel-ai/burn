@@ -2616,11 +2616,19 @@ impl<B: BackendIr> TensorInterpreter<B> {
     }
 
     /// Prepare the backend for a graph capture and start rehearsing its work.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::graph_rehearse`].
     pub fn graph_rehearse(&self) -> Result<(), ExecutionError> {
         B::graph_rehearse(&self.device)
     }
 
     /// End one rehearsal run of the work, and answer whether it settled.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::graph_rehearsed`].
     pub fn graph_rehearsed(&self) -> Result<bool, ExecutionError> {
         B::graph_rehearsed(&self.device)
     }

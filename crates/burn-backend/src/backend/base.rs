@@ -532,6 +532,11 @@ pub trait Backend:
     /// [`graph_rehearsed`](Backend::graph_rehearsed). No-op by default.
     ///
     /// The closure-based `capture` helper of `burn-tensor` drives this whole sequence.
+    ///
+    /// # Errors
+    ///
+    /// An implementation fails when a capture is already under way on the calling stream,
+    /// leaving it as it was.
     fn graph_rehearse(_device: &Self::Device) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -541,7 +546,15 @@ pub trait Backend:
     /// follow it. What the last run left allocated is the work's output, which the recording
     /// keeps off the memory the device's other graphs replay over.
     ///
-    /// `true` by default, for a backend that needs no rehearsal.
+    /// An implementation answers once every operation registered before it on the calling stream
+    /// has run its rehearsal, so the run's temporaries are released and only what the caller
+    /// holds counts as an output. `true` by default, for a backend that needs no rehearsal.
+    ///
+    /// # Errors
+    ///
+    /// An implementation fails when the calling stream is not rehearsing a capture, and ends
+    /// the capture it was rehearsing when it fails for any other reason: the stream runs its
+    /// launches again, and the caller has nothing left to end.
     fn graph_rehearsed(_device: &Self::Device) -> Result<bool, ExecutionError> {
         Ok(true)
     }
