@@ -4,10 +4,9 @@
 use burn_backend::{Peak, PeakError, TensorData};
 use burn_ir::BackendIr;
 use burn_std::profile::Instant;
-use core::time::Duration;
 
 use crate::server::transfer::TensorTransfer;
-use crate::shared::LinkPull;
+use crate::shared::{LinkPull, fastest_rate};
 use crate::{PeerAddr, PeerId};
 
 /// Serves a link probe's pulls through the server's transfers: as the source, it exposes a buffer
@@ -83,39 +82,9 @@ impl<T> core::fmt::Debug for LinkPuller<'_, T> {
     }
 }
 
-/// The link's rate at its fastest sample of moving `bytes`.
-fn fastest_rate(bytes: u64, samples: &[Duration]) -> Result<Peak, PeakError> {
-    let fastest = samples
-        .iter()
-        .copied()
-        .filter(|sample| !sample.is_zero())
-        .min()
-        .ok_or(PeakError::NoTiming)?;
-    Ok(Peak {
-        per_second: bytes as f64 / fastest.as_secs_f64(),
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_rate_is_the_fastest_sample() {
-        let samples = [Duration::from_millis(4), Duration::from_millis(2)];
-
-        let peak = fastest_rate(1000, &samples).unwrap();
-
-        assert_eq!(peak.per_second, 500_000.0);
-    }
-
-    #[test]
-    fn samples_with_no_elapsed_time_have_no_rate() {
-        assert_eq!(
-            fastest_rate(1000, &[Duration::ZERO]).unwrap_err(),
-            PeakError::NoTiming
-        );
-    }
 
     #[cfg(feature = "websocket")]
     mod lost_link {

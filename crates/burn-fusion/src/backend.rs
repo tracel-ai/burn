@@ -7,9 +7,9 @@ use burn_backend::RandomKey;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceOps, DeviceTelemetry,
     EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
-    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
-    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
-    SaveOptions, Shape, profile_with_tokens,
+    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, HostTransfer,
+    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
+    PruneOptions, Pruned, SaveOptions, Shape, profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -313,6 +313,14 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         sizes: &[u64],
     ) -> Vec<Result<Peak, PeakError>> {
         B::measure_link(from, to, sizes)
+    }
+
+    fn measure_host_link(
+        device: &Self::Device,
+        transfer: HostTransfer,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        B::measure_host_link(device, transfer, sizes)
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)

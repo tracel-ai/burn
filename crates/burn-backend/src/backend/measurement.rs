@@ -81,6 +81,16 @@ pub struct Peak {
     pub per_second: f64,
 }
 
+/// Which way a [host link](crate::Backend::measure_host_link) probe moves its bytes, between the
+/// calling process's memory and a device.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HostTransfer {
+    /// From the process until the device holds them: across the network to a remote device.
+    Upload,
+    /// From the device back into the process.
+    Download,
+}
+
 /// Why a device has no peak for a [`PeakKey`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum PeakError {
