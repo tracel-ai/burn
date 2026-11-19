@@ -656,6 +656,12 @@ own a random generator.
 - Fix f16 min/max and top-k operations with indices failing during autotuning on CubeCL backends.
   ([#6428](https://github.com/tracel-ai/burn/pull/6428)) [@laggui](https://github.com/laggui)
 
+- Fix wrong values from reductions along one axis of a permuted tensor on CubeCL backends when the
+  kept axes are ordered differently in memory than in the output, for example
+  `x.permute([1, 3, 0, 2]).sum_dim(2)`. Softmax and normalization over such an axis were affected
+  too. ([#6555](https://github.com/tracel-ai/burn/pull/6555))
+  [@kongxinjun](https://github.com/kongxinjun)
+
 #### Tensor remainder
 
 - Correct floating-point remainder results for special values.

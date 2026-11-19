@@ -510,6 +510,24 @@ fn test_sum_transposed() {
 }
 
 #[test]
+fn test_sum_dim_permuted_kept_axes_out_of_memory_order() {
+    // The kept axes 1, 3 and 0 are innermost in memory in that order, while the
+    // contiguous output orders them 3, 1, 0. A vector spanning them would write
+    // its lanes to the wrong elements.
+    let device = Default::default();
+    let permuted = TestTensorInt::arange(0..3 * 4 * 4 * 5, &device)
+        .float()
+        .reshape([3, 4, 4, 5])
+        .permute([1, 3, 0, 2]);
+    let contiguous = TestTensor::<4>::from_data(permuted.to_data(), &device);
+
+    permuted
+        .sum_dim(2)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&contiguous.sum_dim(2).into_data(), Tolerance::default());
+}
+
+#[test]
 fn test_prod_dim_transposed() {
     // Same fast-path gate as sum_dim: prod_dim on a transposed 2D input must
     // honor the reduce-dim stride.
