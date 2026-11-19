@@ -253,6 +253,12 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
         keys.iter().map(|_| Err(PeakError::Unsupported)).collect()
     }
 
+    /// The peak throughput of the link from the interpreter's device to `to` for each of `sizes`.
+    #[allow(unused_variables)]
+    fn measure_link(&self, to: &Self::Device, sizes: &[u64]) -> Vec<Result<Peak, PeakError>> {
+        sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
+    }
+
     /// Prepare the interpreter's backend for a graph capture — see
     /// [`Backend::graph_prepare`](burn_backend::Backend::graph_prepare).
     ///

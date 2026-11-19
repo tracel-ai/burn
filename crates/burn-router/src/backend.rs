@@ -186,6 +186,14 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
         get_client::<R>(device).measure_peaks(keys)
     }
 
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        get_client::<R>(from).measure_link(to, sizes)
+    }
+
     fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
         let client = get_client::<R>(device);
         client.dtype_usage(dtype)

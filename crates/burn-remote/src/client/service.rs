@@ -1,7 +1,7 @@
 use crate::{
     metrics::{MetricSide, TelemetryLogger, logger_task},
     shared::{
-        DeviceQueryId, Encode, LocalAllReducePart, LocalTransferId, PROTOCOL_VERSION,
+        DeviceQueryId, Encode, LinkPull, LocalAllReducePart, LocalTransferId, PROTOCOL_VERSION,
         RemoteMessage, RequestId, SessionId, SessionInfo, SessionInit, Task, TaskResponse,
         TaskResponseContent, TensorRemote, TransferCapability,
     },
@@ -941,6 +941,69 @@ impl RemoteService {
             },
         )
         .unwrap_or_else(|| vec![Err(PeakError::Unsupported); count])
+    }
+
+    /// Grant this device to the same-server link probe that presents `capability`, waiting until
+    /// it is granted; false when the server could not be asked.
+    pub fn grant_link(&mut self, capability: TransferCapability) -> bool {
+        self.report(
+            |id| Task::GrantLink(id, capability),
+            |answer| matches!(answer, TaskResponseContent::LinkGranted).then_some(()),
+        )
+        .is_some()
+    }
+
+    /// The peak throughput of the link from the server's device to the device granted under
+    /// `capability` for each of `sizes`; every size unsupported when the server could not be asked.
+    pub fn measure_link_local(
+        &mut self,
+        capability: TransferCapability,
+        sizes: Vec<u64>,
+    ) -> Vec<Result<Peak, PeakError>> {
+        let count = sizes.len();
+        self.report(
+            |id| Task::MeasureLinkLocal(id, capability, sizes),
+            |answer| match answer {
+                TaskResponseContent::Link(link) => Some(link),
+                _ => None,
+            },
+        )
+        .unwrap_or_else(|| vec![Err(PeakError::Unsupported); count])
+    }
+
+    /// Expose the pull's buffer for `target` to download, waiting until it is exposed; false when
+    /// the server refused it or could not be asked.
+    pub fn expose_link_pull(&mut self, target: crate::PeerId, pull: LinkPull) -> bool {
+        self.report(
+            |id| Task::ExposeLinkPull(id, target, pull),
+            |answer| match answer {
+                TaskResponseContent::LinkExposed(exposed) => Some(exposed),
+                _ => None,
+            },
+        )
+        .unwrap_or(false)
+    }
+
+    /// What the link from `source`'s server to this one delivers at the pull's size, or `None`
+    /// when the server could not be asked.
+    pub fn measure_link_pull(
+        &mut self,
+        source: crate::PeerAddr,
+        pull: LinkPull,
+    ) -> Option<Result<Peak, PeakError>> {
+        self.report(
+            |id| Task::MeasureLinkPull(id, source, pull),
+            |answer| match answer {
+                TaskResponseContent::LinkPulled(peak) => Some(peak),
+                _ => None,
+            },
+        )
+    }
+
+    /// Stop the server serving the buffer exposed under `capability`, sending it immediately.
+    pub fn withdraw_link_pull(&mut self, capability: TransferCapability) {
+        self.submit_task(Task::WithdrawLinkPull(capability));
+        self.send_batch();
     }
 
     /// Send a report request and wait on the server's answer, which `answer` takes out of the

@@ -376,6 +376,20 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::measure_peaks(device, keys))
     }
 
+    /// Unsupported between devices of two backends: no backend moves data across that link.
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        dispatch_device_pair!(
+            measured(from),
+            measured(to),
+            |from, to| B::measure_link(from, to, sizes),
+            sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
+        )
+    }
+
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
     where
         Iter: Iterator<Item = &'a mut burn_backend::TensorData>,
@@ -1303,4 +1317,13 @@ pub(crate) fn cube_devices(runtime: RuntimeId) -> Vec<CubeDevice> {
         .into_iter()
         .filter(|device| device.runtime() == runtime)
         .collect()
+}
+
+/// The device under an autodiff wrapper, which a measurement of the device itself runs on.
+fn measured(device: &DispatchDevice) -> &DispatchDevice {
+    match device {
+        #[cfg(feature = "autodiff")]
+        DispatchDevice::Autodiff(inner) => &inner.inner,
+        other => other,
+    }
 }
