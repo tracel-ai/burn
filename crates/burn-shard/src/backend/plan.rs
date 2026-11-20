@@ -1,6 +1,6 @@
 use burn_backend::{DType, ops::attention::AttentionShapes};
 use burn_ir::{AttentionOpIr, CustomOpIr, OperationIr, TensorId, TensorIr};
-use burn_std::Slice;
+use burn_std::{Slice, params_shape};
 
 use super::{CustomOpPlan, classify::OpClass, custom_ops::CustomOpRuleMap, shardings::Shardings};
 use crate::{
@@ -57,6 +57,14 @@ impl OpPlan {
             .find(|(input, _)| input == id)
             .map(|(_, sharding)| *sharding)
             .expect("The plan has a sharding for every input of its op")
+    }
+
+    pub fn output_sharding(&self, id: &TensorId) -> Sharding {
+        self.output_shardings
+            .iter()
+            .find(|(output, _)| output == id)
+            .map(|(_, sharding)| *sharding)
+            .expect("The plan has a sharding for every output of its op")
     }
 
     pub fn output_shardings(&self) -> &[(TensorId, Sharding)] {
@@ -164,26 +172,56 @@ impl TensorShardings<'_> {
 
     /// The plan an op of `kind` runs by, or `None` when its inputs are not the ones the kind
     /// reads, or when it would move a quantized tensor to anything but whole or the split it
-    /// already has: cutting one goes through the host, and a quantized output is never split.
+    /// already has, which cuts it through the host, or split a quantized output inside its
+    /// blocks or packed words, or one whose per-tensor scale a member could recompute.
     fn apply(&self, kind: OpKind, inputs: &[&TensorIr], outputs: &[&TensorIr]) -> Option<OpPlan> {
         let (out, others) = outputs.split_first()?;
         self.rule_plan(kind, inputs, out)
             .map(|plan| plan.with_outputs_alike(others))
-            .filter(|plan| self.keeps_quantized(plan, inputs, outputs))
+            .filter(|plan| self.keeps_quantized(kind, plan, inputs, outputs))
     }
 
-    fn keeps_quantized(&self, plan: &OpPlan, inputs: &[&TensorIr], outputs: &[&TensorIr]) -> bool {
+    fn keeps_quantized(
+        &self,
+        kind: OpKind,
+        plan: &OpPlan,
+        inputs: &[&TensorIr],
+        outputs: &[&TensorIr],
+    ) -> bool {
         let quantized = |tensor: &TensorIr| matches!(tensor.dtype, DType::QFloat(_));
         let inputs_kept = inputs.iter().filter(|input| quantized(input)).all(|input| {
             let target = plan.input_sharding(&input.id);
             target == Sharding::Replicated || target == self.sharding(input)
         });
-        let output_whole = !outputs.iter().any(|out| quantized(out))
-            || plan
-                .output_shardings()
-                .iter()
-                .all(|(_, sharding)| *sharding == Sharding::Replicated);
-        inputs_kept && output_whole
+        let outputs_kept = outputs.iter().filter(|out| quantized(out)).all(|out| {
+            let target = plan.output_sharding(&out.id);
+            target == Sharding::Replicated
+                || Self::keeps_scales(kind, out)
+                    && Resharding::of_tensor(Sharding::Replicated, target, out, self.num_members)
+                        .is_ok()
+        });
+        inputs_kept && outputs_kept
+    }
+
+    /// Whether each member's part of a quantized output holds the whole's scales. A quantize
+    /// reads its scales. An op that only moves values may requantize them, which keeps every
+    /// block's scale but not a per-tensor scale drawn from one member's part. Any other op may
+    /// quantize its result by another scheme than its output's.
+    fn keeps_scales(kind: OpKind, out: &TensorIr) -> bool {
+        let block_scales_only =
+            matches!(out.dtype, DType::QFloat(scheme) if scheme.tensor_scale().is_none());
+        match kind {
+            OpKind::Quantize => true,
+            OpKind::Reshape
+            | OpKind::SwapDims { .. }
+            | OpKind::Permute { .. }
+            | OpKind::Flip { .. }
+            | OpKind::Index { .. }
+            | OpKind::Select { .. }
+            | OpKind::Slice { .. }
+            | OpKind::Expand => block_scales_only,
+            _ => false,
+        }
     }
 
     fn rule_plan(&self, kind: OpKind, inputs: &[&TensorIr], out: &TensorIr) -> Option<OpPlan> {
@@ -202,6 +240,7 @@ impl TensorShardings<'_> {
             (OpKind::Matmul, [lhs, rhs]) => self.matmul(lhs, rhs, out),
             (OpKind::Random, []) => self.whole(out, Execution::FirstMemberCopied),
             (OpKind::Creation, []) => self.whole(out, Execution::EveryMember),
+            (OpKind::Quantize, [input, params @ ..]) => self.quantize(input, params, out),
             (OpKind::Reshape, [input]) => self.reshape(input, out),
             (OpKind::SwapDims { dim1, dim2 }, [input]) => self.layout(
                 input,
@@ -352,6 +391,39 @@ impl TensorShardings<'_> {
             &[tensor, indices, value],
             out,
             sharding,
+            Execution::EveryMember,
+        )
+    }
+
+    /// A quantize keeps its input's split, each member quantizing its own blocks by its part of
+    /// the block scales. A per-tensor scale, of one element, is whole on every member.
+    fn quantize(&self, input: &TensorIr, params: &[&TensorIr], out: &TensorIr) -> Option<OpPlan> {
+        let DType::QFloat(scheme) = out.dtype else {
+            return None;
+        };
+        // Scales of another shape than the block grid are read in block order, which a split
+        // cannot follow.
+        let grid = params_shape(&input.shape, &scheme);
+        let [scales, global @ ..] = params else {
+            return None;
+        };
+        if scales.shape != grid || global.iter().any(|scale| scale.shape.num_elements() != 1) {
+            return None;
+        }
+        let num_dims = input.shape.num_dims();
+        let sharding = match self.sharding(input) {
+            Sharding::PartialSum => Sharding::Replicated,
+            sharding => sharding,
+        };
+        let params = params.iter().map(|param| {
+            (
+                *param,
+                ElementwiseRule::input_sharding(sharding, &param.shape, num_dims),
+            )
+        });
+        OpPlan::from_shardings(
+            [(input, sharding)].into_iter().chain(params),
+            [(out, sharding)],
             Execution::EveryMember,
         )
     }

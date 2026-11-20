@@ -327,8 +327,14 @@ impl<'a> OpClass<'a> {
             FloatOperationIr::GridSample2d(desc) => {
                 Self::of_kind(OpKind::GridSample, [&desc.tensor, &desc.grid], &desc.out)
             }
-            // A built-in op's quantized output lands whole, so quantizing reads its whole input.
-            FloatOperationIr::Quantize(_) => Self::Gathered,
+            FloatOperationIr::Quantize(desc) => Self::Kind {
+                kind: OpKind::Quantize,
+                inputs: [&desc.tensor, &desc.qparams.scales]
+                    .into_iter()
+                    .chain(desc.qparams.global.as_ref())
+                    .collect(),
+                outputs: [&desc.out].into_iter().collect(),
+            },
         }
     }
 
