@@ -23,6 +23,11 @@ See CONTRIBUTING.md#changelog for entry guidance. -->
   derivatives are follow-up work. This is groundwork for nested autodiff.
   ([#1942](https://github.com/tracel-ai/burn/issues/1942))
 
+- Higher-order derivatives through the decomposed attention and CTC paths are covered by tests on
+  nested autodiff. The explicit native attention and CTC backwards remain first-order only;
+  higher-order derivatives through them are follow-up work.
+  ([#1942](https://github.com/tracel-ai/burn/issues/1942))
+
 #### Backend extensions
 
 Backend extensions run on the remote backend without handwritten remote code: listing `Remote`

@@ -1080,9 +1080,11 @@ pub(crate) fn cube_devices(runtime: RuntimeId) -> Vec<CubeDevice> {
 mod autodiff_representation {
     use super::*;
     use crate::GradientCheckpointingStrategy;
+    #[cfg(feature = "wgpu")]
+    use burn_backend::cubecl::Device as CubeDevice;
     use burn_backend::{
         AutodiffBackend, TensorData,
-        ops::{FloatTensorOps, IntTensorOps, TransactionOps},
+        ops::{AttentionModuleOptions, FloatTensorOps, IntTensorOps, ModuleOps, TransactionOps},
         tensor::FloatTensor,
     };
 
@@ -1219,6 +1221,126 @@ mod autodiff_representation {
         let grads = Dispatch::backward(Dispatch::float_mul(d2.clone(), d2.clone()));
         let first = Dispatch::grad(&d2, &grads).expect("first derivative");
         assert!(matches!(first.kind, DispatchTensorKind::Autodiff(_)));
+    }
+
+    // --- Nested autodiff (HOD) through the decomposed attention/CTC path ---
+
+    type NestedInner = crate::backends::Autodiff<crate::Dispatch>;
+    type NestedOuter = crate::backends::Autodiff<NestedInner>;
+
+    fn nested_leaf<const D: usize>(
+        values: &[f32],
+        shape: [usize; D],
+        device: &DispatchDevice,
+    ) -> (FloatTensor<NestedInner>, FloatTensor<NestedOuter>) {
+        let leaf = Dispatch::float_from_data(TensorData::new(values.to_vec(), shape), device);
+        let inner = <NestedInner as AutodiffBackend>::from_inner(leaf);
+        let inner = NestedInner::float_set_require_grad(inner, true);
+        let outer = <NestedOuter as AutodiffBackend>::from_inner(inner.clone());
+        let outer = NestedOuter::float_set_require_grad(outer, true);
+        (inner, outer)
+    }
+
+    fn nested_attention_hod(device: DispatchDevice) {
+        let shape = [1, 1, 2, 2];
+        let q_values = [0.1f32, -0.2, 0.3, 0.4];
+        let k_values = [0.2f32, 0.1, -0.3, 0.25];
+        let v_values = [0.5f32, -0.1, 0.2, 0.3];
+        let options = AttentionModuleOptions::default();
+
+        let (qi, q) = nested_leaf(&q_values, shape, &device);
+        let (_ki, k) = nested_leaf(&k_values, shape, &device);
+        let (_vi, v) = nested_leaf(&v_values, shape, &device);
+
+        let out = NestedOuter::attention(q.clone(), k, v, None, None, None, options);
+        let g1 = NestedOuter::backward(out);
+        let dq = NestedOuter::grad(&q, &g1).expect("first-order attention gradient");
+        let g2 = NestedInner::backward(dq.clone());
+        let d2 = NestedInner::grad(&qi, &g2).expect("second-order attention gradient");
+        assert!(
+            values(d2).iter().all(|v| v.is_finite()),
+            "attention second derivative is finite"
+        );
+
+        // First-order comparison against the single-level autodiff backend.
+        let leaf = Dispatch::float_from_data(TensorData::new(q_values.to_vec(), shape), &device);
+        let single = <Ad as AutodiffBackend>::from_inner(leaf);
+        let single = Ad::float_set_require_grad(single, true);
+        let k_s = <Ad as AutodiffBackend>::from_inner(Dispatch::float_from_data(
+            TensorData::new(k_values.to_vec(), shape),
+            &device,
+        ));
+        let v_s = <Ad as AutodiffBackend>::from_inner(Dispatch::float_from_data(
+            TensorData::new(v_values.to_vec(), shape),
+            &device,
+        ));
+        let out_s = Ad::attention(single.clone(), k_s, v_s, None, None, None, options);
+        let g_s = Ad::backward(out_s);
+        let dq_s = Ad::grad(&single, &g_s).expect("single-level attention gradient");
+
+        let nested_first = values(NestedInner::inner(dq.clone()));
+        let single_first = values(dq_s);
+        for (a, b) in nested_first.iter().zip(single_first.iter()) {
+            assert!((a - b).abs() < 1e-4, "nested {a} vs single {b}");
+        }
+    }
+
+    #[test]
+    fn nested_attention_hod_on_flex() {
+        nested_attention_hod(DispatchDevice::Flex(Default::default()));
+    }
+
+    #[cfg(feature = "wgpu")]
+    #[test]
+    fn nested_attention_hod_on_wgpu() {
+        nested_attention_hod(DispatchDevice::Cube(CubeDevice::Wgpu(Default::default())));
+    }
+
+    fn nested_ctc_hod(device: DispatchDevice) {
+        let t = 3usize;
+        let c = 3usize;
+        let mut data = Vec::with_capacity(t * c);
+        for time in 0..t {
+            let logits = [0.2 * time as f32, -0.5, 0.1];
+            let max = logits.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+            let exps: Vec<f32> = logits.iter().map(|x| (x - max).exp()).collect();
+            let sum: f32 = exps.iter().sum();
+            for e in exps {
+                data.push((e / sum).ln());
+            }
+        }
+
+        let (log_probs_inner, log_probs) = nested_leaf(&data, [t, 1, c], &device);
+        let targets = Dispatch::int_from_data(TensorData::from([[1i32]]), &device);
+        let input_lengths = Dispatch::int_from_data(TensorData::from([t as i32]), &device);
+        let target_lengths = Dispatch::int_from_data(TensorData::from([1i32]), &device);
+
+        let loss = NestedOuter::float_sum(NestedOuter::ctc_loss(
+            log_probs.clone(),
+            targets,
+            input_lengths,
+            target_lengths,
+            0,
+        ));
+        let g1 = NestedOuter::backward(loss);
+        let dl = NestedOuter::grad(&log_probs, &g1).expect("first-order CTC gradient");
+        let g2 = NestedInner::backward(dl.clone());
+        let d2 = NestedInner::grad(&log_probs_inner, &g2).expect("second-order CTC gradient");
+        assert!(
+            values(d2).iter().all(|v| v.is_finite()),
+            "CTC second derivative is finite"
+        );
+    }
+
+    #[test]
+    fn nested_ctc_hod_on_flex() {
+        nested_ctc_hod(DispatchDevice::Flex(Default::default()));
+    }
+
+    #[cfg(feature = "wgpu")]
+    #[test]
+    fn nested_ctc_hod_on_wgpu() {
+        nested_ctc_hod(DispatchDevice::Cube(CubeDevice::Wgpu(Default::default())));
     }
 }
 
