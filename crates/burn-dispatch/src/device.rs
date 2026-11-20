@@ -6,7 +6,7 @@ use crate::devices::*;
 #[cfg(feature = "capture")]
 use burn_capture::CaptureDevice;
 #[cfg(feature = "shard")]
-use burn_shard::{ShardCustomOps, ShardError, ShardedComputeDevice};
+use burn_shard::{ShardCustomOps, ShardError, ShardedComputeDevice, SplitGathers};
 
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
@@ -392,7 +392,8 @@ impl DispatchDevice {
     /// rest of the process.
     ///
     /// Each of its default dtypes is the first of the members' configured ones, in member order,
-    /// that every member supports. Every member runs the handlers of `custom_ops`.
+    /// that every member supports. Every member runs the handlers of `custom_ops`, and gathers a
+    /// split input as `split_gathers` says.
     ///
     /// # Errors
     ///
@@ -405,9 +406,11 @@ impl DispatchDevice {
     ///
     /// When the process already has 65,536 sharded compute devices.
     #[cfg(feature = "shard")]
+    #[cfg_attr(not(any(cube_backend, feature = "flex")), allow(unused_variables))]
     pub fn shard(
         devices: alloc::vec::Vec<DispatchDevice>,
         custom_ops: ShardCustomOps,
+        split_gathers: SplitGathers,
     ) -> Result<Self, ShardError> {
         if let Some(error) = devices.iter().find_map(Self::refused_as_member) {
             return Err(error);
@@ -417,14 +420,18 @@ impl DispatchDevice {
             Some(Self::Cube(_)) => {
                 let members = shard_members!(devices, Cube)?;
                 ShardedComputeDevice::with_member_settings::<crate::backends::Cube>(
-                    &members, custom_ops,
+                    &members,
+                    custom_ops,
+                    split_gathers,
                 )
             }
             #[cfg(feature = "flex")]
             Some(Self::Flex(_)) => {
                 let members = shard_members!(devices, Flex)?;
                 ShardedComputeDevice::with_member_settings::<crate::backends::Flex>(
-                    &members, custom_ops,
+                    &members,
+                    custom_ops,
+                    split_gathers,
                 )
             }
             Some(other) => unreachable!("{other:?} was refused as a member"),
@@ -453,6 +460,20 @@ impl DispatchDevice {
             }
             #[cfg(feature = "autodiff")]
             Self::Autodiff(device) => device.inner.shard_members(),
+            #[allow(unreachable_patterns)]
+            _ => None,
+        }
+    }
+
+    /// Every resharding that has sent part of an op's input between the members of this sharded
+    /// compute device, as [`ShardedComputeDevice::reshardings`] tallies them, or `None` when it is
+    /// not one.
+    #[cfg(feature = "shard")]
+    pub fn shard_reshardings(&self) -> Option<Vec<burn_shard::ReshardingTally>> {
+        match self {
+            Self::ShardedCompute(device) => Some(device.reshardings()),
+            #[cfg(feature = "autodiff")]
+            Self::Autodiff(device) => device.inner.shard_reshardings(),
             #[allow(unreachable_patterns)]
             _ => None,
         }

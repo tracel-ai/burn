@@ -32,7 +32,7 @@ use std::time::{Duration, Instant};
 use burn_fusion::observer::{BlockOperations, FusionObserver};
 #[cfg(feature = "fusion")]
 use burn_ir::OperationIr;
-use burn_tensor::Device;
+use burn_tensor::{Device, ReshardingTally};
 use cubecl::logging::{
     Execution, ExecutionKind, ExecutionObserver, ExecutionPlace, Measurement, Timed, TimingRequest,
 };
@@ -76,6 +76,9 @@ pub struct RunRecorder {
     epoch: Instant,
     /// Where each launching thread records, moved at every boundary.
     cursor: LaunchCursor,
+    /// What the device had tallied of its reshardings before the run, empty when it is not a
+    /// sharded compute device.
+    reshardings_before: Vec<ReshardingTally>,
     /// The members of a sharded compute device, which place each execution by its device.
     members: MemberList,
     /// A mutex rather than a cell: components are entered on the thread driving
@@ -99,6 +102,8 @@ struct State {
     floors: Floors,
     /// What each member did, on a sharded compute device: see [`Breakdown::per_member`].
     per_member: Option<PerMember>,
+    /// See [`Breakdown::reshardings`].
+    reshardings: Vec<ReshardingTally>,
 }
 
 impl RunRecorder {
@@ -117,6 +122,7 @@ impl RunRecorder {
         let cursor = LaunchCursor::new(device);
         cursor.point_at(Attribution::Untagged);
         Self {
+            reshardings_before: reshardings_of(device),
             device: device.clone(),
             epoch: Instant::now(),
             cursor,
@@ -180,10 +186,26 @@ impl RunRecorder {
         };
         let read: Vec<ReadTiming> = unread.into_iter().map(UnreadTiming::read).collect();
         let collectives = ledger.settle(&self.members);
+        let reshardings = self.reshardings_during_run();
         let mut state = self.locked();
         #[cfg(feature = "fusion")]
         state.origins.clear();
-        state.settle(read, self.epoch, &self.members, collectives);
+        state.settle(read, self.epoch, &self.members, collectives, reshardings);
+    }
+
+    /// The reshardings the device tallied since the run began. A tally keeps its position, so
+    /// the first ones line up with those taken before it.
+    fn reshardings_during_run(&self) -> Vec<ReshardingTally> {
+        let after = reshardings_of(&self.device);
+        after
+            .iter()
+            .enumerate()
+            .map(|(index, tally)| match self.reshardings_before.get(index) {
+                Some(before) => tally.since(before),
+                None => tally.clone(),
+            })
+            .filter(|tally| tally.count > 0)
+            .collect()
     }
 
     /// What the run left behind.
@@ -194,11 +216,14 @@ impl RunRecorder {
     /// kernels its open components have yet to launch.
     fn breakdown(&self) -> Breakdown {
         let state = self.locked();
-        state.tree.breakdown(
-            state.timings.quality(),
-            self.cursor.fusion(),
-            state.per_member.clone(),
-        )
+        Breakdown {
+            reshardings: state.reshardings.clone(),
+            ..state.tree.breakdown(
+                state.timings.quality(),
+                self.cursor.fusion(),
+                state.per_member.clone(),
+            )
+        }
     }
 
     /// The shared state, recovering a lock a panicking run poisoned: a tree
@@ -344,13 +369,14 @@ impl FusionObserver for RunRecorder {
 impl State {
     /// File every timing read back under the component that counted its
     /// launch, charge each device's idle stretches between them, and, over several `members`,
-    /// keep what each did and what the `collectives` cost each.
+    /// keep what each did, what the `collectives` cost each and the `reshardings` behind them.
     fn settle(
         &mut self,
         read: Vec<ReadTiming>,
         epoch: Instant,
         members: &MemberList,
         collectives: Vec<CollectiveTime>,
+        reshardings: Vec<ReshardingTally>,
     ) {
         let mut timeline = Timeline::new(epoch, members.clone());
         for timed in read {
@@ -370,6 +396,7 @@ impl State {
             collectives,
             ..per_member
         });
+        self.reshardings = reshardings;
     }
 
     /// Add `duration` to the component that counted `kernel`'s launch under
@@ -381,6 +408,19 @@ impl State {
             // shrink.
             self.timings.unplace(duration);
         }
+    }
+}
+
+/// The reshardings `device` tallied since it was made: none unless it is a sharded compute device.
+fn reshardings_of(device: &Device) -> Vec<ReshardingTally> {
+    #[cfg(feature = "shard")]
+    {
+        device.as_dispatch().shard_reshardings().unwrap_or_default()
+    }
+    #[cfg(not(feature = "shard"))]
+    {
+        let _ = device;
+        Vec::new()
     }
 }
 

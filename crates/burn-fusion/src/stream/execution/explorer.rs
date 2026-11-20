@@ -3,7 +3,7 @@ use std::sync::Arc;
 use burn_ir::OperationIr;
 use burn_std::config::{config, fusion::FusionLogLevel, log_fusion};
 
-use super::{ExecutionMode, op_kind};
+use super::ExecutionMode;
 use crate::{
     NumOperations, OperationFuser,
     search::{BlockOptimization, StreamOptimizer},
@@ -152,7 +152,7 @@ impl<O: NumOperations> Explorer<O> {
                 log_fusion(FusionLogLevel::Full, || {
                     format!(
                         "[explorer] still_optimizing → false after op {} (explored {explored} ops)",
-                        op_kind(relative)
+                        relative.name()
                     )
                 });
             }

@@ -47,6 +47,7 @@ fn measurement() -> Measurement {
             unplaced: Unplaced::default(),
             unfused: false,
             per_member: None,
+            reshardings: Vec::new(),
         },
     }
 }

@@ -61,6 +61,29 @@ fn an_all_reduce_is_one_row_with_each_members_part_timed() {
     let breakdown =
         Instrument::new(&device).breakdown(|| Project.forward(lhs.clone(), rhs.clone()));
 
+    let reshardings: Vec<_> = breakdown
+        .reshardings
+        .iter()
+        .map(|tally| {
+            (
+                tally.operation.as_str(),
+                tally.from,
+                tally.to,
+                tally.count,
+                tally.bytes,
+            )
+        })
+        .collect();
+    assert_eq!(
+        reshardings,
+        [(
+            "Float::Exp",
+            Sharding::PartialSum,
+            Sharding::Replicated,
+            1,
+            (SIDE * SIDE * 4) as u64
+        )]
+    );
     let per_member = breakdown.per_member.expect("two members are timed apart");
     let rows: Vec<_> = per_member
         .collectives

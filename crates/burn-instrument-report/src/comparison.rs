@@ -305,6 +305,7 @@ mod tests {
                 unplaced: Unplaced::default(),
                 unfused: false,
                 per_member: None,
+                reshardings: Vec::new(),
             },
         }
     }

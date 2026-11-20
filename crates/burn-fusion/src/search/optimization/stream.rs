@@ -7,7 +7,7 @@ use crate::{
         merging::{MergeBlocksResult, merge_blocks},
         optimization::blocks::BlocksOptimizerResult,
     },
-    stream::{execution::op_kind, store::ExecutionStrategy},
+    stream::store::ExecutionStrategy,
 };
 use burn_ir::{OperationIr, TensorId, TensorStatus};
 use burn_std::config::{config, fusion::FusionLogLevel, log_fusion};
@@ -50,7 +50,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
             log_fusion(FusionLogLevel::Full, || {
                 format!(
                     "[stream] {} dropped (optimizer stopped at op {length})",
-                    op_kind(operation)
+                    operation.name()
                 )
             });
             return;
@@ -85,7 +85,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
                 log_fusion(FusionLogLevel::Medium, || {
                     format!(
                         "[stream] stopped (max_blocks={max_blocks} reached) at op {length} ({})",
-                        op_kind(operation)
+                        operation.name()
                     )
                 });
                 self.stopped = true;
@@ -225,7 +225,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
         log_fusion(FusionLogLevel::Full, || {
             format!(
                 "[stream] op {length} {} → accepted in {added_count}/{num_blocks} block(s)",
-                op_kind(operation)
+                operation.name()
             )
         });
     }
@@ -331,7 +331,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
         log_fusion(FusionLogLevel::Full, || {
             format!(
                 "[stream] op {length} {} → new block (total: {num_blocks})",
-                op_kind(operation)
+                operation.name()
             )
         });
     }
@@ -355,7 +355,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
                 log_fusion(FusionLogLevel::Medium, || {
                     format!(
                         "[stream] stopped (max_blocks={max_blocks} reached on dependency) at op {length} ({})",
-                        op_kind(operation)
+                        operation.name()
                     )
                 });
                 self.stopped = true;
@@ -373,7 +373,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
             log_fusion(FusionLogLevel::Medium, || {
                 format!(
                     "[stream] stopped (unresolvable dependency cycle) at op {length} ({})",
-                    op_kind(operation)
+                    operation.name()
                 )
             });
             self.stopped = true;
@@ -385,7 +385,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
         log_fusion(FusionLogLevel::Full, || {
             format!(
                 "[stream] op {length} {} → new dependent block (total: {num_blocks})",
-                op_kind(operation)
+                operation.name()
             )
         });
     }

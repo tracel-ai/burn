@@ -39,14 +39,16 @@ cubecl = ["std", "dep:cubecl", "dep:cubecl-common", "burn-tensor/cubecl"]
 # for it; a collector built without it refuses a device that fuses rather than place its kernels
 # wrongly.
 fusion = ["dep:burn-fusion", "dep:burn-ir", "burn-tensor/fusion"]
+# The reshardings a sharded compute device tallied during a run.
+shard = ["burn-tensor/shard"]
 
 # The collector's integration tests, which need kernels to place. Enable a cubecl runtime
 # separately (e.g. `burn-tensor/wgpu`) and select it with BURN_DEVICE; add `fusion` for the fused
 # half.
 collector-tests = ["cubecl", "instrument"]
 # The collector's tests over a sharded compute device of the first two cards of one runtime.
-sharded-tests-cuda = ["collector-tests", "burn-tensor/shard", "burn-tensor/cuda"]
-sharded-tests-rocm = ["collector-tests", "burn-tensor/shard", "burn-tensor/rocm"]
+sharded-tests-cuda = ["collector-tests", "shard", "burn-tensor/cuda"]
+sharded-tests-rocm = ["collector-tests", "shard", "burn-tensor/rocm"]
 
 [dependencies]
 burn-instrument-macros = { workspace = true }

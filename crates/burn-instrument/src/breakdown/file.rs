@@ -21,7 +21,7 @@ const FORMAT_BEFORE_VERSION_3: &str = "burn-instrument pass";
 ///
 /// Every change to what a file serializes as (a field added, removed, renamed or re-encoded) is a
 /// new version, so a saved measurement is read back as it was taken or not at all.
-pub const MEASUREMENT_FILE_VERSION: u32 = 6;
+pub const MEASUREMENT_FILE_VERSION: u32 = 7;
 
 /// An instrumented run and what it is scored against: what a measurement file holds.
 ///
@@ -177,7 +177,7 @@ fn required<T>(field: Option<T>, name: &'static str) -> Result<T, MeasurementFil
 mod tests {
     use std::time::Duration;
 
-    use burn_tensor::FloatDType;
+    use burn_tensor::{FloatDType, ReshardingTally, Sharding};
 
     use super::*;
     use crate::breakdown::{
@@ -209,13 +209,13 @@ mod tests {
         assert_eq!(read.clean_wall, None);
     }
 
-    /// The format version 6 is, field for field. A change that fails this test is a new
+    /// The format version 7 is, field for field. A change that fails this test is a new
     /// [`MEASUREMENT_FILE_VERSION`], not an edit to the expected text.
     #[test]
-    fn version_six_is_pinned() {
+    fn version_seven_is_pinned() {
         let expected = r#"{
   "format": "burn-instrument measurement",
-  "version": 6,
+  "version": 7,
   "device": "Rocm(0)",
   "peaks": {
     "copy_bytes_per_s": 161000000000.0,
@@ -308,12 +308,25 @@ mod tests {
           ]
         }
       ]
-    }
+    },
+    "reshardings": [
+      {
+        "operation": "BaseFloat::Select",
+        "from": {
+          "Split": {
+            "dim": 0
+          }
+        },
+        "to": "Replicated",
+        "count": 2,
+        "bytes": 8192
+      }
+    ]
   }
 }"#;
         assert_eq!(written(&measurement()), expected);
         assert_eq!(
-            Measurement::read(expected.as_bytes()).expect("version 6 reads"),
+            Measurement::read(expected.as_bytes()).expect("version 7 reads"),
             measurement(),
             "and reads back as the measurement it pins"
         );
@@ -468,6 +481,13 @@ mod tests {
                         ],
                     }],
                 }),
+                reshardings: vec![ReshardingTally {
+                    operation: "BaseFloat::Select".to_string(),
+                    from: Sharding::Split { dim: 0 },
+                    to: Sharding::Replicated,
+                    count: 2,
+                    bytes: 8192,
+                }],
             },
         }
     }

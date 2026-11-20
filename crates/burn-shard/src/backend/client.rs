@@ -10,7 +10,7 @@ use burn_ir::{
     BackendIr, CapturedGraphId, GraphBindings, GraphId, HandleKind, OperationIr, TensorId, TensorIr,
 };
 use burn_router::{RouterClient, RouterTensor};
-use burn_std::{future::DynFut, sync::Mutex};
+use burn_std::{distributed::ReshardingTally, future::DynFut, sync::Mutex};
 
 use super::{ShardedComputeDevice, interpreter::DynShardInterpreter};
 use crate::{Sharding, Shards, ShardsError};
@@ -91,6 +91,12 @@ impl ShardClient {
     /// How many members the tensors are split over.
     pub fn num_members(&self) -> usize {
         self.interpreter.lock().num_members()
+    }
+
+    /// Every resharding that sent part of an input between members, tallied by operation and
+    /// shardings.
+    pub fn reshardings(&self) -> Vec<ReshardingTally> {
+        self.interpreter.lock().reshardings().to_vec()
     }
 }
 

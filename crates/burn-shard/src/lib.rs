@@ -14,10 +14,10 @@ mod sharding;
 
 pub use backend::{
     CollectiveMember, CollectiveOpHandler, CollectiveOpRegistry, CustomOpPlan, CustomOpRule,
-    MemberDevice, ShardBackend, ShardCustomOps, ShardError, ShardedComputeDevice,
+    MemberDevice, ShardBackend, ShardCustomOps, ShardError, ShardedComputeDevice, SplitGathers,
 };
 pub use burn_router::CustomOpRegistry;
-pub use burn_std::distributed::{Sharding, ShardingError, Shards, ShardsError};
+pub use burn_std::distributed::{ReshardingTally, Sharding, ShardingError, Shards, ShardsError};
 pub use kind::{Linearity, OpKind, ReducedDims, ReductionKind};
 
 use resharding::Resharding;
