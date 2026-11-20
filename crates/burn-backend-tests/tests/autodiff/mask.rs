@@ -32,7 +32,8 @@ fn should_diff_mask_fill() {
 fn should_diff_mask_fill_broadcast_input_smaller_than_mask() {
     let device = AutodiffDevice::new();
     let tensor = TestTensor::<2>::from_data([[1.0, 2.0, 3.0]], &device).require_grad();
-    let mask = TestTensorBool::<2>::from_data([[true, false, true], [false, true, false]], &device);
+    let mask =
+        TestTensorBool::<2>::from_data([[false, false, true], [false, true, false]], &device);
     let weights = TestTensor::<2>::from_data([[2.0, 3.0, 5.0], [7.0, 11.0, 13.0]], &device);
 
     let output = tensor.clone().mask_fill(mask, 0.0);
@@ -41,7 +42,7 @@ fn should_diff_mask_fill_broadcast_input_smaller_than_mask() {
 
     assert_eq!(grad.dims(), [1, 3]);
     grad.into_data()
-        .assert_eq(&TensorData::from([[7.0, 3.0, 13.0]]), false);
+        .assert_eq(&TensorData::from([[9.0, 3.0, 13.0]]), false);
 }
 
 #[test]
