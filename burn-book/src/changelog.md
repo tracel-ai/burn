@@ -292,6 +292,10 @@ Reports also include the measured cost of a kernel launch.
   [#5970](https://github.com/tracel-ai/burn/pull/5970),
   [#5986](https://github.com/tracel-ai/burn/pull/5986))
 
+- Fix a fused segment running entirely unfused when its chunks formed an ordering cycle through a
+  re-optimized hole: the repair now opens composed chunks and keeps only fused optimizations whole.
+  ([#6570](https://github.com/tracel-ai/burn/pull/6570))
+
 - Fusion autotune copies only the handles of the tensors its queue maps, not every live tensor's, so
   a launch that is not yet tuned no longer costs a pass over every live handle.
 
@@ -791,6 +795,12 @@ backends do). Autodiff composes it from tensor operations.
 `lengths` and `pages`, so remote clients and servers must be upgraded together (protocol
 version 14).
 
+#### Batch normalization without `std`
+
+- Training a `BatchNorm` no longer panics on no_std targets ("Current thread id is not
+  available"); without `std`, running statistics assume a single thread.
+  ([#6508](https://github.com/tracel-ai/burn/pull/6508)) [@HarpeLm](https://github.com/HarpeLm)
+
 #### Config derivation
 
 - Add opt-in `#[config(into)]` fields to accept convertible values in generated constructors and
@@ -1043,6 +1053,12 @@ and parameter group, including partial accumulation windows. Custom strategies m
 Use `OnOptimizerStep::with(...)` to register standard metrics for optimizer updates.
 See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics).
 
+#### Optimizers
+
+- Build `burn-optim` without the `std` feature again. `ModuleOptimizer` no longer depends on the
+  standard-library-only learning-rate scheduler module, so fixed learning rates work in `no_std`.
+  ([#6475](https://github.com/tracel-ai/burn/issues/6475))
+
 #### Regression metrics
 
 - Add regression evaluation metrics (`MseMetric`, `MaeMetric`, `R2ScoreMetric`) to
@@ -1051,6 +1067,11 @@ See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics)
   ([#6390](https://github.com/tracel-ai/burn/pull/6390),
   [#6042](https://github.com/tracel-ai/burn/pull/6042))
   [@divakantpandey](https://github.com/divakantpandey), [@Infinty-ux](https://github.com/Infinty-ux)
+
+#### System metrics
+
+- Fix `burn-train` failing to build with systemstat 0.2.8, which new projects resolve to, and the
+  `CpuTemperature` metric reading NaN after its first reading with that version.
 
 #### Text generation metrics
 
