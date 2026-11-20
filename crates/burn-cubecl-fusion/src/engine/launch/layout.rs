@@ -25,30 +25,35 @@ pub use burn_std::tensor::layout::{DimOrder, dim_order, is_contiguous_order, nes
 /// `None` when the tensor is in logical dimension order, is not dense, or has no
 /// axis to run along.
 ///
-/// Everything written before a block could choose its layout takes a vector to run
-/// along the last dimension, and for logical dimension order it does — including
-/// across trailing degenerate dimensions, which a contiguous layout gives stride
-/// one. Answering `None` there rather than an axis of our own leaves every such
-/// block behaving exactly as it did, and keeps the two callers — the
+/// Degenerate dimensions are skipped throughout. Their position in [dim_order] is
+/// arbitrary — nothing distinguishes them, since density says nothing about their
+/// stride — and their stride is arbitrary with it: a broadcast dimension carries
+/// stride zero, so a vector stepping it would read the same element `width` times.
+/// Even a benign stride of one costs the block its vectorization, because an
+/// extent of one reads as broadcast to every access measured against it.
+///
+/// So the order is logical when the dimensions with an extent come in logical
+/// order, wherever the degenerate ones sit: `[2, 4, 1, 1]` with strides
+/// `[4, 1, 4, 4]`, as pooling a channels-last tensor down to one pixel leaves it,
+/// is the same memory as the contiguous layout. Everything written before a block
+/// could choose its layout takes a vector to run along the last dimension, and for
+/// logical dimension order it does. Answering `None` there rather than an axis of
+/// our own leaves every such block behaving exactly as it did, and keeps the two
+/// callers — the
 /// [vector_axis](crate::engine::codegen::ir::FuseBlockConfig::vector_axis) a kernel
 /// steps by and the axis the vectorization pass sizes against — from disagreeing
-/// about what a vector is.
+/// about what a vector is. A reduction on the last dimension depends on it: its
+/// kernel takes a vector to run along the reduced axis.
 ///
-/// For a permuted order it is the innermost dimension of [dim_order], except that
-/// degenerate dimensions are skipped. Their position in the order is arbitrary —
-/// nothing distinguishes them, since density says nothing about their stride —
-/// and their stride is arbitrary with it: a broadcast dimension carries stride
-/// zero, so a vector stepping it would read the same element `width` times. Even a
-/// benign stride of one costs the block its vectorization, because an extent of
-/// one reads as broadcast to every access measured against it.
+/// For a permuted order it is the innermost dimension with an extent.
 pub fn permuted_innermost_axis(shape: &[usize], strides: &[usize]) -> Option<usize> {
     let order = dim_order(shape, strides)?;
+    let extents = || order.iter().copied().filter(|&axis| shape[axis] > 1);
 
-    if is_contiguous_order(&order) {
-        return None;
+    match extents().is_sorted() {
+        true => None,
+        false => extents().next_back(),
     }
-
-    order.iter().rev().find(|&&axis| shape[axis] > 1).copied()
 }
 
 /// The strides a tensor of this shape has when laid out in the given dimension
@@ -128,6 +133,20 @@ mod tests {
             permuted_innermost_axis(&[2, 48, 1, 1], &[48, 1, 1, 1]),
             None
         );
+    }
+
+    #[test]
+    fn degenerate_dimensions_do_not_make_an_order_permuted() {
+        // Channels-last memory pooled down to one pixel: `dim_order` places the
+        // channel last, yet the memory is that of the contiguous layout.
+        let shape = [2, 4, 1, 1];
+        let strides = [4, 1, 4, 4];
+
+        assert_eq!(
+            dim_order(&shape, &strides),
+            Some(Shape::from(vec![0, 2, 3, 1]))
+        );
+        assert_eq!(permuted_innermost_axis(&shape, &strides), None);
     }
 
     #[test]

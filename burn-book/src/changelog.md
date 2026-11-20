@@ -287,6 +287,10 @@ Reports also include the measured cost of a kernel launch.
   [#6091](https://github.com/tracel-ai/burn/pull/6091),
   [#6076](https://github.com/tracel-ai/burn/pull/6076))
 
+- Fix a kernel compilation failure in fused reductions over the last dimension of channels-last
+  tensors whose spatial dimensions have size one, such as the output of global pooling.
+  ([#6556](https://github.com/tracel-ai/burn/pull/6556)) [@kongxinjun](https://github.com/kongxinjun)
+
 - Fix fusion failures when tensors are dropped on another thread, and report failed transaction
   reads as errors instead of panicking. ([#6086](https://github.com/tracel-ai/burn/pull/6086),
   [#5970](https://github.com/tracel-ai/burn/pull/5970),
