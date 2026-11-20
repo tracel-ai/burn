@@ -723,54 +723,43 @@ fn process_2d_kernel<B: Element>(kernel: &[B], ksize: Size) -> Vec<Point> {
 mod tests {
     use super::*;
 
-    struct RunScalarFallbacks;
+    struct CheckScalarTails;
 
-    impl macerator::WithSimd for RunScalarFallbacks {
+    impl macerator::WithSimd for CheckScalarTails {
         type Output = ();
 
         fn with_simd<S: Simd>(self) {
-            // Padding keeps the old half-vector accesses inside the allocations so the
-            // destination sentinel detects the stray store even without Miri.
+            const WIDTH: usize = 2;
+            const STRIDE: usize = WIDTH + 1;
+            // Padding keeps stray accesses in bounds so standard tests can catch the stores.
             const SENTINEL: u64 = u64::MAX;
 
             let row_filter = MorphRowFilter::<u64, MaxOp, MorphRowVec<u64, MaxOp>>::new(3, 1);
-            let row_src = [1, 3, 2, 5, 4, 7, 6, 9, 8, 10, 0];
-            let mut row_dst = [SENTINEL; 9];
-            row_filter.apply::<S>(&row_src, &mut row_dst, 8, 1);
-            assert_eq!(row_dst, [3, 5, 5, 7, 7, 9, 9, 10, SENTINEL]);
+            let mut row_dst = [SENTINEL; STRIDE];
+            row_filter.apply::<S>(&[4, 1, 2, 3, 0], &mut row_dst, WIDTH, 1);
+            assert_eq!(row_dst, [4, 3, SENTINEL]);
 
-            let rows = [
-                [1, 2, 3, 4, 5, 6, 7, 8, 0],
-                [2, 3, 4, 5, 6, 7, 8, 9, 0],
-                [3, 4, 5, 6, 7, 8, 9, 10, 0],
-                [4, 5, 6, 7, 8, 9, 10, 11, 0],
-            ];
-            let row_ptrs = rows.each_ref().map(|row| row.as_ptr());
+            let column_src = [[9, 1, 0], [2, 8, 0], [4, 3, 0], [5, 2, 0], [6, 7, 0]];
+            let rows = column_src.each_ref().map(|row| row.as_ptr());
             let column_filter =
                 MorphColumnFilter::<u64, MaxOp, MorphColumnVec<u64, MaxOp>>::new(3, 1);
+            // Three output rows exercise both the paired-row loop and the single-row remainder.
+            let mut column_dst = [SENTINEL; 3 * STRIDE];
+            column_filter.apply::<S>(&rows, &mut column_dst, STRIDE, 3, WIDTH);
+            assert_eq!(column_dst, [9, 8, SENTINEL, 5, 8, SENTINEL, 6, 7, SENTINEL]);
 
-            let first_row = [3, 4, 5, 6, 7, 8, 9, 10, SENTINEL];
-            let mut one_row_dst = [SENTINEL; 9];
-            column_filter.apply::<S>(&row_ptrs, &mut one_row_dst, 9, 1, 8);
-            assert_eq!(one_row_dst, first_row);
-
-            let mut two_row_dst = [SENTINEL; 18];
-            column_filter.apply::<S>(&row_ptrs, &mut two_row_dst, 9, 2, 8);
-            assert_eq!(&two_row_dst[..9], &first_row);
-            assert_eq!(&two_row_dst[9..], &[4, 5, 6, 7, 8, 9, 10, 11, SENTINEL]);
-
-            let src_a = [1, 3, 2, 5, 4, 7, 6, 9, 0];
-            let src_b = [2, 1, 4, 3, 6, 5, 8, 7, 0];
-            let src = [src_a.as_ptr(), src_b.as_ptr()];
-            let mut dst = [SENTINEL; 9];
-            let processed = MorphVec::<u64, MaxOp>::apply::<S>(&src, 2, &mut dst, 8);
-            assert_eq!(processed, 8);
-            assert_eq!(dst, [2, 3, 4, 5, 6, 7, 8, 9, SENTINEL]);
+            let src = [[1, 4, 0], [3, 2, 0]];
+            let rows = src.each_ref().map(|row| row.as_ptr());
+            let mut dst = [SENTINEL; STRIDE];
+            let processed = MorphVec::<u64, MaxOp>::apply::<S>(&rows, rows.len(), &mut dst, WIDTH);
+            assert_eq!(processed, WIDTH);
+            assert_eq!(dst, [3, 4, SENTINEL]);
         }
     }
 
     #[test]
     fn scalar_fallback_skips_zero_width_half_vector_tail() {
-        unsafe { macerator::Arch::Scalar.dispatch(RunScalarFallbacks) };
+        // SAFETY: The scalar backend requires no CPU features.
+        unsafe { macerator::Arch::Scalar.dispatch(CheckScalarTails) };
     }
 }
