@@ -2,7 +2,10 @@ use burn_backend::ops::ModuleOps;
 use burn_dispatch::Dispatch;
 use burn_std::{MatmulTransformAction, MatmulTransformAnalysis, MatmulTransformPolicy};
 
-pub use crate::ops::{CoordinateTransformMode, InterpolateMode, InterpolateOptions};
+pub use crate::ops::{
+    CoordinateTransformMode, Interpolate3dMode, Interpolate3dOptions, InterpolateMode,
+    InterpolateOptions,
+};
 use crate::{
     Bool, DType, Int, Shape, Tensor, check,
     check::TensorCheck,
@@ -1133,6 +1136,98 @@ pub fn interpolate_output_size(input_size: [usize; 2], options: &InterpolateOpti
     }
 }
 
+/// Resizes the spatial dimensions of a tensor shaped `[batch, channels, depth, height, width]`.
+///
+/// Uses nearest-neighbor or trilinear interpolation, preserving batch size, channels and floating
+/// dtype. Quantized inputs are dequantized. Trilinear interpolation composes two 2D passes, with
+/// an intermediate tensor stored in the input's floating dtype. Input gradients are supported
+/// through the existing 2D interpolation operations.
+///
+/// # Panics
+///
+/// Panics unless exactly one of `output_size` or `scale_factor` is set. Input and output spatial
+/// dimensions must be positive; scale factors must be finite and positive, and their resulting
+/// sizes and intermediate/output element counts must fit in `usize`. Backend scale restrictions
+/// also apply (see [`Interpolate3dOptions`]).
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let output = interpolate3d(
+///     input,
+///     Interpolate3dOptions::new(Interpolate3dMode::Nearest).with_output_size([16, 32, 32]),
+/// );
+/// ```
+pub fn interpolate3d(x: Tensor<5>, options: Interpolate3dOptions) -> Tensor<5> {
+    let [batch, channels, depth, height, width] = x.dims();
+    let [depth_out, height_out, width_out] =
+        interpolate3d_output_size([depth, height, width], &options);
+    let output_shape = [batch, channels, depth_out, height_out, width_out];
+    check!(TensorCheck::interpolate3d_shapes(x.dims(), output_shape));
+    let x = x.dequantize();
+    if batch == 0 || channels == 0 {
+        return x.reshape(Shape::new(output_shape));
+    }
+    let mode = match options.mode {
+        Interpolate3dMode::Nearest => InterpolateMode::Nearest,
+        Interpolate3dMode::NearestExact => InterpolateMode::NearestExact,
+        Interpolate3dMode::Trilinear {
+            coordinate_transform,
+        } => InterpolateMode::Bilinear {
+            coordinate_transform,
+        },
+    };
+    let (spatial_options, depth_options) = match options.scale_factor {
+        Some([depth_scale, height_scale, width_scale]) => (
+            InterpolateOptions::new(mode).with_scale_factor([height_scale, width_scale]),
+            InterpolateOptions::new(mode).with_scale_factor([1.0, depth_scale]),
+        ),
+        None => (
+            InterpolateOptions::new(mode).with_output_size([height_out, width_out]),
+            InterpolateOptions::new(mode).with_output_size([1, depth_out]),
+        ),
+    };
+    let x = interpolate(
+        x.reshape(Shape::new([batch, channels * depth, height, width])),
+        spatial_options,
+    );
+    // Keep each depth line separate: an identity axis over flattened height/width would
+    // read unrelated neighbours with zero weights, potentially propagating their NaNs.
+    let x = x
+        .reshape::<5, _>(Shape::new([batch, channels, depth, height_out, width_out]))
+        .permute([0, 1, 3, 4, 2])
+        .reshape(Shape::new([
+            batch,
+            channels * height_out * width_out,
+            1,
+            depth,
+        ]));
+    interpolate(x, depth_options)
+        .reshape(Shape::new([
+            batch, channels, height_out, width_out, depth_out,
+        ]))
+        .permute([0, 1, 4, 2, 3])
+}
+
+/// Resolves the output `[depth, height, width]` for [`interpolate3d`].
+///
+/// # Panics
+///
+/// Panics on invalid input sizes or sizing options, under the same conditions as [`interpolate3d`].
+pub fn interpolate3d_output_size(
+    input_size: [usize; 3],
+    options: &Interpolate3dOptions,
+) -> [usize; 3] {
+    check!(TensorCheck::interpolate3d(input_size, options));
+    match (options.output_size, options.scale_factor) {
+        (Some(size), None) => size,
+        (None, Some(scale)) => {
+            core::array::from_fn(|i| (input_size[i] as f64 * f64::from(scale[i])) as usize)
+        }
+        _ => unreachable!(),
+    }
+}
+
 /// Applies a linear transformation to the input tensor using the given weight and bias.
 ///
 /// ```math
@@ -1651,6 +1746,113 @@ mod tests {
 
     fn options() -> InterpolateOptions {
         InterpolateOptions::new(InterpolateMode::Nearest)
+    }
+
+    #[test]
+    fn interpolate3d_output_size_and_builders() {
+        let options = Interpolate3dOptions::new(Interpolate3dMode::Nearest)
+            .with_output_size([9, 8, 7])
+            .with_scale_factor([0.5, 1.5, 2.0]);
+        assert_eq!(interpolate3d_output_size([5, 3, 2], &options), [2, 4, 4]);
+        let options = options.with_output_size([3, 4, 5]);
+        assert_eq!(interpolate3d_output_size([5, 3, 2], &options), [3, 4, 5]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Exactly one of output_size or scale_factor")]
+    fn interpolate3d_requires_sizing() {
+        interpolate3d_output_size(
+            [2, 3, 4],
+            &Interpolate3dOptions::new(Interpolate3dMode::Nearest),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Exactly one of output_size or scale_factor")]
+    fn interpolate3d_rejects_conflicting_sizing() {
+        let mut options =
+            Interpolate3dOptions::new(Interpolate3dMode::Nearest).with_output_size([2, 3, 4]);
+        options.scale_factor = Some([1.0; 3]);
+        interpolate3d_output_size([2, 3, 4], &options);
+    }
+
+    #[test]
+    #[should_panic(expected = "Input spatial dimensions must be positive")]
+    fn interpolate3d_rejects_empty_spatial_input() {
+        let options =
+            Interpolate3dOptions::new(Interpolate3dMode::Nearest).with_output_size([2, 3, 4]);
+        interpolate3d_output_size([2, 0, 4], &options);
+    }
+
+    #[test]
+    #[should_panic(expected = "Output spatial dimensions must be positive")]
+    fn interpolate3d_rejects_empty_spatial_output() {
+        let options =
+            Interpolate3dOptions::new(Interpolate3dMode::Nearest).with_output_size([2, 3, 0]);
+        interpolate3d_output_size([2, 3, 4], &options);
+    }
+
+    #[test]
+    #[should_panic(expected = "Scale factors must be finite and strictly positive")]
+    fn interpolate3d_rejects_nan_scale() {
+        let options = Interpolate3dOptions::new(Interpolate3dMode::Nearest).with_scale_factor([
+            1.0,
+            f32::NAN,
+            1.0,
+        ]);
+        interpolate3d_output_size([2, 3, 4], &options);
+    }
+
+    #[test]
+    #[should_panic(expected = "Scale factors must be finite and strictly positive")]
+    fn interpolate3d_rejects_nonpositive_scale() {
+        let options = Interpolate3dOptions::new(Interpolate3dMode::Nearest)
+            .with_scale_factor([0.0, 1.0, 1.0]);
+        interpolate3d_output_size([2, 3, 4], &options);
+    }
+
+    #[test]
+    #[should_panic(expected = "Scaled spatial dimensions must be positive and fit in usize")]
+    fn interpolate3d_rejects_scale_rounding_to_zero() {
+        let options = Interpolate3dOptions::new(Interpolate3dMode::Nearest)
+            .with_scale_factor([1.0, 0.25, 1.0]);
+        interpolate3d_output_size([2, 3, 4], &options);
+    }
+
+    #[test]
+    #[should_panic(expected = "Scaled spatial dimensions must be positive and fit in usize")]
+    fn interpolate3d_rejects_size_overflow() {
+        let options = Interpolate3dOptions::new(Interpolate3dMode::Nearest)
+            .with_scale_factor([1.0, 2.0, 1.0]);
+        interpolate3d_output_size([2, usize::MAX, 4], &options);
+    }
+
+    #[test]
+    #[should_panic(expected = "Intermediate and output element counts must fit in usize")]
+    fn interpolate3d_rejects_output_element_count_overflow() {
+        let input = Tensor::<5>::ones([1, 1, 2, 1, 1], &Default::default());
+        interpolate3d(
+            input,
+            Interpolate3dOptions::new(Interpolate3dMode::Nearest).with_output_size([
+                usize::MAX,
+                2,
+                1,
+            ]),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Intermediate and output element counts must fit in usize")]
+    fn interpolate3d_rejects_intermediate_element_count_overflow() {
+        let input = Tensor::<5>::ones([1, 1, 2, 1, 1], &Default::default());
+        interpolate3d(
+            input,
+            Interpolate3dOptions::new(Interpolate3dMode::Nearest).with_output_size([
+                1,
+                usize::MAX,
+                1,
+            ]),
+        );
     }
 
     /// The size the pooling functions return, or `None` where they panic.
