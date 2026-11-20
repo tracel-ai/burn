@@ -82,7 +82,7 @@ impl ReduceOptimizationInfo {
 pub enum ReduceSettings {
     Always,
     /// We only activate fuse-on-write when the reduction isn't on the last dimension, otherwise
-    /// vectorization is impossible. Only [VectorizationMode::Perpendicular] supports vectorization.
+    /// vectorization is impossible. Only [VectorizationMode::Perpendicular](cubek::reduce::VectorizationMode::Perpendicular) supports vectorization.
     ///
     /// We could still fuse some output operations, but it would probably lead to worse performance.
     OnlyParallel,
