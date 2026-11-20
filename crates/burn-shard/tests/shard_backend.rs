@@ -1,5 +1,5 @@
 use burn_backend::{
-    Backend, BoolDType, Scalar, Shape, Slice, TensorData,
+    Backend, BoolDType, Scalar, Shape, Slice, TensorData, TensorMetadata,
     ops::{ActivationOps, AttentionModuleOptions, DimSplit, FloatTensorOps, IntTensorOps},
     tensor::{FloatTensor, IntTensor},
 };
@@ -171,7 +171,7 @@ fn ops_along_a_dim_match_one_device_for_every_sharding() {
             check_unary!(num_members, &input, [dim: usize] |B, a| B::float_topk(a, dim, 2));
             check_unary!(num_members, &input, [dim: usize] |B, a| B::float_repeat_dim(a, dim, 2));
             check_unary!(num_members, &input, [dim: usize] |B, a| {
-                let indices = B::int_from_data(TensorData::from([2i64, 0, 2]), &B::float_device(&a));
+                let indices = B::int_from_data(TensorData::from([2i64, 0, 2]), &a.device());
                 B::float_select(a, dim, indices)
             });
         }
