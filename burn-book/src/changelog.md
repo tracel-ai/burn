@@ -49,6 +49,9 @@ conflicts with it (E0119); delete the handwritten one.
 - `cat` along a dim its inputs are not split on keeps their split on a sharded compute device, and
   partial sums stay partial, instead of gathering every input.
 
+- `select` along a dim its input is not split on keeps the split on a sharded compute device,
+  instead of gathering the input. `OpKind` has a new `Select` variant.
+
 #### Compilation and autotuning
 
 - Include the preceding `CompileOnly` pass's statistics in the following
