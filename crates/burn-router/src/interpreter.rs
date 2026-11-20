@@ -2401,7 +2401,10 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 let error = ExecutionError::from(error);
                 Box::pin(async move { Err(error) })
             }
-            None => self.take_for_read(&tensor).into_data(),
+            None => {
+                let read = self.take_for_read(&tensor);
+                submitted(|| read.into_data())
+            }
         }
     }
 
@@ -2428,7 +2431,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 let error = ExecutionError::from(error);
                 Box::pin(async move { Err(error) })
             }
-            None => Box::pin(batch.execute()),
+            None => submitted(|| Box::pin(batch.execute())),
         }
     }
 
@@ -2684,6 +2687,23 @@ impl<B: Backend> ReadPrimitive<B> {
     }
 }
 
+/// Makes a read with `submit`. A panic of the backend's while submitting is raised when the read
+/// is awaited, so it fails that read rather than whatever made it.
+fn submitted<T: 'static>(submit: impl FnOnce() -> DynFut<T>) -> DynFut<T> {
+    #[cfg(feature = "std")]
+    match std::panic::catch_unwind(core::panic::AssertUnwindSafe(submit)) {
+        Ok(read) => read,
+        Err(payload) => Box::pin(raise(payload)),
+    }
+    #[cfg(not(feature = "std"))]
+    submit()
+}
+
+#[cfg(feature = "std")]
+async fn raise<T>(payload: Box<dyn core::any::Any + Send>) -> T {
+    std::panic::resume_unwind(payload)
+}
+
 /// The tensors of one read, the quantized ones kept out of the backend transaction because a
 /// fused backend's transaction cannot read them.
 #[derive(Default)]
@@ -2750,6 +2770,17 @@ mod tests {
     use burn_backend::quantization::{QuantScheme, QuantStore, QuantValue};
     use burn_flex::Flex;
     use burn_ir::{CastOpIr, MatmulOpIr};
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_panic_submitting_a_read_is_raised_when_it_is_awaited() {
+        let read = submitted::<()>(|| panic!("the backend refused the read"));
+
+        let awaited = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
+            burn_std::future::block_on(read)
+        }));
+        assert!(awaited.is_err());
+    }
 
     #[test]
     fn a_quantized_matmul_yields_the_dtype_the_client_recorded() {

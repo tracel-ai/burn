@@ -55,8 +55,7 @@ pub trait TransactionOps<B: Backend> {
     /// Executes a [transaction](TransactionPrimitive) and return its
     /// [data](TransactionPrimitiveData).
     ///
-    /// Every read is submitted when called, as `float_into_data` submits one; the future only
-    /// waits for them.
+    /// The returned future borrows nothing, as `float_into_data`'s does not.
     fn tr_execute(
         transaction: TransactionPrimitive<B>,
     ) -> impl Future<Output = Result<TransactionPrimitiveData, ExecutionError>> + Send {
@@ -116,8 +115,8 @@ impl<B: Backend> TransactionPrimitive<B> {
     /// Executes the transaction asynchronously and returns the [data](TensorData) in the same order
     /// in which they were registered.
     ///
-    /// The reads are submitted when called, as [`tr_execute`](TransactionOps::tr_execute) submits
-    /// them.
+    /// The returned future borrows nothing, as [`tr_execute`](TransactionOps::tr_execute)'s does
+    /// not.
     pub fn execute_async(
         mut self,
     ) -> impl Future<Output = Result<Vec<TensorData>, ExecutionError>> + Send + use<B> {
