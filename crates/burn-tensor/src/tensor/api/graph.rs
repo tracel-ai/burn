@@ -105,7 +105,8 @@ impl Drop for CaptureCloser<'_> {
 }
 
 /// Runs planned before recording whatever the last one found: a cold fused path settles by its
-/// second run, and a closure that never settles is refused when the capture stops.
+/// second run. The recording is checked against the last run, so a closure that never settles
+/// is kept only when its recording allocates as that run did.
 const PLANNING_RUNS_MAX: usize = 4;
 
 /// Plan `closure` on `device` until two runs allocate alike, or for [`PLANNING_RUNS_MAX`] runs,
@@ -116,7 +117,12 @@ fn plan_runs<T>(
     closure: &mut impl FnMut() -> T,
 ) -> Result<(), ExecutionError> {
     Dispatch::graph_prepare(device)?;
-    for _ in 0..PLANNING_RUNS_MAX {
+    for run in 0..PLANNING_RUNS_MAX {
+        // The first run starts with the preparation; between two runs, nothing the device
+        // allocates is the closure's.
+        if run > 0 {
+            Dispatch::graph_start_run(device)?;
+        }
         // The output is held across the end of the run: what the run still holds when it ends
         // is what the capture keeps off the memory other graphs share.
         let output = closure();

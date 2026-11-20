@@ -58,6 +58,20 @@ impl<B: BackendIr> MemberGraphs<B> {
         settled
     }
 
+    /// Starts the next planning run on every member, or ends every capture: a member whose run
+    /// failed to start ended its own capture (see
+    /// [`Backend::graph_start_run`](burn_backend::Backend::graph_start_run)), and the others
+    /// would plan a run it no longer does.
+    pub fn start_run(&self, members: &[TensorInterpreter<B>]) -> Result<(), ExecutionError> {
+        for member in members {
+            if let Err(error) = member.graph_start_run() {
+                stop_every(members);
+                return Err(error);
+            }
+        }
+        Ok(())
+    }
+
     /// Opens a window on every member, or none: a member that refuses closes the windows its
     /// predecessors opened, discarding what they hold.
     pub fn start(&self, members: &[TensorInterpreter<B>]) -> Result<(), ExecutionError> {

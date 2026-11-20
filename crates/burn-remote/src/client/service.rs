@@ -716,6 +716,11 @@ impl RemoteService {
         )
     }
 
+    /// Start the next planning run of the work on `stream_id`, after every task sent before.
+    pub fn graph_start_run(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
+        self.capture_request(|id| Task::CaptureStartRun(id, stream_id))
+    }
+
     /// Start recording the server backend's launches on `stream_id` into a graph, after every
     /// task sent before.
     pub fn graph_start_capture(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {

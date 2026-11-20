@@ -118,6 +118,25 @@ impl<B: BackendIr> SessionCaptures<B> {
         settled
     }
 
+    /// Start the next planning run of the work on `stream`, once the last one ended. A run the
+    /// backend fails to start leaves its stream out of capture, and the session's capture with it.
+    pub fn start_run(
+        &mut self,
+        runner: &TensorInterpreter<B>,
+        stream: StreamId,
+    ) -> Result<(), ExecutionError> {
+        if !self.is_prepared_on(stream)? {
+            return Err(ExecutionError::with_context(format!(
+                "no graph capture is being planned on {stream}"
+            )));
+        }
+        let started = stream.executes(|| runner.graph_start_run());
+        if started.is_err() {
+            self.set_open(None);
+        }
+        started
+    }
+
     /// Start recording `stream`'s launches, after the preparation on it if there was one.
     pub fn start(
         &mut self,

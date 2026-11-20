@@ -31,7 +31,7 @@ pub const PROTOCOL_VERSION: u16 = 16;
 ///
 /// Only the result-producing tasks ([`Task::ReadTensors`], [`Task::SyncBackend`],
 /// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`], [`Task::CapturePrepare`],
-/// [`Task::CaptureEndRun`], [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`],
+/// [`Task::CaptureEndRun`], [`Task::CaptureStartRun`], [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`],
 /// the execution-mode, environment, description and measurement tasks) carry a
 /// `RequestId`; the server echoes it on its [`TaskResponse`] so the client demultiplexes results
 /// back to the right pending callback. Fire-and-forget tasks have no id because no result ever
@@ -413,6 +413,9 @@ pub enum Task {
     /// whether it settled — see
     /// [`Backend::graph_end_run`](burn_backend::Backend::graph_end_run).
     CaptureEndRun(RequestId, StreamId),
+    /// Start the next planning run of the work on `stream_id`, after every earlier task — see
+    /// [`Backend::graph_start_run`](burn_backend::Backend::graph_start_run).
+    CaptureStartRun(RequestId, StreamId),
     /// Start recording the server backend's launches on `stream_id` into a graph, after every
     /// earlier task. Answered, since a backend that cannot record one, or a device another
     /// session is capturing on, says so here and the client falls back to re-running.
@@ -551,7 +554,7 @@ pub enum TaskResponseContent {
     /// measurement.
     ProfileEnd(Result<Option<Duration>, ExecutionError>),
     /// The answer to [`CapturePrepare`](Task::CapturePrepare),
-    /// [`CaptureStart`](Task::CaptureStart) and
+    /// [`CaptureStartRun`](Task::CaptureStartRun), [`CaptureStart`](Task::CaptureStart) and
     /// [`CaptureStop`](Task::CaptureStop).
     Capture(Result<(), ExecutionError>),
     /// The answer to [`CaptureEndRun`](Task::CaptureEndRun): whether the planning run

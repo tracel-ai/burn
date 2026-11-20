@@ -244,6 +244,11 @@ impl RouterClient for RemoteClient {
         self.call(move |s| s.graph_end_run(stream_id))
     }
 
+    fn graph_start_run(&self) -> Result<(), ExecutionError> {
+        let stream_id = StreamId::current();
+        self.call(move |s| s.graph_start_run(stream_id))
+    }
+
     fn graph_start_capture(&self) -> Result<(), ExecutionError> {
         let stream_id = StreamId::current();
         self.call(move |s| s.graph_start_capture(stream_id))

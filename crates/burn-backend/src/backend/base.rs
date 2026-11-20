@@ -559,6 +559,25 @@ pub trait Backend:
         Ok(true)
     }
 
+    /// Start the next planning run of the work, once the last one ended with
+    /// [`graph_end_run`](Backend::graph_end_run): the first starts with
+    /// [`graph_prepare`](Backend::graph_prepare). Between two runs, what the device allocates, a
+    /// fresh input say, is not the work's: it is left out of the plan, and kept off the memory
+    /// the device's other graphs replay over.
+    ///
+    /// An implementation starts it once every operation registered before it on the calling
+    /// stream has been issued, so what was registered between the runs stays out of it. `Ok` by
+    /// default, for a backend that needs no planning runs.
+    ///
+    /// # Errors
+    ///
+    /// An implementation fails when the calling stream is not planning a capture or a run is
+    /// already under way, and ends the capture it was planning when it fails: the stream runs
+    /// its launches again, and the caller has nothing left to end.
+    fn graph_start_run(_device: &Self::Device) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     /// Begin recording launches on `device` into a graph (see
     /// [`graph_stop_capture`](Backend::graph_stop_capture)). Errors on backends
     /// without hardware graph support, so callers fall back to re-running.

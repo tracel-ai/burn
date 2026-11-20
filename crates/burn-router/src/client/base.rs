@@ -291,6 +291,19 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
         Ok(true)
     }
 
+    /// Start the next planning run of the work, after every operation registered so far on the
+    /// calling stream — see
+    /// [`Backend::graph_start_run`](burn_backend::Backend::graph_start_run).
+    ///
+    /// `Ok`, the default, from an interpreter whose backend needs no planner.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::graph_start_run`](burn_backend::Backend::graph_start_run).
+    fn graph_start_run(&self) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     /// Start recording the interpreter backend's launches into a graph, after every operation
     /// registered so far on the calling stream — see
     /// [`Backend::graph_start_capture`](burn_backend::Backend::graph_start_capture).

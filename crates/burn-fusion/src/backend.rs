@@ -367,6 +367,14 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         client.sync(move || B::graph_end_run(&device))
     }
 
+    fn graph_start_run(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        // Drain the operations registered between the runs first, so they run as they are and
+        // the next planning run starts from the operation after them.
+        client.sync(move || B::graph_start_run(&device))
+    }
+
     fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();

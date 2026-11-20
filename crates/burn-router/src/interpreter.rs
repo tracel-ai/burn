@@ -2633,6 +2633,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
         B::graph_end_run(&self.device)
     }
 
+    /// Start the next planning run of the work, once the last one ended.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::graph_start_run`].
+    pub fn graph_start_run(&self) -> Result<(), ExecutionError> {
+        B::graph_start_run(&self.device)
+    }
+
     /// Start recording the backend's launches on the calling stream into a graph.
     pub fn graph_start_capture(&self) -> Result<(), ExecutionError> {
         B::graph_start_capture(&self.device)
