@@ -525,13 +525,56 @@ pub trait Backend:
         Err(EnvironmentError::unsupported())
     }
 
-    /// Prepare `device` for an upcoming graph capture: route allocations into a
-    /// stable pool so every buffer allocated before graph_stop_capture can
-    /// be pinned. Call before the warmup run. No-op by default.
+    /// Prepare `device` for an upcoming graph capture and start planning the work it will
+    /// record: until [`graph_start_capture`](Backend::graph_start_capture), the work's launches
+    /// do everything short of running, so kernels compile, tunes measure and the memory grows
+    /// to what the recording needs. Each run of the work ends with
+    /// [`graph_end_run`](Backend::graph_end_run). No-op by default.
     ///
-    /// See [`burn_graph`](crate) — the closure-based `capture` helper drives
-    /// this whole sequence.
+    /// The closure-based `capture` helper of `burn-tensor` drives this whole sequence.
+    ///
+    /// # Errors
+    ///
+    /// An implementation fails when a capture is already under way on the calling stream,
+    /// leaving it as it was.
     fn graph_prepare(_device: &Self::Device) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    /// End one planning run of the work, with what it returned still held, and answer whether
+    /// it allocated what the run before it did: the work has settled, and the recording can
+    /// follow it. What the last run left allocated is the work's output, which the recording
+    /// keeps off the memory the device's other graphs replay over.
+    ///
+    /// An implementation answers once every operation registered before it on the calling stream
+    /// has been issued, so the run's temporaries are released and only what the caller holds
+    /// counts as an output. `true` by default, for a backend that needs no planning runs.
+    ///
+    /// # Errors
+    ///
+    /// An implementation fails when the calling stream is not planning a capture, and ends
+    /// the capture it was planning when it fails for any other reason: the stream runs its
+    /// launches again, and the caller has nothing left to end.
+    fn graph_end_run(_device: &Self::Device) -> Result<bool, ExecutionError> {
+        Ok(true)
+    }
+
+    /// Start the next planning run of the work, once the last one ended with
+    /// [`graph_end_run`](Backend::graph_end_run): the first starts with
+    /// [`graph_prepare`](Backend::graph_prepare). Between two runs, what the device allocates, a
+    /// fresh input say, is not the work's: it is left out of the plan, and kept off the memory
+    /// the device's other graphs replay over.
+    ///
+    /// An implementation starts it once every operation registered before it on the calling
+    /// stream has been issued, so what was registered between the runs stays out of it. `Ok` by
+    /// default, for a backend that needs no planning runs.
+    ///
+    /// # Errors
+    ///
+    /// An implementation fails when the calling stream is not planning a capture or a run is
+    /// already under way, and ends the capture it was planning when it fails: the stream runs
+    /// its launches again, and the caller has nothing left to end.
+    fn graph_start_run(_device: &Self::Device) -> Result<(), ExecutionError> {
         Ok(())
     }
 
