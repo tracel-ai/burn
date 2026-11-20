@@ -389,6 +389,10 @@ Those operations are only available for `Float` tensors.
 | `tensor.log()`                               | `tensor.log()`                             |
 | `tensor.log1p()`                             | `tensor.log1p()`                           |
 | `tensor.matmul(other)`                       | `tensor.matmul(other)`                     |
+| `tensor.nan_max()`                           | N/A                                        |
+| `tensor.nan_max_dim(dim)`                    | N/A                                        |
+| `tensor.nan_min()`                           | N/A                                        |
+| `tensor.nan_min_dim(dim)`                    | N/A                                        |
 | `tensor.rad2deg()`                           | `torch.rad2deg()`                          |
 | `tensor.random(shape, distribution, device)` | N/A                                        |
 | `tensor.random_like(distribution)`           | `torch.rand_like()` only uniform           |
