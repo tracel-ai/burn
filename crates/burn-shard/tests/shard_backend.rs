@@ -255,11 +255,22 @@ fn split_tensors_stay_split_where_megatron_keeps_them() {
         sharding_of(&Shard::float_repeat_dim(x.clone(), 0, 3)),
         Split { dim: 1 }
     );
-    let rows = Shard::int_from_data(TensorData::from([3i64, 0]), &device);
-    assert_eq!(
-        sharding_of(&Shard::float_select(x.clone(), 0, rows)),
-        Split { dim: 1 }
+    // Split indices too: each member must select with all of them.
+    let rows = made_on_members(
+        &TensorData::new(vec![3i64, 0], [2]),
+        &device,
+        Split { dim: 0 },
+        |data| HandleKind::Int(Flex::int_from_data(data, &FlexDevice)),
     );
+    let picked = Shard::float_select(x.clone(), 0, rows);
+    assert_eq!(sharding_of(&picked), Split { dim: 1 });
+    let whole = Flex::float_from_data(data([4, 6], 1), &FlexDevice);
+    let expected = Flex::float_select(
+        whole,
+        0,
+        Flex::int_from_data(TensorData::from([3i64, 0]), &FlexDevice),
+    );
+    assert_close(read::<Shard>(picked), read::<Flex>(expected), "select");
     assert_eq!(sharding_of(&Shard::softmax(x, 0)), Split { dim: 1 });
 }
 
