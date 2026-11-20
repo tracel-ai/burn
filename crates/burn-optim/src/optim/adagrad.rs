@@ -1,4 +1,4 @@
-use crate::{OptimizerRecordState, PrecisionConfigurable};
+use crate::ConfigurableOptimizer;
 use burn_core as burn;
 
 use crate::RecordState;
@@ -40,6 +40,10 @@ pub struct AdaGradState<const D: usize> {
     lr_decay: LrDecayState<D>,
 }
 
+impl_optimizer_state!(AdaGradState {
+    nested { lr_decay }
+});
+
 impl Optimizer for AdaGrad {
     type State<const D: usize> = AdaGradState<D>;
 
@@ -68,17 +72,19 @@ impl Optimizer for AdaGrad {
     }
 
     fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
-        Self::map_state(state, |tensor| tensor.to_device(device))
+        crate::StateMappable::map_tensors(
+            state,
+            &mut super::precision::DeviceOptimizerStateMapper::new(device),
+        )
     }
 }
 
-impl PrecisionConfigurable for AdaGrad {
-    fn map_state<const D: usize>(
-        mut state: Self::State<D>,
-        map: impl Fn(Tensor<D>) -> Tensor<D>,
+impl ConfigurableOptimizer for AdaGrad {
+    fn map_state<const D: usize, M: crate::OptimizerStateMapper>(
+        state: Self::State<D>,
+        mapper: &mut M,
     ) -> Self::State<D> {
-        state.lr_decay = state.lr_decay.map_tensors(&map);
-        state
+        crate::StateMappable::map_tensors(state, mapper)
     }
 }
 
@@ -114,11 +120,15 @@ impl AdaGradConfig {
 }
 
 /// Learning rate decay state (also includes sum state).
-#[derive(OptimizerRecordState, new, Clone)]
+#[derive(RecordState, new, Clone)]
 pub struct LrDecayState<const D: usize> {
     time: usize,
     sum: Tensor<D>,
 }
+
+impl_optimizer_state!(LrDecayState {
+    tensors { sum }
+});
 
 #[derive(Clone)]
 struct LrDecay {
@@ -162,12 +172,10 @@ impl<const D: usize> LrDecayState<D> {
     ///
     /// Returns state moved to device.
     pub fn to_device(self, device: &Device) -> Self {
-        self.map_tensors(&|tensor| tensor.to_device(device))
-    }
-
-    fn map_tensors(mut self, map: &impl Fn(Tensor<D>) -> Tensor<D>) -> Self {
-        self.sum = map(self.sum);
-        self
+        crate::StateMappable::map_tensors(
+            self,
+            &mut super::precision::DeviceOptimizerStateMapper::new(device),
+        )
     }
 }
 

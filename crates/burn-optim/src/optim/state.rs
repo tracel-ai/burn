@@ -19,8 +19,6 @@ use alloc::vec::Vec;
 use burn_core::tensor::{Device, TensorCreationOptions, TensorData};
 use burn_pack::Scalar;
 
-pub use burn_derive::{OptimizerRecordState, RecordState};
-
 /// Join a `prefix` and a `leaf` into a dot-separated path (`"prefix.leaf"`).
 ///
 /// An empty prefix yields the leaf unchanged, so a top-level call can pass `""`.
@@ -138,8 +136,8 @@ pub trait RecordState: Sized + Send + Sync + 'static {
     /// Rebuild a value from `src`, reading leaves named under `prefix`.
     ///
     /// Returns `None` when a required leaf is absent. The derive uses [`StateSource::has_under`] to
-    /// presence-test optional nested states, so an `Option<Nested>` field is `None` exactly when
-    /// nothing was recorded under its path.
+    /// presence-test optional nested states, with explicit presence markers preserving empty nested states. Older records
+    /// without markers continue to infer presence from their leaves.
     ///
     /// A scalar leaf that is present but holds an incompatible [`Scalar`] variant (e.g. a
     /// hand-edited or forward-version file) is treated the same as absent.
@@ -160,6 +158,7 @@ mod tests {
     use super::*;
     use burn::tensor::Tensor;
     use burn_core as burn;
+    use burn_derive::RecordState;
 
     /// Flatten `state` then rebuild it from the produced tensors and scalars.
     fn round_trip<T: RecordState>(state: &T) -> Option<T> {
@@ -278,17 +277,19 @@ mod tests {
     }
 
     #[test]
-    fn optional_all_optional_nested_present_with_content() {
+    fn optional_empty_nested_state_preserves_presence() {
         let state = OuterOpt::<1> {
-            inner: Some(AllOptional {
-                x: Some(tensor(&[1.0, 2.0])),
-                y: None,
-            }),
+            inner: Some(AllOptional { x: None, y: None }),
         };
-        let out = round_trip(&state).unwrap();
-        let inner = out.inner.expect("present because a leaf was recorded");
-        assert_eq!(data(&inner.x.unwrap()), vec![1.0, 2.0]);
-        assert!(inner.y.is_none());
+        assert!(round_trip(&state).unwrap().inner.is_some());
+    }
+
+    #[test]
+    fn legacy_nested_state_restores_from_leaves() {
+        let mut source = StateSource::default();
+        source.insert_tensor("p.inner.x".into(), TensorData::from([1.0_f32]));
+        let out = OuterOpt::<1>::state_unflatten("p", &mut source, &Device::default()).unwrap();
+        assert_eq!(data(&out.inner.unwrap().x.unwrap()), [1.0]);
     }
 
     #[test]

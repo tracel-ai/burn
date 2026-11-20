@@ -89,3 +89,19 @@ fn cast_float_with_int_dtype_panics() {
     let tensor = TestTensor::<1>::from([1.0, 2.0]);
     let _ = tensor.cast(DType::I32);
 }
+
+#[cfg(feature = "quantization")]
+#[test]
+fn cast_quantized_to_explicit_float_dtype() {
+    use burn_tensor::quantization::{QuantScheme, QuantValue};
+    let device = Default::default();
+    let scheme = QuantScheme::default().with_value(QuantValue::Q8S);
+    let input =
+        TestTensor::<1>::from_data(TensorData::from([1e-10_f32, -1e-10]), (&device, DType::F32));
+    let output = input.quantize_dynamic(&scheme).cast(FloatDType::F32);
+    assert_eq!(output.dtype(), DType::F32);
+    output.into_data().assert_approx_eq::<f32>(
+        &TensorData::from([1e-10_f32, -1e-10]),
+        Tolerance::absolute(1e-12),
+    );
+}

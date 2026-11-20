@@ -1,9 +1,9 @@
-use burn_backend::ops::{BoolTensorOps, FloatTensorOps, IntTensorOps};
+use burn_backend::ops::{BoolTensorOps, FloatTensorOps, IntTensorOps, QTensorOps};
 use burn_backend::{DType, FloatDType, IntDType};
 use burn_dispatch::Dispatch;
 
 use crate::kind::Basic;
-use crate::ops::BridgeTensor;
+use crate::ops::{BridgeKind, BridgeTensor};
 use crate::{Bool, Float, Int, Tensor};
 
 /// Trait for types that represent a valid cast target from a tensor of kind `K`.
@@ -24,15 +24,10 @@ impl<const D: usize> Cast<D, Float> for FloatDType {
     type OutputKind = Float;
 
     fn cast(tensor: Tensor<D, Float>, dtype: Self) -> Tensor<D, Float> {
-        if tensor.primitive.is_float() {
-            let current: FloatDType = tensor.dtype().into();
-            if current == dtype {
-                return tensor;
-            }
-            Tensor::new(float_cast_impl(tensor.primitive, dtype))
-        } else {
-            panic!("Should be Float primitive kind");
+        if tensor.dtype() == dtype.into() {
+            return tensor;
         }
+        Tensor::new(float_cast_impl(tensor.primitive, dtype))
     }
 }
 
@@ -120,7 +115,12 @@ impl<const D: usize> Cast<D, Bool> for FloatDType {
 // =========================================================================
 
 fn float_cast_impl(p: BridgeTensor, dtype: FloatDType) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::float_cast(p.into_float(), dtype))
+    let (kind, tensor) = p.into_parts();
+    match kind {
+        BridgeKind::Float => BridgeTensor::float(Dispatch::float_cast(tensor, dtype)),
+        BridgeKind::QFloat => BridgeTensor::float(Dispatch::dequantize(tensor, dtype)),
+        _ => panic!("Should be Float primitive kind"),
+    }
 }
 
 fn float_to_int_impl(p: BridgeTensor, dtype: IntDType) -> BridgeTensor {

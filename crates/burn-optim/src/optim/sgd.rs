@@ -1,4 +1,4 @@
-use crate::PrecisionConfigurable;
+use crate::ConfigurableOptimizer;
 use burn_core as burn;
 
 use super::Optimizer;
@@ -38,6 +38,10 @@ pub struct SgdState<const D: usize> {
     /// The current state of the momentum (if any).
     pub momentum: Option<MomentumState<D>>,
 }
+
+impl_optimizer_state!(SgdState {
+    optional { momentum }
+});
 
 impl SgdConfig {
     /// Build a [`Sgd`] from the config.
@@ -96,17 +100,19 @@ impl Optimizer for Sgd {
     }
 
     fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
-        Self::map_state(state, |tensor| tensor.to_device(device))
+        crate::StateMappable::map_tensors(
+            state,
+            &mut super::precision::DeviceOptimizerStateMapper::new(device),
+        )
     }
 }
 
-impl PrecisionConfigurable for Sgd {
-    fn map_state<const D: usize>(
-        mut state: Self::State<D>,
-        map: impl Fn(Tensor<D>) -> Tensor<D>,
+impl ConfigurableOptimizer for Sgd {
+    fn map_state<const D: usize, M: crate::OptimizerStateMapper>(
+        state: Self::State<D>,
+        mapper: &mut M,
     ) -> Self::State<D> {
-        state.momentum = state.momentum.map(|state| state.map_tensors(&map));
-        state
+        crate::StateMappable::map_tensors(state, mapper)
     }
 }
 

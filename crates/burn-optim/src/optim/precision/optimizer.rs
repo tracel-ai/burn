@@ -1,124 +1,34 @@
-use burn_core::tensor::{Device, FloatDType, Tensor};
-use serde::{Deserialize, Serialize};
-
-use crate::{LearningRate, Optimizer, RecordState, StateSink, StateSource};
-
-/// Precision for a per-parameter update on unquantized floating-point parameters and gradients.
-/// The update device must support the selected computation and storage dtypes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct OptimizerPrecision {
-    /// Dtype of the parameter, gradient and decoded statistics supplied to the equation.
-    pub compute: FloatDType,
-    /// Keep the unrounded update for the next step when model and compute dtypes differ.
-    pub master_weights: bool,
-    /// Representation of statistics between updates. Scalar counters keep their original types.
-    pub state: OptimizerStateStorage,
-}
-
-/// How the optimizer retains its tensor statistics between calls to `step`.
-#[non_exhaustive]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum OptimizerStateStorage {
-    /// Round each updated statistic to the given floating-point dtype on its device.
-    Float(FloatDType),
-}
-
-impl OptimizerStateStorage {
-    fn encode<const D: usize>(self, tensor: Tensor<D>) -> Tensor<D> {
-        match self {
-            Self::Float(dtype) => tensor.cast(dtype),
-        }
-    }
-}
-
-impl OptimizerPrecision {
-    /// Apply this policy to a bare optimizer for use with a module or parameter group.
-    /// Module gradient clipping runs before the update, in the incoming gradient's dtype
-    /// (with F32 norm accumulation for half-precision gradients).
-    pub fn wrap<O: PrecisionConfigurable>(self, optimizer: O) -> impl Optimizer {
-        PrecisionOptimizer {
-            optimizer,
-            precision: self,
-        }
-    }
-}
-
-/// An optimizer whose floating-point statistics can be transformed on device.
-/// Its state record must reserve the top-level name `__precision` for the wrapper.
-/// Derive [`crate::OptimizerRecordState`] for records with tensor leaves, including nested
-/// states, or use [`StateSource::tensor_options`] when restoring those leaves by hand.
-pub trait PrecisionConfigurable: Optimizer {
-    /// Apply `map` to every statistics tensor, preserving its shape and scalar bookkeeping.
-    fn map_state<const D: usize>(
-        state: Self::State<D>,
-        map: impl Fn(Tensor<D>) -> Tensor<D>,
-    ) -> Self::State<D>;
-
-    /// Apply the equation in the supplied tensors' dtype. Override when the ordinary
-    /// step selects a different dtype internally.
-    fn step_in_dtype<const D: usize>(
-        &self,
-        lr: LearningRate,
-        tensor: Tensor<D>,
-        grad: Tensor<D>,
-        state: Option<Self::State<D>>,
-    ) -> (Tensor<D>, Option<Self::State<D>>) {
-        self.step(lr, tensor, grad, state)
-    }
-}
+use super::{compute_mapper::ComputeOptimizerStateMapper, state::PrecisionState};
+use crate::{
+    ConfigurableOptimizer, LearningRate, Optimizer, OptimizerPrecision, OptimizerStateMapper,
+};
+use burn_core::tensor::{Device, Tensor};
 
 #[derive(Clone)]
-struct PrecisionOptimizer<O> {
+pub(super) struct PrecisionOptimizer<O, M> {
     optimizer: O,
     precision: OptimizerPrecision,
+    storage: M,
 }
 
-const MASTER_KEY: &str = "__precision.master";
-const STATELESS_KEY: &str = "__precision.stateless";
-
-#[derive(Clone)]
-struct PrecisionState<S, const D: usize> {
-    pub statistics: Option<S>,
-    pub master: Option<Tensor<D>>,
-}
-
-impl<S: RecordState, const D: usize> RecordState for PrecisionState<S, D> {
-    fn state_flatten(&self, prefix: &str, out: &mut StateSink) {
-        match &self.statistics {
-            Some(state) => state.state_flatten(prefix, out),
-            None => out.push_scalar(prefix, STATELESS_KEY, true.into()),
-        }
-        if let Some(master) = &self.master {
-            out.push_tensor(prefix, MASTER_KEY, master.to_data());
+impl<O, M> PrecisionOptimizer<O, M> {
+    pub(super) fn new(optimizer: O, precision: OptimizerPrecision, storage: M) -> Self {
+        Self {
+            optimizer,
+            precision,
+            storage,
         }
     }
-
-    fn state_unflatten(prefix: &str, src: &mut StateSource, device: &Device) -> Option<Self> {
-        src.with_recorded_dtypes(|src| Self::restore(prefix, src, device))
-    }
 }
 
-impl<S: RecordState, const D: usize> PrecisionState<S, D> {
-    fn restore(prefix: &str, src: &mut StateSource, device: &Device) -> Option<Self> {
-        let master = src.take_tensor(prefix, MASTER_KEY).map(|data| {
-            let dtype = data.dtype();
-            Tensor::from_data(data, (device, dtype))
-        });
-        if src.take_scalar(prefix, STATELESS_KEY).is_some() {
-            return master.map(|master| Self {
-                master: Some(master),
-                statistics: None,
-            });
-        }
-        Some(Self {
-            statistics: Some(S::state_unflatten(prefix, src, device)?),
-            master,
-        })
-    }
-}
-
-impl<O: PrecisionConfigurable> Optimizer for PrecisionOptimizer<O> {
+impl<O: ConfigurableOptimizer, M: OptimizerStateMapper + Clone + Send + Sync + 'static> Optimizer
+    for PrecisionOptimizer<O, M>
+{
     type State<const D: usize> = PrecisionState<O::State<D>, D>;
+
+    fn prepare_gradient<const D: usize>(&self, grad: Tensor<D>) -> Tensor<D> {
+        grad.cast(self.precision.compute)
+    }
 
     fn step<const D: usize>(
         &self,
@@ -138,11 +48,13 @@ impl<O: PrecisionConfigurable> Optimizer for PrecisionOptimizer<O> {
             .filter(|_| policy.master_weights)
             .unwrap_or(tensor)
             .cast(policy.compute);
-        let statistics = statistics.map(|state| O::map_state(state, |t| t.cast(policy.compute)));
+        let statistics = statistics.map(|state| {
+            O::map_state(state, &mut ComputeOptimizerStateMapper::new(policy.compute))
+        });
         let (updated, statistics) =
             self.optimizer
                 .step_in_dtype(lr, parameter, grad.cast(policy.compute), statistics);
-        let statistics = statistics.map(|state| O::map_state(state, |t| policy.state.encode(t)));
+        let statistics = statistics.map(|state| O::map_state(state, &mut self.storage.clone()));
         let master = keep_master.then(|| updated.clone());
         let state = (statistics.is_some() || master.is_some())
             .then_some(PrecisionState { statistics, master });
@@ -160,12 +72,13 @@ impl<O: PrecisionConfigurable> Optimizer for PrecisionOptimizer<O> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::OptimizerStateStorage;
     use crate::{
         AdamConfig, AdamWConfig, GradientsParams, LionConfig, ModuleOptimizer, SgdConfig,
         grad_clipping::GradientClipping,
     };
     use burn_core::module::{Param, ParamGroup};
-    use burn_core::tensor::DType;
+    use burn_core::tensor::{DType, FloatDType};
 
     const DIRECT: OptimizerPrecision = OptimizerPrecision {
         compute: FloatDType::F32,
@@ -308,5 +221,168 @@ mod tests {
             ModuleOptimizer::from(policy.wrap(config.build())).load_record(ordinary.to_record());
         let param = update(&mut optimizer, param, 0.0625, -1.0 / 2048.0);
         assert_eq!(param.val().into_scalar::<f32>(), 0.9604492);
+    }
+    #[test]
+    fn quantized_statistics_drive_the_next_update_after_checkpoint() {
+        use burn_core::tensor::quantization::{QuantScheme, QuantStore, QuantValue};
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native);
+        let policy = OptimizerPrecision {
+            state: OptimizerStateStorage::Quantized(scheme),
+            ..DIRECT
+        };
+        let create = || {
+            ModuleOptimizer::from(
+                policy.wrap(LionConfig::new().with_beta_1(0.5).with_beta_2(0.5).build()),
+            )
+        };
+        let param = Param::from_tensor(Tensor::<1>::from_floats(
+            [0.0, 0.0],
+            &Device::default().autodiff(),
+        ));
+        let mut optimizer = create();
+        let mut grads = GradientsParams::new();
+        grads.register(
+            param.id,
+            Tensor::<1>::from_floats([1.0, 0.003], &Device::default()),
+        );
+        let param = optimizer.step(1.0, param, grads);
+        assert!(matches!(
+            optimizer.to_record().tensors[0].data.dtype(),
+            DType::QFloat(_)
+        ));
+        let mut restored = create()
+            .from_bytes(optimizer.into_bytes().unwrap())
+            .unwrap();
+        let mut grads = GradientsParams::new();
+        grads.register(
+            param.id,
+            Tensor::<1>::from_floats([0.0, -0.001], &Device::default()),
+        );
+        let param = restored.step(1.0, param, grads);
+        assert_eq!(param.val().try_into_vec_as::<f32>().unwrap(), [-2.0, 0.0]);
+    }
+
+    #[derive(Clone)]
+    struct MomentStorageMapper;
+    impl OptimizerStateMapper for MomentStorageMapper {
+        fn map<const D: usize>(&mut self, tensor: Tensor<D>, name: &str) -> Tensor<D> {
+            match name {
+                "AdaptiveMomentumState.moment_1" => tensor.cast(FloatDType::BF16),
+                _ => tensor,
+            }
+        }
+    }
+
+    #[test]
+    fn component_storage_can_keep_second_moments_in_compute_precision() {
+        let mut optimizer = ModuleOptimizer::from(
+            DIRECT.wrap_with_storage(AdamConfig::new().build(), MomentStorageMapper),
+        );
+        let _ = update(
+            &mut optimizer,
+            parameter(1.0, FloatDType::F16),
+            0.01,
+            1.0 / 4096.0,
+        );
+        let record = optimizer.to_record();
+        let first = record
+            .tensors
+            .iter()
+            .find(|t| t.name.ends_with("moment_1"))
+            .unwrap();
+        let second = record
+            .tensors
+            .iter()
+            .find(|t| t.name.ends_with("moment_2"))
+            .unwrap();
+        assert_eq!(first.data.dtype(), DType::BF16);
+        assert_eq!(second.data.dtype(), DType::F32);
+        assert!(second.data.as_slice::<f32>().unwrap()[0] > 0.0);
+    }
+
+    #[test]
+    fn promotion_precedes_clipping() {
+        let policy = OptimizerPrecision {
+            master_weights: true,
+            ..DIRECT
+        };
+        let mut optimizer = ModuleOptimizer::from(policy.wrap(SgdConfig::new().build()))
+            .with_grad_clipping(GradientClipping::Value(1e-8));
+        let param = update(&mut optimizer, parameter(1.0, FloatDType::F16), 1e7, 1.0);
+        assert_eq!(param.val().into_scalar::<f32>(), 0.89990234);
+    }
+
+    #[test]
+    fn bare_checkpoint_can_resume_in_device_default_precision() {
+        let config = AdamWConfig::new().with_epsilon(0.001);
+        let mut original = config.init();
+        let param = update(&mut original, parameter(1.0, FloatDType::F16), 0.01, 1.0)
+            .map(|t| t.cast(FloatDType::F32));
+        let mut restored = config.init().load_record(original.to_record());
+        assert!(
+            restored
+                .to_record()
+                .tensors
+                .iter()
+                .all(|t| t.data.dtype() == DType::F32)
+        );
+        let before = param.val().into_scalar::<f32>();
+        let param = update(&mut restored, param, 0.01, 1.0);
+        assert!(param.val().into_scalar::<f32>() < before);
+    }
+
+    #[test]
+    fn reset_discards_master_after_model_replacement() {
+        let policy = OptimizerPrecision {
+            master_weights: true,
+            ..DIRECT
+        };
+        let mut optimizer = ModuleOptimizer::from(policy.wrap(SgdConfig::new().build()));
+        let param = update(&mut optimizer, parameter(1.0, FloatDType::F16), 0.01, 1.0);
+        let param = param.map(|t| t.ones_like().mul_scalar(2.0));
+        optimizer.reset_state();
+        let param = update(&mut optimizer, param, 0.01, 0.0);
+        assert_eq!(param.val().into_scalar::<f32>(), 2.0);
+    }
+    #[derive(Clone)]
+    struct StatelessOptimizer;
+    impl Optimizer for StatelessOptimizer {
+        type State<const D: usize> = ();
+        fn step<const D: usize>(
+            &self,
+            lr: LearningRate,
+            tensor: Tensor<D>,
+            grad: Tensor<D>,
+            _: Option<()>,
+        ) -> (Tensor<D>, Option<()>) {
+            (tensor - grad.mul_scalar(lr), None)
+        }
+        fn to_device<const D: usize>(_: (), _: &Device) {}
+    }
+    impl ConfigurableOptimizer for StatelessOptimizer {
+        fn map_state<const D: usize, M: OptimizerStateMapper>(_: (), _: &mut M) {}
+    }
+
+    #[test]
+    fn master_only_checkpoint_accumulates_unrounded_updates() {
+        let policy = OptimizerPrecision {
+            master_weights: true,
+            ..DIRECT
+        };
+        let mut optimizer = ModuleOptimizer::from(policy.wrap(StatelessOptimizer));
+        let param = update(
+            &mut optimizer,
+            parameter(1.0, FloatDType::F16),
+            1.0 / 8192.0,
+            1.0,
+        );
+        let mut restored = ModuleOptimizer::from(policy.wrap(StatelessOptimizer))
+            .from_bytes(optimizer.into_bytes().unwrap())
+            .unwrap();
+        let param = update(&mut restored, param, 1.0 / 8192.0, 1.0);
+        let param = update(&mut restored, param, 1.0 / 8192.0, 1.0);
+        assert_eq!(param.val().into_scalar::<f32>(), 1.0 - 1.0 / 2048.0);
     }
 }

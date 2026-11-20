@@ -126,16 +126,7 @@ pub fn config_derive(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(RecordState)]
 pub fn record_state_derive(input: TokenStream) -> TokenStream {
     let input = syn::parse(input).unwrap();
-    record_state::derive_impl(&input, record_state::TensorRestore::DeviceDefault)
-}
-
-/// Derive a `RecordState` for a precision-configurable optimizer. Its tensor leaves can
-/// be restored in their recorded dtypes when the precision wrapper requests it.
-/// Apply this derive to nested state types containing tensors as well.
-#[proc_macro_derive(OptimizerRecordState)]
-pub fn optimizer_record_state_derive(input: TokenStream) -> TokenStream {
-    let input = syn::parse(input).unwrap();
-    record_state::derive_impl(&input, record_state::TensorRestore::OptimizerPrecision)
+    record_state::derive_impl(&input)
 }
 
 /// Derive macro for the `AutodiffSignal` trait, for a struct passed between the layers of a split

@@ -1,4 +1,4 @@
-use crate::PrecisionConfigurable;
+use crate::ConfigurableOptimizer;
 use burn_core as burn;
 
 use burn::{
@@ -6,7 +6,7 @@ use burn::{
     tensor::{DType, Device, FloatDType, Tensor},
 };
 
-use crate::{LearningRate, OptimizerRecordState, grad_clipping::GradientClippingConfig};
+use crate::{LearningRate, RecordState, grad_clipping::GradientClippingConfig};
 
 use super::{ModuleOptimizer, Optimizer};
 
@@ -69,7 +69,7 @@ pub struct Adafactor {
 }
 
 /// Adafactor state for a single parameter tensor.
-#[derive(OptimizerRecordState, Clone)]
+#[derive(RecordState, Clone)]
 pub struct AdafactorState<const D: usize> {
     /// Number of updates applied to this parameter.
     pub time: usize,
@@ -80,6 +80,10 @@ pub struct AdafactorState<const D: usize> {
     /// Absent for vectors.
     pub column_second_moment: Option<Tensor<D>>,
 }
+
+impl_optimizer_state!(AdafactorState {
+    tensors { second_moment, column_second_moment }
+});
 
 impl AdafactorConfig {
     /// Build the per-parameter Adafactor optimizer.
@@ -160,11 +164,14 @@ impl Optimizer for Adafactor {
     }
 
     fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
-        Self::map_state(state, |tensor| tensor.to_device(device))
+        crate::StateMappable::map_tensors(
+            state,
+            &mut super::precision::DeviceOptimizerStateMapper::new(device),
+        )
     }
 }
 
-impl PrecisionConfigurable for Adafactor {
+impl ConfigurableOptimizer for Adafactor {
     fn step_in_dtype<const D: usize>(
         &self,
         lr: LearningRate,
@@ -244,13 +251,11 @@ impl PrecisionConfigurable for Adafactor {
         (tensor, Some(state))
     }
 
-    fn map_state<const D: usize>(
-        mut state: Self::State<D>,
-        map: impl Fn(Tensor<D>) -> Tensor<D>,
+    fn map_state<const D: usize, M: crate::OptimizerStateMapper>(
+        state: Self::State<D>,
+        mapper: &mut M,
     ) -> Self::State<D> {
-        state.second_moment = map(state.second_moment);
-        state.column_second_moment = state.column_second_moment.map(map);
-        state
+        crate::StateMappable::map_tensors(state, mapper)
     }
 }
 

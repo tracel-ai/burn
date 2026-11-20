@@ -21,7 +21,7 @@ fn step(optimizer: &mut ModuleOptimizer, param: Param<Tensor<1>>, grad: f32) -> 
 fn checkpoint_preserves_master_and_moments_on_f16_default_device() {
     let mut device = Device::default();
     device.configure(FloatDType::F16).unwrap();
-    let param = Param::from_tensor(Tensor::<1>::from_data([1.0], &device.autodiff()));
+    let param = Param::from_tensor(Tensor::<1>::from_data([1.0], &device.clone().autodiff()));
     let adamw = AdamWConfig::new().with_amsgrad(true).with_weight_decay(0.0);
     let create = || {
         let policy = OptimizerPrecision {

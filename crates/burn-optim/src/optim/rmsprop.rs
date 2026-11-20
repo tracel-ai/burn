@@ -1,4 +1,4 @@
-use crate::{OptimizerRecordState, PrecisionConfigurable};
+use crate::ConfigurableOptimizer;
 use burn_core as burn;
 
 use crate::RecordState;
@@ -138,19 +138,19 @@ impl Optimizer for RmsProp {
     }
 
     fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
-        Self::map_state(state, |tensor| tensor.to_device(device))
+        crate::StateMappable::map_tensors(
+            state,
+            &mut super::precision::DeviceOptimizerStateMapper::new(device),
+        )
     }
 }
 
-impl PrecisionConfigurable for RmsProp {
-    fn map_state<const D: usize>(
-        mut state: Self::State<D>,
-        map: impl Fn(Tensor<D>) -> Tensor<D>,
+impl ConfigurableOptimizer for RmsProp {
+    fn map_state<const D: usize, M: crate::OptimizerStateMapper>(
+        state: Self::State<D>,
+        mapper: &mut M,
     ) -> Self::State<D> {
-        state.square_avg = state.square_avg.map_tensors(&map);
-        state.centered = state.centered.map_tensors(&map);
-        state.momentum = state.momentum.map(|momentum| momentum.map_tensors(&map));
-        state
+        crate::StateMappable::map_tensors(state, mapper)
     }
 }
 
@@ -165,12 +165,20 @@ pub struct RmsPropState<const D: usize> {
     pub momentum: Option<RmsPropMomentumState<D>>,
 }
 
+impl_optimizer_state!(RmsPropState {
+    nested { square_avg, centered } optional { momentum }
+});
+
 /// Exponential moving average of squared gradients used by [`RmsProp`].
-#[derive(OptimizerRecordState, Clone, new)]
+#[derive(RecordState, Clone, new)]
 pub struct SquareAvgState<const D: usize> {
     /// Current exponential moving average of squared gradients.
     pub square_avg: Tensor<D>,
 }
+
+impl_optimizer_state!(SquareAvgState {
+    tensors { square_avg }
+});
 
 impl<const D: usize> SquareAvgState<D> {
     /// Update the exponential moving average of squared gradients.
@@ -200,23 +208,25 @@ impl<const D: usize> SquareAvgState<D> {
     ///
     /// * `self` - Moved state.
     pub fn to_device(self, device: &Device) -> Self {
-        self.map_tensors(&|tensor| tensor.to_device(device))
-    }
-
-    fn map_tensors(mut self, map: &impl Fn(Tensor<D>) -> Tensor<D>) -> Self {
-        self.square_avg = map(self.square_avg);
-        self
+        crate::StateMappable::map_tensors(
+            self,
+            &mut super::precision::DeviceOptimizerStateMapper::new(device),
+        )
     }
 }
 
 /// Gradient normalization statistics used by [`RmsProp`].
-#[derive(OptimizerRecordState, Clone, new)]
+#[derive(RecordState, Clone, new)]
 pub struct CenteredState<const D: usize> {
     /// Exponential moving average of gradients when centered RMSProp is enabled.
     pub grad_avg: Option<Tensor<D>>,
     /// Estimated gradient variance when centered, or mean square otherwise.
     pub avg: Tensor<D>,
 }
+
+impl_optimizer_state!(CenteredState {
+    tensors { grad_avg, avg }
+});
 
 impl<const D: usize> CenteredState<D> {
     /// Update the gradient normalization statistics for the selected RMSProp variant.
@@ -272,13 +282,10 @@ impl<const D: usize> CenteredState<D> {
     ///
     /// * `self` - Moved state.
     pub fn to_device(self, device: &Device) -> Self {
-        self.map_tensors(&|tensor| tensor.to_device(device))
-    }
-
-    fn map_tensors(mut self, map: &impl Fn(Tensor<D>) -> Tensor<D>) -> Self {
-        self.grad_avg = self.grad_avg.map(map);
-        self.avg = map(self.avg);
-        self
+        crate::StateMappable::map_tensors(
+            self,
+            &mut super::precision::DeviceOptimizerStateMapper::new(device),
+        )
     }
 }
 
@@ -318,10 +325,14 @@ impl RmsPropMomentum {
 }
 
 /// Running momentum buffer used by [`RmsProp`].
-#[derive(OptimizerRecordState, Clone, new)]
+#[derive(RecordState, Clone, new)]
 pub struct RmsPropMomentumState<const D: usize> {
     buf: Tensor<D>,
 }
+
+impl_optimizer_state!(RmsPropMomentumState {
+    tensors { buf }
+});
 
 impl<const D: usize> RmsPropMomentumState<D> {
     /// Moves the state to a device.
@@ -334,12 +345,10 @@ impl<const D: usize> RmsPropMomentumState<D> {
     ///
     /// * `self` - Moved state.
     pub fn to_device(self, device: &Device) -> Self {
-        self.map_tensors(&|tensor| tensor.to_device(device))
-    }
-
-    fn map_tensors(mut self, map: &impl Fn(Tensor<D>) -> Tensor<D>) -> Self {
-        self.buf = map(self.buf);
-        self
+        crate::StateMappable::map_tensors(
+            self,
+            &mut super::precision::DeviceOptimizerStateMapper::new(device),
+        )
     }
 }
 

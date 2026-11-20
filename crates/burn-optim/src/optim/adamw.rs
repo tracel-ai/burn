@@ -1,4 +1,4 @@
-use crate::PrecisionConfigurable;
+use crate::ConfigurableOptimizer;
 use burn_core as burn;
 
 use crate::RecordState;
@@ -64,6 +64,10 @@ pub struct AdamWState<const D: usize> {
     pub momentum: AdaptiveMomentumState<D>,
 }
 
+impl_optimizer_state!(AdamWState {
+    nested { momentum }
+});
+
 impl Optimizer for AdamW {
     type State<const D: usize> = AdamWState<D>;
 
@@ -108,17 +112,19 @@ impl Optimizer for AdamW {
     }
 
     fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
-        Self::map_state(state, |tensor| tensor.to_device(device))
+        crate::StateMappable::map_tensors(
+            state,
+            &mut super::precision::DeviceOptimizerStateMapper::new(device),
+        )
     }
 }
 
-impl PrecisionConfigurable for AdamW {
-    fn map_state<const D: usize>(
-        mut state: Self::State<D>,
-        map: impl Fn(Tensor<D>) -> Tensor<D>,
+impl ConfigurableOptimizer for AdamW {
+    fn map_state<const D: usize, M: crate::OptimizerStateMapper>(
+        state: Self::State<D>,
+        mapper: &mut M,
     ) -> Self::State<D> {
-        state.momentum = state.momentum.map_tensors(&map);
-        state
+        crate::StateMappable::map_tensors(state, mapper)
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::{OptimizerRecordState, PrecisionConfigurable};
+use crate::ConfigurableOptimizer;
 use burn_core as burn;
 
 use crate::RecordState;
@@ -61,6 +61,10 @@ pub struct AdanState<const D: usize> {
     pub momentum: AdaptiveNesterovMomentumState<D>,
 }
 
+impl_optimizer_state!(AdanState {
+    nested { momentum }
+});
+
 impl Optimizer for Adan {
     type State<const D: usize> = AdanState<D>;
 
@@ -95,17 +99,19 @@ impl Optimizer for Adan {
     }
 
     fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
-        Self::map_state(state, |tensor| tensor.to_device(device))
+        crate::StateMappable::map_tensors(
+            state,
+            &mut super::precision::DeviceOptimizerStateMapper::new(device),
+        )
     }
 }
 
-impl PrecisionConfigurable for Adan {
-    fn map_state<const D: usize>(
-        mut state: Self::State<D>,
-        map: impl Fn(Tensor<D>) -> Tensor<D>,
+impl ConfigurableOptimizer for Adan {
+    fn map_state<const D: usize, M: crate::OptimizerStateMapper>(
+        state: Self::State<D>,
+        mapper: &mut M,
     ) -> Self::State<D> {
-        state.momentum = state.momentum.map_tensors(&map);
-        state
+        crate::StateMappable::map_tensors(state, mapper)
     }
 }
 
@@ -144,7 +150,7 @@ impl AdanConfig {
 }
 
 /// Adaptive Nesterov momentum state.
-#[derive(OptimizerRecordState, Clone, new)]
+#[derive(RecordState, Clone, new)]
 pub struct AdaptiveNesterovMomentumState<const D: usize> {
     /// The number of iterations aggregated.
     pub time: usize,
@@ -157,6 +163,10 @@ pub struct AdaptiveNesterovMomentumState<const D: usize> {
     /// The negated previous gradient.
     pub neg_pre_grad: Tensor<D>,
 }
+
+impl_optimizer_state!(AdaptiveNesterovMomentumState {
+    tensors { exp_avg, exp_avg_sq, exp_avg_diff, neg_pre_grad }
+});
 
 #[derive(Clone)]
 struct AdaptiveNesterovMomentum {
@@ -230,15 +240,7 @@ impl AdaptiveNesterovMomentum {
     }
 }
 
-impl<const D: usize> AdaptiveNesterovMomentumState<D> {
-    fn map_tensors(mut self, map: &impl Fn(Tensor<D>) -> Tensor<D>) -> Self {
-        self.exp_avg = map(self.exp_avg);
-        self.exp_avg_sq = map(self.exp_avg_sq);
-        self.exp_avg_diff = map(self.exp_avg_diff);
-        self.neg_pre_grad = map(self.neg_pre_grad);
-        self
-    }
-}
+impl<const D: usize> AdaptiveNesterovMomentumState<D> {}
 
 #[cfg(test)]
 mod tests {

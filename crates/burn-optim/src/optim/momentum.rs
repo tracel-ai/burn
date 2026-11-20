@@ -1,6 +1,6 @@
 use burn_core as burn;
 
-use crate::OptimizerRecordState;
+use crate::RecordState;
 use burn::config::Config;
 use burn::tensor::Device;
 use burn::tensor::{ElementConversion, Tensor};
@@ -21,10 +21,14 @@ pub struct MomentumConfig {
 }
 
 /// State of [momentum](Momentum).
-#[derive(OptimizerRecordState, Clone, new)]
+#[derive(RecordState, Clone, new)]
 pub struct MomentumState<const D: usize> {
     velocity: Tensor<D>,
 }
+
+impl_optimizer_state!(MomentumState {
+    tensors { velocity }
+});
 
 /// Momentum implementation that transforms gradients.
 #[derive(Clone)]
@@ -88,11 +92,9 @@ impl<const D: usize> MomentumState<D> {
     ///
     /// * `self` - Moved state.
     pub fn to_device(self, device: &Device) -> Self {
-        self.map_tensors(&|tensor| tensor.to_device(device))
-    }
-
-    pub(super) fn map_tensors(mut self, map: &impl Fn(Tensor<D>) -> Tensor<D>) -> Self {
-        self.velocity = map(self.velocity);
-        self
+        crate::StateMappable::map_tensors(
+            self,
+            &mut super::precision::DeviceOptimizerStateMapper::new(device),
+        )
     }
 }

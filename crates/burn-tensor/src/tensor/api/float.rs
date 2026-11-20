@@ -364,6 +364,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// let int_tensor = float_tensor.cast(IntDType::I64);
     /// ```
     #[must_use]
+    /// Quantized inputs cast to a floating dtype are dequantized directly into that dtype.
     pub fn cast<T: Cast<D, Float>>(self, dtype: T) -> Tensor<D, T::OutputKind> {
         T::cast(self, dtype)
     }

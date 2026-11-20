@@ -1,4 +1,4 @@
-use crate::{OptimizerRecordState, PrecisionConfigurable};
+use crate::ConfigurableOptimizer;
 use burn_core as burn;
 
 use crate::RecordState;
@@ -57,6 +57,10 @@ pub struct AdamState<const D: usize> {
     pub momentum: AdaptiveMomentumState<D>,
 }
 
+impl_optimizer_state!(AdamState {
+    nested { momentum }
+});
+
 impl Optimizer for Adam {
     type State<const D: usize> = AdamState<D>;
 
@@ -86,17 +90,19 @@ impl Optimizer for Adam {
     }
 
     fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
-        Self::map_state(state, |tensor| tensor.to_device(device))
+        crate::StateMappable::map_tensors(
+            state,
+            &mut super::precision::DeviceOptimizerStateMapper::new(device),
+        )
     }
 }
 
-impl PrecisionConfigurable for Adam {
-    fn map_state<const D: usize>(
-        mut state: Self::State<D>,
-        map: impl Fn(Tensor<D>) -> Tensor<D>,
+impl ConfigurableOptimizer for Adam {
+    fn map_state<const D: usize, M: crate::OptimizerStateMapper>(
+        state: Self::State<D>,
+        mapper: &mut M,
     ) -> Self::State<D> {
-        state.momentum = state.momentum.map_tensors(&map);
-        state
+        crate::StateMappable::map_tensors(state, mapper)
     }
 }
 
@@ -134,7 +140,7 @@ impl AdamConfig {
 }
 
 /// Adaptive momentum state.
-#[derive(OptimizerRecordState, new, Clone)]
+#[derive(RecordState, new, Clone)]
 pub struct AdaptiveMomentumState<const D: usize> {
     /// The number of iterations aggregated.
     pub time: usize,
@@ -146,6 +152,10 @@ pub struct AdaptiveMomentumState<const D: usize> {
     #[new(default)]
     pub max_moment_2: Option<Tensor<D>>,
 }
+
+impl_optimizer_state!(AdaptiveMomentumState {
+    tensors { moment_1, moment_2, max_moment_2 }
+});
 
 #[derive(Clone)]
 struct AdaptiveMomentum {
@@ -232,14 +242,10 @@ impl<const D: usize> AdaptiveMomentumState<D> {
     ///
     /// Returns state moved to device.
     pub fn to_device(self, device: &Device) -> Self {
-        self.map_tensors(&|tensor| tensor.to_device(device))
-    }
-
-    pub(super) fn map_tensors(mut self, map: &impl Fn(Tensor<D>) -> Tensor<D>) -> Self {
-        self.moment_1 = map(self.moment_1);
-        self.moment_2 = map(self.moment_2);
-        self.max_moment_2 = self.max_moment_2.map(map);
-        self
+        crate::StateMappable::map_tensors(
+            self,
+            &mut super::precision::DeviceOptimizerStateMapper::new(device),
+        )
     }
 }
 
