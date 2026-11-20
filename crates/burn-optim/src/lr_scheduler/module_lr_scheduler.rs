@@ -3,12 +3,10 @@ use burn_core as burn;
 use burn::config::Config;
 use burn_core::module::ParamGroup;
 
-// `ModuleLearningRate` used to be exported from this module, so keep the `pub use`.
+use crate::lr_scheduler::{DynLrScheduler, LrScheduler, LrSchedulerConfig, LrSchedulerRecord};
+
+// Preserve the public scheduler import path.
 pub use crate::optim::ModuleLearningRate;
-use crate::{
-    lr_scheduler::{DynLrScheduler, LrScheduler, LrSchedulerConfig, LrSchedulerRecord},
-    optim::LrGroup,
-};
 
 #[derive(Config, Debug)]
 struct LrSchedulerGroupConfig {
@@ -94,20 +92,10 @@ impl ModuleLrScheduler {
 
     /// Perform the scheduler step of every scheduler and returns the effective learning rate policy.
     pub fn step(&mut self) -> ModuleLearningRate {
-        let groups = self
-            .groups
-            .iter_mut()
-            .map(|s| {
-                let lr = s.scheduler.step();
-
-                LrGroup {
-                    group: s.group.clone(),
-                    lr,
-                }
-            })
-            .collect();
-
-        ModuleLearningRate { groups }
+        ModuleLearningRate::from_ordered_groups(self.groups.iter_mut().map(|entry| {
+            let lr = entry.scheduler.step();
+            (entry.group.clone(), lr)
+        }))
     }
 
     /// Get the current state of the schedulers as a [record](LrSchedulerRecord).
