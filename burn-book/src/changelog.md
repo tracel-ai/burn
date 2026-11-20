@@ -1005,8 +1005,8 @@ Complex inverse FFT (`ifft`) is also available.
 
 ##### Morphology
 
-- Prevent Flex CPU morphology from reading or writing past row buffers for 64-bit tensors when
-  SIMD is unavailable. ([#6411](https://github.com/tracel-ai/burn/issues/6411))
+- Prevent CPU morphology from reading or writing past row buffers when processing 64-bit tensors
+  with scalar dispatch. ([#6411](https://github.com/tracel-ai/burn/issues/6411))
 
 ##### Non-maximum suppression
 

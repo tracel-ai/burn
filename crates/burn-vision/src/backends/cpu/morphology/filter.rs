@@ -729,38 +729,43 @@ mod tests {
         type Output = ();
 
         fn with_simd<S: Simd>(self) {
+            // Padding keeps the old half-vector accesses inside the allocations so the
+            // destination sentinel detects the stray store even without Miri.
+            const SENTINEL: u64 = u64::MAX;
+
             let row_filter = MorphRowFilter::<u64, MaxOp, MorphRowVec<u64, MaxOp>>::new(3, 1);
-            let row_src = [1, 3, 2, 5, 4, 7, 6, 9, 8, 10];
-            let mut row_dst = [0; 8];
+            let row_src = [1, 3, 2, 5, 4, 7, 6, 9, 8, 10, 0];
+            let mut row_dst = [SENTINEL; 9];
             row_filter.apply::<S>(&row_src, &mut row_dst, 8, 1);
-            assert_eq!(row_dst, [3, 5, 5, 7, 7, 9, 9, 10]);
+            assert_eq!(row_dst, [3, 5, 5, 7, 7, 9, 9, 10, SENTINEL]);
 
             let rows = [
-                [1, 2, 3, 4, 5, 6, 7, 8],
-                [2, 3, 4, 5, 6, 7, 8, 9],
-                [3, 4, 5, 6, 7, 8, 9, 10],
-                [4, 5, 6, 7, 8, 9, 10, 11],
+                [1, 2, 3, 4, 5, 6, 7, 8, 0],
+                [2, 3, 4, 5, 6, 7, 8, 9, 0],
+                [3, 4, 5, 6, 7, 8, 9, 10, 0],
+                [4, 5, 6, 7, 8, 9, 10, 11, 0],
             ];
-            let row_ptrs = rows.iter().map(|row| row.as_ptr()).collect::<Vec<_>>();
+            let row_ptrs = rows.each_ref().map(|row| row.as_ptr());
             let column_filter =
                 MorphColumnFilter::<u64, MaxOp, MorphColumnVec<u64, MaxOp>>::new(3, 1);
 
-            let mut one_row_dst = [0; 8];
-            column_filter.apply::<S>(&row_ptrs, &mut one_row_dst, 8, 1, 8);
-            assert_eq!(one_row_dst, rows[2]);
+            let first_row = [3, 4, 5, 6, 7, 8, 9, 10, SENTINEL];
+            let mut one_row_dst = [SENTINEL; 9];
+            column_filter.apply::<S>(&row_ptrs, &mut one_row_dst, 9, 1, 8);
+            assert_eq!(one_row_dst, first_row);
 
-            let mut two_row_dst = [0; 16];
-            column_filter.apply::<S>(&row_ptrs, &mut two_row_dst, 8, 2, 8);
-            assert_eq!(&two_row_dst[..8], &rows[2]);
-            assert_eq!(&two_row_dst[8..], &rows[3]);
+            let mut two_row_dst = [SENTINEL; 18];
+            column_filter.apply::<S>(&row_ptrs, &mut two_row_dst, 9, 2, 8);
+            assert_eq!(&two_row_dst[..9], &first_row);
+            assert_eq!(&two_row_dst[9..], &[4, 5, 6, 7, 8, 9, 10, 11, SENTINEL]);
 
-            let src_a = [1, 3, 2, 5, 4, 7, 6, 9];
-            let src_b = [2, 1, 4, 3, 6, 5, 8, 7];
+            let src_a = [1, 3, 2, 5, 4, 7, 6, 9, 0];
+            let src_b = [2, 1, 4, 3, 6, 5, 8, 7, 0];
             let src = [src_a.as_ptr(), src_b.as_ptr()];
-            let mut dst = [0; 8];
+            let mut dst = [SENTINEL; 9];
             let processed = MorphVec::<u64, MaxOp>::apply::<S>(&src, 2, &mut dst, 8);
             assert_eq!(processed, 8);
-            assert_eq!(dst, [2, 3, 4, 5, 6, 7, 8, 9]);
+            assert_eq!(dst, [2, 3, 4, 5, 6, 7, 8, 9, SENTINEL]);
         }
     }
 
