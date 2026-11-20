@@ -910,7 +910,8 @@ a struct with those fields. ([#6388](https://github.com/tracel-ai/burn/pull/6388
 
 - Propagate NaNs through CubeCL `max_pool3d` and return the first NaN's index when indices are
   requested.
-  ([#6557](https://github.com/tracel-ai/burn/issues/6557))
+  ([#6557](https://github.com/tracel-ai/burn/issues/6557),
+  [#6567](https://github.com/tracel-ai/burn/pull/6567))
 
 - Add `AvgPool3d`, `MaxPool3d`, `LpPool1d`, and `LpPool2d` pooling modules.
   ([#5801](https://github.com/tracel-ai/burn/pull/5801),
