@@ -410,18 +410,28 @@ impl<O> BlockOptimization<O> {
         self.strategy.map_ordering(mapping);
     }
 
+    /// This optimization, then `next`, which covers positions after all of this one's, as one
+    /// flat [composed](ExecutionStrategy::Composed) strategy like every other producer emits.
+    pub fn followed_by(self, next: Self) -> Self {
+        let mut ordering = self.ordering;
+        ordering.extend(next.ordering);
+        let mut parts = self.strategy.into_parts();
+        parts.extend(next.strategy.into_parts());
+        Self {
+            strategy: ExecutionStrategy::Composed(parts),
+            ordering,
+        }
+    }
+
     /// Extend the optimization to cover all `num_operations` of its segment: the
     /// positions the search left uncovered (the drained tail of a block whose best
     /// fusion stopped early) are appended as un-fused
     /// [operations](ExecutionStrategy::Operations) in a
     /// [composed](ExecutionStrategy::Composed) strategy.
     ///
-    /// Leaving the tail out is right in lazy mode — it seeds the next exploration
-    /// round, where more incoming operations may fuse with it. At a sync the segment
-    /// is final: no later round can pick the tail up, and a plan covering only part
-    /// of the segment can never be matched again (plan lookup at a sync compares the
-    /// whole remaining segment). Covering the full segment makes the cached plan
-    /// reusable on every subsequent identical sync.
+    /// The last resort of [optimize_final](crate::search::StreamOptimizer::optimize_final),
+    /// which searches the tail again first: a plan covering only part of a sync's segment
+    /// could never be matched again, since plan lookup at a sync compares the whole segment.
     ///
     /// The uncovered positions are always a trailing run of the segment (interior
     /// holes are re-optimized by the stream optimizer before this is called — enforced
@@ -461,6 +471,14 @@ impl<O> BlockOptimization<O> {
 }
 
 impl<O> ExecutionStrategy<O> {
+    /// The strategies this one runs in sequence: a composed strategy's parts, or itself.
+    fn into_parts(self) -> Vec<Box<Self>> {
+        match self {
+            ExecutionStrategy::Composed(parts) => parts,
+            single => vec![Box::new(single)],
+        }
+    }
+
     /// Maps the ordering of the current execution strategy using the given mapping.
     pub fn map_ordering(&mut self, mapping: &[usize]) {
         match self {

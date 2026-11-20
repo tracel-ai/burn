@@ -155,6 +155,39 @@ impl<O: NumOperations> StreamOptimizer<O> {
         repair_order(out, operations)
     }
 
+    /// [Optimize](Self::optimize) a segment that no later operation will extend, as at a sync:
+    /// the operations a search leaves for the next round are searched again until every one is
+    /// covered, since no next round will come.
+    pub fn optimize_final(&self, operations: &[OperationIr]) -> BlockOptimization<O> {
+        let mut optimization = self.optimize(operations);
+        while optimization.ordering.len() < operations.len() {
+            let start = optimization.ordering.len();
+            debug_assert!(
+                optimization
+                    .ordering
+                    .iter()
+                    .all(|&position| position < start),
+                "a search covers a leading run of its segment"
+            );
+            let rest = &operations[start..];
+            let mut search = self.new_empty_search();
+            for operation in rest {
+                search.register(operation);
+            }
+            let mut tail = search.optimize(rest);
+            // Only a fuser reporting an empty optimization covers nothing; the tail then runs
+            // unfused below rather than looping.
+            if tail.ordering.is_empty() {
+                break;
+            }
+            let positions: Vec<usize> = (start..operations.len()).collect();
+            tail.map_ordering(&positions);
+            optimization = optimization.followed_by(tail);
+        }
+        optimization.include_trailing(operations.len());
+        optimization
+    }
+
     /// Reset the state of the optimizer.
     pub fn reset(&mut self) {
         self.builders.iter_mut().for_each(|b| b.reset());

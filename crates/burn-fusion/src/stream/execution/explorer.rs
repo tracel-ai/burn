@@ -96,16 +96,13 @@ impl<O: NumOperations> Explorer<O> {
             return ExplorationAction::Continue;
         }
 
-        let mut optimization = self.optimizer.optimize(operations);
+        // At a sync the segment is final, so the plan covers all of it: the cached plan can
+        // then be matched on the next identical sync instead of re-exploring the same graph.
+        let optimization = match mode {
+            ExecutionMode::Lazy => self.optimizer.optimize(operations),
+            ExecutionMode::Sync => self.optimizer.optimize_final(operations),
+        };
         self.num_explorations += 1;
-
-        // At a sync the segment is final: fold the drained tail the search left for
-        // "the next round" into the plan as un-fused operations, so the cached plan
-        // covers the whole segment and can be matched by the policy on the next
-        // identical sync instead of re-exploring the same graph every time.
-        if let ExecutionMode::Sync = mode {
-            optimization.include_trailing(operations.len());
-        }
 
         ExplorationAction::Completed(optimization)
     }

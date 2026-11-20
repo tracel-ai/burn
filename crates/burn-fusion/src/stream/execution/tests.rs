@@ -510,6 +510,81 @@ fn should_reuse_sync_plan_on_next_pass() {
     stream.assert_number_of_explorations(1);
 }
 
+/// At a sync the operations the first search leaves are searched again rather than run
+/// unfused, since no later round will pick them up: every fusable run after the head still
+/// fuses, and the plan is reused on the next identical sync.
+#[test]
+fn should_fuse_the_leftover_of_a_sync_segment() {
+    use crate::search::testing::add;
+
+    let plan_id = 0;
+    let pairs = [
+        [add(100, 101, 102), add(102, 103, 104)],
+        [add(104, 105, 106), add(106, 107, 108)],
+        [add(108, 109, 110), add(110, 111, 112)],
+    ];
+    let segment: Vec<OperationIr> = pairs.iter().flatten().cloned().collect();
+    let mut builders: Vec<Box<dyn OperationFuser<TestOptimization>>> = pairs
+        .iter()
+        .enumerate()
+        .map(|(id, pair)| {
+            Box::new(TestOptimizationBuilder::new(id, pair.to_vec()))
+                as Box<dyn OperationFuser<TestOptimization>>
+        })
+        .collect();
+    // Open past the whole segment, which defers it until the sync.
+    let mut hungry = segment.clone();
+    hungry.push(add(300, 301, 302));
+    builders.push(Box::new(TestOptimizationBuilder::new(pairs.len(), hungry)));
+    let mut stream = TestStream::new(builders);
+
+    for operation in segment.iter().cloned() {
+        stream.add(operation);
+    }
+    stream.assert_number_of_executions(0);
+    stream.sync();
+    stream.assert_number_of_operations(0);
+    stream.assert_number_of_executions(1);
+    stream.assert_last_executed(plan_id);
+    stream.assert_plan(
+        plan_id,
+        ExecutionPlan {
+            operations: segment.clone(),
+            triggers: vec![ExecutionTrigger::OnSync],
+            optimization: BlockOptimization::new(ExecutionStrategy::operations(0), Vec::new()),
+        },
+    );
+    let plan = stream.store.get_unchecked(plan_id);
+    assert_eq!(
+        plan.optimization.ordering,
+        (0..segment.len()).collect::<Vec<_>>()
+    );
+    let parts = match &plan.optimization.strategy {
+        ExecutionStrategy::Composed(parts) => parts
+            .iter()
+            .map(|part| match part.as_ref() {
+                ExecutionStrategy::Optimization { opt, ordering, .. } => {
+                    (opt.builder_id, opt.size, ordering.to_vec())
+                }
+                other => panic!("every part of the plan is fused, got {other:?}"),
+            })
+            .collect::<Vec<_>>(),
+        other => panic!("expected a composed plan, got {other:?}"),
+    };
+    assert_eq!(
+        parts,
+        vec![(0, 2, vec![0, 1]), (1, 2, vec![2, 3]), (2, 2, vec![4, 5])],
+    );
+
+    for operation in segment {
+        stream.add(operation);
+    }
+    stream.sync();
+    stream.assert_number_of_executions(2);
+    stream.assert_last_executed(plan_id);
+    stream.assert_number_of_explorations(1);
+}
+
 impl TestStream {
     /// Create a new stream with the given optimization builders.
     fn new(optimizations: Vec<Box<dyn OperationFuser<TestOptimization>>>) -> Self {
