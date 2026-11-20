@@ -1,6 +1,9 @@
 use burn_backend::{
-    Backend, BoolDType, Scalar, Shape, Slice, TensorData, TensorMetadata,
-    ops::{ActivationOps, AttentionModuleOptions, DimSplit, FloatTensorOps, IntTensorOps},
+    Backend, BoolDType, FloatDType, IntDType, Scalar, Shape, Slice, TensorData, TensorMetadata,
+    ops::{
+        ActivationOps, AttentionModuleOptions, DimSplit, FloatTensorOps, GridSampleOptions,
+        IntTensorOps,
+    },
     tensor::{FloatTensor, IntTensor},
 };
 use burn_flex::{Flex, FlexDevice};
@@ -10,7 +13,7 @@ use burn_shard::{
     Sharding::{self, PartialSum, Replicated, ReplicatedSplit, Split},
     Shards,
 };
-use burn_std::future::block_on;
+use burn_std::{IndexingUpdateOp, PadMode, future::block_on};
 
 type Shard = ShardBackend;
 
@@ -102,6 +105,10 @@ fn elementwise_ops_match_one_device_for_every_sharding() {
         check_unary!(num_members, &input, |B, a| B::relu(a));
         check_unary!(num_members, &input, |B, a| B::gelu(a));
         check_unary!(num_members, &input, |B, a| B::sigmoid(a));
+        check_unary!(num_members, &input, |B, a| {
+            let ones = B::float_ones(a.shape(), &a.device(), FloatDType::F32);
+            B::float_add(a, ones)
+        });
     }
 }
 
@@ -174,7 +181,54 @@ fn ops_along_a_dim_match_one_device_for_every_sharding() {
                 let indices = B::int_from_data(TensorData::from([2i64, 0, 2]), &a.device());
                 B::float_select(a, dim, indices)
             });
+            check_unary!(num_members, &input, [dim: usize] |B, a| {
+                let indices = B::int_from_data(TensorData::from([2i64, 0]), &a.device());
+                let value = B::float_select(a.clone(), dim, indices.clone());
+                B::float_select_assign(a, dim, indices, value, IndexingUpdateOp::Add)
+            });
+            check_unary!(num_members, &input, [dim: usize] |B, a| {
+                let indices = B::int_from_data(indices_along(&a.shape(), dim), &a.device());
+                B::float_gather(dim, a, indices)
+            });
+            check_unary!(num_members, &input, [dim: usize] |B, a| {
+                let indices = B::int_from_data(indices_along(&a.shape(), dim), &a.device());
+                B::float_scatter(dim, a.clone(), indices, a, IndexingUpdateOp::Add)
+            });
+            check_unary!(num_members, &input, [dim: usize] |B, a| B::float_unfold(a, dim, 2, 1));
+            check_unary!(num_members, &input, [dim: usize] |B, a| {
+                let mut padding = [(0, 0); 3];
+                padding[dim] = (1, 2);
+                B::float_pad(a, &padding, PadMode::Constant(0.5))
+            });
+            check_unary!(num_members, &input, [dim: usize] |B, a| {
+                let (values, indices) = B::float_sort_with_indices(a, dim, true, IntDType::I64);
+                B::float_add(values, B::int_into_float(indices, FloatDType::F32))
+            });
+            check_unary!(num_members, &input, [dim: usize] |B, a| {
+                let (values, indices) = B::float_topk_with_indices(a, dim, 2, IntDType::I64);
+                B::float_add(values, B::int_into_float(indices, FloatDType::F32))
+            });
+            check_unary!(num_members, &input, [dim: usize] |B, a| {
+                let (values, indices) = B::float_max_dim_with_indices(a, dim, IntDType::I64);
+                B::float_add(values, B::int_into_float(indices, FloatDType::F32))
+            });
         }
+        check_unary!(num_members, &input, |B, a| {
+            let indices = B::int_from_data(TensorData::new(vec![3i64, 0], [1, 2, 1]), &a.device());
+            B::float_gather_nd(a, indices)
+        });
+        check_unary!(num_members, &input, |B, a| {
+            let indices = B::int_from_data(TensorData::new(vec![3i64, 0], [1, 2, 1]), &a.device());
+            let values = B::float_gather_nd(a.clone(), indices.clone());
+            B::float_scatter_nd(a, indices, values, IndexingUpdateOp::Add)
+        });
+        check_binary!(num_members, &input, &data([4, 3, 5], 2), |B, a, b| {
+            B::float_cross(a, b, 1)
+        });
+        let (image, grid) = (data([2, 4, 3, 5], 3), data([2, 3, 4, 2], 4));
+        check_binary!(num_members, &image, &grid, |B, a, b| {
+            B::float_grid_sample_2d(a, b, GridSampleOptions::default())
+        });
     }
 }
 
@@ -187,6 +241,7 @@ fn layout_ops_match_one_device_for_every_sharding() {
         let input = data([4, 3, 5], 1);
         check_unary!(num_members, &input, |B, a| B::float_swap_dims(a, 0, 2));
         check_unary!(num_members, &input, |B, a| B::float_permute(a, &[2, 0, 1]));
+        check_unary!(num_members, &input, |B, a| B::float_flip(a, &[0, 2]));
         check_unary!(num_members, &data([4, 1, 5], 2), |B, a| B::float_expand(
             a,
             Shape::new([2, 4, 3, 5])
@@ -271,7 +326,37 @@ fn split_tensors_stay_split_where_megatron_keeps_them() {
         Flex::int_from_data(TensorData::from([3i64, 0]), &FlexDevice),
     );
     assert_close(read::<Shard>(picked), read::<Flex>(expected), "select");
-    assert_eq!(sharding_of(&Shard::softmax(x, 0)), Split { dim: 1 });
+    assert_eq!(sharding_of(&Shard::softmax(x.clone(), 0)), Split { dim: 1 });
+    assert_eq!(
+        sharding_of(&Shard::float_flip(x.clone(), &[0])),
+        Split { dim: 1 }
+    );
+    let (values, indices) = Shard::float_sort_with_indices(x.clone(), 0, false, IntDType::I64);
+    assert_eq!(
+        [sharding_of(&values), sharding_of(&indices)],
+        [Split { dim: 1 }; 2]
+    );
+    // Split indices over a whole input: each member gathers its own columns.
+    let columns = made_on_members(
+        &indices_along(&Shape::new([4, 6]), 0),
+        &device,
+        Split { dim: 1 },
+        |data| HandleKind::Int(Flex::int_from_data(data, &FlexDevice)),
+    );
+    let whole = float_on_members(&data([4, 6], 1), &device, Replicated);
+    let gathered = Shard::float_gather(0, whole, columns);
+    assert_eq!(sharding_of(&gathered), Split { dim: 1 });
+    let expected = Flex::float_gather(
+        0,
+        Flex::float_from_data(data([4, 6], 1), &FlexDevice),
+        Flex::int_from_data(indices_along(&Shape::new([4, 6]), 0), &FlexDevice),
+    );
+    assert_close(read::<Shard>(gathered), read::<Flex>(expected), "gather");
+    let tuples = Shard::int_from_data(TensorData::new(vec![3i64, 0], [1, 2, 1]), &device);
+    assert_eq!(
+        sharding_of(&Shard::float_gather_nd(x, tuples)),
+        Split { dim: 2 }
+    );
 }
 
 fn assert_unary_matches(
@@ -489,6 +574,15 @@ fn data<S: Into<Shape>>(shape: S, seed: usize) -> TensorData {
         .map(|i| ((i * 7 + seed * 13) as f32 * 0.37).sin())
         .collect();
     TensorData::new(values, shape)
+}
+
+/// Indices of the shape that point along `dim` in another order than its own.
+fn indices_along(shape: &Shape, dim: usize) -> TensorData {
+    let len = shape[dim];
+    let indices: Vec<i64> = (0..shape.num_elements())
+        .map(|i| ((i * 7 + 1) % len) as i64)
+        .collect();
+    TensorData::new(indices, shape.clone())
 }
 
 fn positive(data: TensorData) -> TensorData {

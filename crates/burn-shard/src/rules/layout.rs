@@ -60,6 +60,18 @@ impl LayoutRule {
         }
     }
 
+    /// Flipping keeps a split only of a dim it does not flip, and a partial sum, being linear.
+    pub fn flip(input: Sharding, axes: &[usize]) -> Self {
+        let sharding = match input.split_dim() {
+            Some(dim) if axes.contains(&dim) => Replicated,
+            _ => input,
+        };
+        Self {
+            input: sharding,
+            output: sharding,
+        }
+    }
+
     /// Assigning into a slice keeps the first split of the tensor or the values whose dim the slice
     /// takes whole, then splits the other one alike. Both partial stays partial, since the
     /// assignment is linear in the two together.
@@ -160,6 +172,26 @@ mod tests {
         let rule = LayoutRule::concat(&[PartialSum, PartialSum], 0);
 
         assert_eq!(rule.sharding(2).output, PartialSum);
+    }
+
+    #[test]
+    fn a_flip_keeps_a_split_of_a_dim_it_does_not_flip_and_a_partial_sum() {
+        assert_eq!(
+            LayoutRule::flip(Split { dim: 0 }, &[1, 2])
+                .sharding(1)
+                .output,
+            Split { dim: 0 }
+        );
+        assert_eq!(
+            LayoutRule::flip(Split { dim: 1 }, &[1, 2])
+                .sharding(1)
+                .output,
+            Replicated
+        );
+        assert_eq!(
+            LayoutRule::flip(PartialSum, &[1]).sharding(1).output,
+            PartialSum
+        );
     }
 
     #[test]
