@@ -152,7 +152,7 @@ half = { version = "2.7.1", features = [
     "num-traits",
     "serde",
 ], default-features = false }
-macerator = { version = "0.5.2" }
+macerator = { version = "0.6.0" }
 ndarray = { version = "0.17.2", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
@@ -229,7 +229,7 @@ cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false
 cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "758ab0cd96d307fe04e9fdf78335a758ddb7d6d2" }
 cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "758ab0cd96d307fe04e9fdf78335a758ddb7d6d2" }
 cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "758ab0cd96d307fe04e9fdf78335a758ddb7d6d2" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "101f31e2c52896d99d52ec5ec564050e816a83ba" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "81e08c6ebd3da08417e9b5dc4a238f75079ec3e3" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

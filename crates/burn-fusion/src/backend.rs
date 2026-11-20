@@ -353,9 +353,26 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
-        // `client.sync` drains the lazy queue and runs the closure without a
-        // device sync — the inner backend then arms persistent allocation.
+        // `client.sync` drains the lazy queue first, so the operations before the planning run
+        // as they are and the planning run starts from the next one.
         client.sync(move || B::graph_prepare(&device))
+    }
+
+    fn graph_end_run(device: &Self::Device) -> Result<bool, ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        // Drain the run's fused operations first: they launch, and release the handles they
+        // consumed, only when the queue drains, and a temporary still held when the run ends
+        // would be taken for an output.
+        client.sync(move || B::graph_end_run(&device))
+    }
+
+    fn graph_start_run(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        // Drain the operations registered between the runs first, so they run as they are and
+        // the next planning run starts from the operation after them.
+        client.sync(move || B::graph_start_run(&device))
     }
 
     fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
