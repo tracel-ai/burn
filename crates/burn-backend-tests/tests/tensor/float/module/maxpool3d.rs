@@ -375,6 +375,37 @@ fn test_max_pool3d_tie_breaking() {
 }
 
 #[test]
+fn test_max_pool3d_propagates_nan() {
+    for nan_idx in [0, 3, 7] {
+        let mut data = (0..8).map(|value| value as f32).collect::<Vec<_>>();
+        data[nan_idx] = f32::NAN;
+        let x = TestTensor::<5>::from_data(
+            burn_tensor::TensorData::new(data, [1, 1, 2, 2, 2]),
+            &Default::default(),
+        );
+        let options = MaxPoolOptions::new([2, 2, 2]);
+
+        let output = max_pool3d(x.clone(), options.clone()).into_data();
+        assert!(
+            output.as_slice::<FloatElem>().unwrap()[0].is_nan(),
+            "max_pool3d should propagate a NaN at index {nan_idx}"
+        );
+
+        let (output, indices) = max_pool3d_with_indices(x, options);
+        assert!(
+            output.into_data().as_slice::<FloatElem>().unwrap()[0].is_nan(),
+            "max_pool3d_with_indices should propagate a NaN at index {nan_idx}"
+        );
+        assert_eq!(
+            indices.into_data(),
+            TestTensorInt::<5>::from_data([[[[[nan_idx as i64]]]]], &Default::default())
+                .into_data(),
+            "max_pool3d_with_indices should return the NaN index"
+        );
+    }
+}
+
+#[test]
 fn test_max_pool3d_no_valid_tap() {
     let x = TestTensor::<5>::from_data([[[[[1.0]], [[2.0]]]]], &Default::default());
     let (output, indices) = max_pool3d_with_indices(
