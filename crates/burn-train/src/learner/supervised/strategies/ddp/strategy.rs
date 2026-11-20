@@ -1,17 +1,17 @@
-use core::panic;
-use std::sync::{Arc, Barrier, Mutex, mpsc};
-use std::thread;
+use std::sync::{Arc, Mutex, PoisonError, mpsc};
 
 use crate::ddp::worker::DdpWorker;
 use crate::metric::store::EventStoreClient;
+use crate::train::WorkerFailure;
 use crate::{
     EarlyStoppingStrategyRef, Interrupter, Learner, LearnerModel, SupervisedLearningStrategy,
-    SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents, ValidLoader,
+    SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents, TrainingError, ValidLoader,
 };
 use burn_core::data::dataloader::split::split_dataloader;
 use burn_core::tensor::Device;
 use burn_core::tensor::distributed::DistributedContext;
 
+use super::barrier::WorkerBarrier;
 use super::processor::WorkerEventProcessor;
 use super::step::StepCoordinator;
 
@@ -30,9 +30,17 @@ pub(crate) struct WorkerComponents {
     /// A reference to an [EventStoreClient].
     pub event_store: Arc<EventStoreClient>,
     /// All workers finish training before validation, and validation before the next epoch.
-    pub epoch_barrier: Arc<Barrier>,
+    pub epoch_barrier: Arc<WorkerBarrier>,
     /// Coordinates batch availability and stop decisions before collective backward passes.
     pub steps: Arc<StepCoordinator>,
+}
+
+impl WorkerComponents {
+    /// Releases every worker waiting for a peer that failed.
+    fn abort(&self) {
+        self.epoch_barrier.abort();
+        self.steps.abort();
+    }
 }
 
 /// A training strategy for Distributed Data Parallel (DDP) training.
@@ -41,26 +49,17 @@ pub(crate) struct WorkerComponents {
 /// gradient synchronization using the provided [`DistributedContext`].
 pub struct DdpTrainingStrategy {
     devices: Vec<Device>,
-    /// Kept alive to anchor the lifetime of the underlying distributed server.
-    /// Spawns communication servers on creation, automatically tears them down on drop.
-    _context: DistributedContext,
-}
-
-fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
-    if let Some(s) = payload.downcast_ref::<&str>() {
-        s.to_string()
-    } else if let Some(s) = payload.downcast_ref::<String>() {
-        s.clone()
-    } else {
-        "unknown panic in distributed data parallel worker".to_string()
-    }
+    /// Anchors the lifetime of the underlying distributed server, which it tears down on drop.
+    /// Dropped early when a worker fails, so peers waiting in a collective for its gradients fail
+    /// instead of waiting forever.
+    context: Mutex<Option<DistributedContext>>,
 }
 
 impl DdpTrainingStrategy {
     pub fn new(devices: Vec<Device>, context: DistributedContext) -> Self {
         Self {
             devices,
-            _context: context,
+            context: Mutex::new(Some(context)),
         }
     }
 }
@@ -101,13 +100,14 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for DdpTrainingStrategy {
             interrupter: interrupter.clone(),
             early_stopping: training_components.early_stopping,
             event_store: training_components.event_store,
-            epoch_barrier: Arc::new(Barrier::new(peer_count)),
+            epoch_barrier: Arc::new(WorkerBarrier::new(peer_count)),
             steps: Arc::new(StepCoordinator::new(peer_count)),
         };
+        let (outcome_tx, outcome_rx) = mpsc::channel();
 
         // Start worker for main device
         // First training dataloader corresponds to main device
-        let main_handle = DdpWorker::<M>::start(
+        let mut handles = vec![DdpWorker::<M>::start(
             main_device.clone(),
             learner.clone(),
             event_processor.clone(),
@@ -118,12 +118,12 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for DdpTrainingStrategy {
             starting_epoch,
             0,
             true,
-        );
+            outcome_tx.clone(),
+        )];
 
         // Spawn other workers for the other devices, starting with peer id 1
-        let mut secondary_workers = vec![];
         for (index, device) in self.devices[1..].iter().enumerate() {
-            let handle = DdpWorker::<M>::start(
+            handles.push(DdpWorker::<M>::start(
                 device.clone(),
                 learner.clone(),
                 event_processor.clone(),
@@ -134,47 +134,37 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for DdpTrainingStrategy {
                 starting_epoch,
                 index + 1,
                 false,
-            );
-
-            secondary_workers.push(handle);
+                outcome_tx.clone(),
+            ));
         }
-
-        const MAIN_ID: usize = usize::MAX;
-        let (result_tx, result_rx) = mpsc::channel();
-
-        for (id, worker) in secondary_workers.into_iter().enumerate() {
-            let tx = result_tx.clone();
-            thread::spawn(move || {
-                tx.send((id, worker.join())).ok();
-            });
-        }
-        {
-            let tx = result_tx.clone();
-            thread::spawn(move || {
-                tx.send((MAIN_ID, main_handle.join())).ok();
-            });
-        }
-        drop(result_tx);
+        drop(outcome_tx);
 
         let mut main_model = None;
-        for _ in 0..peer_count {
-            match result_rx
-                .recv()
-                .expect("worker reaper thread disconnected unexpectedly")
-            {
-                (MAIN_ID, Ok(model)) => main_model = Some(model),
-                (id, Err(payload)) => {
-                    let msg = panic_message(payload.as_ref());
-                    if id == MAIN_ID {
-                        panic!("Distributed data parallel main worker failed: {msg}");
-                    } else {
-                        panic!("Distributed data parallel worker {id} failed: {msg}");
-                    }
-                }
-                (_, Ok(_)) => {}
+        // Outcomes arrive as workers finish, so a failure is handled while its peers still wait.
+        for outcome in outcome_rx.iter().take(peer_count) {
+            if let Some(message) = outcome.failure {
+                // The first failure is the cause: the interrupter only logs the ones it triggers.
+                interrupter.fail(TrainingError::Workers(vec![WorkerFailure {
+                    device_id: outcome.worker_id,
+                    message,
+                }]));
+                worker_components.abort();
+                // Recorded before closing, so a peer whose backward then skips the sync sees it.
+                drop(
+                    self.context
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .take(),
+                );
+            }
+            if outcome.worker_id == 0 {
+                main_model = Some(outcome.model);
             }
         }
-        // Main worker had the event processor
+        for handle in handles {
+            // Every worker reported, so each thread has finished or is about to.
+            handle.join().ok();
+        }
         let model = main_model.expect("main worker should have produced a model");
 
         if interrupter.should_stop() {
@@ -186,9 +176,10 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for DdpTrainingStrategy {
         let Ok(event_processor) = Arc::try_unwrap(event_processor) else {
             panic!("Event processor still held!");
         };
-        let Ok(event_processor) = event_processor.into_inner() else {
-            panic!("Event processor lock poisoned");
-        };
+        // A worker that panicked while reporting poisons the lock; its failure is already recorded.
+        let event_processor = event_processor
+            .into_inner()
+            .unwrap_or_else(PoisonError::into_inner);
         (model, event_processor.into_inner())
     }
 }

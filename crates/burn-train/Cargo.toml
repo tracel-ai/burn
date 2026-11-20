@@ -24,6 +24,10 @@ tracing = ["burn-core/tracing", "burn-optim/tracing"]
 sys-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui", "unicode-width"]
 rl = ["burn-rl"]
+# Test-only: run the DDP tests, which need a backend with collectives, on this runtime.
+test-cuda = ["burn-core/cuda"]
+test-metal = ["burn-core/metal"]
+test-vulkan = ["burn-core/vulkan"]
 
 [dependencies]
 burn-core = { workspace = true, features = [

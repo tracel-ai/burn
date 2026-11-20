@@ -88,6 +88,10 @@ This keeps model construction independent of whether the selected strategy is si
 multi-device, or DDP. The learner manages model replicas, data distribution, collective gradient
 synchronization, and the lifetime of the `DistributedContext`.
 
+If a worker panics, training stops on every device and `result.error` holds
+`TrainingError::Workers`, naming the device index of the worker that failed. The returned model is
+the main worker's after its last completed optimizer step.
+
 DDP differs from `ExecutionStrategy::MultiDevice`: DDP gives each device a model replica and uses
 collectives to synchronize gradients, whereas the multi-device strategy coordinates optimization
 through Burn's non-DDP multi-device training path.
