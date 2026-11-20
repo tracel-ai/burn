@@ -550,6 +550,26 @@ impl<F: VMul + VDiv + num_traits::One> LaneOp<F> for PowI {
     }
 }
 
+/// Rounds to the nearest integer, ties to even, and returns it as both f32
+/// and i32. Finite lanes must have magnitude below 2^22. Callers handle NaNs.
+#[inline(always)]
+fn round_for_reduction<S: Simd>(x: Vector<S, f32>) -> (Vector<S, f32>, Vector<S, i32>) {
+    if cfg!(target_family = "wasm") {
+        // Adding 1.5 * 2^23 rounds in a range where adjacent floats are one
+        // apart. This avoids software rounding on the scalar backend and
+        // extra conversions on SIMD128.
+        let bias = 12_582_912.0f32.splat::<S>();
+        let rounded = x + bias;
+        (
+            rounded - bias,
+            rounded.reinterpret::<i32>() - bias.reinterpret::<i32>(),
+        )
+    } else {
+        let n = x.round_to_int_unchecked();
+        (n.to_float(), n)
+    }
+}
+
 /// `e^x` for f32 lanes: Cody-Waite reduction to `|r|` of about `ln(2) / 2` and
 /// the Cephes `expf` polynomial. Within 2 ulp of libm over the whole range,
 /// subnormal results included. Results below the smallest subnormal give 0,
@@ -559,11 +579,7 @@ pub fn exp_f32<S: Simd>(x: Vector<S, f32>) -> Vector<S, f32> {
     // exp(-104) rounds to 0 and exp(89) overflows, so clamping changes no
     // result and bounds `n` for the exponent bits below.
     let xc = x.max((-104.0f32).splat()).min(89.0f32.splat());
-    // The clamp keeps `x * log2(e)` in i32 range, so the rounding needs no
-    // saturation. A NaN lane gets an unspecified `n` and is replaced at the
-    // end.
-    let n = (xc * core::f32::consts::LOG2_E.splat()).round_to_int_unchecked();
-    let nf = n.to_float();
+    let (nf, n) = round_for_reduction(xc * core::f32::consts::LOG2_E.splat());
     // ln(2) split in two; the high part has 9 significant bits, so the first
     // product is exact for the clamped `n`.
     let r = xc - nf * 0.693_359_4f32.splat() - nf * (-2.121_944_4e-4f32).splat();
@@ -1013,10 +1029,7 @@ const TRIG_MAX: f32 = 6433.0;
 /// at most 12 significant bits.
 #[inline(always)]
 fn reduce_half_pi<S: Simd>(a: Vector<S, f32>) -> (Vector<S, f32>, Vector<S, i32>) {
-    // `a` is at most `TRIG_MAX`, so `a * 2/pi` is in i32 range. A NaN lane
-    // gets an unspecified `j`, but its `r` stays NaN.
-    let j = (a * core::f32::consts::FRAC_2_PI.splat()).round_to_int_unchecked();
-    let jf = j.to_float();
+    let (jf, j) = round_for_reduction(a * core::f32::consts::FRAC_2_PI.splat());
     let r = a - jf * f32::from_bits(0x3fc9_0000).splat();
     let r = r - jf * f32::from_bits(0x39fd_a000).splat();
     let r = r - jf * f32::from_bits(0x33a2_2000).splat();
