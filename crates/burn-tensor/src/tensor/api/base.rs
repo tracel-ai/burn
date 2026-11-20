@@ -144,7 +144,8 @@ where
     /// Backends that track buffer ownership (cubecl, fusion) answer
     /// precisely from the handle reference count; others conservatively return
     /// `false` — they may alias the buffer, so an in-place write can't be
-    /// assumed safe. Useful to assert a hot-path op (e.g. a KV-cache
+    /// assumed safe. An unfused CubeCL tensor also answers `false` while its
+    /// stream captures a graph. Useful to assert a hot-path op (e.g. a KV-cache
     /// `slice_assign`) stays in place rather than silently copying.
     pub fn can_mut(&self) -> bool {
         self.primitive.can_mut()
