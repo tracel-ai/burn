@@ -1,3 +1,4 @@
+use crate::{OptimizerRecordState, PrecisionConfigurable};
 use burn_core as burn;
 
 use crate::RecordState;
@@ -93,8 +94,17 @@ impl Optimizer for Adan {
         (tensor_updated, Some(AdanState::new(momentum_state)))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.momentum = state.momentum.to_device(device);
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        Self::map_state(state, |tensor| tensor.to_device(device))
+    }
+}
+
+impl PrecisionConfigurable for Adan {
+    fn map_state<const D: usize>(
+        mut state: Self::State<D>,
+        map: impl Fn(Tensor<D>) -> Tensor<D>,
+    ) -> Self::State<D> {
+        state.momentum = state.momentum.map_tensors(&map);
         state
     }
 }
@@ -134,7 +144,7 @@ impl AdanConfig {
 }
 
 /// Adaptive Nesterov momentum state.
-#[derive(RecordState, Clone, new)]
+#[derive(OptimizerRecordState, Clone, new)]
 pub struct AdaptiveNesterovMomentumState<const D: usize> {
     /// The number of iterations aggregated.
     pub time: usize,
@@ -221,12 +231,11 @@ impl AdaptiveNesterovMomentum {
 }
 
 impl<const D: usize> AdaptiveNesterovMomentumState<D> {
-    #[allow(clippy::wrong_self_convention)]
-    fn to_device(mut self, device: &Device) -> Self {
-        self.exp_avg = self.exp_avg.to_device(device);
-        self.exp_avg_sq = self.exp_avg_sq.to_device(device);
-        self.exp_avg_diff = self.exp_avg_diff.to_device(device);
-        self.neg_pre_grad = self.neg_pre_grad.to_device(device);
+    fn map_tensors(mut self, map: &impl Fn(Tensor<D>) -> Tensor<D>) -> Self {
+        self.exp_avg = map(self.exp_avg);
+        self.exp_avg_sq = map(self.exp_avg_sq);
+        self.exp_avg_diff = map(self.exp_avg_diff);
+        self.neg_pre_grad = map(self.neg_pre_grad);
         self
     }
 }

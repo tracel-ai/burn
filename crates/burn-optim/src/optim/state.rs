@@ -16,10 +16,10 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use burn_core::tensor::{Device, TensorData};
+use burn_core::tensor::{Device, TensorCreationOptions, TensorData};
 use burn_pack::Scalar;
 
-pub use burn_derive::RecordState;
+pub use burn_derive::{OptimizerRecordState, RecordState};
 
 /// Join a `prefix` and a `leaf` into a dot-separated path (`"prefix.leaf"`).
 ///
@@ -69,6 +69,7 @@ impl StateSink {
 /// scalars are looked up by name and left in place.
 #[derive(Default, Debug)]
 pub struct StateSource {
+    preserve_dtype: bool,
     tensors: BTreeMap<String, TensorData>,
     scalars: BTreeMap<String, Scalar>,
 }
@@ -79,6 +80,7 @@ impl StateSource {
         Self {
             tensors: BTreeMap::new(),
             scalars,
+            preserve_dtype: false,
         }
     }
 
@@ -90,6 +92,22 @@ impl StateSource {
     /// Take the tensor named `{prefix}.{leaf}`, if present.
     pub fn take_tensor(&mut self, prefix: &str, leaf: &str) -> Option<TensorData> {
         self.tensors.remove(&join_path(prefix, leaf))
+    }
+
+    pub(crate) fn with_recorded_dtypes<T>(&mut self, load: impl FnOnce(&mut Self) -> T) -> T {
+        let previous = core::mem::replace(&mut self.preserve_dtype, true);
+        let result = load(self);
+        self.preserve_dtype = previous;
+        result
+    }
+
+    /// Select tensor creation options for a precision-aware optimizer record.
+    /// A wrapped optimizer preserves each leaf's dtype. A bare optimizer uses the device default.
+    pub fn tensor_options(&self, data: &TensorData, device: &Device) -> TensorCreationOptions {
+        TensorCreationOptions {
+            device: device.clone(),
+            dtype: self.preserve_dtype.then(|| data.dtype()),
+        }
     }
 
     /// Read the scalar named `{prefix}.{leaf}`, if present.

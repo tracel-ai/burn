@@ -1,3 +1,4 @@
+use crate::{OptimizerRecordState, PrecisionConfigurable};
 use burn_core as burn;
 
 use crate::RecordState;
@@ -66,8 +67,17 @@ impl Optimizer for AdaGrad {
         (tensor - grad, Some(state))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.lr_decay = state.lr_decay.to_device(device);
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        Self::map_state(state, |tensor| tensor.to_device(device))
+    }
+}
+
+impl PrecisionConfigurable for AdaGrad {
+    fn map_state<const D: usize>(
+        mut state: Self::State<D>,
+        map: impl Fn(Tensor<D>) -> Tensor<D>,
+    ) -> Self::State<D> {
+        state.lr_decay = state.lr_decay.map_tensors(&map);
         state
     }
 }
@@ -104,7 +114,7 @@ impl AdaGradConfig {
 }
 
 /// Learning rate decay state (also includes sum state).
-#[derive(RecordState, new, Clone)]
+#[derive(OptimizerRecordState, new, Clone)]
 pub struct LrDecayState<const D: usize> {
     time: usize,
     sum: Tensor<D>,
@@ -151,8 +161,12 @@ impl<const D: usize> LrDecayState<D> {
     /// # Returns
     ///
     /// Returns state moved to device.
-    pub fn to_device(mut self, device: &Device) -> Self {
-        self.sum = self.sum.to_device(device);
+    pub fn to_device(self, device: &Device) -> Self {
+        self.map_tensors(&|tensor| tensor.to_device(device))
+    }
+
+    fn map_tensors(mut self, map: &impl Fn(Tensor<D>) -> Tensor<D>) -> Self {
+        self.sum = map(self.sum);
         self
     }
 }

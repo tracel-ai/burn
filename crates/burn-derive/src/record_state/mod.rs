@@ -89,14 +89,35 @@ fn classify(ty: &Type) -> Result<FieldKind, syn::Error> {
     })
 }
 
-pub(crate) fn derive_impl(ast: &DeriveInput) -> proc_macro::TokenStream {
-    match try_derive_impl(ast) {
+pub(crate) enum TensorRestore {
+    DeviceDefault,
+    OptimizerPrecision,
+}
+
+impl TensorRestore {
+    fn load_tensor(&self, ty: &Type, data: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+        match self {
+            Self::DeviceDefault => quote! { <#ty>::from_data(#data, device) },
+            Self::OptimizerPrecision => quote! {{
+                let data = #data;
+                let options = src.tensor_options(&data, device);
+                <#ty>::from_data(data, options)
+            }},
+        }
+    }
+}
+
+pub(crate) fn derive_impl(ast: &DeriveInput, restore: TensorRestore) -> proc_macro::TokenStream {
+    match try_derive_impl(ast, restore) {
         Ok(tokens) => tokens,
         Err(err) => err.to_compile_error().into(),
     }
 }
 
-fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Error> {
+fn try_derive_impl(
+    ast: &DeriveInput,
+    restore: TensorRestore,
+) -> Result<proc_macro::TokenStream, syn::Error> {
     let name = &ast.ident;
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
@@ -133,8 +154,9 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                 flatten.push(quote! {
                     out.push_tensor(prefix, #leaf, self.#ident.clone().into_data());
                 });
+                let tensor = restore.load_tensor(ty, quote! { src.take_tensor(prefix, #leaf)? });
                 unflatten.push(quote! {
-                    let #ident = <#ty>::from_data(src.take_tensor(prefix, #leaf)?, device);
+                    let #ident = #tensor;
                 });
             }
             FieldKind::OptionTensor(inner) => {
@@ -143,10 +165,11 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                         out.push_tensor(prefix, #leaf, value.clone().into_data());
                     }
                 });
+                let tensor = restore.load_tensor(&inner, quote! { data });
                 unflatten.push(quote! {
                     let #ident = src
                         .take_tensor(prefix, #leaf)
-                        .map(|data| <#inner>::from_data(data, device));
+                        .map(|data| #tensor);
                 });
             }
             FieldKind::VecTensor(inner) => {
@@ -161,6 +184,8 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                         out.push_tensor(prefix, &__leaf, __value.clone().into_data());
                     }
                 });
+                let tensor =
+                    restore.load_tensor(&inner, quote! { src.take_tensor(prefix, &__leaf)? });
                 unflatten.push(quote! {
                     let #ident = {
                         let __len = <usize as ::core::convert::TryFrom<burn_pack::Scalar>>::try_from(
@@ -170,10 +195,7 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                         let mut __items = ::alloc::vec::Vec::with_capacity(__len);
                         for __index in 0..__len {
                             let __leaf = crate::join_index(#leaf, __index);
-                            __items.push(<#inner>::from_data(
-                                src.take_tensor(prefix, &__leaf)?,
-                                device,
-                            ));
+                            __items.push(#tensor);
                         }
                         __items
                     };

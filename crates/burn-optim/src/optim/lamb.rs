@@ -1,6 +1,7 @@
+use crate::PrecisionConfigurable;
 use burn_core as burn;
 
-use crate::{LearningRate, RecordState, grad_clipping::GradientClippingConfig};
+use crate::{LearningRate, OptimizerRecordState, grad_clipping::GradientClippingConfig};
 use burn::{
     config::Config,
     tensor::{Device, FloatDType, Tensor},
@@ -52,7 +53,7 @@ pub struct Lamb {
 }
 
 /// LAMB state for a single parameter tensor.
-#[derive(RecordState, Clone)]
+#[derive(OptimizerRecordState, Clone)]
 pub struct LambState<const D: usize> {
     /// The number of optimization steps applied to the parameter.
     pub time: usize,
@@ -135,9 +136,18 @@ impl Optimizer for Lamb {
         (tensor, Some(state))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.moment_1 = state.moment_1.to_device(device);
-        state.moment_2 = state.moment_2.to_device(device);
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        Self::map_state(state, |tensor| tensor.to_device(device))
+    }
+}
+
+impl PrecisionConfigurable for Lamb {
+    fn map_state<const D: usize>(
+        mut state: Self::State<D>,
+        map: impl Fn(Tensor<D>) -> Tensor<D>,
+    ) -> Self::State<D> {
+        state.moment_1 = map(state.moment_1);
+        state.moment_2 = map(state.moment_2);
         state
     }
 }

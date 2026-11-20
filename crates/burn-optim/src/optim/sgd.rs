@@ -1,3 +1,4 @@
+use crate::PrecisionConfigurable;
 use burn_core as burn;
 
 use super::Optimizer;
@@ -94,8 +95,17 @@ impl Optimizer for Sgd {
         (tensor - delta, Some(state))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.momentum = state.momentum.map(|state| state.to_device(device));
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        Self::map_state(state, |tensor| tensor.to_device(device))
+    }
+}
+
+impl PrecisionConfigurable for Sgd {
+    fn map_state<const D: usize>(
+        mut state: Self::State<D>,
+        map: impl Fn(Tensor<D>) -> Tensor<D>,
+    ) -> Self::State<D> {
+        state.momentum = state.momentum.map(|state| state.map_tensors(&map));
         state
     }
 }

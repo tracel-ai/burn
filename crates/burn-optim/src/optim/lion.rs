@@ -1,6 +1,7 @@
+use crate::PrecisionConfigurable;
 use burn_core as burn;
 
-use crate::{LearningRate, RecordState, grad_clipping::GradientClippingConfig};
+use crate::{LearningRate, OptimizerRecordState, grad_clipping::GradientClippingConfig};
 use burn::config::Config;
 use burn::tensor::{Device, Tensor};
 
@@ -40,7 +41,7 @@ pub struct Lion {
 }
 
 /// State of the [`Lion`] optimizer.
-#[derive(RecordState, Clone, new)]
+#[derive(OptimizerRecordState, Clone, new)]
 pub struct LionState<const D: usize> {
     /// Exponential moving average of the gradients.
     pub momentum: Tensor<D>,
@@ -115,8 +116,17 @@ impl Optimizer for Lion {
         (tensor, Some(LionState::new(momentum)))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.momentum = state.momentum.to_device(device);
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        Self::map_state(state, |tensor| tensor.to_device(device))
+    }
+}
+
+impl PrecisionConfigurable for Lion {
+    fn map_state<const D: usize>(
+        mut state: Self::State<D>,
+        map: impl Fn(Tensor<D>) -> Tensor<D>,
+    ) -> Self::State<D> {
+        state.momentum = map(state.momentum);
         state
     }
 }

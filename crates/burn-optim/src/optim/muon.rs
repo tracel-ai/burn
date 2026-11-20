@@ -1,3 +1,4 @@
+use crate::PrecisionConfigurable;
 use burn_core as burn;
 
 use crate::RecordState;
@@ -420,8 +421,17 @@ impl Optimizer for Muon {
         (tensor - delta, Some(new_state))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.momentum = state.momentum.to_device(device);
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        Self::map_state(state, |tensor| tensor.to_device(device))
+    }
+}
+
+impl PrecisionConfigurable for Muon {
+    fn map_state<const D: usize>(
+        mut state: Self::State<D>,
+        map: impl Fn(Tensor<D>) -> Tensor<D>,
+    ) -> Self::State<D> {
+        state.momentum = state.momentum.map_tensors(&map);
         state
     }
 }

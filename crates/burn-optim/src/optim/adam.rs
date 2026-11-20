@@ -1,3 +1,4 @@
+use crate::{OptimizerRecordState, PrecisionConfigurable};
 use burn_core as burn;
 
 use crate::RecordState;
@@ -84,8 +85,17 @@ impl Optimizer for Adam {
         (tensor - delta, Some(state))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.momentum = state.momentum.to_device(device);
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        Self::map_state(state, |tensor| tensor.to_device(device))
+    }
+}
+
+impl PrecisionConfigurable for Adam {
+    fn map_state<const D: usize>(
+        mut state: Self::State<D>,
+        map: impl Fn(Tensor<D>) -> Tensor<D>,
+    ) -> Self::State<D> {
+        state.momentum = state.momentum.map_tensors(&map);
         state
     }
 }
@@ -124,7 +134,7 @@ impl AdamConfig {
 }
 
 /// Adaptive momentum state.
-#[derive(RecordState, new, Clone)]
+#[derive(OptimizerRecordState, new, Clone)]
 pub struct AdaptiveMomentumState<const D: usize> {
     /// The number of iterations aggregated.
     pub time: usize,
@@ -221,10 +231,14 @@ impl<const D: usize> AdaptiveMomentumState<D> {
     /// # Returns
     ///
     /// Returns state moved to device.
-    pub fn to_device(mut self, device: &Device) -> Self {
-        self.moment_1 = self.moment_1.to_device(device);
-        self.moment_2 = self.moment_2.to_device(device);
-        self.max_moment_2 = self.max_moment_2.map(|tensor| tensor.to_device(device));
+    pub fn to_device(self, device: &Device) -> Self {
+        self.map_tensors(&|tensor| tensor.to_device(device))
+    }
+
+    pub(super) fn map_tensors(mut self, map: &impl Fn(Tensor<D>) -> Tensor<D>) -> Self {
+        self.moment_1 = map(self.moment_1);
+        self.moment_2 = map(self.moment_2);
+        self.max_moment_2 = self.max_moment_2.map(map);
         self
     }
 }

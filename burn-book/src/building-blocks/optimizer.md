@@ -138,6 +138,48 @@ optimizer type.
 Learning-rate schedulers support the same grouping model, so optimizer choice and learning-rate
 policy can be assigned independently. See [Learner](./learner.md#parameter-groups).
 
+## Optimizer Precision
+
+For an F16 model with small gradients, Adam's second moment and an epsilon of `1e-8` can both
+round to zero in F16. To evaluate the update in F32, wrap the per-parameter optimizer returned
+by `build()`. The same policy works with AdamW and the other built-in per-parameter optimizers.
+
+```rust, ignore
+use burn::optim::{AdamWConfig, ModuleOptimizer, OptimizerPrecision, OptimizerStateStorage};
+use burn::tensor::FloatDType;
+
+let precision = OptimizerPrecision {
+    compute: FloatDType::F32,
+    master_weights: true,
+    state: OptimizerStateStorage::Float(FloatDType::BF16),
+};
+let adamw = AdamWConfig::new().with_epsilon(1e-8).build();
+let mut optimizer = ModuleOptimizer::from(precision.wrap(adamw));
+```
+
+Each update casts the parameter and gradient to `compute`. With `master_weights: true`, a parameter
+whose model dtype differs from `compute` keeps the unrounded result on device for the next step.
+The model always receives the update cast back to its own dtype. Set `master_weights: false` to
+avoid allocating that extra tensor. Each step then starts from the value visible to the model,
+so updates below its rounding threshold can disappear.
+
+`state` controls the floating-point statistics held between steps, including optional AMSGrad
+maxima. The optimizer converts them to `compute` before the equation and back to `state` after
+the update. Lower-precision storage rounds the values that subsequent steps will use. Step
+counters retain their integer types. Choose dtypes supported by the training device.
+
+Pass `precision.wrap(config.build())` to `with_group` to select precision for just that group.
+As with any bare optimizer, supply clipping via `with_grad_clipping` on the module optimizer or
+the clipping argument to `with_group`. Clipping runs before conversion in the incoming gradient's
+dtype. Norm clipping accumulates in F32 for F16 and BF16 gradients and casts its result back.
+For `step_multi`, gradient accumulation across devices also precedes the precision policy.
+
+Resume with the saved model and the same group definitions and precision settings. The optimizer
+checkpoint stores the master and statistics in their actual dtypes. The default load device must
+support those dtypes. On the next update the group moves them to the update device, starts from
+the restored master if enabled, and decodes the saved statistics. When resuming an ordinary
+checkpoint with a precision policy, the model supplies the initial master.
+
 ## Optimizer State and Records
 
 State belongs to the optimizer and is stored per parameter. Adam, for example, records first- and
@@ -206,3 +248,14 @@ pub struct MomentumState<const D: usize> {
 
 The `step` method receives the previous state, if any, and returns the updated tensor and optional
 new state. `to_device` moves every tensor held by the state to the requested device.
+
+To opt a custom optimizer into `OptimizerPrecision`, derive `OptimizerRecordState` on each
+state struct that owns tensor fields, including nested structs. This uses the ordinary record
+format and lets the wrapper restore tensors directly in their saved dtype. A bare optimizer
+continues to load those tensors in the device default dtype.
+
+Implement `PrecisionConfigurable` on the optimizer. Its
+`map_state` applies the supplied conversion to the statistics tensors and preserves scalar
+bookkeeping. The wrapper calls `step_in_dtype` with the prepared operands. Its default calls
+`Optimizer::step`. Override it if the ordinary step selects a compute dtype internally, as Adafactor
+does for half-precision parameters.

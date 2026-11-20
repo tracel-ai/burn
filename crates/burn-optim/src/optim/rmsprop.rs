@@ -1,3 +1,4 @@
+use crate::{OptimizerRecordState, PrecisionConfigurable};
 use burn_core as burn;
 
 use crate::RecordState;
@@ -136,10 +137,19 @@ impl Optimizer for RmsProp {
         (tensor - delta, Some(state))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.square_avg = state.square_avg.to_device(device);
-        state.centered = state.centered.to_device(device);
-        state.momentum = state.momentum.map(|momentum| momentum.to_device(device));
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        Self::map_state(state, |tensor| tensor.to_device(device))
+    }
+}
+
+impl PrecisionConfigurable for RmsProp {
+    fn map_state<const D: usize>(
+        mut state: Self::State<D>,
+        map: impl Fn(Tensor<D>) -> Tensor<D>,
+    ) -> Self::State<D> {
+        state.square_avg = state.square_avg.map_tensors(&map);
+        state.centered = state.centered.map_tensors(&map);
+        state.momentum = state.momentum.map(|momentum| momentum.map_tensors(&map));
         state
     }
 }
@@ -156,7 +166,7 @@ pub struct RmsPropState<const D: usize> {
 }
 
 /// Exponential moving average of squared gradients used by [`RmsProp`].
-#[derive(RecordState, Clone, new)]
+#[derive(OptimizerRecordState, Clone, new)]
 pub struct SquareAvgState<const D: usize> {
     /// Current exponential moving average of squared gradients.
     pub square_avg: Tensor<D>,
@@ -189,14 +199,18 @@ impl<const D: usize> SquareAvgState<D> {
     /// # Returns
     ///
     /// * `self` - Moved state.
-    pub fn to_device(mut self, device: &Device) -> Self {
-        self.square_avg = self.square_avg.to_device(device);
+    pub fn to_device(self, device: &Device) -> Self {
+        self.map_tensors(&|tensor| tensor.to_device(device))
+    }
+
+    fn map_tensors(mut self, map: &impl Fn(Tensor<D>) -> Tensor<D>) -> Self {
+        self.square_avg = map(self.square_avg);
         self
     }
 }
 
 /// Gradient normalization statistics used by [`RmsProp`].
-#[derive(RecordState, Clone, new)]
+#[derive(OptimizerRecordState, Clone, new)]
 pub struct CenteredState<const D: usize> {
     /// Exponential moving average of gradients when centered RMSProp is enabled.
     pub grad_avg: Option<Tensor<D>>,
@@ -257,9 +271,13 @@ impl<const D: usize> CenteredState<D> {
     /// # Returns
     ///
     /// * `self` - Moved state.
-    pub fn to_device(mut self, device: &Device) -> Self {
-        self.grad_avg = self.grad_avg.map(|grad_avg| grad_avg.to_device(device));
-        self.avg = self.avg.to_device(device);
+    pub fn to_device(self, device: &Device) -> Self {
+        self.map_tensors(&|tensor| tensor.to_device(device))
+    }
+
+    fn map_tensors(mut self, map: &impl Fn(Tensor<D>) -> Tensor<D>) -> Self {
+        self.grad_avg = self.grad_avg.map(map);
+        self.avg = map(self.avg);
         self
     }
 }
@@ -300,7 +318,7 @@ impl RmsPropMomentum {
 }
 
 /// Running momentum buffer used by [`RmsProp`].
-#[derive(RecordState, Clone, new)]
+#[derive(OptimizerRecordState, Clone, new)]
 pub struct RmsPropMomentumState<const D: usize> {
     buf: Tensor<D>,
 }
@@ -315,8 +333,12 @@ impl<const D: usize> RmsPropMomentumState<D> {
     /// # Returns
     ///
     /// * `self` - Moved state.
-    pub fn to_device(mut self, device: &Device) -> Self {
-        self.buf = self.buf.to_device(device);
+    pub fn to_device(self, device: &Device) -> Self {
+        self.map_tensors(&|tensor| tensor.to_device(device))
+    }
+
+    fn map_tensors(mut self, map: &impl Fn(Tensor<D>) -> Tensor<D>) -> Self {
+        self.buf = map(self.buf);
         self
     }
 }
