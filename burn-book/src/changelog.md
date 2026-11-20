@@ -1174,6 +1174,11 @@ Complex inverse FFT (`ifft`) is also available.
   ([#6219](https://github.com/tracel-ai/burn/pull/6219))
   [@Mikyx-1](https://github.com/Mikyx-1)
 
+##### Morphology
+
+- Prevent CPU morphology from reading or writing past row buffers when processing 64-bit tensors
+  with scalar dispatch. ([#6411](https://github.com/tracel-ai/burn/issues/6411))
+
 ##### Non-maximum suppression
 
 - Fix CPU non-maximum-suppression results.
