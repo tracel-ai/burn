@@ -170,6 +170,10 @@ fn ops_along_a_dim_match_one_device_for_every_sharding() {
             check_unary!(num_members, &input, [dim: usize] |B, a| B::float_cumsum(a, dim));
             check_unary!(num_members, &input, [dim: usize] |B, a| B::float_topk(a, dim, 2));
             check_unary!(num_members, &input, [dim: usize] |B, a| B::float_repeat_dim(a, dim, 2));
+            check_unary!(num_members, &input, [dim: usize] |B, a| {
+                let indices = B::int_from_data(TensorData::from([2i64, 0, 2]), &B::float_device(&a));
+                B::float_select(a, dim, indices)
+            });
         }
     }
 }
@@ -249,6 +253,11 @@ fn split_tensors_stay_split_where_megatron_keeps_them() {
     assert_eq!(sharding_of(&Shard::float_exp(x.clone())), Split { dim: 1 });
     assert_eq!(
         sharding_of(&Shard::float_repeat_dim(x.clone(), 0, 3)),
+        Split { dim: 1 }
+    );
+    let rows = Shard::int_from_data(TensorData::from([3i64, 0]), &device);
+    assert_eq!(
+        sharding_of(&Shard::float_select(x.clone(), 0, rows)),
         Split { dim: 1 }
     );
     assert_eq!(sharding_of(&Shard::softmax(x, 0)), Split { dim: 1 });
