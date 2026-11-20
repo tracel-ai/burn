@@ -52,9 +52,6 @@ conflicts with it (E0119); delete the handwritten one.
 - `select` along a dim its input is not split on keeps the split on a sharded compute device,
   instead of gathering the input. A quantized input still gathers.
 
-- **Breaking (experimental):** `OpKind` has a new `Select { dim }` variant: an exhaustive match
-  on `OpKind` needs an arm for it.
-
 #### Compilation and autotuning
 
 - Include the preceding `CompileOnly` pass's statistics in the following
