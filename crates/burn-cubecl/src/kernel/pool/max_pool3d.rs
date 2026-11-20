@@ -98,7 +98,11 @@ fn max_pool3d_forward_kernel<F: Float, I: Int>(
                                         let val = input[in_idx];
                                         let flat_idx =
                                             id * (in_h_len * in_w_len) + ih * in_w_len + iw;
-                                        if first_valid || val > max_val {
+                                        let max_is_nan = max_val != max_val;
+                                        let val_is_nan = val != val;
+                                        if first_valid
+                                            || (!max_is_nan && (val_is_nan || val > max_val))
+                                        {
                                             max_val = val;
                                             max_idx = flat_idx;
                                             first_valid = false;
