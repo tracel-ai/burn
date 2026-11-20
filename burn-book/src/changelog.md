@@ -321,6 +321,8 @@ Reports also include the measured cost of a kernel launch.
 
 - A capture no longer falls back to re-running its closure when an op wrote in place in one run
   and not the next: CubeCL writes nothing in place while a capture plans or records.
+  ([#6579](https://github.com/tracel-ai/burn/pull/6579))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Matrix multiplication
 
