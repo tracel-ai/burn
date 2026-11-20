@@ -306,6 +306,18 @@ Burn, optimizers are essentially just sophisticated module mappers. Visitors, on
 used when you don't intend to modify the module but need to retrieve specific information from it,
 such as the number of parameters or a list of devices in use.
 
+If the module uses autodiff, keep inspection operations on the inner backend. Calling tensor
+operations such as reductions on `param.val()` directly can record autodiff steps that will never be
+backpropagated. Remove the autodiff association before reading the value:
+
+```rust, ignore
+let max_abs: f32 = param.val().without_autodiff().abs().max().into_scalar();
+```
+
+This drops the tensor's graph reference and prevents the inspection operation from extending the
+autodiff graph. Use `detach()` only when the inspected result must remain in an autodiff lineage;
+`detach()` does not disable graph recording.
+
 You can implement your own mapper or visitor using the following tensor hooks. They receive `Param`
 values, which provide access to both the parameter ID and its tensor:
 
