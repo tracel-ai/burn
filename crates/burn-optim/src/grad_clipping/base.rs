@@ -11,7 +11,10 @@ pub enum GradientClippingConfig {
     /// Clip the gradient by value.
     Value(f32),
 
-    /// Clip the gradient by norm.
+    /// Clip each parameter's gradient by its own L2 norm.
+    ///
+    /// To clip the combined norm of all gradients, as PyTorch's `clip_grad_norm_` does, use
+    /// [`GradientsParams::clip_norm`](crate::GradientsParams::clip_norm) before stepping.
     Norm(f32),
 }
 

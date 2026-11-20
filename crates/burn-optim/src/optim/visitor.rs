@@ -2,7 +2,7 @@ use burn_core as burn;
 
 use super::GradientsParams;
 use burn::module::{Module, ModuleVisitor, Param, ParamId};
-use burn::tensor::{Device, Gradients, Tensor};
+use burn::tensor::{Device, FloatDType, Gradients, Tensor};
 use core::marker::PhantomData;
 
 #[cfg(not(feature = "std"))]
@@ -14,6 +14,22 @@ pub struct GradientsParamsConverter<'a, M: Module> {
     grads_params: &'a mut GradientsParams,
     phatom: PhantomData<M>,
     filter: Option<Vec<ParamId>>,
+}
+
+/// Collects the squared L2 norm of every gradient registered for a module's parameters.
+#[derive(new)]
+pub struct GradientsParamsSquaredNorms<'a, M: Module> {
+    grads: &'a GradientsParams,
+    squares: &'a mut Vec<Tensor<1>>,
+    phatom: PhantomData<M>,
+}
+
+/// Multiplies every gradient registered for a module's parameters by a scalar tensor.
+#[derive(new)]
+pub struct GradientsParamsScale<'a, M: Module> {
+    grads: &'a mut GradientsParams,
+    scale: &'a Tensor<1>,
+    phatom: PhantomData<M>,
 }
 
 #[derive(new)]
@@ -44,6 +60,38 @@ where
         };
 
         self.grads_params.register(param.id, grad);
+    }
+}
+
+impl<M> ModuleVisitor for GradientsParamsSquaredNorms<'_, M>
+where
+    M: Module,
+{
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
+        let Some(grad) = self.grads.get::<D>(param.id) else {
+            return;
+        };
+        // In F16 the sum of squares overflows quickly, so accumulate in F32 as `clip_by_norm` does.
+        let grad = grad.cast(FloatDType::F32);
+        self.squares.push(grad.square().sum());
+    }
+}
+
+impl<M> ModuleVisitor for GradientsParamsScale<'_, M>
+where
+    M: Module,
+{
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
+        let Some(grad) = self.grads.remove::<D>(param.id) else {
+            return;
+        };
+        let dtype = grad.dtype();
+        let scale = self.scale.clone().to_device(&grad.device());
+        let scaled = grad
+            .cast(FloatDType::F32)
+            .mul(scale.unsqueeze())
+            .cast(dtype);
+        self.grads.register::<D>(param.id, scaled);
     }
 }
 
