@@ -1019,6 +1019,7 @@ dependencies = [
  "divan",
  "num-traits",
  "rand 0.10.3",
+ "rayon",
  "serial_test",
 ]
 
