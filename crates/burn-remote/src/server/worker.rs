@@ -41,7 +41,7 @@ use burn_backend::PeakError;
 use burn_backend::tensor::FloatTensor;
 use burn_ir::{BackendIr, GraphBindings, GraphId, HandleKind, TensorError, TensorId, TensorIr};
 use burn_router::{Graph, TensorInterpreter};
-use burn_std::{DType, ExecutionError, id::StreamId};
+use burn_std::{DType, ExecutionError, future::DynFut, id::StreamId};
 use serde_bytes::ByteBuf;
 #[cfg(not(target_family = "wasm"))]
 use std::{
@@ -53,12 +53,12 @@ use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
 use crate::server::DeviceQueries;
-use crate::server::ServerStreams;
 use crate::server::link_probe::LinkPuller;
 use crate::server::local_comm::LocalCommService;
 use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
 use crate::server::transfer::TensorTransfer;
 use crate::server::{DeviceCaptureLock, SessionCaptures, SessionExecutionModes};
+use crate::server::{ServerStreams, StreamFuture};
 use crate::shared::{
     LocalAllReducePart, RequestId, SessionId, Task, TaskResponse, TaskResponseContent,
 };
@@ -98,6 +98,8 @@ where
     streams: ServerStreams,
     response_sender: mpsc::Sender<TaskResponse>,
     response_tasks: ResponseTasks,
+    /// The reads still copying to the host, which a capture waits for.
+    read_tasks: ResponseTasks,
     transfer: Arc<T>,
     local_comm: Arc<LocalCommService<B>>,
     /// Cache of client-registered reusable op-graphs, keyed by id (see
@@ -141,6 +143,7 @@ where
             streams: ServerStreams::default(),
             response_sender,
             response_tasks: ResponseTasks::default(),
+            read_tasks: ResponseTasks::default(),
             transfer,
             local_comm,
             graphs: Mutex::new(HashMap::new()),
@@ -188,6 +191,7 @@ where
     #[cfg(not(target_family = "wasm"))]
     fn abort_responses_after_panic(&mut self, payload: Box<dyn Any + Send>) {
         self.response_tasks.abort_all();
+        self.read_tasks.abort_all();
         let reason = payload
             .downcast_ref::<&str>()
             .copied()
@@ -268,9 +272,8 @@ where
     /// Sync work runs [on the server stream](Self::on_stream) of the client stream the task names,
     /// so work the client ordered on one stream stays ordered on one stream here.
     /// Response-producing tasks carry their own [`RequestId`] for routing the response back to the
-    /// right pending callback on the client. Async work (data-service transfers,
-    /// `read_tensor_async`) runs without a stream context — the relevant stream id is captured into
-    /// the future at construction time via `executes`.
+    /// right pending callback on the client. A read's future is polled on its server stream too
+    /// (see [`read_on_stream`](Self::read_on_stream)), wherever it is awaited.
     async fn process_task(&mut self, task: Task) -> Result<(), String> {
         match task {
             Task::RegisterOperation(stream_id, op) => {
@@ -438,11 +441,17 @@ where
                 target,
             } => {
                 log::trace!("Exposing tensor (transfer {capability:?})");
-                // The sync part of `read_tensor_async` runs in order to preserve stream ordering, but the readback + expose are detached so a
-                // cross-server hand-off doesn't stall this session's op registration on a
-                // GPU→host copy. A target that downloads before the expose lands simply blocks on
-                // the data service's `new_tensor_notify`, so there is no race.
-                let fut = self.on_stream(stream_id, |runner| runner.read_tensor_async(tensor));
+                // The readback and the expose are detached so a cross-server hand-off doesn't
+                // stall this session's op registration on a GPU→host copy. A target that
+                // downloads before the expose lands simply blocks on the data service's
+                // `new_tensor_notify`, so there is no race.
+                let read =
+                    self.read_on_stream(stream_id, |runner| runner.read_tensor_async(tensor));
+                // A session task, so that a capture opening on the stream waits for the read.
+                let (read_done, read_back) = tokio::sync::oneshot::channel();
+                self.read_tasks.spawn(async move {
+                    let _ = read_done.send(read.await);
+                });
                 let transfer = self.transfer.clone();
                 let probe = self.probe.clone();
                 let session_id = self.session_id;
@@ -454,7 +463,12 @@ where
                     phase: TransferPhase::Started,
                 });
                 spawn_detached(async move {
-                    match fut.await {
+                    let read = read_back.await.unwrap_or_else(|_| {
+                        Err(ExecutionError::generic(
+                            "the session ended before the tensor was read",
+                        ))
+                    });
+                    match read {
                         Ok(data) => {
                             transfer.expose_data(data, count, capability, target).await;
                             probe.emit(|| TelemetryEvent::Transfer {
@@ -531,6 +545,8 @@ where
                 Ok(())
             }
             Task::CapturePrepare(request_id, stream_id) => {
+                // A read still copying on the stream would be recorded with the capture.
+                self.read_tasks.settle().await;
                 let stream = self.streams.of(stream_id);
                 let res = self.captures.prepare(&self.runner, stream);
                 self.send_response(request_id, TaskResponseContent::Capture(res))
@@ -549,6 +565,7 @@ where
                     .await
             }
             Task::CaptureStart(request_id, stream_id) => {
+                self.read_tasks.settle().await;
                 let stream = self.streams.of(stream_id);
                 let res = self.captures.start(&self.runner, stream);
                 self.send_response(request_id, TaskResponseContent::Capture(res))
@@ -751,6 +768,23 @@ where
         stream.executes(|| f(&mut self.runner))
     }
 
+    /// [`on_stream`](Self::on_stream) for a read, which is polled on the same server stream now
+    /// and wherever it is awaited. A panic is the read's error.
+    fn read_on_stream<Data: Send + Unpin + 'static>(
+        &mut self,
+        stream: StreamId,
+        f: impl FnOnce(&mut TensorInterpreter<B>) -> DynFut<Result<Data, ExecutionError>>,
+    ) -> impl Future<Output = Result<Data, ExecutionError>> + Send + 'static {
+        let stream = self.streams.of(stream);
+        let read = stream.executes(|| f(&mut self.runner));
+        let started = StreamFuture::start(stream, CatchPanic::new(read));
+        async move {
+            started
+                .await
+                .unwrap_or_else(|message| Err(server_panicked(&message)))
+        }
+    }
+
     /// Take `tensors` on the client's `stream`, in stream order, and answer `request_id` with
     /// their data once the host readback completes, without the worker waiting on it.
     ///
@@ -762,7 +796,7 @@ where
             session: self.session_id,
             request: request_id,
         });
-        let read = self.on_stream(stream, |runner| runner.read_tensors_async(&tensors));
+        let read = self.read_on_stream(stream, |runner| runner.read_tensors_async(&tensors));
         let failure = self.take_replay_failure(stream);
         let answer = async move {
             let data = read.await;
@@ -771,7 +805,8 @@ where
                 None => data,
             }
         };
-        self.answer_when_ready(request_id, answer, TaskResponseContent::ReadTensors);
+        let answer = self.answer(request_id, answer, TaskResponseContent::ReadTensors);
+        self.read_tasks.spawn(answer);
     }
 
     /// The replay on the client's `stream` that failed since its last read or sync.
@@ -780,21 +815,30 @@ where
         self.captures.take_replay_failure(stream)
     }
 
-    /// Sends the answer once `ready` resolves, without holding up the ops after it. A panic is
-    /// answered as an error, so the client is never left waiting.
+    /// [`answer`](Self::answer) without holding up the ops after it.
     fn answer_when_ready<Value: Send + 'static>(
         &mut self,
         request_id: RequestId,
         ready: impl Future<Output = Result<Value, ExecutionError>> + Send + 'static,
         into_content: fn(Result<Value, ExecutionError>) -> TaskResponseContent,
     ) {
+        let answer = self.answer(request_id, ready, into_content);
+        self.response_tasks.spawn(answer);
+    }
+
+    /// Sends the answer once `ready` resolves. A panic is answered as an error, so the client is
+    /// never left waiting.
+    fn answer<Value: Send + 'static>(
+        &self,
+        request_id: RequestId,
+        ready: impl Future<Output = Result<Value, ExecutionError>> + Send + 'static,
+        into_content: fn(Result<Value, ExecutionError>) -> TaskResponseContent,
+    ) -> impl Future<Output = ()> + Send + 'static {
         let sender = self.response_sender.clone();
-        self.response_tasks.spawn(async move {
-            let answer = CatchPanic::new(ready).await.unwrap_or_else(|message| {
-                Err(ExecutionError::generic(format!(
-                    "The server panicked: {message}"
-                )))
-            });
+        async move {
+            let answer = CatchPanic::new(ready)
+                .await
+                .unwrap_or_else(|message| Err(server_panicked(&message)));
             let response = TaskResponse {
                 content: into_content(answer),
                 id: request_id,
@@ -802,7 +846,7 @@ where
             if sender.send(response).await.is_err() {
                 log::warn!("Response receiver dropped before answering request {request_id}");
             }
-        });
+        }
     }
 
     async fn send_response(
@@ -860,6 +904,10 @@ where
             TelemetryEvent::graph_executed(self.session_id, graph, stream, serialized_len(bindings))
         });
     }
+}
+
+fn server_panicked(message: &str) -> ExecutionError {
+    ExecutionError::generic(format!("The server panicked: {message}"))
 }
 
 #[cfg(all(test, not(target_family = "wasm")))]
@@ -1256,6 +1304,7 @@ mod tests {
                 streams: ServerStreams::default(),
                 response_sender,
                 response_tasks: ResponseTasks::default(),
+                read_tasks: ResponseTasks::default(),
                 transfer: Arc::new(NoTransfer),
                 local_comm: Arc::new(LocalCommService::<Flex>::new(1)),
                 graphs: Mutex::new(HashMap::new()),

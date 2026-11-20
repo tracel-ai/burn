@@ -15,6 +15,7 @@ mod execution;
 mod link_probe;
 mod logging;
 mod settings;
+mod stream_future;
 mod streams;
 #[cfg(not(target_family = "wasm"))]
 mod transport;
@@ -32,6 +33,7 @@ pub use logging::ServerLogging;
 #[doc(hidden)]
 pub use settings::ServerSettings;
 pub(crate) use settings::SessionSetup;
+pub(crate) use stream_future::StreamFuture;
 pub(crate) use streams::ServerStreams;
 #[cfg(not(target_family = "wasm"))]
 pub use transport::Transport;
