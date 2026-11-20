@@ -850,7 +850,7 @@ for configuration and backend limitations.
 - Fix `interpolate` on CubeCL backends returning zeros or stale values, without an error, when
   autotune picked the staged kernel for an input larger than the device's shared memory, such as a
   batch of 10 `[4, 8, 24]` images on Metal: each cube now stages only the window it reads.
-  ([#PR](https://github.com/tracel-ai/burn/pull/PR)) [@kongxinjun](https://github.com/kongxinjun)
+  ([#6566](https://github.com/tracel-ai/burn/pull/6566)) [@kongxinjun](https://github.com/kongxinjun)
 
 #### Lazy parameters
 
