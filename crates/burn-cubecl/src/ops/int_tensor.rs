@@ -33,8 +33,10 @@ impl IntTensorOps<Self> for CubeBackend {
         super::empty(shape, device, dtype)
     }
 
-    async fn int_into_data(tensor: IntTensor<Self>) -> Result<TensorData, ExecutionError> {
-        super::into_data(tensor).await
+    fn int_into_data(
+        tensor: IntTensor<Self>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+        super::into_data(tensor)
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {

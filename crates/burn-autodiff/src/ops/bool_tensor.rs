@@ -13,8 +13,10 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_from_data(data, device)
     }
 
-    async fn bool_into_data(tensor: BoolTensor<B>) -> Result<TensorData, ExecutionError> {
-        B::bool_into_data(tensor).await
+    fn bool_into_data(
+        tensor: BoolTensor<B>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+        B::bool_into_data(tensor)
     }
 
     fn bool_into_int(tensor: BoolTensor<B>, out_dtype: IntDType) -> IntTensor<B> {

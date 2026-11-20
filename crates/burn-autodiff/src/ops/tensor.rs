@@ -144,8 +144,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             dtype = ?tensor.dtype(),
         )
     ))]
-    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
-        B::float_into_data(tensor.primitive).await
+    fn float_into_data(
+        tensor: FloatTensor<Self>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+        B::float_into_data(tensor.primitive)
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(

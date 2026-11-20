@@ -106,6 +106,9 @@ pub trait FloatTensorOps<B: Backend> {
 
     /// Converts the tensor to a data structure.
     ///
+    /// The read is submitted when called, after the work already queued on the tensor's device;
+    /// the future only waits for it.
+    ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor.

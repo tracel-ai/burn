@@ -38,32 +38,54 @@ pub struct TransactionPrimitiveData {
     pub read_bools: Vec<TensorData>,
 }
 
+async fn join_reads<F>(reads: Vec<F>) -> Result<Vec<TensorData>, ExecutionError>
+where
+    F: Future<Output = Result<TensorData, ExecutionError>>,
+{
+    let mut data = Vec::with_capacity(reads.len());
+    for read in reads {
+        data.push(read.await?);
+    }
+    Ok(data)
+}
+
 /// Operations that are sync by nature and that can be batch together in transactions to improve
 /// compute utilization with efficient laziness.
 pub trait TransactionOps<B: Backend> {
     /// Executes a [transaction](TransactionPrimitive) and return its
     /// [data](TransactionPrimitiveData).
+    ///
+    /// Every read is submitted when called, as `float_into_data` submits one; the future only
+    /// waits for them.
     fn tr_execute(
         transaction: TransactionPrimitive<B>,
     ) -> impl Future<Output = Result<TransactionPrimitiveData, ExecutionError>> + Send {
-        async move {
-            let mut floats = Vec::new();
-            let mut qfloats = Vec::new();
-            let mut ints = Vec::new();
-            let mut bools = Vec::new();
+        let floats: Vec<_> = transaction
+            .read_floats
+            .into_iter()
+            .map(B::float_into_data)
+            .collect();
+        let qfloats: Vec<_> = transaction
+            .read_qfloats
+            .into_iter()
+            .map(B::q_into_data)
+            .collect();
+        let ints: Vec<_> = transaction
+            .read_ints
+            .into_iter()
+            .map(B::int_into_data)
+            .collect();
+        let bools: Vec<_> = transaction
+            .read_bools
+            .into_iter()
+            .map(B::bool_into_data)
+            .collect();
 
-            for t in transaction.read_floats {
-                floats.push(B::float_into_data(t).await?);
-            }
-            for t in transaction.read_qfloats {
-                qfloats.push(B::q_into_data(t).await?);
-            }
-            for t in transaction.read_ints {
-                ints.push(B::int_into_data(t).await?);
-            }
-            for t in transaction.read_bools {
-                bools.push(B::bool_into_data(t).await?);
-            }
+        async move {
+            let floats = join_reads(floats).await?;
+            let qfloats = join_reads(qfloats).await?;
+            let ints = join_reads(ints).await?;
+            let bools = join_reads(bools).await?;
 
             Ok(TransactionPrimitiveData {
                 read_floats: floats,
@@ -93,17 +115,25 @@ impl<B: Backend> TransactionPrimitive<B> {
     }
     /// Executes the transaction asynchronously and returns the [data](TensorData) in the same order
     /// in which they were registered.
-    pub async fn execute_async(mut self) -> Result<Vec<TensorData>, ExecutionError> {
+    ///
+    /// The reads are submitted when called, as [`tr_execute`](TransactionOps::tr_execute) submits
+    /// them.
+    pub fn execute_async(
+        mut self,
+    ) -> impl Future<Output = Result<Vec<TensorData>, ExecutionError>> + Send + use<B> {
         let mut orders = Vec::new();
         core::mem::swap(&mut orders, &mut self.orders);
-        let result = B::tr_execute(self).await?;
+        let read = B::tr_execute(self);
+        async move { Ok(Self::in_order(orders, read.await?)) }
+    }
 
+    fn in_order(orders: Vec<Order>, result: TransactionPrimitiveData) -> Vec<TensorData> {
         let mut floats: Vec<_> = result.read_floats.into_iter().map(Some).collect();
         let mut qfloats: Vec<_> = result.read_qfloats.into_iter().map(Some).collect();
         let mut ints: Vec<_> = result.read_ints.into_iter().map(Some).collect();
         let mut bools: Vec<_> = result.read_bools.into_iter().map(Some).collect();
 
-        Ok(orders
+        orders
             .into_iter()
             .map(|order| match order {
                 Order::Float(index) => floats.get_mut(index).unwrap().take().unwrap(),
@@ -111,7 +141,7 @@ impl<B: Backend> TransactionPrimitive<B> {
                 Order::Int(index) => ints.get_mut(index).unwrap().take().unwrap(),
                 Order::Bool(index) => bools.get_mut(index).unwrap().take().unwrap(),
             })
-            .collect::<Vec<_>>())
+            .collect::<Vec<_>>()
     }
 
     /// Register a float (or quantized-float) tensor to read in this transaction.

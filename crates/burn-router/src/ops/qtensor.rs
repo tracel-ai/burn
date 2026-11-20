@@ -61,8 +61,10 @@ impl<R: RouterChannel> QTensorOps<Self> for BackendRouter<R> {
         Self::float_reshape(tensor, shape)
     }
 
-    async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
-        tensor.into_data().await
+    fn q_into_data(
+        tensor: QuantizedTensor<Self>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+        tensor.into_data()
     }
 
     fn q_swap_dims(

@@ -47,8 +47,10 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    async fn int_into_data(tensor: IntTensor<Self>) -> Result<TensorData, ExecutionError> {
-        tensor.into_data().await
+    fn int_into_data(
+        tensor: IntTensor<Self>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+        tensor.into_data()
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {

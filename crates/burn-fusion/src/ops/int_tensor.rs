@@ -89,8 +89,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    async fn int_into_data(tensor: IntTensor<Self>) -> Result<TensorData, ExecutionError> {
-        tensor.int_into_data::<B>().await
+    fn int_into_data(
+        tensor: IntTensor<Self>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+        tensor.int_into_data::<B>()
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {

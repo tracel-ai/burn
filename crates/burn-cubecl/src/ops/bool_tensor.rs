@@ -40,8 +40,10 @@ impl BoolTensorOps<Self> for CubeBackend {
         numeric::ones(device.clone(), shape, dtype.into())
     }
 
-    async fn bool_into_data(tensor: BoolTensor<Self>) -> Result<TensorData, ExecutionError> {
-        super::into_data(tensor).await
+    fn bool_into_data(
+        tensor: BoolTensor<Self>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+        super::into_data(tensor)
     }
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {

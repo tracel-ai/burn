@@ -6,9 +6,10 @@ use burn_backend::{
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy};
 
 impl<B: Backend, C: CheckpointStrategy> TransactionOps<Self> for Autodiff<B, C> {
-    async fn tr_execute(
+    fn tr_execute(
         transaction: TransactionPrimitive<Self>,
-    ) -> Result<burn_backend::ops::TransactionPrimitiveData, ExecutionError> {
+    ) -> impl Future<Output = Result<burn_backend::ops::TransactionPrimitiveData, ExecutionError>> + Send
+    {
         B::tr_execute(TransactionPrimitive::new(
             transaction
                 .read_floats
@@ -19,6 +20,5 @@ impl<B: Backend, C: CheckpointStrategy> TransactionOps<Self> for Autodiff<B, C> 
             transaction.read_ints,
             transaction.read_bools,
         ))
-        .await
     }
 }

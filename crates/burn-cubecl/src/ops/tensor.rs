@@ -60,8 +60,10 @@ impl FloatTensorOps<Self> for CubeBackend {
         skip(tensor),
         fields(from = ?tensor.device, meta = ?tensor.meta, dtype = ?tensor.dtype)
     ))]
-    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
-        super::into_data(tensor).await
+    fn float_into_data(
+        tensor: FloatTensor<Self>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+        super::into_data(tensor)
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(

@@ -232,8 +232,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             dtype = ?tensor.dtype
         )
     ))]
-    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
-        tensor.into_data::<B>().await
+    fn float_into_data(
+        tensor: FloatTensor<Self>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+        tensor.into_data::<B>()
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(

@@ -107,8 +107,10 @@ impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
-        tensor.into_data().await
+    fn float_into_data(
+        tensor: FloatTensor<Self>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+        tensor.into_data()
     }
 
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {

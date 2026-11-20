@@ -53,12 +53,12 @@ use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
 use crate::server::DeviceQueries;
+use crate::server::ServerStreams;
 use crate::server::link_probe::LinkPuller;
 use crate::server::local_comm::LocalCommService;
 use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
 use crate::server::transfer::TensorTransfer;
 use crate::server::{DeviceCaptureLock, SessionCaptures, SessionExecutionModes};
-use crate::server::{ServerStreams, StreamFuture};
 use crate::shared::{
     LocalAllReducePart, RequestId, SessionId, Task, TaskResponse, TaskResponseContent,
 };
@@ -272,8 +272,7 @@ where
     /// Sync work runs [on the server stream](Self::on_stream) of the client stream the task names,
     /// so work the client ordered on one stream stays ordered on one stream here.
     /// Response-producing tasks carry their own [`RequestId`] for routing the response back to the
-    /// right pending callback on the client. A read's future is polled on its server stream too
-    /// (see [`read_on_stream`](Self::read_on_stream)), wherever it is awaited.
+    /// right pending callback on the client.
     async fn process_task(&mut self, task: Task) -> Result<(), String> {
         match task {
             Task::RegisterOperation(stream_id, op) => {
@@ -768,18 +767,16 @@ where
         stream.executes(|| f(&mut self.runner))
     }
 
-    /// [`on_stream`](Self::on_stream) for a read, which is polled on the same server stream now
-    /// and wherever it is awaited. A panic is the read's error.
-    fn read_on_stream<Data: Send + Unpin + 'static>(
+    /// [`on_stream`](Self::on_stream) for a read, which the backend submits as it is made, so the
+    /// worker never waits for it. A panic awaiting it is the read's error.
+    fn read_on_stream<Data: Send + 'static>(
         &mut self,
         stream: StreamId,
         f: impl FnOnce(&mut TensorInterpreter<B>) -> DynFut<Result<Data, ExecutionError>>,
     ) -> impl Future<Output = Result<Data, ExecutionError>> + Send + 'static {
-        let stream = self.streams.of(stream);
-        let read = stream.executes(|| f(&mut self.runner));
-        let started = StreamFuture::start(stream, CatchPanic::new(read));
+        let read = self.on_stream(stream, f);
         async move {
-            started
+            CatchPanic::new(read)
                 .await
                 .unwrap_or_else(|message| Err(server_panicked(&message)))
         }

@@ -7,9 +7,9 @@ use burn_backend::{
 use crate::Dispatch;
 
 impl TransactionOps<Self> for Dispatch {
-    async fn tr_execute(
+    fn tr_execute(
         transaction: TransactionPrimitive<Self>,
-    ) -> Result<TransactionPrimitiveData, ExecutionError> {
+    ) -> impl Future<Output = Result<TransactionPrimitiveData, ExecutionError>> + Send {
         let first_tensor = transaction
             .read_floats
             .first()
@@ -20,7 +20,11 @@ impl TransactionOps<Self> for Dispatch {
             Some(tensor) => {
                 transaction_op!(transaction, tensor)
             }
-            None => Ok(TransactionPrimitiveData::default()),
+            None => {
+                let read: crate::backend::ReadFuture<TransactionPrimitiveData> =
+                    alloc::boxed::Box::pin(async { Ok(TransactionPrimitiveData::default()) });
+                read
+            }
         }
     }
 }

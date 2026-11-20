@@ -2719,17 +2719,28 @@ impl<B: Backend> ReadBatch<B> {
         self.len += 1;
     }
 
-    async fn execute(self) -> Result<Vec<TensorData>, ExecutionError> {
+    /// Submits every read of the batch, then waits for them.
+    fn execute(self) -> impl Future<Output = Result<Vec<TensorData>, ExecutionError>> + Send {
         // Some backends' transactions cannot run without a tensor to find their device from.
-        let mut data = if self.transaction_holds_tensors() {
-            self.transaction.execute_async().await?
-        } else {
-            Vec::with_capacity(self.len)
-        };
-        for read in self.quantized {
-            data.insert(read.position, B::q_into_data(read.tensor).await?);
+        let transaction = self
+            .transaction_holds_tensors()
+            .then(|| self.transaction.execute_async());
+        let quantized: Vec<_> = self
+            .quantized
+            .into_iter()
+            .map(|read| (read.position, B::q_into_data(read.tensor)))
+            .collect();
+        let len = self.len;
+        async move {
+            let mut data = match transaction {
+                Some(read) => read.await?,
+                None => Vec::with_capacity(len),
+            };
+            for (position, read) in quantized {
+                data.insert(position, read.await?);
+            }
+            Ok(data)
         }
-        Ok(data)
     }
 }
 

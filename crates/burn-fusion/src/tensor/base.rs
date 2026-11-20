@@ -200,17 +200,21 @@ impl<R: FusionRuntime> FusionTensor<R> {
         )
     }
 
-    pub(crate) async fn into_data<B>(self) -> Result<TensorData, ExecutionError>
+    pub(crate) fn into_data<B>(
+        self,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send + use<B, R>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
         let client = self.client.clone();
         let desc = self.into_ir();
-        client.read_tensor_float::<B>(desc, id).await
+        client.read_tensor_float::<B>(desc, id)
     }
 
-    pub(crate) async fn q_into_data<B>(self) -> Result<TensorData, ExecutionError>
+    pub(crate) fn q_into_data<B>(
+        self,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send + use<B, R>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -218,30 +222,34 @@ impl<R: FusionRuntime> FusionTensor<R> {
             let id = self.stream;
             let client = self.client.clone();
             let desc = self.into_ir();
-            client.read_tensor_quantized::<B>(desc, id).await
+            client.read_tensor_quantized::<B>(desc, id)
         } else {
             panic!("Expected quantized float dtype, got {:?}", self.dtype)
         }
     }
 
-    pub(crate) async fn int_into_data<B>(self) -> Result<TensorData, ExecutionError>
+    pub(crate) fn int_into_data<B>(
+        self,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send + use<B, R>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
         let client = self.client.clone();
         let desc = self.into_ir();
-        client.read_tensor_int::<B>(desc, id).await
+        client.read_tensor_int::<B>(desc, id)
     }
 
-    pub(crate) async fn bool_into_data<B>(self) -> Result<TensorData, ExecutionError>
+    pub(crate) fn bool_into_data<B>(
+        self,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send + use<B, R>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
         let client = self.client.clone();
         let desc = self.into_ir();
-        client.read_tensor_bool::<B>(desc, id).await
+        client.read_tensor_bool::<B>(desc, id)
     }
 }
 

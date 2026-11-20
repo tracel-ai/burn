@@ -51,8 +51,10 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
         B::q_reshape(tensor, shape)
     }
 
-    async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
-        B::q_into_data(tensor).await
+    fn q_into_data(
+        tensor: QuantizedTensor<Self>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+        B::q_into_data(tensor)
     }
 
     fn q_swap_dims(

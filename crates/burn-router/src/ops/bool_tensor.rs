@@ -42,8 +42,10 @@ impl<R: RouterChannel> BoolTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    async fn bool_into_data(tensor: BoolTensor<Self>) -> Result<TensorData, ExecutionError> {
-        tensor.into_data().await
+    fn bool_into_data(
+        tensor: BoolTensor<Self>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+        tensor.into_data()
     }
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {

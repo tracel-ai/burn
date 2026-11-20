@@ -1345,3 +1345,8 @@ fn measured(device: &DispatchDevice) -> &DispatchDevice {
         other => other,
     }
 }
+
+/// A read of whichever backend a tensor is on: each backend's read future, as one type.
+pub(crate) type ReadFuture<T> = core::pin::Pin<
+    alloc::boxed::Box<dyn Future<Output = Result<T, burn_backend::ExecutionError>> + Send>,
+>;

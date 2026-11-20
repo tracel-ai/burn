@@ -8,7 +8,7 @@ use burn_backend::{
     },
     tensor::{Device, FloatTensor, QuantizedTensor},
 };
-use burn_std::{FloatDType, Metadata, quantization::global_scale_size};
+use burn_std::{FloatDType, Metadata, future::DynFut, quantization::global_scale_size};
 use cubecl::server::{MemoryLayout, MemoryLayoutDescriptor, MemoryLayoutStrategy};
 use cubecl::{e2m1x2, quant::scheme::QuantStore};
 
@@ -240,6 +240,42 @@ fn new_quantized(
     )
 }
 
+/// Submits the copies of a quantized tensor's values, params and global scale, then waits for them.
+fn q_into_data_with_params(tensor: CubeTensor) -> DynFut<Result<TensorData, ExecutionError>> {
+    if tensor.meta.is_tiled() {
+        return Box::pin(a_tiled_tensor_is_not_read());
+    }
+
+    let (shape, dtype) = (tensor.shape(), tensor.dtype);
+    // Written as stored, packed axis innermost — the bytes `q_from_data` reads back.
+    let tensor = match outer_packed_axis(&tensor.scheme(), shape.rank()) {
+        Some(axis) => swap_dims(tensor, axis, shape.rank() - 1),
+        None => tensor,
+    };
+    let global = tensor.global().map(into_data);
+    let (values, params) = tensor.quantized_handles().unwrap();
+    let values = into_data(values);
+    let params = into_data(params);
+
+    Box::pin(async move {
+        let mut bytes = values.await?.into_bytes();
+        bytes.extend_from_byte_slice(params.await?.as_bytes());
+        if let Some(global) = global {
+            bytes.extend_from_byte_slice(global.await?.as_bytes());
+        }
+        Ok(TensorData::from_bytes(bytes, shape, dtype))
+    })
+}
+
+/// Storage tiles are a layout for one machine's kernels, laid out at load; what is saved is the
+/// rows every machine reads. Panics when awaited, as a read that fails does.
+async fn a_tiled_tensor_is_not_read() -> Result<TensorData, ExecutionError> {
+    panic!(
+        "q_into_data: a storage-tiled quantized tensor is not saved; save the weight it was \
+         tiled from"
+    )
+}
+
 impl QTensorOps<Self> for CubeBackend {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype() {
@@ -306,38 +342,14 @@ impl QTensorOps<Self> for CubeBackend {
         super::q_reshape(tensor, shape)
     }
 
-    async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
-        if tensor.qparams.is_none() {
-            return into_data(tensor).await;
-        }
-        // Storage tiles are a layout for one machine's kernels, laid out at load; what is saved
-        // is the rows every machine reads.
-        assert!(
-            !tensor.meta.is_tiled(),
-            "q_into_data: a storage-tiled quantized tensor is not saved; save the weight it was \
-             tiled from"
-        );
-
-        let (shape, dtype) = (tensor.shape(), tensor.dtype);
-        // Written as stored, packed axis innermost — the bytes `q_from_data` reads back.
-        let tensor = match outer_packed_axis(&tensor.scheme(), shape.rank()) {
-            Some(axis) => swap_dims(tensor, axis, shape.rank() - 1),
-            None => tensor,
+    fn q_into_data(
+        tensor: QuantizedTensor<Self>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+        let read: DynFut<Result<TensorData, ExecutionError>> = match tensor.qparams {
+            None => Box::pin(into_data(tensor)),
+            Some(_) => q_into_data_with_params(tensor),
         };
-        let global = tensor.global();
-        let (values, params) = tensor.quantized_handles().unwrap();
-
-        let mut bytes = into_data(values).await?.into_bytes();
-        let data_params = into_data(params).await?;
-
-        bytes.extend_from_byte_slice(data_params.as_bytes());
-
-        if let Some(global) = global {
-            let data_global = into_data(global).await?;
-            bytes.extend_from_byte_slice(data_global.as_bytes());
-        }
-
-        Ok(TensorData::from_bytes(bytes, shape, dtype))
+        read
     }
 
     fn q_swap_dims(

@@ -183,8 +183,10 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
-        tensor.q_into_data::<B>().await
+    fn q_into_data(
+        tensor: QuantizedTensor<Self>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+        tensor.q_into_data::<B>()
     }
 
     fn q_swap_dims(
