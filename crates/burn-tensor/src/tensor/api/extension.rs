@@ -79,14 +79,14 @@ where
     /// // Extract the underlying CubeCL tensor primitive on the `Wgpu` backend
     /// let cube_tensor = tensor.try_into_primitive::<Wgpu>()?;
     ///
-    /// // For an autodiff tensor, we can get the wrapped CubeCL tensor primitive on the `Autodiff<Wgpu>` backend
-    /// let ad_tensor = tensor.try_into_primitive::<Autodiff<Wgpu>>()?;
+    /// // For an autodiff tensor, the tracked primitive is backend-independent.
+    /// let ad_tensor = tensor.try_into_primitive::<Autodiff<Dispatch>>()?;
     ///```
     ///
     /// # Errors
     ///
     /// Returns a [`PrimitiveConversionError`] if the tensor does not currently live on the requested
-    /// backend `B` (including `Autodiff<B>` mismatch).
+    /// backend `B`, including an autodiff context mismatch.
     ///
     /// CubeCL aliases such as `Wgpu` and `Cuda` share a backend type. A successful downcast checks
     /// that type, not the execution runtime; inspect the primitive's device before invoking a
@@ -229,7 +229,7 @@ mod tests {
     use super::*;
 
     type TestBackend = burn_dispatch::backends::Flex;
-    type TestAutodiffBackend = burn_dispatch::backends::Autodiff<burn_dispatch::backends::Flex>;
+    type TestAutodiffBackend = burn_dispatch::backends::Autodiff<burn_dispatch::Dispatch>;
 
     // -- into_bridge / from_bridge roundtrip --
 
