@@ -56,6 +56,9 @@ pub enum OpKind<'a> {
     GridSample,
     /// Made from its output's shape alone, with no inputs, like zeros.
     Creation,
+    /// Its first input quantized by the scales of its second, then by its third's per-tensor
+    /// scale if it has one. Block scales have the input's dims, one entry per block.
+    Quantize,
     /// Attention of a query, key and value, then an optional mask or bias, or both.
     Attention,
 }
