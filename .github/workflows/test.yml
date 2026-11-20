@@ -269,6 +269,9 @@ jobs:
   macos-std-tests:
     runs-on: blaze/macos-15
     needs: [prepare-checks, code-quality]
+    env:
+      # Use a smaller tuning search for correctness tests on the virtual GPU.
+      CUBECL_AUTOTUNE_LEVEL: minimal
     # On 2026-11-07 the job was still passing suites when it reached 60 minutes.
     timeout-minutes: 120
     steps:

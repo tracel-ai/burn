@@ -281,6 +281,8 @@ fn handle_macos_tests(release: bool) -> anyhow::Result<()> {
     let features = [
         "burn-backend-tests/wgpu-msl",
         "burn-backend-tests/std",
+        // Keep autotune results across test binaries in both Metal configurations.
+        "burn-backend-tests/persistence",
         "burn-linalg/wgpu-msl",
         "burn-linalg/std",
         "burn-linalg/autotune",
