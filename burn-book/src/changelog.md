@@ -10,6 +10,14 @@ See CONTRIBUTING.md#changelog for entry guidance. -->
 
 ### Runtime and backends
 
+#### Autodiff graph cleanup
+
+- Reclaim orphaned autodiff graphs by distinct graph instead of by node alias, so the cleanup pass
+  after each backward no longer grows with the total number of registered nodes. A long-running
+  training loop previously slowed down as every backward paid for the whole graph map; the cost is
+  now proportional to the number of live graphs.
+  ([#6484](https://github.com/tracel-ai/burn/pull/6484))
+
 #### Backend extensions
 
 Backend extensions run on the remote backend without handwritten remote code: listing `Remote`
