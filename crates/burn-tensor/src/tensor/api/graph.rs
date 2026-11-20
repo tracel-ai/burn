@@ -4,7 +4,7 @@ use burn_dispatch::{Dispatch, DispatchDevice};
 
 /// A captured computation.
 ///
-/// [`capture`] records a closure once; [`replay`](Graph::replay) then re-runs it
+/// [`capture`] records a closure and runs it once; [`replay`](Graph::replay) then re-runs it
 /// as a single dispatch on backends with hardware graph support (CUDA/HIP —
 /// collapsing hundreds of kernel launches into one), or simply re-executes the
 /// closure everywhere else. The API is identical either way; only the speed
@@ -39,9 +39,10 @@ pub struct Graph<T, F> {
 /// allocating mid-capture is illegal. The planning runs repeat until two runs in a row allocate
 /// alike, since a first run can take another path than the steady state: with fusion it builds
 /// and tunes the fused optimization, which allocates other buffers than the cached path does.
-/// Then once more, recorded. What the last planning left allocated is the closure's output, and
-/// the recording places it on memory no other graph of the device writes, so it outlives every
-/// replay but its own graph's.
+/// Then once more, recorded. What the last planning run left allocated is the closure's output,
+/// and the recording places it on memory no other graph of the device writes, so it outlives
+/// every replay but its own graph's. Finally the graph replays once, so the output holds what one
+/// run of the closure computes and what it writes has been written once, as after an eager run.
 ///
 /// The closure must therefore allocate the same buffers, and keep the same ones, on every run,
 /// and must not read a tensor's data: a planning run's launches never ran. On a backend without
@@ -62,7 +63,16 @@ where
             // on replay stays correct; we lose the graph, not stream health. The
             // recorded run's launches went into the graph refused, so the output
             // comes from a run that executes.
-            match Dispatch::graph_stop_capture(dispatch) {
+            match Dispatch::graph_stop_capture(dispatch).and_then(|graph| {
+                // Neither the planning runs nor the recorded one ran anything, so the graph
+                // replays once: `capture` hands back what one run of the closure computes, with
+                // its effects on what it writes, as an eager run would.
+                //
+                // Safety: every buffer the graph touches is alive — the closure owns what it
+                // reads and `recorded` is what it writes — and this replay is issued on the
+                // capture stream, before anything else can touch them.
+                unsafe { Dispatch::graph_replay(dispatch, &graph) }.map(|()| graph)
+            }) {
                 Ok(graph) => (Ok(graph), recorded),
                 Err(error) => (Err(error), closure()),
             }
