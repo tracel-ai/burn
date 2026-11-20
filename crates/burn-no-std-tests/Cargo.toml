@@ -24,3 +24,7 @@ burn = { workspace = true, features = ["flex"] }
 burn-flex = { workspace = true }
 
 burn-store = { workspace = true, features = ["safetensors"] }
+
+[dev-dependencies]
+# Training needs autodiff; only the host test build uses it.
+burn = { workspace = true, features = ["flex", "autodiff"] }
