@@ -92,6 +92,8 @@ pub trait TensorMetadata: Clone + Send + Sync + core::fmt::Debug {
     /// Backends that track buffer ownership (cubecl, fusion) answer
     /// precisely; a backend that can't must return a conservative `false` —
     /// the buffer may be aliased, so an in-place write can't be assumed safe.
+    /// An unfused CubeCL tensor also answers `false` while its stream captures
+    /// a graph.
     fn can_mut(&self) -> bool;
 
     /// Get the [quantization scheme](QuantScheme) for a quantized float tensor.
