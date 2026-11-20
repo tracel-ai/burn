@@ -74,8 +74,9 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// implementation; enabled integer and boolean inputs propagate context without requiring it.
 ///
 /// Struct and enum inputs derive [`ExtensionType`] and use `#[extension_type]` on the corresponding
-/// method argument. Autodiff support for custom operations requires a handwritten implementation of the extension trait
-/// for Autodiff<B, C>; this macro does not generate backward passes.
+/// method argument. Autodiff support for custom operations requires a handwritten implementation of
+/// the extension trait for `Autodiff<B, C>`, generic over `B`; this macro does not generate backward
+/// passes.
 ///
 /// # Backend selection
 ///
@@ -86,7 +87,10 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// and the backend features you target.
 ///
 /// Implement the extension trait on each selected backend. Add `Autodiff` to generate routing
-/// to your `Autodiff<B, C>` implementation. A default trait body composing differentiable
+/// through `Autodiff<Dispatch, C>`: implement the trait generically over the backend
+/// (`impl<B: Backend, C: CheckpointStrategy> Trait for Autodiff<B, C>`). An implementation for a
+/// concrete `Autodiff<Flex, C>` is not reachable from the generated dispatch, and the generated
+/// `impl Trait for Dispatch` fails to compile. A default trait body composing differentiable
 /// operations can supply that implementation; the macro does not derive a custom backward pass.
 /// Calling an extension on an unlisted runtime backend panics.
 ///

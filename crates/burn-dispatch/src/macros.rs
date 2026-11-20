@@ -21,20 +21,20 @@ macro_rules! backend_matrix {
 }
 
 #[cfg(feature = "autodiff")]
-/// Helper to map the runtime strategy to the compile-time Autodiff generic.
+/// Selects the `Autodiff<Dispatch>` backend matching a runtime checkpointing strategy.
 macro_rules! with_autodiff_backend {
-    ($Backend:ident, $checkpointing:expr, |$B:ident| $body:expr) => {
+    ($checkpointing:expr, |$B:ident| $body:expr) => {
         match $checkpointing {
             $crate::GradientCheckpointingStrategy::Balanced => {
                 type $B = $crate::backends::Autodiff<
-                    $crate::backends::$Backend,
+                    $crate::Dispatch,
                     burn_autodiff::checkpoint::strategy::BalancedCheckpointing,
                 >;
                 $body
             }
             $crate::GradientCheckpointingStrategy::Disabled => {
                 type $B = $crate::backends::Autodiff<
-                    $crate::backends::$Backend,
+                    $crate::Dispatch,
                     burn_autodiff::checkpoint::strategy::NoCheckpointing,
                 >;
                 $body
@@ -79,20 +79,11 @@ macro_rules! dispatch_device_arms {
         $device:expr,
         |$inner:ident| $body:expr;
         $([$Backend:ident, $cfg:meta]),*
-    ) => {
-        match $device {
-            $(
-                #[cfg($cfg)]
-                $crate::DispatchDevice::$Backend($inner) => {
-                    type B = $crate::backends::Autodiff<$crate::backends::$Backend>;
-                    $body
-                }
-            )*
-            $crate::DispatchDevice::Autodiff(_) => unreachable!("Autodiff should not wrap an autodiff device."),
-            #[allow(unreachable_patterns)]
-            other => panic!("Distributed operations are not supported for device {other:?}"),
-        }
-    };
+    ) => {{
+        type B = $crate::backends::Autodiff<$crate::Dispatch>;
+        let $inner = $device;
+        $body
+    }};
 }
 
 /// Match arm generator for `dispatch_device_pair`.
@@ -311,18 +302,24 @@ macro_rules! float_to_device_arms {
     ) => {
         #[allow(unreachable_patterns)]
         match ($tensor.kind, $device) {
+            #[cfg(all(feature = "autodiff", feature = "capture"))]
+            ($crate::DispatchTensorKind::Autodiff(..), $crate::DispatchDevice::Autodiff(device))
+                if matches!(&*device.inner, $crate::DispatchDevice::Capture(_)) =>
+            {
+                panic!("Cannot move a tensor to a capture device with autodiff enabled; remove autodiff with without_autodiff() before the transfer.")
+            }
             #[cfg(feature = "autodiff")]
             ($crate::DispatchTensorKind::Autodiff(kind), $crate::DispatchDevice::Autodiff(device)) => {
-                // No transfer arm consumes the strategy in capture-only builds.
-                let $crate::DispatchAutodiffContext::Enabled(_ckp) = $tensor.autodiff else {
+                let $crate::DispatchAutodiffContext::Enabled(__strategy) = $tensor.autodiff else {
                     panic!("an autodiff float primitive must have an enabled autodiff context")
                 };
-                float_to_device_arms!(
-                    @autodiff
-                    *kind, &**device, _ckp, $to_device;
-                    $([$B1, $src_cfg] => [ $([$B2, $dst_cfg]),+ ]);*
-                )
-
+                let __output = with_autodiff_backend!(__strategy, |AD| {
+                    AD::float_to_device(*kind, &*device.inner)
+                });
+                $crate::DispatchTensor {
+                    kind: $crate::DispatchTensorKind::Autodiff(alloc::boxed::Box::new(__output)),
+                    autodiff: $crate::DispatchAutodiffContext::Enabled(__strategy),
+                }
             }
             // Capture is deliberately absent from the cross-backend matrix. Same-backend movement
             // remains available; CaptureBackend decides whether the particular device transfer is
@@ -392,56 +389,6 @@ macro_rules! float_to_device_arms {
             }
         }
     };
-
-    // Autodiff(DispatchTensor)
-    (
-        @autodiff
-        $tensor:expr, $device:expr, $ckp:expr, $to_device:ident;
-        $( [$B1:ident, $src_cfg:meta] => [ $( [$B2:ident, $dst_cfg:meta] ),+ ] );*
-    ) => {{
-        match ($tensor, $device) {
-            // --- Same backend to_device ---
-            $(
-                #[cfg($src_cfg)]
-                ($crate::DispatchTensorKind::$B1(tensor), $crate::DispatchDevice::$B1(d)) => {
-                    let kind = $crate::DispatchTensorKind::Autodiff(alloc::boxed::Box::new($crate::DispatchTensorKind::$B1($crate::BackendTensor::Autodiff(
-                        with_autodiff_backend!($B1, $ckp, |B| {
-                            B::$to_device(tensor.autodiff(), d)
-                        })
-                    ))));
-                    $crate::DispatchTensor {
-                        kind,
-                        autodiff: $crate::DispatchAutodiffContext::Enabled($ckp),
-                    }
-                }
-            )*
-            $(
-                $(
-                    #[cfg(all($src_cfg, $dst_cfg))]
-                    ($crate::DispatchTensorKind::$B1(tensor), $crate::DispatchDevice::$B2(d)) => {
-                        let output = with_autodiff_backend!($B1, $ckp, |B| {
-                            B::to_backend::<
-                                $crate::backends::$B2,
-                                $crate::ops::transfer::HostTransfer,
-                            >(tensor.autodiff(), d)
-                        });
-                        $crate::DispatchTensor {
-                            kind: $crate::DispatchTensorKind::Autodiff(alloc::boxed::Box::new(
-                                $crate::DispatchTensorKind::$B2($crate::BackendTensor::Autodiff(output))
-                            )),
-                            autodiff: $crate::DispatchAutodiffContext::Enabled($ckp),
-                        }
-                    }
-                )+
-            )*
-            #[cfg(feature = "capture")]
-            (_, $crate::DispatchDevice::Capture(_)) => {
-                panic!("Cannot move a tensor to a capture device with autodiff enabled; remove autodiff with without_autodiff() before the transfer.")
-            }
-            #[allow(unreachable_patterns)]
-            (_, _) => panic!("Cannot move this autodiff tensor between the requested backends.")
-        }
-    }};
 }
 
 /// Handles float tensor movement between devices (that might support autodiff).
@@ -461,7 +408,7 @@ macro_rules! float_to_device {
 macro_rules! unwrap_vec {
     ($Backend:ident, $vec:expr, $kind:ident) => {
         $vec.into_iter()
-            .map(|t| match t.kind {
+            .map(|t| match t.into_concrete().kind {
                 $crate::DispatchTensorKind::$Backend(inner) => inner.$kind(),
                 #[allow(unreachable_patterns)]
                 _ => panic!(
@@ -471,59 +418,35 @@ macro_rules! unwrap_vec {
             })
             .collect::<Vec<_>>()
     };
+}
 
-    // Autodiff-wrapped backend
-    (@autodiff $Backend:ident, $vec:expr, $kind:ident) => {
-        $vec.into_iter()
-            .map(|t| match t.kind {
-                $crate::DispatchTensorKind::Autodiff(inner) => match *inner {
-                    $crate::DispatchTensorKind::$Backend(inner) => inner.$kind(),
-                    _ => panic!(
-                        "Autodiff float tensor is on the wrong backend (expected {}).",
-                        stringify!($Backend)
-                    ),
-                },
-                _ => panic!(
-                    "Expected autodiff-wrapped float tensor for backend {}.",
-                    stringify!($Backend)
-                ),
-            })
-            .collect::<Vec<_>>()
-    };
+/// Match arm generator for `float_into_data`: reads the concrete value of a possibly tracked
+/// tensor.
+macro_rules! float_into_data_arms {
+    ($tensor:expr; $([$Backend:ident, $cfg:meta]),*) => {{
+        let tensor = $tensor.into_concrete();
+        match tensor.kind {
+            #[cfg(not(backend_enabled))]
+            $crate::DispatchTensorKind::Unavailable(never) => never.unreachable(),
+            $(
+                #[cfg($cfg)]
+                $crate::DispatchTensorKind::$Backend(inner) => {
+                    $crate::backends::$Backend::float_into_data(inner.float()).await
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            other => panic!("unsupported dispatch backend: {other:?}"),
+        }
+    }};
 }
 
 /// Match arm generator for `transaction_op`.
 macro_rules! transaction_op_arms {
     ($tx:ident, $first:expr; $([$Backend:ident, $cfg:meta]),*) => {{
-        match &$first.kind {
+        let __first = $first.clone().into_concrete();
+        match __first.kind {
             #[cfg(not(backend_enabled))]
             $crate::DispatchTensorKind::Unavailable(never) => never.unreachable(),
-            // Autodiff arm first
-            #[cfg(feature = "autodiff")]
-            $crate::DispatchTensorKind::Autodiff(inner) => {
-                // Recursively dispatch on inner
-                match **inner {
-                    #[cfg(not(backend_enabled))]
-                    $crate::DispatchTensorKind::Unavailable(ref never) => never.unreachable(),
-                    $(
-                    #[cfg($cfg)]
-                    $crate::DispatchTensorKind::$Backend(_) => {
-                        type B = $crate::backends::$Backend;
-
-                        // Unwrap vec
-                        let floats = unwrap_vec!(@autodiff $Backend, $tx.read_floats, autodiff_inner);
-                        let ints = unwrap_vec!($Backend, $tx.read_ints, int);
-                        let bools = unwrap_vec!($Backend, $tx.read_bools, bool);
-                        // Not supported
-                        let qfloats = $tx.read_qfloats.into_iter().map(|_t| todo!("Quantization not supported yet")).collect();
-
-                        B::tr_execute(TransactionPrimitive::new(floats, qfloats, ints, bools)).await
-                    }
-                )*
-                    $crate::DispatchTensorKind::Autodiff(..) => unreachable!("Autodiff should not wrap an autodiff tensor.")
-                }
-            },
-
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend(_) => {
@@ -539,6 +462,8 @@ macro_rules! transaction_op_arms {
                     B::tr_execute(TransactionPrimitive::new(floats, qfloats, ints, bools)).await
                 }
             )*
+            #[allow(unreachable_patterns)]
+            _ => panic!("unsupported dispatch backend"),
         }
     }};
 }

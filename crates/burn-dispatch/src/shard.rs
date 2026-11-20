@@ -71,20 +71,13 @@ impl DispatchTensor {
 
     /// Where the tensor's shards sit, or `None` when it is not on a sharded compute device.
     pub fn sharding(&self) -> Option<Sharding> {
-        let primitive = match &self.kind {
+        let primitive = match self.kind.concrete() {
             DispatchTensorKind::ShardedCompute(
                 BackendTensor::Float(tensor)
                 | BackendTensor::Int(tensor)
                 | BackendTensor::Bool(tensor)
                 | BackendTensor::Quantized(tensor),
             ) => tensor,
-            #[cfg(feature = "autodiff")]
-            DispatchTensorKind::Autodiff(inner) => match &**inner {
-                DispatchTensorKind::ShardedCompute(BackendTensor::Autodiff(tensor)) => {
-                    tensor.primitive()
-                }
-                _ => return None,
-            },
             #[allow(unreachable_patterns)]
             _ => return None,
         };
@@ -134,8 +127,6 @@ impl BackendTensor<ShardedCompute> {
             | Self::Int(tensor)
             | Self::Bool(tensor)
             | Self::Quantized(tensor) => tensor,
-            #[cfg(feature = "autodiff")]
-            Self::Autodiff(_) => unreachable!("An autodiff tensor is wrapped in its own kind"),
         };
         tensor
             .client
@@ -158,8 +149,6 @@ impl<B: BackendIr> BackendTensor<B> {
             Self::Int(tensor) => HandleKind::Int(tensor),
             Self::Bool(tensor) => HandleKind::Bool(tensor),
             Self::Quantized(tensor) => HandleKind::Quantized(tensor),
-            #[cfg(feature = "autodiff")]
-            Self::Autodiff(_) => return None,
         })
     }
 }

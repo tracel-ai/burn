@@ -17,23 +17,24 @@ use crate::ir::{
     self, InputKind, Invocation, Operation, OperationInput, OperationOutput, TensorKind,
 };
 
-/// How a generated operation's output tensor is represented at the dispatch boundary.
+/// What a generated route targets.
 #[derive(Clone, Copy)]
-pub enum OutputRoute {
-    /// A concrete primitive with disabled autodiff metadata.
-    ConcreteDisabled,
-    /// A concrete primitive carried by an enabled autodiff context.
-    ConcreteEnabled,
-    /// An autodiff primitive carried by an enabled autodiff context.
+pub enum Target<'a> {
+    /// A concrete backend.
+    Concrete(&'a syn::Ident),
+    /// The `Autodiff<Dispatch>` level, which needs no concrete backend.
     Autodiff,
 }
 
-/// Whether the active operation inputs contain an autodiff-associated float tensor.
-pub enum AutodiffFloatInputPresence {
-    /// The signature cannot carry a float input.
-    Never,
-    /// Autodiff float presence depends on the active runtime inputs and their contexts.
-    Runtime(TokenStream),
+/// How a generated operation's output tensor is represented at the dispatch boundary.
+#[derive(Clone, Copy)]
+pub enum OutputRoute<'a> {
+    /// A concrete primitive with disabled autodiff metadata.
+    ConcreteDisabled(&'a syn::Ident),
+    /// A concrete primitive carried by an enabled autodiff context.
+    ConcreteEnabled(&'a syn::Ident),
+    /// An autodiff primitive carried by an enabled autodiff context.
+    Autodiff,
 }
 
 /// Paths used by generated code.
@@ -86,83 +87,39 @@ impl RoutingPaths {
     }
 }
 
-/// Configuration for the nested concrete-backend match inside an autodiff dispatch kind.
-pub struct AutodiffKindMatch {
-    pub cfg_attr: Option<TokenStream>,
-    pub inner_kind: TokenStream,
-    pub nested_autodiff: Option<TokenStream>,
-    pub fallback: TokenStream,
-}
-
-/// Concrete and autodiff arms for matching a dispatch tensor's backend kind.
-pub struct BackendKindArms {
-    pub concrete: Vec<TokenStream>,
-    pub autodiff: Option<TokenStream>,
-}
-
-/// Generate the backend-kind match arms shared by dispatch and backend extensions.
+/// Generate the concrete backend-kind match arms shared by dispatch and backend extensions.
 ///
-/// The caller supplies only the body for each backend. This keeps backend cfg attributes, autodiff
-/// nesting, payload binding, and unsupported-backend fallbacks identical across both frontends.
+/// The caller supplies the body for each backend and appends the autodiff arm itself, since that
+/// arm no longer selects a concrete backend.
 pub fn backend_kind_arms(
     paths: &RoutingPaths,
     backends: &[ir::Backend],
     payload: Option<&syn::Ident>,
-    autodiff: Option<AutodiffKindMatch>,
-    mut body: impl FnMut(usize, &ir::Backend, bool) -> TokenStream,
-) -> BackendKindArms {
+    mut body: impl FnMut(usize, &ir::Backend) -> TokenStream,
+) -> Vec<TokenStream> {
     let dispatch_root = &paths.dispatch_root;
     let dispatch_kind = quote!(#dispatch_root::DispatchTensorKind);
     let payload = payload
         .map(|payload| quote!(#payload))
         .unwrap_or_else(|| quote!(_));
-    let concrete = backends
+    backends
         .iter()
         .enumerate()
         .map(|(index, backend)| {
             let cfg_attr = &backend.cfg_attr;
             let ident = &backend.ident;
-            let body = body(index, backend, false);
+            let body = body(index, backend);
             quote! {
                 #cfg_attr
                 #dispatch_kind::#ident(#payload) => #body,
             }
         })
-        .collect();
-    let autodiff = autodiff.map(|autodiff| {
-        let cfg_attr = autodiff.cfg_attr;
-        let inner_kind = autodiff.inner_kind;
-        let nested_autodiff = autodiff
-            .nested_autodiff
-            .map(|body| quote!(#dispatch_kind::Autodiff(_) => #body,));
-        let fallback = autodiff.fallback;
-        let inner = backends.iter().enumerate().map(|(index, backend)| {
-            let backend_cfg = &backend.cfg_attr;
-            let ident = &backend.ident;
-            let body = body(index, backend, true);
-            quote! {
-                #backend_cfg
-                #dispatch_kind::#ident(#payload) => #body,
-            }
-        });
-        quote! {
-            #cfg_attr
-            #dispatch_kind::Autodiff(__inner) => match #inner_kind {
-                #(#inner)*
-                #nested_autodiff
-                #[allow(unreachable_patterns)]
-                _ => #fallback,
-            }
-        }
-    });
-
-    BackendKindArms { concrete, autodiff }
+        .collect()
 }
 
-/// Select the concrete autodiff backend type from its runtime checkpointing strategy.
+/// Select `Autodiff<Dispatch>` for the runtime checkpointing strategy.
 pub fn with_autodiff_backend(
     paths: &RoutingPaths,
-    backend: &syn::Ident,
     strategy_expr: TokenStream,
     alias: &syn::Ident,
     body: TokenStream,
@@ -177,23 +134,22 @@ pub fn with_autodiff_backend(
     quote! {
         match #strategy_expr {
             #dispatch_root::GradientCheckpointingStrategy::Balanced => {
-                type #alias = #backend_root::Autodiff<#backend_root::#backend, #checkpoint_root::BalancedCheckpointing>;
+                type #alias = #backend_root::Autodiff<#dispatch_root::Dispatch, #checkpoint_root::BalancedCheckpointing>;
                 #body
             }
             #dispatch_root::GradientCheckpointingStrategy::Disabled => {
-                type #alias = #backend_root::Autodiff<#backend_root::#backend, #checkpoint_root::NoCheckpointing>;
+                type #alias = #backend_root::Autodiff<#dispatch_root::Dispatch, #checkpoint_root::NoCheckpointing>;
                 #body
             }
         }
     }
 }
 
-/// Wrap one concrete or autodiff tensor primitive in its dispatch enum representation.
+/// Wrap a tensor primitive in its dispatch enum representation.
 pub fn wrap_tensor_kind(
     paths: &RoutingPaths,
     kind: TensorKind,
-    backend: &syn::Ident,
-    route: OutputRoute,
+    route: OutputRoute<'_>,
     value: TokenStream,
     autodiff_backend: &syn::Ident,
 ) -> TokenStream {
@@ -204,22 +160,30 @@ pub fn wrap_tensor_kind(
     } = paths;
     let variant = kind.variant();
 
-    if kind == TensorKind::Float && matches!(route, OutputRoute::Autodiff) {
+    if matches!(route, OutputRoute::Autodiff) {
+        return if kind == TensorKind::Float {
+            quote!(#dispatch_root::DispatchTensorKind::autodiff(#value))
+        } else {
+            // `Autodiff<Dispatch>`'s int, bool and quantized primitives are dispatch tensors.
+            quote!((#value).kind)
+        };
+    }
+
+    let backend = match route {
+        OutputRoute::ConcreteDisabled(backend) | OutputRoute::ConcreteEnabled(backend) => backend,
+        OutputRoute::Autodiff => unreachable!(),
+    };
+    if kind == TensorKind::Float && matches!(route, OutputRoute::ConcreteEnabled(_)) {
         quote! {
-            #dispatch_root::DispatchTensorKind::Autodiff(
-                #dispatch_root::DispatchTensorKind::#backend(
-                    #dispatch_root::BackendTensor::Autodiff(#value)
-                ).into()
-            )
-        }
-    } else if kind == TensorKind::Float && matches!(route, OutputRoute::ConcreteEnabled) {
-        quote! {
-            #dispatch_root::DispatchTensorKind::Autodiff(
-                #dispatch_root::DispatchTensorKind::#backend(
-                    #dispatch_root::BackendTensor::Autodiff(
-                        <#autodiff_backend as #autodiff_trait>::from_inner(#value)
-                    )
-                ).into()
+            #dispatch_root::DispatchTensorKind::autodiff(
+                <#autodiff_backend as #autodiff_trait>::from_inner(
+                    #dispatch_root::DispatchTensor {
+                        kind: #dispatch_root::DispatchTensorKind::#backend(
+                            #dispatch_root::BackendTensor::Float(#value)
+                        ),
+                        autodiff: #dispatch_root::DispatchAutodiffContext::Disabled,
+                    }
+                )
             )
         }
     } else {
@@ -514,24 +478,20 @@ pub fn invoke(operation: &Operation, paths: &RoutingPaths) -> TokenStream {
 fn extract_inputs(
     operation: &Operation,
     paths: &RoutingPaths,
-    backend: &syn::Ident,
-    autodiff: bool,
+    target: Target<'_>,
     autodiff_cfg: Option<&TokenStream>,
-    has_autodiff_variant: bool,
     selected: Option<SelectedInput<'_>>,
 ) -> TokenStream {
     let extraction = Extraction {
         paths,
-        backend,
-        autodiff,
+        target,
         autodiff_cfg,
-        has_autodiff_variant,
     };
     let inputs = operation.inputs.iter().map(|input| {
         if let Some(selected) = selected
             && core::ptr::eq(input, selected.input)
         {
-            return extract_selected_input(input, &extraction, selected.autodiff_variant);
+            return extract_selected_input(input, &extraction);
         }
         extract_input(input, &extraction)
     });
@@ -541,41 +501,29 @@ fn extract_inputs(
 #[derive(Clone, Copy)]
 struct SelectedInput<'a> {
     input: &'a OperationInput,
-    autodiff_variant: bool,
 }
 
 struct Extraction<'a> {
     paths: &'a RoutingPaths,
-    backend: &'a syn::Ident,
-    autodiff: bool,
+    target: Target<'a>,
     autodiff_cfg: Option<&'a TokenStream>,
-    has_autodiff_variant: bool,
 }
 
-fn extract_selected_input(
-    input: &OperationInput,
-    extraction: &Extraction<'_>,
-    autodiff_variant: bool,
-) -> TokenStream {
+impl Extraction<'_> {
+    fn has_autodiff_variant(&self) -> bool {
+        self.autodiff_cfg.is_some()
+    }
+}
+
+fn extract_selected_input(input: &OperationInput, extraction: &Extraction<'_>) -> TokenStream {
     let InputKind::Tensor { kind, borrowed } = input.kind else {
         unreachable!("selected input must be a tensor")
     };
     let name = &input.name;
     let selected = format_ident!("__burn_selected");
     let dispatch_root = &extraction.paths.dispatch_root;
-    let backend_alias = &extraction.paths.backend_alias;
     let context = quote!(#dispatch_root::DispatchAutodiffContext);
-    assert!(
-        kind == TensorKind::Float || !autodiff_variant,
-        "only a float input can directly select an autodiff primitive"
-    );
-    let validate_context = if kind == TensorKind::Float && autodiff_variant {
-        quote! {
-            let #context::Enabled(_) = __burn_selected_context else {
-                panic!("an autodiff float primitive must have an enabled autodiff context")
-            };
-        }
-    } else if kind == TensorKind::Float {
+    let validate_context = if kind == TensorKind::Float {
         quote! {
             let #context::Disabled = __burn_selected_context else {
                 panic!("an enabled float tensor must use an autodiff primitive")
@@ -584,35 +532,13 @@ fn extract_selected_input(
     } else {
         TokenStream::new()
     };
-
-    if kind == TensorKind::Float && extraction.autodiff && !autodiff_variant {
-        let autodiff_trait = &extraction.paths.autodiff_trait;
-        if borrowed {
-            let lifted = format_ident!("__lifted_{name}");
-            quote! {
-                #validate_context
-                let #lifted = <#backend_alias as #autodiff_trait>::from_inner(#selected.as_float().clone());
-                let #name = &#lifted;
-            }
-        } else {
-            quote! {
-                #validate_context
-                let #name = <#backend_alias as #autodiff_trait>::from_inner(#selected.float());
-            }
-        }
+    let accessor = kind.accessor();
+    let accessor = if borrowed {
+        format_ident!("as_{accessor}")
     } else {
-        let accessor = if kind == TensorKind::Float && extraction.autodiff {
-            format_ident!("autodiff")
-        } else {
-            kind.accessor()
-        };
-        let accessor = if borrowed {
-            format_ident!("as_{accessor}")
-        } else {
-            accessor
-        };
-        quote!(#validate_context let #name = #selected.#accessor();)
-    }
+        accessor
+    };
+    quote!(#validate_context let #name = #selected.#accessor();)
 }
 
 fn extract_input(input: &OperationInput, extraction: &Extraction<'_>) -> TokenStream {
@@ -649,13 +575,9 @@ fn extract_input(input: &OperationInput, extraction: &Extraction<'_>) -> TokenSt
                 let #name = #parameters { scales: __scales, global: __global };
             }
         }
-        InputKind::Extension(ty) => extract_extension(
-            name,
-            ty,
-            extraction.paths,
-            extraction.backend,
-            extraction.autodiff,
-        ),
+        InputKind::Extension(ty) => {
+            extract_extension(name, ty, extraction.paths, extraction.target)
+        }
         InputKind::Other => TokenStream::new(),
     }
 }
@@ -670,14 +592,24 @@ fn extract_tensor(
     borrowed: bool,
     extraction: &Extraction<'_>,
 ) -> TokenStream {
-    let backend = extraction.backend;
-    let backend_alias = &extraction.paths.backend_alias;
-    let dispatch_root = &extraction.paths.dispatch_root;
+    match extraction.target {
+        Target::Autodiff => extract_tensor_autodiff(name, kind, borrowed, extraction.paths),
+        Target::Concrete(backend) => {
+            extract_tensor_concrete(name, kind, borrowed, backend, extraction)
+        }
+    }
+}
+
+fn extract_tensor_autodiff(
+    name: &syn::Ident,
+    kind: TensorKind,
+    borrowed: bool,
+    paths: &RoutingPaths,
+) -> TokenStream {
+    let backend_alias = &paths.backend_alias;
+    let dispatch_root = &paths.dispatch_root;
     let dispatch_kind = quote!(#dispatch_root::DispatchTensorKind);
-    let autodiff_trait = &extraction.paths.autodiff_trait;
-    let ad_cfg = cfg_attr(extraction.autodiff_cfg);
-    let accessor = kind.accessor();
-    let accessor_ref = format_ident!("as_{accessor}");
+    let autodiff_trait = &paths.autodiff_trait;
     let context = quote!(#dispatch_root::DispatchAutodiffContext);
     let validate_enabled_float = quote! {
         let #context::Enabled(_) = #name.autodiff else {
@@ -689,18 +621,8 @@ fn extract_tensor(
             panic!("an enabled float tensor must use an autodiff primitive")
         };
     };
-    let invalid_autodiff_float = extraction.has_autodiff_variant.then(|| {
-        quote! {
-            #ad_cfg
-            #dispatch_kind::Autodiff(_) => panic!("autodiff float input reached concrete dispatch"),
-        }
-    });
-    let invalid_autodiff_kind = extraction.has_autodiff_variant.then(|| quote! {
-        #ad_cfg
-        #dispatch_kind::Autodiff(_) => panic!("only float tensors may use an autodiff primitive"),
-    });
 
-    if kind == TensorKind::Float && extraction.autodiff {
+    if kind == TensorKind::Float {
         if borrowed {
             let lifted = format_ident!("__lifted_{name}");
             quote! {
@@ -708,17 +630,13 @@ fn extract_tensor(
                 let #name = match &#name.kind {
                     #dispatch_kind::Autodiff(__inner) => {
                         #validate_enabled_float
-                        match __inner.as_ref() {
-                            #dispatch_kind::#backend(__inner) => __inner.as_autodiff(),
-                            _ => panic!("input tensor `{}` is on the wrong backend", stringify!(#name)),
-                        }
+                        &**__inner
                     }
-                    #dispatch_kind::#backend(__inner) => {
+                    _ => {
                         #validate_disabled_float
-                        #lifted = <#backend_alias as #autodiff_trait>::from_inner(__inner.as_float().clone());
+                        #lifted = <#backend_alias as #autodiff_trait>::from_inner(#name.clone());
                         &#lifted
                     }
-                    _ => panic!("input tensor `{}` is on the wrong backend", stringify!(#name)),
                 };
             }
         } else {
@@ -726,24 +644,85 @@ fn extract_tensor(
                 let #name = match #name.kind {
                     #dispatch_kind::Autodiff(__inner) => {
                         #validate_enabled_float
-                        match *__inner {
-                            #dispatch_kind::#backend(__inner) => __inner.autodiff(),
-                            _ => panic!("input tensor `{}` is on the wrong backend", stringify!(#name)),
-                        }
+                        *__inner
                     }
-                    #dispatch_kind::#backend(__inner) => {
+                    __kind => {
                         #validate_disabled_float
-                        <#backend_alias as #autodiff_trait>::from_inner(__inner.float())
+                        <#backend_alias as #autodiff_trait>::from_inner(
+                            #dispatch_root::DispatchTensor {
+                                kind: __kind,
+                                autodiff: #dispatch_root::DispatchAutodiffContext::Disabled,
+                            }
+                        )
                     }
-                    _ => panic!("input tensor `{}` is on the wrong backend", stringify!(#name)),
                 };
             }
         }
-    } else if kind == TensorKind::Float {
+    } else if borrowed {
+        let cleared = format_ident!("__cleared_{name}");
+        quote! {
+            let #cleared;
+            let #name = match &#name.kind {
+                #dispatch_kind::Autodiff(_) => panic!("only float tensors may use an autodiff primitive"),
+                __kind => {
+                    #cleared = #dispatch_root::DispatchTensor {
+                        kind: __kind.clone(),
+                        autodiff: #dispatch_root::DispatchAutodiffContext::Disabled,
+                    };
+                    &#cleared
+                }
+            };
+        }
+    } else {
+        // Inside `Autodiff<Dispatch>`, int, bool and quantized tensors are primitive values: their
+        // device association must not make the primitive computation look autodiff-enabled.
+        quote! {
+            let #name = match #name.kind {
+                #dispatch_kind::Autodiff(_) => panic!("only float tensors may use an autodiff primitive"),
+                __kind => #dispatch_root::DispatchTensor {
+                    kind: __kind,
+                    autodiff: #dispatch_root::DispatchAutodiffContext::Disabled,
+                },
+            };
+        }
+    }
+}
+
+fn extract_tensor_concrete(
+    name: &syn::Ident,
+    kind: TensorKind,
+    borrowed: bool,
+    backend: &syn::Ident,
+    extraction: &Extraction<'_>,
+) -> TokenStream {
+    let dispatch_root = &extraction.paths.dispatch_root;
+    let dispatch_kind = quote!(#dispatch_root::DispatchTensorKind);
+    let ad_cfg = cfg_attr(extraction.autodiff_cfg);
+    let context = quote!(#dispatch_root::DispatchAutodiffContext);
+    let validate_disabled_float = quote! {
+        let #context::Disabled = #name.autodiff else {
+            panic!("an enabled float tensor must use an autodiff primitive")
+        };
+    };
+    let invalid_autodiff_float = extraction.has_autodiff_variant().then(|| {
+        quote! {
+            #ad_cfg
+            #dispatch_kind::Autodiff(_) => panic!("autodiff float input reached concrete dispatch"),
+        }
+    });
+    let invalid_autodiff_kind = extraction.has_autodiff_variant().then(|| quote! {
+        #ad_cfg
+        #dispatch_kind::Autodiff(_) => panic!("only float tensors may use an autodiff primitive"),
+    });
+
+    if kind == TensorKind::Float {
         if borrowed {
             quote! {
                 let #name = match &#name.kind {
-                    #dispatch_kind::#backend(__inner) => __inner.as_float(),
+                    #dispatch_kind::#backend(__inner) => {
+                        #validate_disabled_float
+                        __inner.as_float()
+                    }
                     #invalid_autodiff_float
                     _ => panic!("input tensor `{}` is on the wrong backend", stringify!(#name)),
                 };
@@ -751,27 +730,34 @@ fn extract_tensor(
         } else {
             quote! {
                 let #name = match #name.kind {
-                    #dispatch_kind::#backend(__inner) => __inner.float(),
+                    #dispatch_kind::#backend(__inner) => {
+                        #validate_disabled_float
+                        __inner.float()
+                    }
                     #invalid_autodiff_float
                     _ => panic!("input tensor `{}` is on the wrong backend", stringify!(#name)),
                 };
             }
         }
-    } else if borrowed {
-        quote! {
-            let #name = match &#name.kind {
-                #dispatch_kind::#backend(__inner) => __inner.#accessor_ref(),
-                #invalid_autodiff_kind
-                _ => panic!("input tensor `{}` is on the wrong backend", stringify!(#name)),
-            };
-        }
     } else {
-        quote! {
-            let #name = match #name.kind {
-                #dispatch_kind::#backend(__inner) => __inner.#accessor(),
-                #invalid_autodiff_kind
-                _ => panic!("input tensor `{}` is on the wrong backend", stringify!(#name)),
-            };
+        let accessor = kind.accessor();
+        let accessor_ref = format_ident!("as_{accessor}");
+        if borrowed {
+            quote! {
+                let #name = match &#name.kind {
+                    #dispatch_kind::#backend(__inner) => __inner.#accessor_ref(),
+                    #invalid_autodiff_kind
+                    _ => panic!("input tensor `{}` is on the wrong backend", stringify!(#name)),
+                };
+            }
+        } else {
+            quote! {
+                let #name = match #name.kind {
+                    #dispatch_kind::#backend(__inner) => __inner.#accessor(),
+                    #invalid_autodiff_kind
+                    _ => panic!("input tensor `{}` is on the wrong backend", stringify!(#name)),
+                };
+            }
         }
     }
 }
@@ -780,72 +766,38 @@ fn extract_extension(
     name: &syn::Ident,
     ty: &syn::Type,
     paths: &RoutingPaths,
-    backend: &syn::Ident,
-    autodiff: bool,
+    target: Target<'_>,
 ) -> TokenStream {
     let backend_root = &paths.backend_root;
     let dispatch_root = &paths.dispatch_root;
     let dispatch_kind = quote!(#dispatch_root::DispatchTensorKind);
-    let backend_tensor = quote!(#dispatch_root::BackendTensor);
-    let autodiff_trait = &paths.autodiff_trait;
     let extension_trait = &paths.extension_trait;
-    let backend_alias = &paths.backend_alias;
-    let mismatch = quote!(panic!("backend extension input is on the wrong backend"));
-    if autodiff {
-        let target = ir::with_backend(ty, quote!(#backend_alias));
-        let context = quote!(#dispatch_root::DispatchAutodiffContext);
-        quote! {
-            let #name = <#target as #extension_trait<#backend_alias>>::map_from_dispatch(#name, |__tensor| {
-                let __input_context = __tensor.autodiff;
-                match __tensor.kind {
-                    #dispatch_kind::Autodiff(inner) => {
-                        let #context::Enabled(_) = __input_context else {
-                            panic!("an autodiff float primitive must have an enabled autodiff context")
-                        };
-                        let tensor = match *inner {
+    match target {
+        Target::Autodiff => {
+            let backend_alias = &paths.backend_alias;
+            let target_ty = ir::with_backend(ty, quote!(#backend_alias));
+            quote! {
+                let #name = <#target_ty as #extension_trait<#backend_alias>>::map_from_dispatch(
+                    #name,
+                    |__tensor| __tensor.into_autodiff_backend::<#backend_alias>(),
+                );
+            }
+        }
+        Target::Concrete(backend) => {
+            let target_ty = ir::with_backend(ty, quote!(#backend_root::#backend));
+            let mismatch = quote!(panic!("backend extension input is on the wrong backend"));
+            quote! {
+                let #name = <#target_ty as #extension_trait<#backend_root::#backend>>::map_from_dispatch(
+                    #name,
+                    |__tensor| {
+                        match __tensor.kind {
                             #dispatch_kind::#backend(tensor) => tensor,
                             #[allow(unreachable_patterns)]
                             _ => #mismatch,
-                        };
-                        match tensor {
-                            #backend_tensor::Autodiff(tensor) => #backend_tensor::Float(tensor),
-                            _ => panic!("only float tensors may use an autodiff primitive"),
-                        }
-                    }
-                    #dispatch_kind::#backend(tensor) => match tensor {
-                        #backend_tensor::Float(tensor) => {
-                            let #context::Disabled = __input_context else {
-                                panic!("an enabled float tensor must use an autodiff primitive")
-                            };
-                            #backend_tensor::Float(
-                                <#backend_alias as #autodiff_trait>::from_inner(tensor)
-                            )
-                        }
-                        #backend_tensor::Int(tensor) => #backend_tensor::Int(tensor),
-                        #backend_tensor::Bool(tensor) => #backend_tensor::Bool(tensor),
-                        #backend_tensor::Quantized(tensor) => #backend_tensor::Quantized(tensor),
-                        #backend_tensor::Autodiff(_) => {
-                            panic!("autodiff float input reached concrete dispatch")
                         }
                     },
-                    #[allow(unreachable_patterns)]
-                    _ => #mismatch,
-                }
-            });
-        }
-    } else {
-        let target = ir::with_backend(ty, quote!(#backend_root::#backend));
-        quote! {
-            let #name = <#target as #extension_trait<#backend_root::#backend>>::map_from_dispatch(
-                #name,
-                |__tensor| {
-                    match __tensor.kind {
-                        #dispatch_kind::#backend(tensor) => tensor,
-                        #[allow(unreachable_patterns)]
-                        _ => #mismatch,
-                    }
-                },
-            );
+                );
+            }
         }
     }
 }
@@ -853,24 +805,22 @@ fn extract_extension(
 pub fn wrap_output(
     output: &OperationOutput,
     paths: &RoutingPaths,
-    backend: &syn::Ident,
-    route: OutputRoute,
+    route: OutputRoute<'_>,
     value: TokenStream,
 ) -> TokenStream {
     match output {
         OperationOutput::Plain => value,
         OperationOutput::Tensor(kind) => {
             let dispatch_root = &paths.dispatch_root;
-            let wrapped =
-                wrap_tensor_kind(paths, *kind, backend, route, value, &format_ident!("AD"));
+            let wrapped = wrap_tensor_kind(paths, *kind, route, value, &format_ident!("AD"));
             quote!(#dispatch_root::DispatchTensor { kind: #wrapped, autodiff: __ad_ctx })
         }
         OperationOutput::Option(inner) => {
-            let wrapped = wrap_output(inner, paths, backend, route, quote!(__value));
+            let wrapped = wrap_output(inner, paths, route, quote!(__value));
             quote!(#value.map(|__value| #wrapped))
         }
         OperationOutput::Vec(inner) => {
-            let wrapped = wrap_output(inner, paths, backend, route, quote!(__value));
+            let wrapped = wrap_output(inner, paths, route, quote!(__value));
             quote!(#value.into_iter().map(|__value| #wrapped).collect())
         }
         OperationOutput::Tuple(items) => {
@@ -880,7 +830,7 @@ pub fn wrap_output(
             let wrapped = items
                 .iter()
                 .zip(&bindings)
-                .map(|(item, binding)| wrap_output(item, paths, backend, route, quote!(#binding)));
+                .map(|(item, binding)| wrap_output(item, paths, route, quote!(#binding)));
             quote!({ let (#(#bindings,)*) = #value; (#(#wrapped,)*) })
         }
         OperationOutput::Extension(ty) => {
@@ -895,14 +845,8 @@ pub fn wrap_output(
             .map(|kind| {
                 let variant = kind.variant();
                 let dispatch_root = &paths.dispatch_root;
-                let wrapped = wrap_tensor_kind(
-                    paths,
-                    kind,
-                    backend,
-                    route,
-                    quote!(__tensor),
-                    &format_ident!("AD"),
-                );
+                let wrapped =
+                    wrap_tensor_kind(paths, kind, route, quote!(__tensor), &format_ident!("AD"));
                 quote!(#dispatch_root::BackendTensor::#variant(__tensor) => #wrapped,)
             });
             let _ = ty;
@@ -921,16 +865,12 @@ pub fn wrap_output(
     }
 }
 
-/// Shared route fragments after a concrete backend is known.
-///
-/// The two macro frontends arrange these fragments differently, but input extraction, invocation,
-/// output wrapping, and checkpoint-strategy selection stay defined in one place.
+/// Shared concrete route fragments after a backend is known.
 struct RouteFragments {
     concrete_inputs: TokenStream,
     concrete_invoke: TokenStream,
     concrete_disabled: TokenStream,
     concrete_enabled: TokenStream,
-    autodiff_call: TokenStream,
     concrete_enabled_output: TokenStream,
 }
 
@@ -938,108 +878,87 @@ fn route_fragments(
     operation: &Operation,
     paths: &RoutingPaths,
     backend: &syn::Ident,
-    autodiff_attr: Option<&TokenStream>,
-    has_autodiff_variant: bool,
-    selected: Option<SelectedInput<'_>>,
+    source: Option<&OperationInput>,
+    autodiff_cfg: Option<&TokenStream>,
 ) -> RouteFragments {
+    let selected = source.map(|input| SelectedInput { input });
     let concrete_inputs = extract_inputs(
         operation,
         paths,
-        backend,
-        false,
-        autodiff_attr,
-        has_autodiff_variant,
+        Target::Concrete(backend),
+        autodiff_cfg,
         selected,
     );
     let concrete_invoke = invoke(operation, paths);
     let concrete_disabled = wrap_output(
         &operation.output,
         paths,
-        backend,
-        OutputRoute::ConcreteDisabled,
+        OutputRoute::ConcreteDisabled(backend),
         quote!(__output),
     );
     let concrete_enabled = wrap_output(
         &operation.output,
         paths,
-        backend,
-        OutputRoute::ConcreteEnabled,
+        OutputRoute::ConcreteEnabled(backend),
         quote!(__output),
-    );
-    let autodiff_inputs = extract_inputs(
-        operation,
-        paths,
-        backend,
-        true,
-        autodiff_attr,
-        has_autodiff_variant,
-        selected,
-    );
-    let autodiff_output = wrap_output(
-        &operation.output,
-        paths,
-        backend,
-        OutputRoute::Autodiff,
-        quote!(__output),
-    );
-    let autodiff_call = with_autodiff_backend(
-        paths,
-        backend,
-        quote!(__strategy),
-        &paths.backend_alias,
-        quote! {
-            #autodiff_inputs
-            #concrete_invoke
-            #autodiff_output
-        },
     );
     let concrete_enabled_output = with_autodiff_backend(
         paths,
-        backend,
         quote!(__strategy),
         &format_ident!("AD"),
         concrete_enabled.clone(),
     );
-
     RouteFragments {
         concrete_inputs,
         concrete_invoke,
         concrete_disabled,
         concrete_enabled,
-        autodiff_call,
         concrete_enabled_output,
     }
 }
 
-/// Generate backend-dispatch routes after the routing tensor selected a concrete backend.
+/// The route body that runs an operation on `Autodiff<Dispatch>`.
+///
+/// It is independent of the selected concrete backend: the autodiff level is part of the tensor
+/// data, so every level uses the same monomorphization.
+pub fn autodiff_route(operation: &Operation, paths: &RoutingPaths) -> TokenStream {
+    let dispatch_root = &paths.dispatch_root;
+    let backend_alias = &paths.backend_alias;
+    let inputs = extract_inputs(operation, paths, Target::Autodiff, None, None);
+    let invoke = invoke(operation, paths);
+    let output = wrap_output(
+        &operation.output,
+        paths,
+        OutputRoute::Autodiff,
+        quote!(__output),
+    );
+    with_autodiff_backend(
+        paths,
+        quote!(__strategy),
+        backend_alias,
+        quote! {
+            let __ad_ctx = #dispatch_root::DispatchAutodiffContext::Enabled(__strategy);
+            #inputs
+            #invoke
+            #output
+        },
+    )
+}
+
+/// Generate concrete-backend routes for a dispatched tensor operation.
 pub fn dispatch_backend_routes(
     operation: &Operation,
     backend: &syn::Ident,
-    autodiff_float_inputs: &AutodiffFloatInputPresence,
-    routing_tensor_is_autodiff: bool,
     source: Option<&OperationInput>,
-    autodiff_attr: &TokenStream,
-    no_autodiff_attr: &TokenStream,
 ) -> TokenStream {
     let paths = RoutingPaths::dispatch();
-    let selected = source.map(|input| SelectedInput {
-        input,
-        autodiff_variant: routing_tensor_is_autodiff,
-    });
-    let fragments = route_fragments(
-        operation,
-        &paths,
-        backend,
-        Some(autodiff_attr),
-        true,
-        selected,
-    );
+    let autodiff_cfg = quote!(#[cfg(feature = "autodiff")]);
+    let fragments = route_fragments(operation, &paths, backend, source, Some(&autodiff_cfg));
     let RouteFragments {
         concrete_inputs,
         concrete_invoke,
         concrete_disabled,
         concrete_enabled,
-        autodiff_call,
         concrete_enabled_output,
     } = fragments;
     let dispatch_root = &paths.dispatch_root;
@@ -1047,84 +966,43 @@ pub fn dispatch_backend_routes(
     let backend_root = &paths.backend_root;
     let backend_alias = &paths.backend_alias;
 
-    let disabled = if routing_tensor_is_autodiff {
-        quote! {
-            #context::Disabled => {
-                panic!("an autodiff float primitive must have an enabled autodiff context")
-            }
-        }
-    } else {
-        quote! {
-            #context::Disabled => {
-                type #backend_alias = #backend_root::#backend;
-                #concrete_inputs
-                #concrete_invoke
-                #concrete_disabled
-            }
+    let disabled = quote! {
+        #context::Disabled => {
+            type #backend_alias = #backend_root::#backend;
+            #concrete_inputs
+            #concrete_invoke
+            #concrete_disabled
         }
     };
-    let concrete_enabled_route = if operation.output.contains_float() {
+    let enabled = if operation.output.contains_float() {
         quote! {
-            #autodiff_attr
+            #[cfg(feature = "autodiff")]
             #context::Enabled(__strategy) => {
                 type #backend_alias = #backend_root::#backend;
                 #concrete_inputs
                 #concrete_invoke
                 #concrete_enabled_output
             }
-            #no_autodiff_attr
+            #[cfg(not(feature = "autodiff"))]
             #context::Enabled(_) => panic!("autodiff context requires the `autodiff` feature"),
         }
     } else {
         quote! {
+            #[cfg(feature = "autodiff")]
             #context::Enabled(_) => {
                 type #backend_alias = #backend_root::#backend;
                 #concrete_inputs
                 #concrete_invoke
                 #concrete_enabled
             }
-        }
-    };
-    let enabled = match autodiff_float_inputs {
-        AutodiffFloatInputPresence::Never => concrete_enabled_route,
-        AutodiffFloatInputPresence::Runtime(expression) => {
-            let concrete_runtime = if operation.output.contains_float() {
-                quote! {
-                    #autodiff_attr
-                    false => {
-                        type #backend_alias = #backend_root::#backend;
-                        #concrete_inputs
-                        #concrete_invoke
-                        #concrete_enabled_output
-                    }
-                    #no_autodiff_attr
-                    false => panic!("autodiff context requires the `autodiff` feature"),
-                }
-            } else {
-                quote! {
-                    false => {
-                        type #backend_alias = #backend_root::#backend;
-                        #concrete_inputs
-                        #concrete_invoke
-                        #concrete_enabled
-                    }
-                }
-            };
-            quote! {
-                #context::Enabled(__strategy) => match #expression {
-                    #autodiff_attr
-                    true => #autodiff_call,
-                    #no_autodiff_attr
-                    true => panic!("autodiff context requires the `autodiff` feature"),
-                    #concrete_runtime
-                }
-            }
+            #[cfg(not(feature = "autodiff"))]
+            #context::Enabled(_) => panic!("autodiff context requires the `autodiff` feature"),
         }
     };
     quote!(match __ad_ctx { #disabled #enabled })
 }
 
-/// Generate backend-extension routes after the routing tensor selected a concrete backend.
+/// Generate concrete-backend routes for a backend extension after it selected a backend.
 pub fn extension_backend_routes(
     operation: &Operation,
     backend: &syn::Ident,
@@ -1133,13 +1011,12 @@ pub fn extension_backend_routes(
     operation_name: &syn::Ident,
 ) -> TokenStream {
     let paths = RoutingPaths::extension();
-    let fragments = route_fragments(operation, &paths, backend, autodiff_attr, autodiff, None);
+    let fragments = route_fragments(operation, &paths, backend, None, autodiff_attr);
     let RouteFragments {
         concrete_inputs,
         concrete_invoke,
         concrete_disabled,
         concrete_enabled,
-        autodiff_call,
         concrete_enabled_output,
     } = fragments;
     let dispatch_root = &paths.dispatch_root;
@@ -1153,7 +1030,7 @@ pub fn extension_backend_routes(
     } else {
         concrete_enabled
     };
-    let concrete_route = if !autodiff {
+    if !autodiff {
         quote! {
             let #context::Disabled = __ad_ctx else {
                 unimplemented!("Autodiff not supported for custom op `{}`", stringify!(#operation_name))
@@ -1193,26 +1070,5 @@ pub fn extension_backend_routes(
                 _ => unreachable!("enabled concrete output requires an autodiff strategy"),
             }
         }
-    };
-    if autodiff {
-        let enabled = if autodiff_attr.is_some() {
-            quote! {
-                #attr
-                (true, #context::Enabled(__strategy)) => #autodiff_call,
-                (true, #context::Enabled(_)) => {
-                    unimplemented!("Autodiff not supported for custom op `{}`", stringify!(#operation_name))
-                }
-            }
-        } else {
-            quote!((true, #context::Enabled(__strategy)) => #autodiff_call,)
-        };
-        quote! {
-            match (__has_autodiff_float_input, __ad_ctx) {
-                #enabled
-                (_, __ad_ctx) => { #concrete_route }
-            }
-        }
-    } else {
-        concrete_route
     }
 }

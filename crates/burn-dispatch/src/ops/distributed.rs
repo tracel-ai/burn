@@ -97,6 +97,25 @@ macro_rules! dispatch_distributed_devices_arms {
     };
 }
 
+/// Submits a gradient for synchronization on the backend that owns it.
+macro_rules! submit_gradient_sync_arms {
+    ($tensor:expr, $params:expr; $([$Backend:ident, $cfg:meta]),*) => {
+        match &mut $tensor.kind {
+            $(
+                #[cfg($cfg)]
+                $crate::DispatchTensorKind::$Backend($crate::BackendTensor::Float(tensor)) => {
+                    $crate::backends::$Backend::submit_gradient_sync(
+                        TensorRef(tensor),
+                        $params,
+                    )
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            other => panic!("Distributed gradient sync is not supported for tensor kind {other:?}"),
+        }
+    };
+}
+
 /// Dispatches an operation body based on the provided devices.
 macro_rules! dispatch_distributed_devices {
     ($device:expr, $devices:expr, |$inner_devices:ident| $body:expr) => {
@@ -142,8 +161,13 @@ impl DistributedOps<Self> for Dispatch {
         dispatch_device!(@distributed device, |device| B::submit_sync_collective(device))
     }
 
-    fn submit_gradient_sync(_tensor: TensorRef<Self>, _distributed_params: DistributedParams) {
-        unimplemented!()
+    fn submit_gradient_sync(tensor: TensorRef<Self>, distributed_params: DistributedParams) {
+        // Safety: `on_register` passes a pointer into the autodiff gradient container, which keeps
+        // the gradient alive until the backward pass ends (see
+        // `DistributedSyncServer::register_tensor`). It is reborrowed mutably only to select the
+        // owning backend, which receives the same pointer.
+        let tensor = unsafe { &mut *tensor.0 };
+        distributed_backend_list!(submit_gradient_sync_arms, tensor, distributed_params)
     }
 
     unsafe fn comm_device(_tensor: &TensorRef<Self>) -> DispatchDevice {
