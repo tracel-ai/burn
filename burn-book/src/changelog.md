@@ -129,6 +129,12 @@ and saved on any device that reaches its storage, a remote server's included.
   product is reshaped before the tail reads it, as a projection that flattens its batches into
   rows does, and when an operand is stored in tiles. ([#6440](https://github.com/tracel-ai/burn/pull/6440)) [@louisfd](https://github.com/louisfd)
 
+#### Cumulative operations
+
+- `cumsum` and `cumprod` accumulate f16 and bf16 inputs in f32 and round each prefix once, so a
+  long scan no longer stops growing once the running value leaves the half-precision range.
+  ([#6479](https://github.com/tracel-ai/burn/issues/6479))
+
 #### Device descriptions and measurements
 
 **Breaking:** What a device is and what it measures are `Backend` methods in Burn's own types, so a
