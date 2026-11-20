@@ -406,8 +406,8 @@ enum MergeBlockStep {
 /// [GraphNode] for the hazard rules deriving the edges). Ties keep the earliest stream position
 /// first, reproducing the historical order when there are no hazards.
 ///
-/// If the chunk graph has a cycle — the chunking can't be linearized as atomic units — unfused
-/// chunks are [split](repair_order_split) to break the cycle before giving up on fusion.
+/// If the chunk graph has a cycle, the chunking can't be linearized as atomic units: unfused and
+/// composed chunks are [split](repair_order_split) to break the cycle before giving up on fusion.
 fn repair_order<O>(opt: BlockOptimization<O>, operations: &[OperationIr]) -> BlockOptimization<O> {
     let (strategies, ordering) = match opt.strategy {
         ExecutionStrategy::Composed(items) => (items, opt.ordering),
@@ -435,18 +435,19 @@ fn repair_order<O>(opt: BlockOptimization<O>, operations: &[OperationIr]) -> Blo
 
     let order = match Dag::new(&chunks).topological_order() {
         Some(order) => order,
-        // The chunks can't be linearized as atomic units. Unfused chunks are free to split
-        // (their ops execute individually), which may break the cycle while every fused
-        // optimization survives intact.
+        // The chunks can't be linearized as atomic units. Unfused and composed chunks are free
+        // to split (their parts execute individually), which may break the cycle while every
+        // fused optimization survives intact.
         None => return repair_order_split(strategies, chunks, operations),
     };
 
     assemble(strategies, &chunks, &order, operations)
 }
 
-/// Retry [repair_order] with every [Operations](ExecutionStrategy::Operations) chunk split into
-/// single-operation chunks, keeping fused optimizations atomic. Splitting only removes ordering
-/// constraints, so this resolves any cycle that isn't between fused chunks themselves.
+/// Retry [repair_order] with every [Composed](ExecutionStrategy::Composed) chunk opened into its
+/// parts and every [Operations](ExecutionStrategy::Operations) chunk split into single-operation
+/// chunks, keeping fused optimizations atomic. Splitting only removes ordering constraints, so
+/// this resolves any cycle that doesn't run through a fused optimization.
 fn repair_order_split<O>(
     strategies: Vec<Box<ExecutionStrategy<O>>>,
     chunks: Vec<Chunk>,
@@ -455,20 +456,13 @@ fn repair_order_split<O>(
     let mut split_strategies = Vec::new();
     let mut split_chunks = Vec::new();
     for (strategy, chunk) in strategies.into_iter().zip(chunks) {
-        match *strategy {
-            ExecutionStrategy::Operations { .. } => {
-                for position in chunk.positions {
-                    split_strategies.push(Box::new(ExecutionStrategy::Operations {
-                        ordering: Arc::new(vec![position]),
-                    }));
-                    split_chunks.push(Chunk::new(vec![position], operations));
-                }
-            }
-            strategy => {
-                split_strategies.push(Box::new(strategy));
-                split_chunks.push(chunk);
-            }
-        }
+        split_into(
+            *strategy,
+            &chunk.positions,
+            operations,
+            &mut split_strategies,
+            &mut split_chunks,
+        );
     }
 
     match Dag::new(&split_chunks).topological_order() {
@@ -481,6 +475,45 @@ fn repair_order_split<O>(
                 .flat_map(|chunk| chunk.positions)
                 .collect(),
         ),
+    }
+}
+
+/// Push `strategy`, which covers `positions`, as the smallest chunks it can run as: a fused
+/// optimization whole, an unfused operation alone, and a composed strategy as its parts.
+fn split_into<O>(
+    strategy: ExecutionStrategy<O>,
+    positions: &[usize],
+    operations: &[OperationIr],
+    strategies: &mut Vec<Box<ExecutionStrategy<O>>>,
+    chunks: &mut Vec<Chunk>,
+) {
+    match strategy {
+        ExecutionStrategy::Operations { .. } => {
+            for &position in positions {
+                strategies.push(Box::new(ExecutionStrategy::Operations {
+                    ordering: Arc::new(vec![position]),
+                }));
+                chunks.push(Chunk::new(vec![position], operations));
+            }
+        }
+        ExecutionStrategy::Composed(items) => {
+            let mut offset = 0;
+            for item in items {
+                let len = strategy_len(&item);
+                split_into(
+                    *item,
+                    &positions[offset..offset + len],
+                    operations,
+                    strategies,
+                    chunks,
+                );
+                offset += len;
+            }
+        }
+        fused => {
+            strategies.push(Box::new(fused));
+            chunks.push(Chunk::new(positions.to_vec(), operations));
+        }
     }
 }
 
@@ -676,6 +709,34 @@ mod tests {
         assert_eq!(
             repaired.strategy,
             composed(vec![unfused(vec![0]), fused(vec![1, 2]), unfused(vec![3])]),
+        );
+    }
+
+    /// A composed chunk (a re-optimized hole, nested as holes of holes are) caught in a cycle is
+    /// opened into its parts, so the fusions on both sides survive instead of the whole segment
+    /// running unfused.
+    #[test]
+    fn opens_a_composed_chunk_caught_in_a_cycle() {
+        let ops = vec![
+            add(1, 2, 10),  // 0: unfused, inside the composed chunk
+            add(10, 3, 20), // 1: fused, reads 10
+            add(20, 4, 30), // 2: fused inside the composed chunk, reads 20
+            add(30, 5, 31), // 3: fused inside the composed chunk
+        ];
+        let opt = BlockOptimization::new(
+            composed(vec![
+                fused(vec![1]),
+                composed(vec![composed(vec![unfused(vec![0]), fused(vec![2, 3])])]),
+            ]),
+            vec![1, 0, 2, 3],
+        );
+
+        let repaired = repair_order(opt, &ops);
+
+        assert_eq!(repaired.ordering, vec![0, 1, 2, 3]);
+        assert_eq!(
+            repaired.strategy,
+            composed(vec![unfused(vec![0]), fused(vec![1]), fused(vec![2, 3])]),
         );
     }
 
