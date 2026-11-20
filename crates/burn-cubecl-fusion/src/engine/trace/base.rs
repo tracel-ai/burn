@@ -602,6 +602,7 @@ mod tests {
             inputs: vec![fuser.input_indexed(table).unwrap(); 2],
             output: fuser.output(&out).unwrap(),
             dim: 0,
+            equal_input_sizes: true,
         };
         fuser.fuse_operation(op);
         registered.push(out);
