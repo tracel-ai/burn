@@ -297,6 +297,14 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::graph_prepare(device))
     }
 
+    fn graph_end_run(device: &Self::Device) -> Result<bool, ExecutionError> {
+        dispatch_device!(device, |device| B::graph_end_run(device))
+    }
+
+    fn graph_start_run(device: &Self::Device) -> Result<(), ExecutionError> {
+        dispatch_device!(device, |device| B::graph_start_run(device))
+    }
+
     fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::graph_start_capture(device))
     }

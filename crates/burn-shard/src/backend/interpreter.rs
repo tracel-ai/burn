@@ -82,8 +82,14 @@ pub trait DynShardInterpreter: Send {
     /// What every member can do with `dtype`, since each op runs on all of them.
     fn dtype_usage(&self, dtype: DType) -> DTypeUsageSet;
 
-    /// Prepares every member for a graph capture.
+    /// Prepares every member for a graph capture, and starts planning its work.
     fn graph_prepare(&mut self) -> Result<(), ExecutionError>;
+
+    /// Ends one planning run on every member, and answers whether every member's settled.
+    fn graph_end_run(&mut self) -> Result<bool, ExecutionError>;
+
+    /// Starts the next planning run on every member, once the last one ended.
+    fn graph_start_run(&mut self) -> Result<(), ExecutionError>;
 
     /// Starts recording every member's launches, each into a graph of its own.
     fn graph_start_capture(&mut self) -> Result<(), ExecutionError>;
@@ -306,6 +312,14 @@ impl<B: BackendIr> DynShardInterpreter for ShardInterpreter<B> {
 
     fn graph_prepare(&mut self) -> Result<(), ExecutionError> {
         self.graphs.prepare(&self.interpreters)
+    }
+
+    fn graph_end_run(&mut self) -> Result<bool, ExecutionError> {
+        self.graphs.end_run(&self.interpreters)
+    }
+
+    fn graph_start_run(&mut self) -> Result<(), ExecutionError> {
+        self.graphs.start_run(&self.interpreters)
     }
 
     fn graph_start_capture(&mut self) -> Result<(), ExecutionError> {
