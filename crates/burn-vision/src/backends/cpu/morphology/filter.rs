@@ -160,7 +160,7 @@ impl<T: Scalar, Op: VecMorphOperator<T>> VecRow<T> for MorphRowVec<T, Op> {
                 vstore(dst.add(x), s);
                 x += lanes;
             }
-            if x as isize <= width - lanes as isize / 2 {
+            if lanes > 1 && x as isize <= width - lanes as isize / 2 {
                 let mut s = vload_low(src.add(x));
                 for k in (ch..k_size).step_by(ch) {
                     s = Op::apply::<S>(s, vload_low(src.add(x + k)));
@@ -320,7 +320,7 @@ impl<T: VOrd, Op: VecMorphOperator<T>> VecColumn<T> for MorphColumnVec<T, Op> {
                     }
                     x += lanes;
                 }
-                if x as isize <= width - lanes as isize / 2 {
+                if lanes > 1 && x as isize <= width - lanes as isize / 2 {
                     let mut s0 = vload_low(src[y + 1].add(x));
                     for k in 2..ksize {
                         s0 = Op::apply::<S>(s0, vload_low(src[y + k].add(x)));
@@ -395,7 +395,7 @@ impl<T: VOrd, Op: VecMorphOperator<T>> VecColumn<T> for MorphColumnVec<T, Op> {
                     vstore_unaligned(dst.add(x), s0);
                     x += lanes;
                 }
-                if x as isize <= width - lanes as isize / 2 {
+                if lanes > 1 && x as isize <= width - lanes as isize / 2 {
                     let mut s0 = vload_low(src[y].add(x));
 
                     for k in 1..ksize {
@@ -598,7 +598,7 @@ impl<T: Scalar, Op: VecMorphOperator<T>> VecFilter<T> for MorphVec<T, Op> {
                 vstore_unaligned(dst.add(i), s0);
                 i += lanes;
             }
-            if i as isize <= width - lanes as isize / 2 {
+            if lanes > 1 && i as isize <= width - lanes as isize / 2 {
                 let mut s = vload_low(src[0].add(i));
                 for sptr in src[1..nz].iter().map(|sptr| sptr.add(i)) {
                     s = Op::apply::<S>(s, vload_low(sptr));
@@ -717,4 +717,49 @@ fn process_2d_kernel<B: Element>(kernel: &[B], ksize: Size) -> Vec<Point> {
     }
 
     coords
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct CheckScalarTails;
+
+    impl macerator::WithSimd for CheckScalarTails {
+        type Output = ();
+
+        fn with_simd<S: Simd>(self) {
+            const WIDTH: usize = 2;
+            const STRIDE: usize = WIDTH + 1;
+            // Padding keeps stray accesses in bounds so standard tests can catch the stores.
+            const SENTINEL: u64 = u64::MAX;
+
+            let row_filter = MorphRowFilter::<u64, MaxOp, MorphRowVec<u64, MaxOp>>::new(3, 1);
+            let mut row_dst = [SENTINEL; STRIDE];
+            row_filter.apply::<S>(&[4, 1, 2, 3, 0], &mut row_dst, WIDTH, 1);
+            assert_eq!(row_dst, [4, 3, SENTINEL]);
+
+            let column_src = [[9, 1, 0], [2, 8, 0], [4, 3, 0], [5, 2, 0], [6, 7, 0]];
+            let rows = column_src.each_ref().map(|row| row.as_ptr());
+            let column_filter =
+                MorphColumnFilter::<u64, MaxOp, MorphColumnVec<u64, MaxOp>>::new(3, 1);
+            // Three output rows exercise both the paired-row loop and the single-row remainder.
+            let mut column_dst = [SENTINEL; 3 * STRIDE];
+            column_filter.apply::<S>(&rows, &mut column_dst, STRIDE, 3, WIDTH);
+            assert_eq!(column_dst, [9, 8, SENTINEL, 5, 8, SENTINEL, 6, 7, SENTINEL]);
+
+            let src = [[1, 4, 0], [3, 2, 0]];
+            let rows = src.each_ref().map(|row| row.as_ptr());
+            let mut dst = [SENTINEL; STRIDE];
+            let processed = MorphVec::<u64, MaxOp>::apply::<S>(&rows, rows.len(), &mut dst, WIDTH);
+            assert_eq!(processed, WIDTH);
+            assert_eq!(dst, [3, 4, SENTINEL]);
+        }
+    }
+
+    #[test]
+    fn scalar_fallback_skips_zero_width_half_vector_tail() {
+        // SAFETY: The scalar backend requires no CPU features.
+        unsafe { macerator::Arch::Scalar.dispatch(CheckScalarTails) };
+    }
 }
