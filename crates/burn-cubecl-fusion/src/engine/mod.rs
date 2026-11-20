@@ -3,5 +3,6 @@ pub mod fuser;
 pub mod launch;
 pub(crate) mod scoring;
 pub mod settings;
+pub mod tile;
 
 pub mod trace;

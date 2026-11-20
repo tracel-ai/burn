@@ -17,6 +17,9 @@ use burn_std::Shape;
 /// Fuses element wise operations around a reduce operation.
 pub struct ReduceFuser {
     pub(crate) fuser: TraceOperationFuser,
+    /// `fuser` as it stood at the reduce, its read block closed: the trace the fused reduce runs,
+    /// whose write block runs after it as its own launch (`fuser_write_fallback`).
+    fuser_read: Option<TraceOperationFuser>,
     pub(crate) fuser_read_fallback: TraceOperationFuser,
     fuser_write_fallback: TraceOperationFuser,
     settings_write: FuseSettings,
@@ -29,6 +32,7 @@ impl Clone for ReduceFuser {
     fn clone(&self) -> Self {
         Self {
             fuser: self.fuser.clone(),
+            fuser_read: self.fuser_read.clone(),
             fuser_read_fallback: self.fuser_read_fallback.clone(),
             fuser_write_fallback: self.fuser_write_fallback.clone(),
             settings_write: self.settings_write,
@@ -71,6 +75,7 @@ impl ReduceFuser {
 
         Self {
             fuser: TraceOperationFuser::new(max_bindings, settings_read),
+            fuser_read: None,
             fuser_read_fallback: TraceOperationFuser::new(max_bindings, settings_fallback),
             fuser_write_fallback: TraceOperationFuser::new(max_bindings, settings_fallback),
             settings_write,
@@ -110,6 +115,12 @@ impl ReduceFuser {
             self.fuser_read_fallback.close();
             return;
         }
+
+        let mut fuser_read = self.fuser.clone();
+        fuser_read.next_block([&op.input], self.settings_write, false);
+        fuser_read.current_output_shape = op.out.shape.clone();
+        fuser_read.close();
+        self.fuser_read = Some(fuser_read);
 
         let [input] = self
             .fuser
@@ -196,12 +207,18 @@ impl ReduceFuser {
     pub(crate) fn finish_reduce(&mut self) -> ReduceOptimization {
         let client = self.device.client();
         let trace = self.fuser.finish();
+        let trace_read = self
+            .fuser_read
+            .as_mut()
+            .expect("a fused reduce closed its read block at the reduce")
+            .finish();
         let trace_read_fallback = self.fuser_read_fallback.finish();
         let trace_write_fallback = self.fuser_write_fallback.finish();
         let fuse_reduce = self.reduce.as_ref().unwrap();
 
         ReduceOptimization::new(
             trace,
+            trace_read,
             trace_read_fallback,
             trace_write_fallback,
             client,
@@ -310,6 +327,7 @@ impl OperationFuser<CubeOptimization> for ReduceFuser {
 
     fn reset(&mut self) {
         self.fuser.reset();
+        self.fuser_read = None;
         self.fuser_read_fallback.reset();
         self.fuser_write_fallback.reset();
         self.reduce = None;
