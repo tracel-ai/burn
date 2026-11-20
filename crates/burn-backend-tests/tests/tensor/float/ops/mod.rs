@@ -92,6 +92,7 @@ mod log;
 mod log1p;
 mod mask;
 mod mask_select;
+mod masked_scatter;
 mod matmul;
 mod maxmin;
 mod movedim;

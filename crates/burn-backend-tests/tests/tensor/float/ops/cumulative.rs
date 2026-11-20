@@ -239,3 +239,20 @@ fn test_cummin_and_cummax_nan_at_start() {
         assert!(data[2].is_nan());
     }
 }
+
+#[test]
+fn test_cumsum_f16_accumulates_in_f32() {
+    // 4096 is exactly representable in f16, but the running sum stops growing
+    // at 2048 when the scan accumulates in f16.
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::new(vec![1.0f32; 4096], [4096]),
+        &Default::default(),
+    )
+    .cast(burn_tensor::DType::F16);
+
+    let output = tensor.cumsum(0).into_data();
+
+    assert_eq!(output.dtype(), burn_tensor::DType::F16);
+    let values = output.convert::<f32>();
+    assert_eq!(values.as_slice::<f32>().unwrap()[4095], 4096.0);
+}
