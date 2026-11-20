@@ -30,7 +30,7 @@ use crate::{
     },
     tensor::CubeTensor,
 };
-use cubek::reduce::components::instructions::ReduceOperationConfig;
+use cubek::reduce::ReduceOperation;
 
 #[cfg(not(test))]
 pub(crate) fn batches_per_run(
@@ -558,7 +558,7 @@ pub fn wgrad_im2col_1x1_split<const N: usize>(
         None,
         0,
         KernelReduceStrategy::default(),
-        ReduceOperationConfig::Sum,
+        ReduceOperation::Sum,
     );
     // The axis is in range, so only the strategy or the dtype can refuse here —
     // and the uncut form adds the same products inside its own matmul.
@@ -1012,7 +1012,7 @@ pub fn wgrad_im2col<const N: usize>(
                         None,
                         0,
                         KernelReduceStrategy::default(),
-                        ReduceOperationConfig::Sum,
+                        ReduceOperation::Sum,
                     )
                     .ok()
                 });

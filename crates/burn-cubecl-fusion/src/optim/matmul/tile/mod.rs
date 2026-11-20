@@ -23,7 +23,7 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeTuneId,
-    tile::launch::{Refusal, SinkLaunch, SinkLaunchVisitor},
+    tile::launch::{Decline, SinkLaunch, SinkLaunchVisitor},
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
 use cubek::matmul::kernels::{
@@ -49,9 +49,9 @@ pub enum TileFusedMatmulError {
     /// No routine is elected for the product.
     NoRoutineElected,
     /// An operand the routines do not read as it is stored.
-    Operand(Refusal),
+    Operand(Decline),
     /// The elected routine declined the product, or a sink.
-    Routine(Refusal),
+    Routine(Decline),
     /// The launcher ran the trace twice, and the routine's launch is taken by the first.
     RanTwice,
     /// The trace holds other than one block, which the routine stores into.
@@ -165,7 +165,7 @@ struct FusedRun<'a> {
 impl SinkLaunchVisitor for FusedRun<'_> {
     type Output = Result<TuneOutput, TraceError<TileFusedMatmulError>>;
 
-    fn visit<L: SinkLaunch>(self, prepared: Result<L, Refusal>) -> Self::Output {
+    fn visit<L: SinkLaunch>(self, prepared: Result<L, Decline>) -> Self::Output {
         let info = &self.arg.info;
         let launch =
             prepared.map_err(|why| TraceError::RunnerError(TileFusedMatmulError::Routine(why)))?;

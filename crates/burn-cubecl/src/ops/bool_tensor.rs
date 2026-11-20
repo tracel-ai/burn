@@ -13,7 +13,7 @@ use burn_backend::{
 };
 use burn_std::{BoolDType, BoolStore, DType, FloatDType, IntDType};
 use cubecl::prelude::InputScalar;
-use cubek::reduce::components::instructions::ReduceOperationConfig;
+use cubek::reduce::ReduceOperation;
 use std::ops::Range;
 
 use super::{expand, numeric, permute, unfold};
@@ -140,22 +140,22 @@ impl BoolTensorOps<Self> for CubeBackend {
 
     fn bool_any(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         let store = bool_store(&tensor);
-        kernel::reduce::reduce_logical(tensor, None, ReduceOperationConfig::Any, store)
+        kernel::reduce::reduce_logical(tensor, None, ReduceOperation::Any, store)
     }
 
     fn bool_any_dim(tensor: BoolTensor<Self>, dim: usize) -> BoolTensor<Self> {
         let store = bool_store(&tensor);
-        kernel::reduce::reduce_logical(tensor, Some(dim), ReduceOperationConfig::Any, store)
+        kernel::reduce::reduce_logical(tensor, Some(dim), ReduceOperation::Any, store)
     }
 
     fn bool_all(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         let store = bool_store(&tensor);
-        kernel::reduce::reduce_logical(tensor, None, ReduceOperationConfig::All, store)
+        kernel::reduce::reduce_logical(tensor, None, ReduceOperation::All, store)
     }
 
     fn bool_all_dim(tensor: BoolTensor<Self>, dim: usize) -> BoolTensor<Self> {
         let store = bool_store(&tensor);
-        kernel::reduce::reduce_logical(tensor, Some(dim), ReduceOperationConfig::All, store)
+        kernel::reduce::reduce_logical(tensor, Some(dim), ReduceOperation::All, store)
     }
 
     fn bool_into_float(tensor: BoolTensor<Self>, out_dtype: FloatDType) -> FloatTensor<Self> {

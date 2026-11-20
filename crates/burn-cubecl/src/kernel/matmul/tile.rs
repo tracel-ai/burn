@@ -13,7 +13,7 @@ use burn_backend::DType;
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_std::Metadata;
 use cubecl::std::tensor::TensorHandle;
-use cubecl::tile::{Dimension, launch::Refusal};
+use cubecl::tile::{Dimension, launch::Decline};
 use cubek::matmul::{
     definition::MatmulSetupError,
     kernels::{
@@ -132,7 +132,7 @@ fn call_input(
     tensor: CubeTensor,
     dimensions: [Dimension; 2],
     out: DType,
-) -> Result<MatmulCallInput, Refusal> {
+) -> Result<MatmulCallInput, Decline> {
     let quantized = tensor.try_scheme().is_some();
     let framework_dequantize = quantized.then(|| {
         let packed = tensor.clone();
