@@ -7,8 +7,8 @@ use smallvec::SmallVec;
 /// reads, so planning one never allocates.
 pub type OpInputs<T> = SmallVec<[T; 5]>;
 
-/// A rule plans an op of one output.
-pub type OpOutputs<T> = SmallVec<[T; 1]>;
+/// A built-in op with a rule writes at most values and their indices.
+pub type OpOutputs<T> = SmallVec<[T; 2]>;
 
 /// Where an op's inputs must be for it to run on every member at once, and where its output lands.
 #[derive(Clone, Debug, PartialEq, Eq)]
