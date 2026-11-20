@@ -587,6 +587,11 @@ whose tensors are split over `devices` (crate `burn-shard`).
   release builds and CubeCL backends already did. Debug builds used to panic.
   ([#6455](https://github.com/tracel-ai/burn/pull/6455))
 
+#### Mask filling
+
+- Fix `mask_fill` gradients not being reduced to the input shape when the input is broadcast to a
+  larger mask.
+
 #### Quantization
 
 - **Breaking:** Remove `burn_std::quantization::pack_i8s_to_u32s`. For manual word packing, pad bytes
