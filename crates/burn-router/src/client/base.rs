@@ -270,11 +270,37 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
         sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
     }
 
-    /// Prepare the interpreter's backend for a graph capture — see
-    /// [`Backend::graph_prepare`](burn_backend::Backend::graph_prepare).
+    /// Prepare the interpreter's backend for a graph capture and start planning its work —
+    /// see [`Backend::graph_prepare`](burn_backend::Backend::graph_prepare).
     ///
-    /// `Ok`, the default, from an interpreter whose backend needs no preparing.
+    /// `Ok`, the default, from an interpreter whose backend needs no planner.
     fn graph_prepare(&self) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    /// End one planning run of the work, after every operation registered so far on the
+    /// calling stream, and answer whether it settled — see
+    /// [`Backend::graph_end_run`](burn_backend::Backend::graph_end_run).
+    ///
+    /// `true`, the default, from an interpreter whose backend needs no planner.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::graph_end_run`](burn_backend::Backend::graph_end_run).
+    fn graph_end_run(&self) -> Result<bool, ExecutionError> {
+        Ok(true)
+    }
+
+    /// Start the next planning run of the work, after every operation registered so far on the
+    /// calling stream — see
+    /// [`Backend::graph_start_run`](burn_backend::Backend::graph_start_run).
+    ///
+    /// `Ok`, the default, from an interpreter whose backend needs no planner.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::graph_start_run`](burn_backend::Backend::graph_start_run).
+    fn graph_start_run(&self) -> Result<(), ExecutionError> {
         Ok(())
     }
 

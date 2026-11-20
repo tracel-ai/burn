@@ -202,6 +202,14 @@ impl RouterClient for ShardClient {
         self.interpreter.lock().graph_prepare()
     }
 
+    fn graph_end_run(&self) -> Result<bool, ExecutionError> {
+        self.interpreter.lock().graph_end_run()
+    }
+
+    fn graph_start_run(&self) -> Result<(), ExecutionError> {
+        self.interpreter.lock().graph_start_run()
+    }
+
     fn graph_start_capture(&self) -> Result<(), ExecutionError> {
         self.interpreter.lock().graph_start_capture()
     }
