@@ -1473,6 +1473,7 @@ impl_ir_create!(
         attn_bias: Option<TensorIr>,
         lengths: Option<TensorIr>,
         pages: Option<TensorIr>,
+        depth: Option<usize>,
         options: AttentionOptionsIr,
     },
     shape = Shape::new([query.shape[0], query.shape[1], query.shape[2], value.shape[3]]),
