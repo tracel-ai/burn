@@ -21,7 +21,7 @@ pub fn cumsum<E: Element + Pod + Default + Copy + Num>(
 
 /// Cumulative sum of integers along a dimension, wrapping on overflow (two's complement), as
 /// release builds and the CubeCL backends do.
-pub fn cumsum_int<E: Element + Pod + Default + Copy + WrappingAdd + Zero>(
+pub(crate) fn cumsum_int<E: Element + Pod + Default + Copy + WrappingAdd + Zero>(
     tensor: FlexTensor,
     dim: usize,
 ) -> FlexTensor {
@@ -37,7 +37,7 @@ pub fn cumprod<E: Element + Pod + Default + Copy + Num>(
 }
 
 /// Cumulative product of integers along a dimension, wrapping on overflow (two's complement).
-pub fn cumprod_int<E: Element + Pod + Default + Copy + WrappingMul + One>(
+pub(crate) fn cumprod_int<E: Element + Pod + Default + Copy + WrappingMul + One>(
     tensor: FlexTensor,
     dim: usize,
 ) -> FlexTensor {
