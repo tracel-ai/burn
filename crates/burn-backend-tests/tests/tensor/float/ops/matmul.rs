@@ -487,3 +487,67 @@ fn float_should_panic_when_batch_dimensions_are_not_broadcastable() {
     let tensor_3 = tensor_1.matmul(tensor_2);
     tensor_3.into_data();
 }
+
+// Half-precision operands on a grid of `2^-shift` in [-1, 1]: every product and every partial sum
+// of the contraction is exact in f32, but not in the half type. An implementation that accumulates
+// in f32, in any order, and rounds once matches the exact sum rounded once; one that rounds partial
+// sums to the half type drifts away from it. The second shape is a vector-matrix product, which
+// some kernels handle separately.
+#[test]
+fn should_matmul_half_precision_with_f32_accumulation() {
+    let device = burn_tensor::Device::default();
+    for (m, k, n) in [(16, 4096, 16), (1, 512, 64)] {
+        for (dtype, shift) in [(burn_tensor::DType::F16, 6), (burn_tensor::DType::BF16, 5)] {
+            if !device.supports_dtype(dtype) {
+                continue;
+            }
+            let steps = (1i64 << shift) as f64;
+            let mut state = 1u64;
+            let mut grid = |len: usize| -> Vec<f32> {
+                (0..len)
+                    .map(|_| {
+                        state = state
+                            .wrapping_mul(6364136223846793005)
+                            .wrapping_add(1442695040888963407);
+                        let step = ((state >> 33) % (2 * steps as u64 + 1)) as f64 - steps;
+                        (step / steps) as f32
+                    })
+                    .collect()
+            };
+            let lhs = grid(m * k);
+            let rhs = grid(k * n);
+
+            let output =
+                TestTensor::<2>::from_data(TensorData::new(lhs.clone(), [m, k]), (&device, dtype))
+                    .matmul(TestTensor::<2>::from_data(
+                        TensorData::new(rhs.clone(), [k, n]),
+                        (&device, dtype),
+                    ))
+                    .into_data()
+                    .convert::<f32>();
+            let values = output.as_slice::<f32>().unwrap();
+
+            let round = |x: f64| match dtype {
+                burn_tensor::DType::F16 => burn_tensor::f16::from_f64(x).to_f32(),
+                _ => burn_tensor::bf16::from_f64(x).to_f32(),
+            };
+            let expected: Vec<f32> = (0..m * n)
+                .map(|idx| {
+                    let (i, j) = (idx / n, idx % n);
+                    round(
+                        (0..k)
+                            .map(|p| lhs[i * k + p] as f64 * rhs[p * n + j] as f64)
+                            .sum(),
+                    )
+                })
+                .collect();
+            let mismatches = values.iter().zip(&expected).filter(|(a, b)| a != b).count();
+            assert_eq!(
+                mismatches,
+                0,
+                "{dtype:?} [{m}, {k}] x [{k}, {n}]: {mismatches} of {} elements",
+                m * n
+            );
+        }
+    }
+}
