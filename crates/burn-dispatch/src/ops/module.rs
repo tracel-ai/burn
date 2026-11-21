@@ -673,11 +673,17 @@ impl ModuleOps<Self> for Dispatch {
         cache: Option<AttentionCache<Self>>,
         options: burn_backend::ops::AttentionModuleOptions,
     ) -> FloatTensor<Self> {
-        let (lengths, pages) = match cache {
-            Some(AttentionCache { lengths, pages }) => (Some(lengths), pages),
-            None => (None, None),
+        let (lengths, pages, depth) = match cache {
+            Some(AttentionCache {
+                lengths,
+                pages,
+                depth,
+            }) => (Some(lengths), pages, Some(depth)),
+            None => (None, None, None),
         };
-        Self::attention_dispatch(query, key, value, mask, attn_bias, lengths, pages, options)
+        Self::attention_dispatch(
+            query, key, value, mask, attn_bias, lengths, pages, depth, options,
+        )
     }
 
     fn layer_norm(
@@ -938,9 +944,14 @@ impl Dispatch {
         attn_bias: Option<FloatTensor<Self>>,
         lengths: Option<IntTensor<Self>>,
         pages: Option<IntTensor<Self>>,
+        depth: Option<usize>,
         options: burn_backend::ops::AttentionModuleOptions,
     ) -> FloatTensor<Self> {
-        let cache = lengths.map(|lengths| AttentionCache { lengths, pages });
+        let cache = lengths.zip(depth).map(|(lengths, depth)| AttentionCache {
+            lengths,
+            pages,
+            depth,
+        });
         B::attention(query, key, value, mask, attn_bias, cache, options)
     }
 

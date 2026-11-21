@@ -1357,11 +1357,17 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         options: AttentionModuleOptions,
     ) -> FloatTensor<Self> {
         let client = query.client.clone();
-        let (lengths, pages) = match cache {
-            Some(AttentionCache { lengths, pages }) => {
-                (Some(lengths.into_ir()), pages.map(|p| p.into_ir()))
-            }
-            None => (None, None),
+        let (lengths, pages, depth) = match cache {
+            Some(AttentionCache {
+                lengths,
+                pages,
+                depth,
+            }) => (
+                Some(lengths.into_ir()),
+                pages.map(|p| p.into_ir()),
+                Some(depth),
+            ),
+            None => (None, None, None),
         };
         let desc = AttentionOpIr::create(
             query.into_ir(),
@@ -1371,6 +1377,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             attn_bias.map(|ab| ab.into_ir()),
             lengths,
             pages,
+            depth,
             options.into(),
             || client.create_empty_handle(),
         );

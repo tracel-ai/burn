@@ -123,6 +123,11 @@ pub struct AttentionCache<B: Backend> {
     /// `pages_per_sequence · page_size`; without it, they are `[batch_size, num_kv_heads,
     /// capacity, dim]`.
     pub pages: Option<IntTensor<B>>,
+    /// How many positions the call attends, at least `lengths[b]` for every sequence, as its
+    /// caller buckets it: the host's value of what `lengths` holds on the device, which a backend
+    /// may choose its kernel by. Every call of one depth is the same launch, so a caller that
+    /// replays a recorded launch keeps one recording per depth.
+    pub depth: usize,
 }
 
 impl<B: Backend> Clone for AttentionCache<B> {
@@ -130,6 +135,7 @@ impl<B: Backend> Clone for AttentionCache<B> {
         Self {
             lengths: self.lengths.clone(),
             pages: self.pages.clone(),
+            depth: self.depth,
         }
     }
 }
@@ -139,6 +145,7 @@ impl<B: Backend> core::fmt::Debug for AttentionCache<B> {
         f.debug_struct("AttentionCache")
             .field("lengths", &self.lengths)
             .field("pages", &self.pages)
+            .field("depth", &self.depth)
             .finish()
     }
 }
@@ -155,7 +162,7 @@ pub fn attention_fallback_over_cache<B: Backend>(
     cache: AttentionCache<B>,
     options: AttentionModuleOptions,
 ) -> FloatTensor<B> {
-    let AttentionCache { lengths, pages } = cache;
+    let AttentionCache { lengths, pages, .. } = cache;
     let cache = AttendedCache::<B>::new(key, value, pages);
     let hidden = cache.hidden_keys(&query, lengths, &options);
     let hidden = match mask {
