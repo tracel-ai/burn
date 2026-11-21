@@ -893,28 +893,28 @@ impl IntTensorOps<Flex> for Flex {
 
     fn int_cumsum(tensor: IntTensor<Flex>, dim: usize) -> IntTensor<Flex> {
         match tensor.dtype() {
-            DType::I64 => crate::ops::cumulative::cumsum::<i64>(tensor, dim),
-            DType::I32 => crate::ops::cumulative::cumsum::<i32>(tensor, dim),
-            DType::I16 => crate::ops::cumulative::cumsum::<i16>(tensor, dim),
-            DType::I8 => crate::ops::cumulative::cumsum::<i8>(tensor, dim),
-            DType::U64 => crate::ops::cumulative::cumsum::<u64>(tensor, dim),
-            DType::U32 => crate::ops::cumulative::cumsum::<u32>(tensor, dim),
-            DType::U16 => crate::ops::cumulative::cumsum::<u16>(tensor, dim),
-            DType::U8 => crate::ops::cumulative::cumsum::<u8>(tensor, dim),
+            DType::I64 => crate::ops::cumulative::cumsum_int::<i64>(tensor, dim),
+            DType::I32 => crate::ops::cumulative::cumsum_int::<i32>(tensor, dim),
+            DType::I16 => crate::ops::cumulative::cumsum_int::<i16>(tensor, dim),
+            DType::I8 => crate::ops::cumulative::cumsum_int::<i8>(tensor, dim),
+            DType::U64 => crate::ops::cumulative::cumsum_int::<u64>(tensor, dim),
+            DType::U32 => crate::ops::cumulative::cumsum_int::<u32>(tensor, dim),
+            DType::U16 => crate::ops::cumulative::cumsum_int::<u16>(tensor, dim),
+            DType::U8 => crate::ops::cumulative::cumsum_int::<u8>(tensor, dim),
             dt => panic!("int_cumsum: unsupported dtype {:?}", dt),
         }
     }
 
     fn int_cumprod(tensor: IntTensor<Flex>, dim: usize) -> IntTensor<Flex> {
         match tensor.dtype() {
-            DType::I64 => crate::ops::cumulative::cumprod::<i64>(tensor, dim),
-            DType::I32 => crate::ops::cumulative::cumprod::<i32>(tensor, dim),
-            DType::I16 => crate::ops::cumulative::cumprod::<i16>(tensor, dim),
-            DType::I8 => crate::ops::cumulative::cumprod::<i8>(tensor, dim),
-            DType::U64 => crate::ops::cumulative::cumprod::<u64>(tensor, dim),
-            DType::U32 => crate::ops::cumulative::cumprod::<u32>(tensor, dim),
-            DType::U16 => crate::ops::cumulative::cumprod::<u16>(tensor, dim),
-            DType::U8 => crate::ops::cumulative::cumprod::<u8>(tensor, dim),
+            DType::I64 => crate::ops::cumulative::cumprod_int::<i64>(tensor, dim),
+            DType::I32 => crate::ops::cumulative::cumprod_int::<i32>(tensor, dim),
+            DType::I16 => crate::ops::cumulative::cumprod_int::<i16>(tensor, dim),
+            DType::I8 => crate::ops::cumulative::cumprod_int::<i8>(tensor, dim),
+            DType::U64 => crate::ops::cumulative::cumprod_int::<u64>(tensor, dim),
+            DType::U32 => crate::ops::cumulative::cumprod_int::<u32>(tensor, dim),
+            DType::U16 => crate::ops::cumulative::cumprod_int::<u16>(tensor, dim),
+            DType::U8 => crate::ops::cumulative::cumprod_int::<u8>(tensor, dim),
             dt => panic!("int_cumprod: unsupported dtype {:?}", dt),
         }
     }

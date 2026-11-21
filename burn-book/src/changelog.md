@@ -586,9 +586,11 @@ whose tensors are split over `devices` (crate `burn-shard`).
 
 #### Integer arithmetic overflow
 
-- Wrap `i64` and `u64` `add`, `sub` and `mul` (and their scalar forms) on overflow on Flex, as
-  release builds and CubeCL backends already did. Debug builds used to panic.
-  ([#6455](https://github.com/tracel-ai/burn/pull/6455))
+- Wrap integer arithmetic on overflow on Flex, as release builds and CubeCL backends already did.
+  Debug builds used to panic. This covers `i64` and `u64` `add`, `sub` and `mul` (and their scalar
+  forms), `sum`, `sum_dim`, `prod`, `prod_dim` and `mean_dim`; `i64` `mean`, since Flex's `mean`
+  accepts only signed integer types; and `cumsum` and `cumprod` for every integer type.
+  ([#6455](https://github.com/tracel-ai/burn/pull/6455), [#6481](https://github.com/tracel-ai/burn/pull/6481))
 
 #### Mask filling
 
