@@ -29,7 +29,7 @@ use alloc::vec::Vec;
 use burn_backend::ops::ConvOptions;
 use burn_backend::ops::conv::calculate_conv_output_size;
 use burn_backend::{DType, ElementConversion};
-use burn_std::{Bytes, Shape, f16};
+use burn_std::{Bytes, Shape};
 
 use crate::{FlexTensor, Layout};
 
@@ -216,16 +216,7 @@ conv3d_typed!(
     conv3d_small_channel_f64,
     conv3d_direct_f64
 );
-conv3d_typed!(
-    conv3d_f16,
-    f16,
-    DType::F16,
-    f16::from_f32(0.0),
-    gemm_f16,
-    conv3d_1x1_f16,
-    conv3d_depthwise_f16,
-    conv3d_small_channel_f16
-);
+f16_via_f32!(conv3d_f16, conv3d_f32, 3, ConvOptions);
 bf16_via_f32!(conv3d_bf16, conv3d_f32, 3, ConvOptions);
 
 /// Generic 3D convolution implementation using tiled im2col.
@@ -999,13 +990,6 @@ fn conv3d_1x1_impl<
 
 conv3d_1x1_typed!(conv3d_1x1_f32, f32, DType::F32, 0.0f32, 1.0f32);
 conv3d_1x1_typed!(conv3d_1x1_f64, f64, DType::F64, 0.0f64, 1.0f64);
-conv3d_1x1_typed!(
-    conv3d_1x1_f16,
-    f16,
-    DType::F16,
-    f16::from_f32(0.0),
-    f16::from_f32(1.0)
-);
 
 // ============================================================================
 // Depthwise conv fast path (no NHWC, no im2col, no gemm)
@@ -1377,7 +1361,6 @@ macro_rules! conv3d_depthwise_typed {
 
 conv3d_depthwise_typed!(conv3d_depthwise_f32, f32, DType::F32);
 conv3d_depthwise_typed!(conv3d_depthwise_f64, f64, DType::F64);
-conv3d_depthwise_typed!(conv3d_depthwise_f16, f16, DType::F16);
 
 /// Depthwise conv3d: one filter per channel, no channel mixing.
 ///
@@ -1607,7 +1590,6 @@ macro_rules! conv3d_small_channel_typed {
 
 conv3d_small_channel_typed!(conv3d_small_channel_f32, f32, DType::F32);
 conv3d_small_channel_typed!(conv3d_small_channel_f64, f64, DType::F64);
-conv3d_small_channel_typed!(conv3d_small_channel_f16, f16, DType::F16);
 
 /// Small-channel conv3d: `groups=1` with small `channels_in`.
 ///
@@ -2026,7 +2008,6 @@ macro_rules! gemm_typed {
 
 gemm_typed!(gemm_f32, f32, 0.0f32, 1.0f32);
 gemm_typed!(gemm_f64, f64, 0.0f64, 1.0f64);
-gemm_typed!(gemm_f16, f16, f16::from_f32(0.0), f16::from_f32(1.0));
 
 // ============================================================================
 // Tests
@@ -2044,7 +2025,7 @@ gemm_typed!(gemm_f16, f16, f16::from_f32(0.0), f16::from_f32(1.0));
 mod tests {
     use super::*;
     use burn_backend::TensorData;
-    use burn_std::bf16;
+    use burn_std::{bf16, f16};
 
     #[test]
     fn test_conv1d_direct_path() {
@@ -2486,6 +2467,80 @@ mod tests {
         }
         let out_idx = ((b * 4 + c) * 5 + oh) * 5 + ow;
         assert!((out[out_idx] - expected).abs() < 1e-10);
+    }
+
+    /// Values on a grid of `2^-6` in [-1, 1] from a fixed LCG: exact in f16, with products and
+    /// partial sums exact in f32.
+    fn f16_grid(len: usize, seed: u64) -> Vec<f32> {
+        let mut state = seed;
+        (0..len)
+            .map(|_| {
+                state = state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                ((state >> 33) % 129) as f32 / 64.0 - 1.0
+            })
+            .collect()
+    }
+
+    /// Counts the outputs of an f16 `conv2d` (no padding, stride 1) that differ from the exact
+    /// sum rounded once to f16.
+    fn f16_conv2d_mismatches(
+        [n, c_in, h, w]: [usize; 4],
+        [c_out, kh, kw]: [usize; 3],
+        groups: usize,
+    ) -> usize {
+        let x = f16_grid(n * c_in * h * w, 1);
+        let wt = f16_grid(c_out * (c_in / groups) * kh * kw, 2);
+        let to_f16 = |v: &[f32]| v.iter().copied().map(f16::from_f32).collect::<Vec<_>>();
+        let result = conv2d_f16(
+            FlexTensor::from_data(TensorData::new(to_f16(&x), vec![n, c_in, h, w])),
+            FlexTensor::from_data(TensorData::new(
+                to_f16(&wt),
+                vec![c_out, c_in / groups, kh, kw],
+            )),
+            None,
+            &ConvOptions::new([1, 1], [0, 0], [1, 1], groups),
+        );
+        let out: Vec<f16> = result.into_data().try_into_vec().unwrap();
+
+        let (oh, ow) = (h - kh + 1, w - kw + 1);
+        let (cpg, opg) = (c_in / groups, c_out / groups);
+        let mut mismatches = 0;
+        for b in 0..n {
+            for oc in 0..c_out {
+                for i in 0..oh {
+                    for j in 0..ow {
+                        let mut exact = 0f64;
+                        for icg in 0..cpg {
+                            let ic = oc / opg * cpg + icg;
+                            for ki in 0..kh {
+                                for kj in 0..kw {
+                                    exact += x[((b * c_in + ic) * h + i + ki) * w + j + kj] as f64
+                                        * wt[((oc * cpg + icg) * kh + ki) * kw + kj] as f64;
+                                }
+                            }
+                        }
+                        let got = out[((b * c_out + oc) * oh + i) * ow + j];
+                        if got != f16::from_f64(exact) {
+                            mismatches += 1;
+                        }
+                    }
+                }
+            }
+        }
+        mismatches
+    }
+
+    #[test]
+    fn test_conv2d_f16_depthwise_sums_in_f32() {
+        assert_eq!(f16_conv2d_mismatches([2, 8, 8, 8], [8, 3, 3], 8), 0);
+    }
+
+    #[test]
+    fn test_conv2d_f16_long_reduction_sums_in_f32() {
+        // 512 channels times a 3x3 kernel: a reduction of 4608, several of `gemm`'s blocks.
+        assert_eq!(f16_conv2d_mismatches([1, 512, 4, 4], [8, 3, 3], 1), 0);
     }
 
     #[test]

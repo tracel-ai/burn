@@ -870,6 +870,10 @@ version 14).
 - Reject unsupported asymmetric deformable-convolution padding.
   ([#6101](https://github.com/tracel-ai/burn/pull/6101))
 
+- Fix F16 convolution on Flex rounding its partial sums to F16, in depthwise layers and in long
+  reductions. It now computes in F32 and rounds once, as BF16 already did. Dense F16 convolution
+  takes up to about 1.4 times as long, and depthwise F16 convolution is about 4 times faster.
+
 #### GELU and sigmoid
 
 - Run GELU and sigmoid forward and backward operations in single CubeCL kernels.
