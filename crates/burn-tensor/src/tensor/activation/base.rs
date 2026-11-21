@@ -4,7 +4,7 @@ use burn_dispatch::Dispatch;
 use crate::check::TensorCheck;
 use crate::check::unwrap_dim_index;
 use crate::ops::BridgeTensor;
-use crate::{AsIndex, DType, Tensor, check, s};
+use crate::{AsIndex, DType, FloatDType, Tensor, check, s};
 
 /// Applies the rectified linear unit function element-wise
 /// as described in the paper [Deep Learning using Rectified Linear Units (ReLU)](https://arxiv.org/pdf/1803.08375).
@@ -91,7 +91,7 @@ where `Φ(x)` is the cumulative distribution function for the Gaussian distribut
 "#
 )]
 pub fn gelu<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
-    Tensor::new(gelu_impl(tensor.primitive))
+    in_f32_for_half(tensor, |tensor| Tensor::new(gelu_impl(tensor.primitive)))
 }
 
 /// Applies the tanh-based approximate GELU function element-wise.
@@ -114,10 +114,11 @@ pub fn gelu_approximate<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
     const SQRT_2_OVER_PI: f64 =
         core::f64::consts::FRAC_2_SQRT_PI * core::f64::consts::FRAC_1_SQRT_2;
 
-    let x = tensor;
-    let inner = x.clone() + x.clone().powf_scalar(3.0) * 0.044715;
-    let inner = inner * SQRT_2_OVER_PI;
-    (x.clone() * (inner.tanh() + 1)) * 0.5
+    in_f32_for_half(tensor, |x| {
+        let inner = x.clone() + x.clone().powf_scalar(3.0) * 0.044715;
+        let inner = inner * SQRT_2_OVER_PI;
+        (x.clone() * (inner.tanh() + 1)) * 0.5
+    })
 }
 
 /// Applies Parametric ReLu activation function as described in the paper
@@ -274,6 +275,10 @@ pub fn softplus_with_threshold<const D: usize>(
     beta: f64,
     threshold: f64,
 ) -> Tensor<D> {
+    in_f32_for_half(tensor, |tensor| softplus_in_dtype(tensor, beta, threshold))
+}
+
+fn softplus_in_dtype<const D: usize>(tensor: Tensor<D>, beta: f64, threshold: f64) -> Tensor<D> {
     // `exp` overflows at a much lower input in f16 and Flex32 than in the wider formats, so the
     // requested threshold alone does not always keep it in range. Substituting the identity at
     // the dtype's limit is safe because Softplus has already rounded to it by that magnitude.
@@ -380,7 +385,7 @@ $$
 )]
 #[cfg_attr(not(doc), doc = "`sigmoid(x) = 1 / (1 + exp(-x))`")]
 pub fn sigmoid<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
-    Tensor::new(sigmoid_impl(tensor.primitive))
+    in_f32_for_half(tensor, |tensor| Tensor::new(sigmoid_impl(tensor.primitive)))
 }
 
 /// Applies the hard sigmoid function element-wise.
@@ -425,7 +430,7 @@ $$
 )]
 #[cfg_attr(not(doc), doc = "`SiLU(x) = x * sigmoid(x) = x / (1 + exp(-x))`")]
 pub fn silu<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
-    tensor.clone().mul(sigmoid(tensor))
+    in_f32_for_half(tensor, |tensor| tensor.clone().mul(sigmoid(tensor)))
 }
 
 /// Applies the hard swish function element-wise.
@@ -464,12 +469,30 @@ $$
     doc = "`mish(x) = x * tanh(softplus(x)) = tanh(log(1 + exp(x)))`"
 )]
 pub fn mish<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
-    tensor.clone().mul(softplus(tensor, 1.0).tanh())
+    in_f32_for_half(tensor, |tensor| {
+        tensor.clone().mul(softplus(tensor, 1.0).tanh())
+    })
 }
 
 /// Applies the tanh function element-wise.
 pub fn tanh<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
-    tensor.tanh()
+    in_f32_for_half(tensor, |tensor| tensor.tanh())
+}
+
+/// Evaluates `activation` in f32 for an f16 or bf16 `tensor` and rounds the result back once, as
+/// PyTorch does for half-precision activations. Evaluated in the half type, every intermediate
+/// step rounds to it: `x³` in `gelu_approximate` overflows f16 long before the result does, and
+/// tails such as `1 + tanh(u)` for very negative `x` cancel to zero.
+fn in_f32_for_half<const D: usize>(
+    tensor: Tensor<D>,
+    activation: impl FnOnce(Tensor<D>) -> Tensor<D>,
+) -> Tensor<D> {
+    match tensor.dtype() {
+        dtype @ (DType::F16 | DType::BF16) => {
+            activation(tensor.cast(FloatDType::F32)).cast(FloatDType::from(dtype))
+        }
+        _ => activation(tensor),
+    }
 }
 
 /// Applies the Exponential Linear Unit function element-wise.
