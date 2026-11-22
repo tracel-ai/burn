@@ -240,14 +240,16 @@ fn check_cached_attention_on_the_heads(
     pages: Option<TensorData>,
 ) {
     let query = values([2, 4, 1, 4], 1);
+    let depth = lengths.iter::<i64>().max().unwrap_or(0) as usize;
     let cache = |device: &Device| {
         let lengths = Tensor::<1, Int>::from_data(lengths.clone(), device);
         match &pages {
             Some(pages) => module::AttentionCache::paged(
                 lengths,
                 Tensor::<2, Int>::from_data(pages.clone(), device),
+                depth,
             ),
-            None => module::AttentionCache::new(lengths),
+            None => module::AttentionCache::new(lengths, depth),
         }
     };
     let flex = Device::flex();
