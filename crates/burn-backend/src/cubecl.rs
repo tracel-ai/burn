@@ -16,6 +16,9 @@ use cubecl::ir::{ElemType, FloatKind, IntKind, UIntKind};
 pub mod autotune;
 mod device;
 mod execution;
+mod in_place;
+
+pub use in_place::can_write_in_place;
 
 pub use cubecl::throughput::{
     LinkKey, LinkRoute, MemoryAccess, ThroughputError, ThroughputKey, ThroughputMode,

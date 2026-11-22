@@ -4,6 +4,7 @@ use crate::CubeFusionHandle;
 use crate::engine::launch::{QuantParamsHandleInput, QuantValuesHandleInput};
 use crate::engine::trace::block::FuseBlock;
 use crate::engine::trace::{FuseResources, RegisterTensor, TensorView};
+use burn_backend::cubecl::can_write_in_place;
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
 use burn_std::quantization::params_shape;
@@ -170,7 +171,9 @@ impl<'a> InputPlanner<'a> {
                 // TODO: Autotune trials run on forked contexts whose extra handle clone
                 // makes `can_mut()` false, so trials never alias: the tuner measures the
                 // non-aliased kernel while the winner then executes the aliased one.
-                if self.blocks[idx].settings.inplace && handle.handle.can_mut() {
+                if self.blocks[idx].settings.inplace
+                    && can_write_in_place(&handle.client, &handle.handle)
+                {
                     block_plan.potential_inplaces.push(PotentialInplace {
                         input_pos: pos,
                         tensor_relative,

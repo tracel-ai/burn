@@ -143,6 +143,55 @@ mod cube {
         );
     }
 
+    /// Whether an operation writes in place is the same in every run of a capture, even when
+    /// the device thread holds the buffer for a moment. Every other run of the closure lends the
+    /// buffer it just allocated to a task on the device thread, which lets it go only after the
+    /// operation that consumes it was submitted, as the device thread does with a handle it is
+    /// still setting up. Deciding on the count of that moment would write in place in one run and
+    /// allocate in the next, and the recorded run would allocate otherwise than the planning runs
+    /// did.
+    ///
+    /// On the cube backend itself rather than through the fusion wrapper the device puts around
+    /// it, so the tensor holds the buffer's handle.
+    #[test]
+    #[serial]
+    fn an_in_place_write_does_not_depend_on_a_handle_the_device_thread_holds() {
+        use burn_backend::{Scalar, TensorData, ops::FloatTensorOps};
+        use burn_cubecl::CubeBackend;
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let device = Device::default();
+        let burn_dispatch::DispatchDevice::Cube(device) = device.as_dispatch() else {
+            return;
+        };
+        let input = CubeBackend::float_from_data(TensorData::from([1.0f32, 2.0, 3.0, 4.0]), device);
+        let client = input.client.clone();
+        let mut runs = 0;
+        let captured = client.capture(|| {
+            let doubled = CubeBackend::float_mul_scalar(input.clone(), Scalar::from(2.0f32));
+            if runs % 2 == 1 {
+                let held = doubled.clone();
+                let client = held.client.clone();
+                let (lent, on_device) = mpsc::channel();
+                std::thread::spawn(move || {
+                    client
+                        .exclusive(move || {
+                            lent.send(()).unwrap();
+                            std::thread::sleep(Duration::from_millis(200));
+                            drop(held);
+                        })
+                        .unwrap();
+                });
+                on_device.recv().unwrap();
+            }
+            runs += 1;
+            CubeBackend::float_add_scalar(doubled, Scalar::from(1.0f32))
+        });
+
+        assert!(captured.is_ok(), "{:?}", captured.err());
+    }
+
     /// A closure that grows the memory pool inside the capture window cannot be
     /// recorded, since every replay must reuse the buffers prepared before it:
     /// the graph falls back to re-running the closure and says why. A backend

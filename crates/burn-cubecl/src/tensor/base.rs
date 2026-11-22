@@ -1,6 +1,6 @@
 use crate::CubeDevice;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
-use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::cubecl::{can_write_in_place, dtype_to_storage_type};
 use burn_backend::quantization::QuantScheme;
 use burn_backend::{DType, Shape, TensorMetadata};
 use burn_std::{Metadata, strides, tensor::is_contiguous};
@@ -360,9 +360,10 @@ impl CubeTensor {
 
     /// Check if the tensor is safe to mutate. A storage-tiled one is not: a kernel writing in
     /// place writes rows. The elementwise kernels write its tiles in place all the same, through
-    /// its buffer bound untiled at its physical shape (`kernel::memory_order`).
+    /// its buffer bound untiled at its physical shape (`kernel::memory_order`). Under a graph
+    /// capture the answer is the same on every run (see [`can_write_in_place`]).
     pub fn can_mut(&self) -> bool {
-        self.handle.can_mut() && !self.meta.is_tiled()
+        !self.meta.is_tiled() && can_write_in_place(&self.client, &self.handle)
     }
 
     /// Assert that both tensors are on the same device.

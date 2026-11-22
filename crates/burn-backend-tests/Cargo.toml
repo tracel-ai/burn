@@ -54,6 +54,8 @@ cube = [
     "burn-tensor/flex",
     # Direct dependency so fusion tests can assert launch-level decisions (in-place aliasing).
     "burn-cubecl-fusion",
+    # Direct dependency so tests can run the cube backend without the fusion wrapper.
+    "burn-cubecl",
 ]
 
 # Test configs
