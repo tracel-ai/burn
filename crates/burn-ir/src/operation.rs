@@ -2148,6 +2148,9 @@ pub struct AttentionOpIr {
     pub lengths: Option<TensorIr>,
     /// The page table of an attention over a paged key/value cache.
     pub pages: Option<TensorIr>,
+    /// How many positions an attention over a key/value cache attends, as its caller buckets it:
+    /// present exactly where `lengths` is.
+    pub depth: Option<usize>,
     pub options: AttentionOptionsIr,
     pub out: TensorIr,
 }

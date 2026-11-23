@@ -1310,6 +1310,7 @@ pub fn attention(
         cache.map(|cache| burn_backend::ops::AttentionCache {
             lengths: cache.lengths.primitive.into(),
             pages: cache.pages.map(|pages| pages.primitive.into()),
+            depth: cache.depth,
         }),
         options,
     )))
@@ -1329,23 +1330,30 @@ pub struct AttentionCache {
     /// `[num_pages, num_kv_heads, page_size, val_dim]`; without it, they are
     /// `[batch_size, num_kv_heads, capacity, dim]`.
     pub pages: Option<Tensor<2, Int>>,
+    /// How many positions the call attends, at least `lengths[b]` for every sequence, as its
+    /// caller buckets it: what `lengths` holds, known on the host without waiting on the device,
+    /// which a backend may choose its kernel by. Every call of one depth is the same launch.
+    pub depth: usize,
 }
 
 impl AttentionCache {
-    /// A contiguous cache, each sequence attending its first `lengths[b]` positions.
-    pub fn new(lengths: Tensor<1, Int>) -> Self {
+    /// A contiguous cache, each sequence attending its first `lengths[b]` positions, `depth` at
+    /// least the longest of them.
+    pub fn new(lengths: Tensor<1, Int>, depth: usize) -> Self {
         Self {
             lengths,
             pages: None,
+            depth,
         }
     }
 
     /// A paged cache: the key and the value are pools of pages, and `pages` lists each
     /// sequence's.
-    pub fn paged(lengths: Tensor<1, Int>, pages: Tensor<2, Int>) -> Self {
+    pub fn paged(lengths: Tensor<1, Int>, pages: Tensor<2, Int>, depth: usize) -> Self {
         Self {
             lengths,
             pages: Some(pages),
+            depth,
         }
     }
 }

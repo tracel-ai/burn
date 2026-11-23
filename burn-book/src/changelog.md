@@ -49,6 +49,9 @@ conflicts with it (E0119); delete the handwritten one.
 - `cat` along a dim its inputs are not split on keeps their split on a sharded compute device, and
   partial sums stay partial, instead of gathering every input.
 
+- `select` along a dim its input is not split on keeps the split on a sharded compute device,
+  instead of gathering the input. A quantized input still gathers.
+
 #### Compilation and autotuning
 
 - Include the preceding `CompileOnly` pass's statistics in the following
@@ -163,6 +166,13 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   one server run their backend's link probe there; between two servers, the target times its
   downloads from the source. `PeakError::Transfer` reports a transfer the probe lost.
   ([#6551](https://github.com/tracel-ai/burn/pull/6551))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- `Device::measure_host_link(transfer, &sizes)` measures the peak throughput of the link between
+  the calling process and a device for each transfer size, as a `HostTransfer::Upload` or a
+  `HostTransfer::Download`. A remote device's client times it over the network, until the server
+  holds an upload on its device; local backends report it unsupported for now.
+  ([#6560](https://github.com/tracel-ai/burn/pull/6560))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Device transfers
@@ -284,6 +294,10 @@ Reports also include the measured cost of a kernel launch.
   reads as errors instead of panicking. ([#6086](https://github.com/tracel-ai/burn/pull/6086),
   [#5970](https://github.com/tracel-ai/burn/pull/5970),
   [#5986](https://github.com/tracel-ai/burn/pull/5986))
+
+- Fix a fused segment running entirely unfused when its chunks formed an ordering cycle through a
+  re-optimized hole: the repair now opens composed chunks and keeps only fused optimizations whole.
+  ([#6570](https://github.com/tracel-ai/burn/pull/6570))
 
 - Fusion autotune copies only the handles of the tensors its queue maps, not every live tensor's, so
   a launch that is not yet tuned no longer costs a pass over every live handle.
@@ -576,6 +590,11 @@ whose tensors are split over `devices` (crate `burn-shard`).
   release builds and CubeCL backends already did. Debug builds used to panic.
   ([#6455](https://github.com/tracel-ai/burn/pull/6455))
 
+#### Mask filling
+
+- Fix `mask_fill` gradients not being reduced to the input shape when the input is broadcast to a
+  larger mask.
+
 #### Quantization
 
 - **Breaking:** Remove `burn_std::quantization::pack_i8s_to_u32s`. For manual word packing, pad bytes
@@ -783,6 +802,12 @@ backends do). Autodiff composes it from tensor operations.
 `options`; pass `None` for an attention over the key and value as given. `AttentionOpIr` gains
 `lengths` and `pages`, so remote clients and servers must be upgraded together (protocol
 version 14).
+
+#### Batch normalization without `std`
+
+- Training a `BatchNorm` no longer panics on no_std targets ("Current thread id is not
+  available"); without `std`, running statistics assume a single thread.
+  ([#6508](https://github.com/tracel-ai/burn/pull/6508)) [@HarpeLm](https://github.com/HarpeLm)
 
 #### Config derivation
 
@@ -1036,6 +1061,12 @@ and parameter group, including partial accumulation windows. Custom strategies m
 Use `OnOptimizerStep::with(...)` to register standard metrics for optimizer updates.
 See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics).
 
+#### Optimizers
+
+- Build `burn-optim` without the `std` feature again. `ModuleOptimizer` no longer depends on the
+  standard-library-only learning-rate scheduler module, so fixed learning rates work in `no_std`.
+  ([#6475](https://github.com/tracel-ai/burn/issues/6475))
+
 #### Regression metrics
 
 - Add regression evaluation metrics (`MseMetric`, `MaeMetric`, `R2ScoreMetric`) to
@@ -1044,6 +1075,11 @@ See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics)
   ([#6390](https://github.com/tracel-ai/burn/pull/6390),
   [#6042](https://github.com/tracel-ai/burn/pull/6042))
   [@divakantpandey](https://github.com/divakantpandey), [@Infinty-ux](https://github.com/Infinty-ux)
+
+#### System metrics
+
+- Fix `burn-train` failing to build with systemstat 0.2.8, which new projects resolve to, and the
+  `CpuTemperature` metric reading NaN after its first reading with that version.
 
 #### Text generation metrics
 
@@ -1129,6 +1165,13 @@ Complex inverse FFT (`ifft`) is also available.
 ([#5840](https://github.com/tracel-ai/burn/pull/5840),
 [#5757](https://github.com/tracel-ai/burn/pull/5757))
 
+##### Inverse STFT length
+
+- Fix `istft` with `center = true` filling the end of the signal with zeros when `length` reaches
+  past the trimmed overlap-add output, as happens when the signal length is not a multiple of
+  `hop_length`. Those samples are now reconstructed, matching `torch.istft`.
+  ([#6532](https://github.com/tracel-ai/burn/pull/6532))
+
 #### Vision (`burn-vision`)
 
 ##### Connected components
@@ -1145,6 +1188,11 @@ Complex inverse FFT (`ifft`) is also available.
   specify `Tensor::<4>` on float constructors if their kind was previously inferred from these calls.
   ([#6219](https://github.com/tracel-ai/burn/pull/6219))
   [@Mikyx-1](https://github.com/Mikyx-1)
+
+##### Morphology
+
+- Prevent CPU morphology from reading or writing past row buffers when processing 64-bit tensors
+  with scalar dispatch. ([#6411](https://github.com/tracel-ai/burn/issues/6411))
 
 ##### Non-maximum suppression
 

@@ -156,7 +156,7 @@ jobs:
         run: |
           # Interrupted processes can leave empty profiles that LLVM cannot merge.
           find ./target/coverage/profiles -type f -name '*.profraw' -empty -delete
-          grcov ./target/coverage/profiles --binary-path ./target/debug/deps/ \
+          grcov ./target/coverage/profiles --binary-path ./target/debug/ \
             -s . -t lcov -o lcov.info --branch --ignore-not-existing --keep-only "crates/*"
           # grcov can exit successfully even when profile merging fails.
           if ! grep -q '^SF:crates/' lcov.info; then

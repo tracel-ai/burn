@@ -536,6 +536,18 @@ where
                 self.send_response(request_id, TaskResponseContent::Capture(res))
                     .await
             }
+            Task::CaptureEndRun(request_id, stream_id) => {
+                let stream = self.streams.of(stream_id);
+                let res = self.captures.end_run(&self.runner, stream);
+                self.send_response(request_id, TaskResponseContent::CaptureEndRun(res))
+                    .await
+            }
+            Task::CaptureStartRun(request_id, stream_id) => {
+                let stream = self.streams.of(stream_id);
+                let res = self.captures.start_run(&self.runner, stream);
+                self.send_response(request_id, TaskResponseContent::Capture(res))
+                    .await
+            }
             Task::CaptureStart(request_id, stream_id) => {
                 let stream = self.streams.of(stream_id);
                 let res = self.captures.start(&self.runner, stream);

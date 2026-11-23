@@ -5,7 +5,7 @@ use burn_backend::RandomKey;
 use burn_backend::{
     DeviceDescription, DeviceId, DeviceOps, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
     EnvironmentId, EnvironmentOrigin, EnvironmentSummary, ExecutionError, ExecutionMode,
-    ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
+    ExecutionModeToken, ExecutionStatistics, HostTransfer, MemoryReport, Peak, PeakError, PeakKey,
     ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned, RouterDeviceType,
     SaveOptions, StreamId, TensorData,
 };
@@ -226,9 +226,27 @@ impl RouterClient for RemoteClient {
         super::link::LinkProber::new(self, to).measure(sizes)
     }
 
+    fn measure_host_link(
+        &self,
+        transfer: HostTransfer,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        super::host_link::HostLinkProber::new(self).measure(transfer, sizes)
+    }
+
     fn graph_prepare(&self) -> Result<(), ExecutionError> {
         let stream_id = StreamId::current();
         self.call(move |s| s.graph_prepare(stream_id))
+    }
+
+    fn graph_end_run(&self) -> Result<bool, ExecutionError> {
+        let stream_id = StreamId::current();
+        self.call(move |s| s.graph_end_run(stream_id))
+    }
+
+    fn graph_start_run(&self) -> Result<(), ExecutionError> {
+        let stream_id = StreamId::current();
+        self.call(move |s| s.graph_start_run(stream_id))
     }
 
     fn graph_start_capture(&self) -> Result<(), ExecutionError> {

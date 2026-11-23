@@ -117,9 +117,13 @@ impl<'a> OpClass<'a> {
                 [&desc.tensor],
                 &desc.out,
             ),
+            BaseOperationIr::Select(desc) => Self::of_kind(
+                OpKind::Select { dim: desc.dim },
+                [&desc.tensor, &desc.indices],
+                &desc.out,
+            ),
             BaseOperationIr::Flip(_)
             | BaseOperationIr::Unfold(_)
-            | BaseOperationIr::Select(_)
             | BaseOperationIr::SelectAssign(_)
             | BaseOperationIr::Gather(_)
             | BaseOperationIr::Scatter(_)

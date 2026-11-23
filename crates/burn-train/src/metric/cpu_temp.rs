@@ -12,7 +12,6 @@ use systemstat::{Platform, System};
 pub struct CpuTemperature {
     name: MetricName,
     temp_celsius: f32,
-    sys: Arc<System>,
 }
 
 impl CpuTemperature {
@@ -23,7 +22,6 @@ impl CpuTemperature {
         Self {
             name,
             temp_celsius: 0.,
-            sys: Arc::new(System::new()),
         }
     }
 }
@@ -46,7 +44,9 @@ impl Metric for CpuTemperature {
     }
 
     fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
-        match self.sys.cpu_temp() {
+        // A new `System` for each reading: systemstat 0.2.8 holds a `RefCell` (not `Sync`) and a
+        // bug prevents a reused `System` to read the sensor more than once.
+        match System::new().cpu_temp() {
             Ok(temp) => self.temp_celsius = temp,
             Err(_) => self.temp_celsius = f32::NAN,
         }

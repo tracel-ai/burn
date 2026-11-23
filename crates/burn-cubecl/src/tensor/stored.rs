@@ -4,7 +4,7 @@
 use super::CubeTensor;
 use burn_backend::DType;
 use burn_backend::cubecl::dtype_to_storage_type;
-use cubecl::tile::{Axis, launch::Refusal};
+use cubecl::tile::{Dimension, launch::Decline};
 use cubek::matmul::kernels::tensor::{PackedTensor, PlainTensor, StoredTensor};
 
 impl CubeTensor {
@@ -14,13 +14,13 @@ impl CubeTensor {
         PlainTensor::new(self.stored_binding(), elem)
     }
 
-    /// This tensor, one matrix over `axes` in the order its shape states them, as it is stored:
-    /// plain, or, quantized, packed under its scales ([`PackedTensor::of_quantized`]).
+    /// This tensor, one matrix over `dimensions` in the order its shape states them, as it is
+    /// stored: plain, or, quantized, packed under its scales ([`PackedTensor::of_quantized`]).
     ///
     /// # Errors
     ///
     /// For a quantized tensor, what [`PackedTensor::of_quantized`] declines.
-    pub fn stored(self, axes: [Axis; 2]) -> Result<StoredTensor, Refusal> {
+    pub fn stored(self, dimensions: [Dimension; 2]) -> Result<StoredTensor, Decline> {
         let DType::QFloat(scheme) = self.dtype else {
             return Ok(StoredTensor::Plain(self.plain()));
         };
@@ -36,7 +36,7 @@ impl CubeTensor {
             scheme,
             block_scales,
             global,
-            axes,
+            dimensions,
         )
         .map(StoredTensor::Packed)
     }
@@ -52,7 +52,7 @@ mod tests {
     };
     use cubecl::quant::scheme::QuantStore;
     use cubek::matmul::kernels::tensor::StoredTensor;
-    use cubek::std::matmul_axes::{K, N};
+    use cubek::std::matmul_dimensions::{K, N};
 
     use crate::{
         CubeBackend, CubeDevice,
@@ -120,7 +120,9 @@ mod tests {
         ) else {
             return;
         };
-        let [tile_k, tile_n] = MatmulOperand::Rhs.axes().map(|axis| tile.extent(axis));
+        let [tile_k, tile_n] = MatmulOperand::Rhs
+            .dimensions()
+            .map(|dimension| tile.extent(dimension));
         let tiled = tile_order::laid(rows.clone(), (tile_k, tile_n));
 
         let stored = tiled.clone().stored([K, N]);
@@ -163,7 +165,7 @@ mod tests {
         use cubek::matmul::tiled::storage;
         use cubek::std::Hardware;
         use cubek::std::layout::tile_order::{self, TileOrder};
-        use cubek::std::matmul_axes::N;
+        use cubek::std::matmul_dimensions::N;
 
         use crate::{kernel::into_contiguous, tensor::CubeTensor};
 
@@ -209,7 +211,7 @@ mod tests {
             );
             let values = relayout(
                 values,
-                &tile_order::values_axes(N),
+                &tile_order::values_dimensions(N),
                 Field::from(scheme.value),
                 order.values_storage(N, words_per_load),
             );
@@ -237,7 +239,7 @@ mod tests {
                             device.clone(),
                             DType::U32,
                         ),
-                        &tile_order::scales_axes(N),
+                        &tile_order::scales_dimensions(N),
                         Field::of_scale(block_scale.dtype),
                         storage,
                     );
