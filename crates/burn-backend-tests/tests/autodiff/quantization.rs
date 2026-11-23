@@ -118,6 +118,102 @@ fn should_diff_matmul_with_quantized_rhs() {
     );
 }
 
+/// The quantized weight on the left: the gradient reaches the float operand
+/// through the transposed weight applied from the left.
+#[test]
+fn should_diff_matmul_with_quantized_lhs() {
+    let device = AutodiffDevice::new();
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S);
+
+    let w = TestTensor::<2>::from_data(
+        [
+            [0.5, -1.0, 0.25, 2.0],
+            [1.5, 0.0, -0.75, 1.0],
+            [-2.0, 0.5, 1.25, -0.5],
+        ],
+        &device,
+    );
+    let x_data = TensorData::from([[1.0, -2.0], [0.5, 1.5], [0.0, 1.0], [-1.0, 2.0]]);
+    // Distinct weights per output element, so a gradient taken through the
+    // wrong side or an untransposed weight does not match.
+    let weights_data = TensorData::from([[1.0, -0.5], [2.0, 0.25], [-1.5, 3.0]]);
+
+    let w_q = w.quantize_dynamic(&scheme);
+    let x = TestTensor::<2>::from_data(x_data.clone(), &device).require_grad();
+    let weights = TestTensor::<2>::from_data(weights_data, &device);
+
+    let y = w_q.clone().matmul(x.clone());
+    let grads = y.mul(weights.clone()).sum().backward();
+    let grad_x = x.grad(&grads).expect("x is tracked through q_matmul");
+
+    let w_ref = TestTensor::<2>::from_data(w_q.dequantize().to_data(), &device);
+    let x_ref = TestTensor::<2>::from_data(x_data, &device).require_grad();
+    let grads_ref = w_ref.matmul(x_ref.clone()).mul(weights).sum().backward();
+
+    grad_x.to_data().assert_approx_eq::<FloatElem>(
+        &x_ref.grad(&grads_ref).unwrap().to_data(),
+        Tolerance::default(),
+    );
+}
+
+/// A float operand broadcast over the batch of a quantized weight, with more
+/// tracked ops before and after the product: the gradient is summed back to
+/// the float operand's shape and keeps flowing to the leaf.
+#[test]
+fn should_diff_broadcast_matmul_with_quantized_rhs() {
+    let device = AutodiffDevice::new();
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S);
+
+    let w = TestTensor::<3>::from_data(
+        [
+            [
+                [0.5, -1.0, 0.25, 2.0],
+                [1.5, 0.0, -0.75, 1.0],
+                [-2.0, 0.5, 1.25, -0.5],
+                [0.75, -1.5, 0.0, 1.75],
+            ],
+            [
+                [-0.25, 1.0, 0.5, -1.25],
+                [2.0, -0.5, 1.5, 0.0],
+                [0.25, 0.75, -1.0, 1.0],
+                [-1.75, 0.5, 2.0, -0.5],
+            ],
+        ],
+        &device,
+    );
+    let x_data = TensorData::from([[[1.0, -2.0, 0.5, 1.5], [0.0, 1.0, -1.0, 2.0]]]);
+
+    let w_q = w.quantize_dynamic(&scheme);
+    let x = TestTensor::<3>::from_data(x_data.clone(), &device).require_grad();
+
+    let y = x.clone().mul_scalar(2.0).matmul(w_q.clone()).tanh();
+    let grads = y.sum().backward();
+    let grad_x = x.grad(&grads).expect("x is tracked through q_matmul");
+
+    let w_ref = TestTensor::<3>::from_data(w_q.dequantize().to_data(), &device);
+    let x_ref = TestTensor::<3>::from_data(x_data, &device).require_grad();
+    let grads_ref = x_ref
+        .clone()
+        .mul_scalar(2.0)
+        .matmul(w_ref)
+        .tanh()
+        .sum()
+        .backward();
+
+    grad_x.to_data().assert_approx_eq::<FloatElem>(
+        &x_ref.grad(&grads_ref).unwrap().to_data(),
+        Tolerance::default(),
+    );
+}
+
 /// The round trip itself on an autodiff device: quantize a tracked tensor,
 /// dequantize it back, and read the values. Quantization detaches, so this
 /// neither panics nor grows the graph.
