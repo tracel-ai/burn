@@ -45,9 +45,11 @@ conflicts with it (E0119); delete the handwritten one.
   so each member runs the op's own handler on its shards: an op that runs per head, or has
   several outputs, stays split without a collective handler. `ShardedComputeDevice::num_members`
   counts its members whichever backend they run.
+  ([#6404](https://github.com/tracel-ai/burn/pull/6404))
 
 - `cat` along a dim its inputs are not split on keeps their split on a sharded compute device, and
   partial sums stay partial, instead of gathering every input.
+  ([#6404](https://github.com/tracel-ai/burn/pull/6404))
 
 - `select` along a dim its input is not split on keeps the split on a sharded compute device,
   instead of gathering the input.
