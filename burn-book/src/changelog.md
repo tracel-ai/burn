@@ -893,6 +893,11 @@ for configuration and backend limitations.
   which `Param::uninitialized` now documents its initializer creates the value at.
   `Parameter` gains `dtype` and `default_dtype`.
 
+#### Linear layer initialization
+
+- Column-major linear layers now use the same Kaiming initialization scale as row-major layers,
+  based on `d_input` in fan-in mode and `d_output` in fan-out mode.
+
 #### Linear-algebra layers behind `linalg`
 
 **Breaking:** `burn` and `burn-nn` no longer build `burn-linalg` unless the `linalg` feature is
