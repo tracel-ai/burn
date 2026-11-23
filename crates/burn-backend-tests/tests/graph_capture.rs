@@ -147,7 +147,15 @@ mod cube {
     /// work that writes in place when run eagerly writes nothing in place while captured.
     #[test]
     #[serial]
-    #[cfg(feature = "fusion")]
+    #[cfg(all(
+        feature = "fusion",
+        any(
+            feature = "cuda",
+            feature = "rocm",
+            feature = "metal",
+            feature = "wgpu"
+        )
+    ))]
     fn nothing_is_written_in_place_while_capturing() {
         use burn_cubecl_fusion::inspect::inplace_alias_count;
 
