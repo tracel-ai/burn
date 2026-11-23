@@ -493,45 +493,85 @@ mod tests {
     use burn_std::{Shape, Strides};
     use std::collections::BTreeMap;
 
-    #[test]
-    fn vector_axis_follows_the_block_layout_constraint() {
-        let shape = Shape::from([2, 4, 1, 1]);
-        let concrete = ReferenceSelection::Concrete {
+    fn channels_last_reference() -> ReferenceSelection {
+        ReferenceSelection::Concrete {
             layout: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
-            shape: shape.clone(),
+            shape: Shape::from([2, 4, 1, 1]),
             strides: Strides::new(&[4, 1, 4, 4]),
-        };
-        let runtime = ReferenceSelection::Runtime { pos: 0 };
-        let layouts = [
-            (RefLayoutSetting::Any, &concrete),
-            (RefLayoutSetting::OnlyContiguous, &concrete),
-            (RefLayoutSetting::SameAsBlock { block_pos: 0 }, &concrete),
-            (RefLayoutSetting::SameAsBlock { block_pos: 1 }, &concrete),
-            (RefLayoutSetting::Any, &runtime),
-        ];
-        let blocks = layouts
-            .into_iter()
-            .map(|(ref_layout, _)| FuseBlock {
+        }
+    }
+
+    fn last_block_axis(
+        layouts: &[RefLayoutSetting],
+        reference: ReferenceSelection,
+    ) -> Option<usize> {
+        let blocks: Vec<_> = layouts
+            .iter()
+            .map(|&ref_layout| FuseBlock {
                 settings: FuseSettings {
                     ref_layout,
                     ..Default::default()
                 },
-                shape_ref: shape.clone(),
+                shape_ref: Shape::from([2, 4, 1, 1]),
                 ops: Vec::new(),
                 reads: BTreeMap::new(),
                 writes: BTreeMap::new(),
             })
             .collect();
         let resources = FuseResources::default();
-        let planner = VectorizationPlanner::new(&resources, &blocks);
         let mut plan = LaunchPlan::new(&blocks);
-        for (block, (_, reference)) in plan.blocks.iter_mut().zip(layouts) {
+        for block in &mut plan.blocks {
             block.reference = reference.clone();
         }
 
-        planner.resolve_vector_axes(&mut plan);
+        VectorizationPlanner::new(&resources, &blocks).resolve_vector_axes(&mut plan);
+        plan.blocks.last().unwrap().vector_axis
+    }
 
-        let axes: Vec<_> = plan.blocks.iter().map(|block| block.vector_axis).collect();
-        assert_eq!(axes, [Some(1), None, Some(1), None, None]);
+    #[test]
+    fn any_layout_uses_the_channel_axis_of_a_channels_last_reference() {
+        let axis = last_block_axis(&[RefLayoutSetting::Any], channels_last_reference());
+        assert_eq!(axis, Some(1));
+    }
+
+    #[test]
+    fn contiguous_only_uses_the_last_axis_of_a_channels_last_reference() {
+        let axis = last_block_axis(
+            &[RefLayoutSetting::OnlyContiguous],
+            channels_last_reference(),
+        );
+        assert_eq!(axis, None);
+    }
+
+    #[test]
+    fn any_layout_uses_the_last_axis_for_a_runtime_reference() {
+        let axis = last_block_axis(
+            &[RefLayoutSetting::Any],
+            ReferenceSelection::Runtime { pos: 0 },
+        );
+        assert_eq!(axis, None);
+    }
+
+    #[test]
+    fn same_as_block_inherits_the_channel_axis() {
+        let layouts = [
+            RefLayoutSetting::Any,
+            RefLayoutSetting::OnlyContiguous,
+            RefLayoutSetting::SameAsBlock { block_pos: 0 },
+        ];
+        assert_eq!(
+            last_block_axis(&layouts, channels_last_reference()),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn same_as_block_inherits_the_last_axis() {
+        let layouts = [
+            RefLayoutSetting::Any,
+            RefLayoutSetting::OnlyContiguous,
+            RefLayoutSetting::SameAsBlock { block_pos: 1 },
+        ];
+        assert_eq!(last_block_axis(&layouts, channels_last_reference()), None);
     }
 }
