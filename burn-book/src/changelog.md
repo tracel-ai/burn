@@ -45,20 +45,32 @@ conflicts with it (E0119); delete the handwritten one.
   so each member runs the op's own handler on its shards: an op that runs per head, or has
   several outputs, stays split without a collective handler. `ShardedComputeDevice::num_members`
   counts its members whichever backend they run.
+  ([#6404](https://github.com/tracel-ai/burn/pull/6404))
 
 - `cat` along a dim its inputs are not split on keeps their split on a sharded compute device, and
   partial sums stay partial, instead of gathering every input.
+  ([#6404](https://github.com/tracel-ai/burn/pull/6404))
 
 - `select` along a dim its input is not split on keeps the split on a sharded compute device,
-  instead of gathering the input. A quantized input still gathers.
+  instead of gathering the input.
+  ([#6572](https://github.com/tracel-ai/burn/pull/6572),
+  [#6577](https://github.com/tracel-ai/burn/pull/6577))
 
 - On a sharded compute device, `flip`, `pad`, `unfold`, `cross`, `grid_sample_2d` and the sort,
   top-k and max/min-dim ops that return indices keep their first input's split of a dim they do
   not read whole, instead of gathering their inputs. `gather` and `scatter` keep a split of any
   input along a dim they do not index, where every input has the same length, and `select_assign`
   one of its tensor or values. `gather_nd` and `scatter_nd` keep a split of a dim the index tuples
-  do not address. A built-in op's quantized output still lands whole, and `quantize` and module
-  ops other than attention still gather.
+  do not address. Module ops other than attention still gather.
+  ([#6576](https://github.com/tracel-ai/burn/pull/6576))
+
+- On a sharded compute device, a quantized tensor whose scales are all per block stays split
+  through `reshape`, `swap_dims`, `permute`, `flip`, `gather`, `select`, `slice` and `expand`
+  wherever the split gives each member whole blocks and packed words, instead of landing whole.
+  `quantize` keeps its input's split when its scales have exactly the block grid's shape, each
+  member quantizing its own blocks. Those ops still land a tensor with a per-tensor or global
+  scale whole, as do other ops with a quantized output.
+  ([#6577](https://github.com/tracel-ai/burn/pull/6577))
 
 #### Compilation and autotuning
 
