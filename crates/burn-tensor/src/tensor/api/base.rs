@@ -137,15 +137,15 @@ where
         self.primitive.dtype()
     }
 
-    /// Whether this tensor's buffer can be mutated in place — i.e. this handle
-    /// uniquely owns the allocation, so an in-place op writes it directly
-    /// instead of copying first (see `TensorMetadata::can_mut`).
+    /// Whether the backend considers this tensor eligible for an in-place write.
+    /// Unfused CubeCL checks whether this handle uniquely owns the buffer. Fusion
+    /// checks whether the logical tensor is uniquely held. Backends that cannot
+    /// determine ownership conservatively return `false`.
     ///
-    /// Backends that track buffer ownership (cubecl, fusion) answer
-    /// precisely from the handle reference count; others conservatively return
-    /// `false` — they may alias the buffer, so an in-place write can't be
-    /// assumed safe. Useful to assert a hot-path op (e.g. a KV-cache
-    /// `slice_assign`) stays in place rather than silently copying.
+    /// Even when this returns `true`, an operation may allocate a separate output
+    /// buffer. For example, while CubeCL plans or records a graph, a uniquely held fusion
+    /// tensor can return `true` even though the fused kernel writes to a separate
+    /// output buffer. An unfused CubeCL tensor returns `false` during capture.
     pub fn can_mut(&self) -> bool {
         self.primitive.can_mut()
     }

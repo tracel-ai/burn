@@ -170,7 +170,12 @@ impl<'a> InputPlanner<'a> {
                 // TODO: Autotune trials run on forked contexts whose extra handle clone
                 // makes `can_mut()` false, so trials never alias: the tuner measures the
                 // non-aliased kernel while the winner then executes the aliased one.
-                if self.blocks[idx].settings.inplace && handle.handle.can_mut() {
+                // Whether another clone of the handle is still alive depends on timing, and a
+                // capture's recorded run must allocate exactly what its planning runs did.
+                if self.blocks[idx].settings.inplace
+                    && handle.handle.can_mut()
+                    && !handle.client.is_capturing()
+                {
                     block_plan.potential_inplaces.push(PotentialInplace {
                         input_pos: pos,
                         tensor_relative,
