@@ -39,17 +39,24 @@ impl<H> Default for HandleContainer<H> {
 impl<H: Clone> HandleContainer<H> {
     /// Fork the container, useful for autotune.
     pub fn fork(&self) -> Self {
-        let mut handles = HashMap::with_capacity(self.handles.len());
+        self.fork_only(self.handles.keys())
+    }
 
-        for (id, handle) in self.handles.iter() {
-            handles.insert(*id, handle.clone());
-        }
-
-        Self {
-            handles,
+    /// Fork only the handles of `ids`, for work that reads no other tensor: a full
+    /// [fork](Self::fork) copies every live handle, which can cost more than the work.
+    pub fn fork_only<'a>(&self, ids: impl IntoIterator<Item = &'a TensorId>) -> Self {
+        let ids = ids.into_iter();
+        let mut fork = Self {
+            handles: HashMap::with_capacity(ids.size_hint().0.min(self.handles.len())),
             counter: self.counter,
-            errored: self.errored,
+            errored: 0,
+        };
+        for id in ids {
+            if let Some(handle) = self.handles.get(id) {
+                fork.put(*id, handle.clone());
+            }
         }
+        fork
     }
 }
 
@@ -650,6 +657,22 @@ mod tests {
         assert_eq!(container.num_handles(), 1);
         assert!(container.get_handle_ref(&tid(100)).is_none());
         assert!(container.get_handle_ref(&tid(101)).is_none());
+    }
+
+    #[test]
+    fn fork_only_keeps_the_named_handles_and_their_errors() {
+        let mut container = HandleContainer::<String>::new();
+        container.register_handle(tid(1), "named".to_string());
+        container.register_handle(tid(2), "unnamed".to_string());
+        let failure = TensorError::new(ExecutionError::generic("failed"));
+        container.set_error(tid(3), failure.clone());
+        container.set_error(tid(4), failure);
+
+        let fork = container.fork_only([tid(1), tid(3), tid(5)].iter());
+
+        assert_eq!(fork.num_handles(), 2);
+        assert!(fork.get_handle_ref(&tid(2)).is_none());
+        assert_eq!(fork.errored, 1);
     }
 
     #[test]

@@ -310,7 +310,13 @@ pub fn conv_transpose2d_direct_nhwc(
 /// The kernel against the definition of a transposed convolution, computed on the host.
 #[cfg(all(
     test,
-    any(feature = "wgpu", feature = "cpu", feature = "cuda", feature = "hip")
+    any(
+        feature = "wgpu",
+        feature = "metal",
+        feature = "cpu",
+        feature = "cuda",
+        feature = "hip"
+    )
 ))]
 mod tests {
     use burn_std::TensorData;

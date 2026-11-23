@@ -33,7 +33,7 @@ impl core::error::Error for ConfigError {}
 
 /// Configuration trait.
 pub trait Config: Debug + serde::Serialize + serde::de::DeserializeOwned {
-    /// Saves the configuration to a file.
+    /// Saves the configuration to a JSON file.
     ///
     /// # Arguments
     ///
@@ -47,7 +47,7 @@ pub trait Config: Debug + serde::Serialize + serde::de::DeserializeOwned {
         std::fs::write(file, config_to_json(self))
     }
 
-    /// Loads the configuration from a file.
+    /// Loads the configuration from a JSON file.
     ///
     /// # Arguments
     ///
@@ -63,15 +63,20 @@ pub trait Config: Debug + serde::Serialize + serde::de::DeserializeOwned {
         config_from_str(&content)
     }
 
-    /// Loads the configuration from a binary buffer.
+    /// Loads the configuration from UTF-8 encoded JSON bytes.
     ///
     /// # Arguments
     ///
-    /// * `data` - Binary buffer to load the configuration from.
+    /// * `data` - UTF-8 encoded JSON configuration.
     ///
     /// # Returns
     ///
     /// The loaded configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::InvalidFormat`] if `data` is not valid UTF-8 or cannot be
+    /// deserialized from JSON into this configuration type.
     fn load_binary(data: &[u8]) -> Result<Self, ConfigError> {
         let content = core::str::from_utf8(data).map_err(|_| {
             ConfigError::InvalidFormat("Could not parse data as utf-8.".to_string())

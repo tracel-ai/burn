@@ -6,6 +6,8 @@ mod broadcast;
 mod cast;
 mod cat;
 mod clamp;
+mod collective_scope;
+mod collective_skip;
 mod contiguous;
 mod conv1d;
 mod conv2d;

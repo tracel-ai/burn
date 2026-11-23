@@ -7,7 +7,8 @@ use crate::ops::{Backward, Ops, unary};
 use crate::tensor::AutodiffTensor;
 
 use burn_backend::TensorMetadata;
-use burn_backend::ops::attention::attention_fallback;
+use burn_backend::ops::AttentionCache;
+use burn_backend::ops::attention::{attention_fallback, attention_fallback_over_cache};
 use burn_backend::ops::*;
 use burn_backend::tensor::{FloatTensor, IntTensor};
 use burn_backend::{Backend, get_or_init_device_settings};
@@ -2270,11 +2271,17 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         value: FloatTensor<Autodiff<B, C>>,
         mask: Option<burn_backend::tensor::BoolTensor<Autodiff<B, C>>>,
         attn_bias: Option<FloatTensor<Autodiff<B, C>>>,
+        cache: Option<AttentionCache<Autodiff<B, C>>>,
         options: AttentionModuleOptions,
     ) -> FloatTensor<Autodiff<B, C>> {
-        // Backends without a native attention_backward, and attentions with a mask or an additive
-        // bias, fall back to the decomposed attention, built from differentiable tensor ops so the
-        // autodiff layer derives the gradient automatically.
+        // Backends without a native attention_backward, and attentions with a mask, an additive
+        // bias or a key/value cache, fall back to the decomposed attention, built from
+        // differentiable tensor ops so the autodiff layer derives the gradient automatically.
+        if let Some(cache) = cache {
+            return attention_fallback_over_cache::<Self>(
+                query, key, value, mask, attn_bias, cache, options,
+            );
+        }
         if !B::has_attention_backward() || mask.is_some() || attn_bias.is_some() {
             return attention_fallback::<Self>(query, key, value, mask, attn_bias, options);
         }
@@ -2351,6 +2358,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 query.primitive,
                 key.primitive,
                 value.primitive,
+                None,
                 None,
                 None,
                 options,

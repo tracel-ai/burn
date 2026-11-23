@@ -10,7 +10,7 @@ use crate::{
     optim::{FusedOperation, elemwise::ElemwiseRunner, matmul::args::MatmulArg},
 };
 use burn_fusion::stream::Context;
-use burn_ir::BinaryOpIr;
+use burn_ir::{BinaryOpIr, TensorIr};
 use cubecl::client::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -22,7 +22,9 @@ pub struct MatmulOptimization {
 
 pub struct MatmulOptimizationTuneArg {
     pub(crate) info: Arc<MatmulOptimizationInfo>,
-    pub(crate) fallback: Box<dyn FallbackOperation>,
+    /// The operations the fallback runs before the tail's trace: the matmul, then the reshapes of
+    /// its product the fused run writes through.
+    pub(crate) fallbacks: Vec<Box<dyn FallbackOperation>>,
 }
 
 #[cfg(feature = "autotune")]
@@ -65,7 +67,9 @@ impl MatmulOptimizationInfo {
 
 impl MatmulOptimizationTuneArg {
     pub fn execute_fallback(&self, context: &mut Context<CubeFusionHandle>) -> TuneOutput {
-        self.fallback.run(context);
+        for fallback in &self.fallbacks {
+            fallback.run(context);
+        }
 
         #[cfg(feature = "autotune-checks")]
         let mut output = TuneOutput::Checked {
@@ -76,13 +80,13 @@ impl MatmulOptimizationTuneArg {
 
         #[cfg(feature = "autotune-checks")]
         if let TuneOutput::Checked { handles } = &mut output {
-            let out_desc = context.tensors.get(&self.info.matmul.op.out.id).unwrap();
+            let out_desc = context.tensors.get(&self.info.matmul.output.id).unwrap();
             let handle_out = context
                 .handles
                 .get_handle(&out_desc.id, &burn_ir::TensorStatus::ReadOnly);
 
             handles.insert(
-                self.info.matmul.op.out.id,
+                self.info.matmul.output.id,
                 (out_desc.shape.clone(), handle_out.clone()),
             );
         }
@@ -122,28 +126,14 @@ impl MatmulOptimization {
     pub fn execute(
         &mut self,
         context: &mut Context<CubeFusionHandle>,
-        fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation>,
+        fallback: impl Fn(usize) -> Box<dyn FallbackOperation>,
     ) {
-        // The index of the fallback matmul is always 0.
-        let fallback = fallback(0);
+        // The matmul is always the first operation, and the reshapes of its product follow it.
+        let fallbacks = (0..=self.info.matmul.reshapes).map(fallback).collect();
         let arg = MatmulOptimizationTuneArg {
             info: self.info.clone(),
-            fallback,
+            fallbacks,
         };
-
-        // A storage-tiled operand is read through its binding by the eager matmul, which stages
-        // to its tiles; the fused product is not verified on them.
-        let op = &arg.info.matmul.op;
-        let stored = [op.lhs.id, op.rhs.id].iter().any(|id| {
-            context
-                .handles
-                .get_handle_ref(id)
-                .is_some_and(|handle| handle.tiles.is_some())
-        });
-        if stored {
-            arg.execute_fallback(context);
-            return;
-        }
 
         // The fused product runs the routine the unfused one measured fastest, and races the
         // fallback; without autotune nothing is measured, so the fallback runs.
@@ -192,6 +182,12 @@ pub struct FusedMatmul {
     pub(crate) rhs: MatmulArg,
     pub(crate) out: FuseArg,
     pub(crate) op: BinaryOpIr,
+    /// The tensor the routine writes: the matmul's output, or the last reshape of it the fuser
+    /// absorbed.
+    pub(crate) output: TensorIr,
+    /// How many reshapes of the product the fuser absorbed, which the fallback runs after the
+    /// matmul.
+    pub(crate) reshapes: usize,
 }
 
 /// Name of the matmul fusion optimization.

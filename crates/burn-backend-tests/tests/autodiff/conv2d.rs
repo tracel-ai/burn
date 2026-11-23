@@ -1,9 +1,71 @@
 use super::*;
 use burn_tensor::{
-    Shape, Tolerance,
+    DType, Element, Shape, TensorData, Tolerance,
     module::conv2d,
     ops::{ConvOptions, PadMode},
 };
+
+#[test]
+fn bias_gradient_with_channels_last_output_gradient() {
+    let device = AutodiffDevice::new();
+    for dtype in [FloatElem::dtype(), DType::BF16] {
+        if !device.supports_dtype(dtype) {
+            continue;
+        }
+        let options = (&device, dtype);
+        let bias = TestTensor::zeros([3], options).require_grad();
+        let output = conv2d(
+            TestTensor::ones([2, 1, 1, 2], options),
+            TestTensor::ones([3, 1, 1, 1], options),
+            Some(bias.clone()),
+            ConvOptions::new([1; 2], [0; 2], [1; 2], 1),
+        );
+        let upstream = TestTensor::from_data(
+            [
+                [[[1., -2., 3.], [4., 5., -6.]]],
+                [[[-7., 8., 9.], [10., -11., 12.]]],
+            ],
+            options,
+        );
+        let grads = (output.movedim(1, -1) * upstream).backward();
+
+        let grad = bias.grad(&grads).unwrap();
+        assert_eq!(grad.dtype(), dtype);
+        assert_eq!(grad.device(), device);
+        grad.into_data()
+            .assert_eq(&TensorData::from([8., 0., 18.]), false);
+    }
+}
+
+#[test]
+fn bias_gradient_cancels_before_rounding_to_f16() {
+    let device = AutodiffDevice::new();
+    if !device.supports_dtype(DType::F16) {
+        return;
+    }
+    let options = (&device, DType::F16);
+    let bias = TestTensor::zeros([2], options).require_grad();
+    let output = conv2d(
+        TestTensor::ones([2, 1, 2, 2], options),
+        TestTensor::ones([2, 1, 1, 1], options),
+        Some(bias.clone()),
+        ConvOptions::new([1; 2], [0; 2], [1; 2], 1),
+    );
+    // The spatial sum in each batch overflows F16, but the batches cancel.
+    let upstream = TestTensor::from_data(
+        [
+            [[[32768.; 2]; 2], [[1., 2.], [3., 4.]]],
+            [[[-32768.; 2]; 2], [[-1., -2.], [-3., 4.]]],
+        ],
+        options,
+    );
+    let grads = (output * upstream).backward();
+
+    let grad = bias.grad(&grads).unwrap();
+    assert_eq!(grad.dtype(), DType::F16);
+    grad.into_data()
+        .assert_eq(&TensorData::from([0., 8.]), false);
+}
 
 #[test]
 fn test_conv2d_basic() {

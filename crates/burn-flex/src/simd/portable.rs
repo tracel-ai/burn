@@ -8,7 +8,7 @@ use core::mem::MaybeUninit;
 
 use macerator::{
     Mask, Scalar, Simd, VBitAnd, VBitOr, VBitXor, VCeil, VDiv, VFloor, VMul, VRoundTiesEven,
-    VTrunc, Vector, vload_unaligned, vstore_unaligned,
+    VTrunc, Vector, vload_partial, vload_unaligned, vstore_partial, vstore_unaligned,
 };
 
 #[cfg(feature = "rayon")]
@@ -210,12 +210,14 @@ fn recip_inplace_f32_par(a: &mut [f32]) {
 // ============================================================================
 
 /// Lanes in the widest register of the smallest element: 64 `u8` lanes in
-/// 512 bits. Sizes the stack buffers that run a short tail through a vector.
-pub const MAX_LANES: usize = 64;
+/// 512 bits. Sizes the stack buffers that spill a vector to run it lane by
+/// lane.
+const MAX_LANES: usize = 64;
 
 /// An elementwise op on vectors, run over slices by [`map_inplace`] and
 /// [`map_to_vec`]. Each output lane must depend only on the same input lane,
-/// since the drivers also apply it to the padding lanes of a short tail.
+/// since the drivers also apply it to the zeroed lanes of a partial tail
+/// vector.
 pub trait LaneOp<F: Scalar>: Copy + Send + Sync {
     fn apply<S: Simd>(self, v: Vector<S, F>) -> Vector<S, F>;
 }
@@ -272,14 +274,13 @@ fn map_into_seq<S: Simd, F: Scalar, O: LaneOp<F>>(src: &[F], dst: &mut [MaybeUni
 }
 
 /// Writes `op(src[i])` to `dst[i]` for every `i < len`. The tail shorter than
-/// a vector goes through `op` in a padded buffer, so each element gets the
+/// a vector goes through `op` as a partial vector, so each element gets the
 /// same result wherever it sits in the slice.
 ///
 /// # Safety
 ///
-/// `src` must be valid for `len` reads and `dst` for `len` writes, both
-/// aligned to `F`: the vector loads and stores are unaligned, but the tail
-/// copies use `copy_nonoverlapping`. They are either equal or don't overlap.
+/// `src` must be valid for `len` reads and `dst` for `len` writes. They are
+/// either equal or don't overlap.
 #[inline(always)]
 unsafe fn map_raw<S: Simd, F: Scalar, O: LaneOp<F>>(src: *const F, dst: *mut F, len: usize, op: O) {
     let lanes = F::lanes::<S>();
@@ -314,18 +315,10 @@ unsafe fn map_raw<S: Simd, F: Scalar, O: LaneOp<F>>(src: *const F, dst: *mut F, 
 
     let tail = len - simd_len;
     if tail > 0 {
-        let mut buf = [F::default(); MAX_LANES];
-        assert!(
-            lanes <= MAX_LANES,
-            "SIMD lane count {lanes} exceeds {MAX_LANES}"
-        );
-        // SAFETY: the tail is in bounds of both buffers, and the assertion
-        // above keeps one vector within `buf`.
+        // SAFETY: the tail is in bounds of both buffers.
         unsafe {
-            core::ptr::copy_nonoverlapping(src.add(simd_len), buf.as_mut_ptr(), tail);
-            let v = vload_unaligned::<S, F>(buf.as_ptr());
-            vstore_unaligned::<S, F>(buf.as_mut_ptr(), op.apply(v));
-            core::ptr::copy_nonoverlapping(buf.as_ptr(), dst.add(simd_len), tail);
+            let v = vload_partial::<S, F>(src.add(simd_len), tail);
+            vstore_partial::<S, F>(dst.add(simd_len), op.apply(v), tail);
         }
     }
 }
@@ -407,13 +400,13 @@ fn zip_into_seq<S: Simd, F: Scalar, O: LaneOp2<F>>(
     unsafe { zip_raw::<S, F, O>(a.as_ptr(), b.as_ptr(), dst.as_mut_ptr().cast(), a.len(), op) }
 }
 
-/// Writes `op(a[i], b[i])` to `dst[i]` for every `i < len`, with a short tail
-/// through `op` in padded buffers as in [`map_raw`].
+/// Writes `op(a[i], b[i])` to `dst[i]` for every `i < len`, with the short
+/// tail as a partial vector as in [`map_raw`].
 ///
 /// # Safety
 ///
-/// `a` and `b` must be valid for `len` reads and `dst` for `len` writes, all
-/// aligned to `F`. `dst` either equals `a` or overlaps neither input.
+/// `a` and `b` must be valid for `len` reads and `dst` for `len` writes.
+/// `dst` either equals `a` or overlaps neither input.
 #[inline(always)]
 unsafe fn zip_raw<S: Simd, F: Scalar, O: LaneOp2<F>>(
     a: *const F,
@@ -456,21 +449,11 @@ unsafe fn zip_raw<S: Simd, F: Scalar, O: LaneOp2<F>>(
 
     let tail = len - simd_len;
     if tail > 0 {
-        let mut buf_a = [F::default(); MAX_LANES];
-        let mut buf_b = [F::default(); MAX_LANES];
-        assert!(
-            lanes <= MAX_LANES,
-            "SIMD lane count {lanes} exceeds {MAX_LANES}"
-        );
-        // SAFETY: the tail is in bounds of every buffer, and the assertion
-        // above keeps one vector within `buf_a` and `buf_b`.
+        // SAFETY: the tail is in bounds of every buffer.
         unsafe {
-            core::ptr::copy_nonoverlapping(a.add(simd_len), buf_a.as_mut_ptr(), tail);
-            core::ptr::copy_nonoverlapping(b.add(simd_len), buf_b.as_mut_ptr(), tail);
-            let va = vload_unaligned::<S, F>(buf_a.as_ptr());
-            let vb = vload_unaligned::<S, F>(buf_b.as_ptr());
-            vstore_unaligned::<S, F>(buf_a.as_mut_ptr(), op.apply(va, vb));
-            core::ptr::copy_nonoverlapping(buf_a.as_ptr(), dst.add(simd_len), tail);
+            let va = vload_partial::<S, F>(a.add(simd_len), tail);
+            let vb = vload_partial::<S, F>(b.add(simd_len), tail);
+            vstore_partial::<S, F>(dst.add(simd_len), op.apply(va, vb), tail);
         }
     }
 }
@@ -567,6 +550,26 @@ impl<F: VMul + VDiv + num_traits::One> LaneOp<F> for PowI {
     }
 }
 
+/// Rounds to the nearest integer, ties to even, and returns it as both f32
+/// and i32. Finite lanes must have magnitude below 2^22. Callers handle NaNs.
+#[inline(always)]
+fn round_for_reduction<S: Simd>(x: Vector<S, f32>) -> (Vector<S, f32>, Vector<S, i32>) {
+    if cfg!(target_family = "wasm") {
+        // Adding 1.5 * 2^23 rounds in a range where adjacent floats are one
+        // apart. This avoids software rounding on the scalar backend and
+        // extra conversions on SIMD128.
+        let bias = 12_582_912.0f32.splat::<S>();
+        let rounded = x + bias;
+        (
+            rounded - bias,
+            rounded.reinterpret::<i32>() - bias.reinterpret::<i32>(),
+        )
+    } else {
+        let n = x.round_to_int_unchecked();
+        (n.to_float(), n)
+    }
+}
+
 /// `e^x` for f32 lanes: Cody-Waite reduction to `|r|` of about `ln(2) / 2` and
 /// the Cephes `expf` polynomial. Within 2 ulp of libm over the whole range,
 /// subnormal results included. Results below the smallest subnormal give 0,
@@ -576,13 +579,7 @@ pub fn exp_f32<S: Simd>(x: Vector<S, f32>) -> Vector<S, f32> {
     // exp(-104) rounds to 0 and exp(89) overflows, so clamping changes no
     // result and bounds `n` for the exponent bits below.
     let xc = x.max((-104.0f32).splat()).min(89.0f32.splat());
-    // Adding 1.5 * 2^23 rounds `x * log2(e)` to an integer, ties to even,
-    // and leaves it in the low mantissa bits. Cheaper than `round_to_int`,
-    // which pays for saturation the clamp already rules out.
-    let magic = 12_582_912.0f32.splat::<S>();
-    let t = xc * core::f32::consts::LOG2_E.splat() + magic;
-    let nf = t - magic;
-    let n = t.reinterpret::<i32>() - magic.reinterpret::<i32>();
+    let (nf, n) = round_for_reduction(xc * core::f32::consts::LOG2_E.splat());
     // ln(2) split in two; the high part has 9 significant bits, so the first
     // product is exact for the clamped `n`.
     let r = xc - nf * 0.693_359_4f32.splat() - nf * (-2.121_944_4e-4f32).splat();
@@ -702,10 +699,9 @@ impl LaneOp<f32> for Ln {
     #[inline(always)]
     fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
         // Subnormals are scaled by 2^25 into the normal range.
-        // `Mask` isn't `Copy`, so each select takes a fresh comparison.
-        let sub = || x.lt(f32::MIN_POSITIVE.splat());
-        let xs = sub().select(x * 33_554_432.0f32.splat(), x);
-        let k_sub = sub().select((-25.0f32).splat(), 0.0f32.splat());
+        let sub = x.lt(f32::MIN_POSITIVE.splat());
+        let xs = sub.select(x * 33_554_432.0f32.splat(), x);
+        let k_sub = sub.select((-25.0f32).splat(), 0.0f32.splat());
 
         // Splits x into 2^k * m with m in [sqrt(2)/2, sqrt(2)).
         let ix = xs.reinterpret::<i32>() + (0x3f80_0000 - 0x3f35_04f3).splat();
@@ -747,12 +743,9 @@ impl LaneOp<f32> for Ln1p {
 
         // Near 0, where 1 + x is in [sqrt(2)/2, sqrt(2)), f = x and k = 0.
         // Elsewhere 1 + x is split into 2^k * m like `Ln`, and `c` corrects
-        // for the rounding of 1 + x. `Mask` isn't `Copy`, so each select takes
-        // a fresh comparison.
-        let near = || {
-            !(x.lt(f32::from_bits(0xbe95_f619).splat())
-                | !x.lt(f32::from_bits(0x3ed4_13d0).splat()))
-        };
+        // for the rounding of 1 + x.
+        let near = !(x.lt(f32::from_bits(0xbe95_f619).splat())
+            | !x.lt(f32::from_bits(0x3ed4_13d0).splat()));
         let u = one + x;
         let iu = u.reinterpret::<i32>() + (0x3f80_0000 - 0x3f35_04f3).splat();
         let k_far = ((iu >> 23) - 0x7f.splat()).to_float();
@@ -760,9 +753,9 @@ impl LaneOp<f32> for Ln1p {
         let c_far = k_far.lt(25.0f32.splat()).select(c_far, zero);
         let f_far = ((iu & 0x007f_ffff.splat()) + 0x3f35_04f3.splat()).reinterpret::<f32>() - one;
 
-        let f = near().select(x, f_far);
-        let c = near().select(zero, c_far);
-        let k = near().select(zero, k_far);
+        let f = near.select(x, f_far);
+        let c = near.select(zero, c_far);
+        let k = near.select(zero, k_far);
 
         let s = f / (2.0f32.splat() + f);
         let z = s * s;
@@ -962,22 +955,21 @@ pub fn erf_f32<S: Simd>(x: Vector<S, f32>) -> Vector<S, f32> {
         ],
     );
     // fdlibm's 1 / 0.35 boundary, 0x4036db6d.
-    let is_near = || a.lt(f32::from_bits(0x4036_db6d).splat());
-    let r_tail = is_near().select(r_near, r_far);
-    let s_tail = is_near().select(s_near, s_far);
+    let is_near = a.lt(f32::from_bits(0x4036_db6d).splat());
+    let r_tail = is_near.select(r_near, r_far);
+    let s_tail = is_near.select(s_near, s_far);
 
     // Each lane needs one of the four quotients, so the numerators and
-    // denominators are selected first and divided once. `Mask` isn't `Copy`,
-    // so each select takes a fresh comparison.
-    let is_small = || a.lt(0.84375f32.splat());
-    let is_head = || a.lt(1.25f32.splat());
-    let num = is_head().select(is_small().select(p_small, p_mid), r_tail);
-    let den = is_head().select(is_small().select(q_small, q_mid), s_tail);
+    // denominators are selected first and divided once.
+    let is_small = a.lt(0.84375f32.splat());
+    let is_head = a.lt(1.25f32.splat());
+    let num = is_head.select(is_small.select(p_small, p_mid), r_tail);
+    let den = is_head.select(is_small.select(q_small, q_mid), s_tail);
     let q = num / den;
 
-    let head = is_small().select(q.mul_add(a, a), q + 8.4506291151e-01f32.splat());
+    let head = is_small.select(q.mul_add(a, a), q + 8.4506291151e-01f32.splat());
     let tail = one - exp_f32::<S>(q - z - 0.5625f32.splat()) * inv_a;
-    let y = is_head().select(head, tail);
+    let y = is_head.select(head, tail);
     with_sign_of(y, x)
 }
 
@@ -1037,11 +1029,7 @@ const TRIG_MAX: f32 = 6433.0;
 /// at most 12 significant bits.
 #[inline(always)]
 fn reduce_half_pi<S: Simd>(a: Vector<S, f32>) -> (Vector<S, f32>, Vector<S, i32>) {
-    // Rounds a * 2/pi to an integer as in `exp_f32`.
-    let magic = 12_582_912.0f32.splat::<S>();
-    let t = a * core::f32::consts::FRAC_2_PI.splat() + magic;
-    let jf = t - magic;
-    let j = t.reinterpret::<i32>() - magic.reinterpret::<i32>();
+    let (jf, j) = round_for_reduction(a * core::f32::consts::FRAC_2_PI.splat());
     let r = a - jf * f32::from_bits(0x3fc9_0000).splat();
     let r = r - jf * f32::from_bits(0x39fd_a000).splat();
     let r = r - jf * f32::from_bits(0x33a2_2000).splat();
@@ -1092,14 +1080,12 @@ fn flip_sign_on_bit<S: Simd>(v: Vector<S, f32>, j: Vector<S, i32>, bit: u32) -> 
 /// `f` of each lane of `x`, one at a time.
 #[inline(never)]
 fn per_lane<S: Simd>(x: Vector<S, f32>, f: fn(f32) -> f32) -> Vector<S, f32> {
-    let mut buf = [0.0f32; MAX_LANES];
-    // SAFETY: a vector has at most `MAX_LANES` f32 lanes.
-    unsafe { vstore_unaligned::<S, f32>(buf.as_mut_ptr(), x) };
-    for v in &mut buf[..f32::lanes::<S>()] {
+    let buf = &mut [0.0f32; MAX_LANES][..f32::lanes::<S>()];
+    x.store(buf);
+    for v in buf.iter_mut() {
         *v = f(*v);
     }
-    // SAFETY: as above.
-    unsafe { vload_unaligned::<S, f32>(buf.as_ptr()) }
+    Vector::load(buf)
 }
 
 /// [`per_lane`] for a two-input `f`.
@@ -1109,18 +1095,15 @@ fn per_lane2<S: Simd>(
     y: Vector<S, f32>,
     f: fn(f32, f32) -> f32,
 ) -> Vector<S, f32> {
-    let mut xs = [0.0f32; MAX_LANES];
-    let mut ys = [0.0f32; MAX_LANES];
-    // SAFETY: a vector has at most `MAX_LANES` f32 lanes.
-    unsafe {
-        vstore_unaligned::<S, f32>(xs.as_mut_ptr(), x);
-        vstore_unaligned::<S, f32>(ys.as_mut_ptr(), y);
-    }
-    for (v, &w) in xs[..f32::lanes::<S>()].iter_mut().zip(&ys) {
+    let lanes = f32::lanes::<S>();
+    let xs = &mut [0.0f32; MAX_LANES][..lanes];
+    let ys = &mut [0.0f32; MAX_LANES][..lanes];
+    x.store(xs);
+    y.store(ys);
+    for (v, &w) in xs.iter_mut().zip(ys.iter()) {
         *v = f(*v, w);
     }
-    // SAFETY: as above.
-    unsafe { vload_unaligned::<S, f32>(xs.as_ptr()) }
+    Vector::load(xs)
 }
 
 /// `sin(x)` for f32 lanes, on |x| with the sign restored. A vector with a lane
@@ -1212,16 +1195,15 @@ impl LaneOp<f32> for Atan {
     fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
         let a = x.abs();
         let one = 1.0f32.splat::<S>();
-        // `Mask` isn't `Copy`, so each select takes a fresh comparison.
-        let big = || a.gt(2.414_213_562_373_095f32.splat());
-        let mid = || a.gt(0.414_213_562_373_095f32.splat());
+        let big = a.gt(2.414_213_562_373_095f32.splat());
+        let mid = a.gt(0.414_213_562_373_095f32.splat());
 
-        let num = big().select((-1.0f32).splat(), mid().select(a - one, a));
-        let den = big().select(a, mid().select(a + one, one));
+        let num = big.select((-1.0f32).splat(), mid.select(a - one, a));
+        let den = big.select(a, mid.select(a + one, one));
         let r = num / den;
-        let offset = big().select(
+        let offset = big.select(
             core::f32::consts::FRAC_PI_2.splat(),
-            mid().select(core::f32::consts::FRAC_PI_4.splat(), 0.0f32.splat()),
+            mid.select(core::f32::consts::FRAC_PI_4.splat(), 0.0f32.splat()),
         );
 
         let z = r * r;
@@ -1249,12 +1231,12 @@ impl LaneOp<f32> for Asin {
     fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
         let a = x.abs();
         let half = 0.5f32.splat::<S>();
-        let high = || a.gt(half);
+        let high = a.gt(half);
 
-        let z = high().select(half * (1.0f32.splat::<S>() - a), a * a);
-        let w = high().select(z.sqrt(), a);
+        let z = high.select(half * (1.0f32.splat::<S>() - a), a * a);
+        let w = high.select(z.sqrt(), a);
         let p = asin_poly(w, z);
-        let y = high().select(core::f32::consts::FRAC_PI_2.splat::<S>() - (p + p), p);
+        let y = high.select(core::f32::consts::FRAC_PI_2.splat::<S>() - (p + p), p);
         with_sign_of(y, x)
     }
 }
@@ -1271,17 +1253,17 @@ impl LaneOp<f32> for Acos {
     fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
         let one = 1.0f32.splat::<S>();
         let half = 0.5f32.splat::<S>();
-        let low = || x.lt((-0.5f32).splat());
-        let high = || x.gt(half);
+        let low = x.lt((-0.5f32).splat());
+        let high = x.gt(half);
 
-        let w = low().select(
+        let w = low.select(
             (half * (one + x)).sqrt(),
-            high().select((half * (one - x)).sqrt(), x),
+            high.select((half * (one - x)).sqrt(), x),
         );
         let s = asin_poly(w, w * w);
-        low().select(
+        low.select(
             core::f32::consts::PI.splat::<S>() - (s + s),
-            high().select(s + s, core::f32::consts::FRAC_PI_2.splat::<S>() - s),
+            high.select(s + s, core::f32::consts::FRAC_PI_2.splat::<S>() - s),
         )
     }
 }
@@ -1383,6 +1365,62 @@ impl LaneOp2<f32> for LogSigmoidBackward {
     #[inline(always)]
     fn apply<S: Simd>(self, x: Vector<S, f32>, grad: Vector<S, f32>) -> Vector<S, f32> {
         LogSigmoidGrad.apply(x) * grad
+    }
+}
+
+/// Where `sinh` and `cosh` overflow into libm's scaled `exp`: ln(f32::MAX).
+const HYPERBOLIC_MAX: u32 = 0x42b1_7217;
+
+/// `sinh(x)` for f32 lanes, on |x| with the sign restored: the odd Taylor
+/// series to x^11 below |x| = 1, where the next term is under 2e-10 of the
+/// result, and `(e^x - e^-x) / 2` on [`exp_f32`] above, where the difference
+/// magnifies the error of `e^x` at most coth(1), about 1.31 times. A vector with a lane at or
+/// beyond ln(f32::MAX) goes through `libm::sinhf`.
+#[derive(Clone, Copy)]
+pub struct Sinh;
+
+impl LaneOp<f32> for Sinh {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
+        let a = x.abs();
+        if (!a.lt(f32::from_bits(HYPERBOLIC_MAX).splat()) & a.eq(a)).any() {
+            return per_lane(x, libm::sinhf);
+        }
+        let one = 1.0f32.splat::<S>();
+        let z = a * a;
+        // 1/3!, 1/5!, ..., 1/11!, highest degree first.
+        let p = horner(
+            z,
+            [
+                1.0 / 39_916_800.0,
+                1.0 / 362_880.0,
+                1.0 / 5040.0,
+                1.0 / 120.0,
+                1.0 / 6.0,
+            ],
+        );
+        let small = (p * z).mul_add(a, a);
+        let e = exp_f32::<S>(a);
+        let large = 0.5f32.splat::<S>() * (e - one / e);
+        with_sign_of(a.lt(one).select(small, large), x)
+    }
+}
+
+/// `cosh(x)` for f32 lanes, as `(e^x + e^-x) / 2` on [`exp_f32`]; the sum
+/// doesn't cancel, so the error stays near that of `e^x`. A vector with a lane
+/// at or beyond ln(f32::MAX) goes through `libm::coshf`.
+#[derive(Clone, Copy)]
+pub struct Cosh;
+
+impl LaneOp<f32> for Cosh {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
+        let a = x.abs();
+        if (!a.lt(f32::from_bits(HYPERBOLIC_MAX).splat()) & a.eq(a)).any() {
+            return per_lane(x, libm::coshf);
+        }
+        let e = exp_f32::<S>(a);
+        0.5f32.splat::<S>() * (e + 1.0f32.splat::<S>() / e)
     }
 }
 
@@ -2574,6 +2612,51 @@ mod tests {
         check_pairs(Hypot, libm::hypotf, 1, &extra);
     }
 
+    // The SIMD-path extras include the worst cases of an exhaustive run over
+    // all 2^32 inputs on NEON and SSE4.2, the switch at |x| = 1 in sinh and the
+    // last value below the cutoff; the libm-path extras start at the cutoff.
+    const HYPERBOLIC_SIMD: [f32; 4] = [1.0, 0.999_999_94, 1.000_000_1, 88.72];
+    const HYPERBOLIC_LIBM: [f32; 8] = [
+        88.722_83,
+        89.0,
+        -90.0,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        0.5,
+        -2.0,
+        1e-5,
+    ];
+
+    /// NaN stays on the SIMD path next to an ordinary lane.
+    fn check_nan_on_simd_path(op: impl LaneOp<f32>, reference: fn(f32) -> f32) {
+        let out = map_to_vec(&[f32::NAN, 1.0], op);
+        assert!(out[0].is_nan(), "{out:?}");
+        assert!(signed_ulps(out[1], reference(1.0)) <= 2);
+    }
+
+    #[test]
+    fn sinh_f32_within_2_ulp_of_libm() {
+        let mut extra = HYPERBOLIC_SIMD.to_vec();
+        extra.push(f32::from_bits(0x3cfe_52cf));
+        check_within(Sinh, libm::sinhf, 2, f32::MAX, &extra);
+        // Small lanes next to ones past the cutoff go through libm whole.
+        check_values(Sinh, libm::sinhf, 2, &HYPERBOLIC_LIBM);
+        check_nan_on_simd_path(Sinh, libm::sinhf);
+        let zeros = map_to_vec(&[0.0, -0.0], Sinh);
+        assert_eq!(zeros[0].to_bits(), 0.0f32.to_bits());
+        assert_eq!(zeros[1].to_bits(), (-0.0f32).to_bits());
+    }
+
+    #[test]
+    fn cosh_f32_within_2_ulp_of_libm() {
+        let mut extra = HYPERBOLIC_SIMD.to_vec();
+        extra.push(f32::from_bits(0x3f85_75b3));
+        check_within(Cosh, libm::coshf, 2, f32::MAX, &extra);
+        check_values(Cosh, libm::coshf, 2, &HYPERBOLIC_LIBM);
+        check_nan_on_simd_path(Cosh, libm::coshf);
+        assert_eq!(map_to_vec(&[0.0, -0.0], Cosh), [1.0, 1.0]);
+    }
+
     #[test]
     fn hypot_f32_matches_libm_at_the_overflow_edge() {
         // The two pairs straddle the overflow threshold: libm gives MAX for the
@@ -2625,7 +2708,6 @@ mod tests {
             );
         }
     }
-
     #[test]
     fn exp_f32_special_values() {
         let mut a = [

@@ -85,6 +85,15 @@ pub struct Breakdown {
     /// every component where they share none — so a component whose work all
     /// fused reads zero, and the kernel that did it is listed elsewhere.
     pub unfused: bool,
+    /// What each member of a sharded compute device did over the run, and what its collectives
+    /// cost each member. `None` for a device of one, whose figures are the rest of the
+    /// breakdown's, and for a sharded compute device whose members are one device.
+    ///
+    /// Its members run at once, so the components' times sum every member's kernels and are no
+    /// one device's time: the slowest member's is what the run's wall holds.
+    ///
+    /// Partial where [`timed_alone`](Self::timed_alone) is set: launches ran one at a time.
+    pub per_member: Option<PerMember>,
 }
 
 impl Breakdown {
@@ -402,6 +411,84 @@ impl Component {
     }
 }
 
+/// What each member of a sharded compute device did over an instrumented run.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PerMember {
+    /// Each member, in member order.
+    pub members: Vec<MemberTime>,
+    /// The device time of kernels that ran on no member's device: credited to their components,
+    /// on no member.
+    #[serde(with = "super::nanoseconds")]
+    pub off_members: Duration,
+    /// The collectives the run issued, one entry per operation, path and size, in the order
+    /// each was first issued.
+    pub collectives: Vec<CollectiveTime>,
+}
+
+/// What one member of a sharded compute device did over an instrumented run.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MemberTime {
+    /// The device time of the kernels that ran on it.
+    #[serde(with = "super::nanoseconds")]
+    pub on_device: Duration,
+    /// How long its device sat idle between them: waiting on the host, or on a collective.
+    #[serde(with = "super::nanoseconds")]
+    pub idle: Duration,
+}
+
+/// The collectives of one operation, path and size over an instrumented run, and what they cost
+/// each member of a sharded compute device.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CollectiveTime {
+    /// The operation as the runtime names it, such as `all_reduce`.
+    pub operation: String,
+    /// How they ran.
+    pub path: CollectivePath,
+    /// The size of one member's source, in bytes: the root's for a broadcast.
+    pub bytes: u64,
+    /// How many ran.
+    pub count: usize,
+    /// What they cost each member, in member order.
+    ///
+    /// Only a native collective has parts, so an emulated or skipped one reads zero here: an
+    /// emulated one's transfers and kernels are timed as kernels, and a skipped one ran nothing.
+    pub members: Vec<CollectiveMemberTime>,
+}
+
+/// How a collective ran.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum CollectivePath {
+    /// Over the runtime's device transport, one part per member.
+    Native {
+        /// What runs the transport, such as `Nccl` or `Rccl`.
+        transport: String,
+    },
+    /// As transfers and kernels, without a device transport.
+    Emulated {
+        /// Why the device transport does not run it.
+        why: String,
+    },
+    /// Not at all: a skip guard held one of its devices.
+    Skipped,
+}
+
+/// What a sharded compute device's collectives of one kind cost one member.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CollectiveMemberTime {
+    /// The device time of its parts, each from when its inputs were written to when it ended,
+    /// waiting for its peers included.
+    #[serde(with = "super::nanoseconds")]
+    pub part: Duration,
+    /// How long its compute stream sat blocked on them: the share of their time no kernel hid.
+    #[serde(with = "super::nanoseconds")]
+    pub exposed: Duration,
+}
+
 /// Kernel time that could not be credited to a component — a timing that reached the
 /// recorder under a different attribution from the launch it measured, or a
 /// window that came back with no timing in it.
@@ -518,6 +605,7 @@ mod tests {
             timed_alone: false,
             unplaced: Unplaced::default(),
             unfused: false,
+            per_member: None,
         };
 
         let fused_elsewhere = breakdown.fused_elsewhere();
@@ -580,6 +668,7 @@ mod tests {
             timed_alone: false,
             unplaced: Unplaced::default(),
             unfused: false,
+            per_member: None,
         };
 
         let fused_elsewhere = breakdown.fused_elsewhere();

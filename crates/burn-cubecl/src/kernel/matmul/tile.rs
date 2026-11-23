@@ -11,21 +11,25 @@ use crate::{
 };
 use burn_backend::DType;
 use burn_backend::cubecl::dtype_to_storage_type;
+use burn_std::Metadata;
 use cubecl::std::tensor::TensorHandle;
-use cubecl::tile::{Axis, launch::Refusal};
+use cubecl::tile::{Dimension, launch::Decline};
 use cubek::matmul::{
     definition::MatmulSetupError,
     kernels::{
         MatmulOpStrategy,
         plan::{FrameworkDequantize, MatmulCall, MatmulCallInput},
-        select::{problem::MatmulProblem, selector::select},
+        select::{
+            problem::{MatmulProblem, OperandKind},
+            selector::select,
+        },
         tensor::StoredTensor,
         tune::MatmulAutotuneGroups,
     },
 };
 use cubek::std::{
     Hardware,
-    matmul_axes::{K, M, N},
+    matmul_dimensions::{K, M, N},
     plan::Plan,
 };
 use std::sync::Arc;
@@ -54,13 +58,12 @@ pub(crate) fn launch(
         lhs.client.clone(),
         CubeTuneId::new(&lhs.client, &lhs.device),
     );
-    let (lhs_shape, rhs_shape) = (lhs.meta.shape().clone(), rhs.meta.shape().clone());
     let lhs = call_input(lhs, [M, K], out_dtype).map_err(invalid)?;
     let rhs = call_input(rhs, [K, N], out_dtype).map_err(invalid)?;
-    let problem = MatmulProblem::new(
-        (&lhs_shape, lhs.tensor.kind()),
-        (&rhs_shape, rhs.tensor.kind()),
-    );
+    let problem = problem(
+        (&lhs.meta, lhs.tensor.kind()),
+        (&rhs.meta, rhs.tensor.kind()),
+    )?;
     let plan = select(strategy, &problem, &hw, MatmulAutotuneGroups::default()).map_err(invalid)?;
     let call = MatmulCall {
         hw,
@@ -69,11 +72,26 @@ pub(crate) fn launch(
         lhs,
         rhs,
         out: dtype_to_storage_type(out_dtype),
-        routes: None,
         destination: Some(handle_of(out)),
     };
     plan.launch(&call).map_err(invalid)?;
     Ok(())
+}
+
+/// cubek's view of `lhs · rhs`, from each operand's logical extents: a storage-tiled operand's
+/// metadata shape is physical, its tiles counted as dims of their own.
+fn problem(
+    (lhs, lhs_kind): (&Metadata, OperandKind),
+    (rhs, rhs_kind): (&Metadata, OperandKind),
+) -> Result<MatmulProblem, MatmulSetupError> {
+    let logical = |meta: &Metadata| {
+        meta.logical_shape()
+            .map_err(|why| invalid(format!("{why:?}")))
+    };
+    Ok(MatmulProblem::new(
+        (&logical(lhs)?, lhs_kind),
+        (&logical(rhs)?, rhs_kind),
+    ))
 }
 
 /// What cubek answered, as the error burn's matmul reports.
@@ -102,22 +120,26 @@ fn run_as((lhs, rhs, out): Inputs) -> Inputs {
     (transposed(rhs), transposed(lhs), transposed(out))
 }
 
-/// `tensor`, the input stated over `axes`, as cubek's plan reads it: as stored, and dequantized
-/// into `out` by burn's dequantize where a plan reaches for it. A quantized input the routines
-/// cannot state as stored is dequantized here first, and the plan reads a float input; a float
-/// one stored in tiles no routine reads is laid back in rows.
+/// `tensor`, the input stated over `dimensions`, as cubek's plan reads it: as stored, and
+/// dequantized into `out` by burn's dequantize where a plan reaches for it. A quantized input the
+/// routines cannot state as stored is dequantized here first, and the plan reads a float input; a
+/// float one stored in tiles no routine reads is laid back in rows.
 ///
 /// # Errors
 ///
 /// A float input stored in a way the routines cannot state.
-fn call_input(tensor: CubeTensor, axes: [Axis; 2], out: DType) -> Result<MatmulCallInput, Refusal> {
+fn call_input(
+    tensor: CubeTensor,
+    dimensions: [Dimension; 2],
+    out: DType,
+) -> Result<MatmulCallInput, Decline> {
     let quantized = tensor.try_scheme().is_some();
     let framework_dequantize = quantized.then(|| {
         let packed = tensor.clone();
         Arc::new(move || Ok(dequantize(packed.clone(), out).plain())) as FrameworkDequantize
     });
     let meta = (*tensor.meta).clone();
-    match tensor.clone().stored(axes) {
+    match tensor.clone().stored(dimensions) {
         // No routine reads tiles stored a column at a time, as a transposed weight's are: such
         // an input is read as rows.
         Ok(StoredTensor::Plain(plain)) if plain.is_tiled_column_first() => {
@@ -143,4 +165,25 @@ fn handle_of(tensor: CubeTensor) -> TensorHandle {
         strides,
         dtype_to_storage_type(tensor.dtype),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cubecl::zspace::Tiling;
+    use cubek::matmul::kernels::tune::MatmulAutotune;
+
+    /// Both autotunes compute a decode product alike, so only its routing shows the weight's
+    /// logical shape reached cubek.
+    #[test]
+    fn a_decode_product_against_a_tiled_weight_goes_to_the_few_rows_autotune() {
+        let input = Metadata::new([1, 256], [256, 1]);
+        // `[256, 512]` in `[32, 64]` tiles.
+        let weight = Metadata::new([8, 8, 32, 64], [16384, 2048, 64, 1])
+            .with_tiling(Tiling::new(&[2, 2]).unwrap())
+            .unwrap();
+        let problem = problem((&input, OperandKind::Float), (&weight, OperandKind::Float)).unwrap();
+        assert_eq!(problem.streamed_rows, Some(1));
+        assert_eq!(MatmulAutotune::new(&problem), MatmulAutotune::FewRows);
+    }
 }

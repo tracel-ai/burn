@@ -1,59 +1,12 @@
-use burn_core::{self as burn, module::ParamId};
+use burn_core as burn;
 
 use burn::config::Config;
 use burn_core::module::ParamGroup;
 
-use crate::{
-    LearningRate,
-    lr_scheduler::{DynLrScheduler, LrScheduler, LrSchedulerConfig, LrSchedulerRecord},
-};
+use crate::lr_scheduler::{DynLrScheduler, LrScheduler, LrSchedulerConfig, LrSchedulerRecord};
 
-#[derive(Clone)]
-struct LrGroup {
-    group: ParamGroup,
-    lr: f64,
-}
-
-/// Determines what learning rate to use for a given trainable parameter.
-#[derive(Clone, Default)]
-pub struct ModuleLearningRate {
-    groups: Vec<LrGroup>,
-}
-
-impl From<LearningRate> for ModuleLearningRate {
-    fn from(value: LearningRate) -> Self {
-        Self {
-            groups: vec![LrGroup {
-                group: ParamGroup::all(),
-                lr: value,
-            }],
-        }
-    }
-}
-
-impl ModuleLearningRate {
-    /// Iterate over group rates in scheduler registration order, with the base rate first.
-    pub fn group_rates(&self) -> impl ExactSizeIterator<Item = LearningRate> + '_ {
-        self.groups.iter().map(|group| group.lr)
-    }
-
-    /// Get the effective learning rate for the given parameter.
-    pub fn lr_from_param(&self, id: ParamId, path: Option<&str>) -> LearningRate {
-        self.groups
-            .iter()
-            .filter_map(|val| val.group.matches(&id, path).then_some(val.lr))
-            .next_back()
-            .expect("Should match at least one parameter group.")
-    }
-
-    /// Get the base learning rate value which's group matches all parameters.
-    pub fn base(&self) -> LearningRate {
-        self.groups
-            .first()
-            .expect("Should have at least one learning rate.")
-            .lr
-    }
-}
+// Preserve the public scheduler import path.
+pub use crate::optim::ModuleLearningRate;
 
 #[derive(Config, Debug)]
 struct LrSchedulerGroupConfig {
@@ -139,20 +92,10 @@ impl ModuleLrScheduler {
 
     /// Perform the scheduler step of every scheduler and returns the effective learning rate policy.
     pub fn step(&mut self) -> ModuleLearningRate {
-        let groups = self
-            .groups
-            .iter_mut()
-            .map(|s| {
-                let lr = s.scheduler.step();
-
-                LrGroup {
-                    group: s.group.clone(),
-                    lr,
-                }
-            })
-            .collect();
-
-        ModuleLearningRate { groups }
+        ModuleLearningRate::from_ordered_groups(self.groups.iter_mut().map(|entry| {
+            let lr = entry.scheduler.step();
+            (entry.group.clone(), lr)
+        }))
     }
 
     /// Get the current state of the schedulers as a [record](LrSchedulerRecord).
@@ -209,7 +152,7 @@ where
 mod tests {
     use super::*;
     use crate::lr_scheduler::linear::LinearLrSchedulerConfig;
-    use burn_core::module::ParamGroup;
+    use burn_core::module::{ParamGroup, ParamId};
 
     const EPSILON: f64 = 1e-10;
 

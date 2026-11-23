@@ -50,13 +50,14 @@ impl RouterChannel for RemoteChannel {
     fn change_client_backend(
         tensor: RouterTensor<Self::Client>,
         target_device: &Self::Device, // target device
+        dtype: burn_backend::DType,
     ) -> RouterTensor<Self::Client> {
         // Get tensor handle from current client
         let original_client = tensor.client.clone();
         let desc = tensor.into_ir();
         let handle = Self::get_tensor_handle(&desc, &original_client);
 
-        let handle = handle.change_backend(target_device);
+        let handle = handle.change_backend(target_device, dtype);
 
         let id = handle.tensor.id;
 

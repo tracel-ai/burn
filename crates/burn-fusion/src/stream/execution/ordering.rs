@@ -122,7 +122,11 @@ impl<R: FusionRuntime> FallbackOp<R> {
 
         let failure = match outcome {
             Outcome::Ran => return,
-            Outcome::Skipped(error) | Outcome::Reported(error) => Some(error),
+            Outcome::Skipped(error) => {
+                self.operation.skipped();
+                Some(error)
+            }
+            Outcome::Reported(error) => Some(error),
             // Not reached: this scope raises, so a panic is left to the block's
             // scope, which records the whole block. Handled rather than
             // unreachable, because being wrong about that would strand a
@@ -317,7 +321,11 @@ impl<R: FusionRuntime> OrderedExecution<R> {
 
             match outcome {
                 Outcome::Ran => {}
-                Outcome::Skipped(_) | Outcome::Reported(_) => self.did_not_run.push(*id),
+                Outcome::Skipped(_) => {
+                    op.skipped();
+                    self.did_not_run.push(*id);
+                }
+                Outcome::Reported(_) => self.did_not_run.push(*id),
                 Outcome::Panicked(panic) => {
                     self.did_not_run.push(*id);
                     self.failed.get_or_insert(panic);

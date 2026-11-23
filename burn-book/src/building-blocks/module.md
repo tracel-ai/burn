@@ -43,6 +43,20 @@ does not constrain forward methods.
 Named and tuple structs can contain recursive children such as `Vec<Self>` or `Option<Box<Self>>`.
 These children participate in traversal, checkpoints and state transitions like any other submodule.
 
+Enums can also derive `Module`. A variant holds either a single unnamed field or named fields:
+
+```rust, ignore
+#[derive(Module, Debug)]
+pub enum Head {
+    Small(Linear),
+    Wide { first: Linear, second: Linear },
+}
+```
+
+Named fields are saved under the variant and the field name (`Wide.first.weight`), the same names
+as a tuple variant wrapping a struct with those fields. Unit variants and tuple variants with
+several fields are not supported.
+
 Custom generic types such as `Block<f32>` are treated as submodules; use `#[module(skip)]` if they
 hold configuration instead. For structures requiring custom traversal, use a
 [manual implementation](https://github.com/tracel-ai/burn/blob/release/0.22/burn-book/src/migrating-to-0.22.md#manual-module-implementations).

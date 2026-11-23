@@ -3,9 +3,10 @@ use alloc::{format, string::String, vec::Vec};
 use burn_backend::RandomKey;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceTelemetry,
-    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
-    ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
-    ProfileDuration, ProfileOptions, ProfileToken, profile_with_tokens,
+    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
+    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, HostTransfer,
+    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
+    PruneOptions, Pruned, SaveOptions, profile_with_tokens,
 };
 use core::marker::PhantomData;
 
@@ -140,9 +141,17 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
     fn environment_save(
         device: &Self::Device,
         id: EnvironmentId,
+        options: SaveOptions,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
         let client = get_client::<R>(device);
-        client.environment_save(id)
+        client.environment_save(id, options)
+    }
+
+    fn environment_summary(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentSummary, EnvironmentError> {
+        get_client::<R>(device).environment_summary(id)
     }
 
     fn environment_merge(
@@ -151,6 +160,14 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
         origin: EnvironmentOrigin,
     ) -> Result<(), EnvironmentError> {
         get_client::<R>(device).environment_merge(id, origin)
+    }
+
+    fn environment_prune(
+        device: &Self::Device,
+        id: EnvironmentId,
+        options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        get_client::<R>(device).environment_prune(id, options)
     }
 
     fn device_description(device: &Self::Device) -> Option<DeviceDescription> {
@@ -167,6 +184,22 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
 
     fn measure_peaks(device: &Self::Device, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
         get_client::<R>(device).measure_peaks(keys)
+    }
+
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        get_client::<R>(from).measure_link(to, sizes)
+    }
+
+    fn measure_host_link(
+        device: &Self::Device,
+        transfer: HostTransfer,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        get_client::<R>(device).measure_host_link(transfer, sizes)
     }
 
     fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
@@ -187,6 +220,16 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = get_client::<R>(device);
         client.graph_prepare()
+    }
+
+    fn graph_end_run(device: &Self::Device) -> Result<bool, ExecutionError> {
+        let client = get_client::<R>(device);
+        client.graph_end_run()
+    }
+
+    fn graph_start_run(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = get_client::<R>(device);
+        client.graph_start_run()
     }
 
     // The interpreter records the graph on its own backend, so the capture opens and closes

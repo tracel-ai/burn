@@ -297,3 +297,39 @@ fn stft_options_default_and_new() {
     let d = StftOptions::default();
     assert_eq!(d.n_fft, 400);
 }
+
+#[test]
+fn stft_istft_roundtrip_centered_length_not_multiple_of_hop() {
+    // With center=true, the frames also cover samples past the trimmed overlap-add length.
+    // Requesting the original length must reconstruct them instead of zero-filling.
+    let original = TestTensor::<2>::from([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]]);
+    let o = opts(4, 2, true, true);
+    let spectrum = stft(original.clone(), None, o);
+    let reconstructed = istft(spectrum, None, Some(9), o);
+
+    reconstructed
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&original.into_data(), Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn stft_istft_roundtrip_hann_window_batch_length_not_multiple_of_hop() {
+    // 37 samples with hop 4: the trimmed overlap-add output is 36 samples long, so the last
+    // sample comes from the right padding region of the frames.
+    let row: Vec<f32> = (0..37).map(|i| ((i * 7) % 11) as f32 - 5.0).collect();
+    let rows = [
+        row.clone(),
+        row.iter().map(|v| -2.0 * v).collect::<Vec<_>>(),
+    ];
+    let data = burn_core::tensor::TensorData::new(rows.concat(), [2, 37]);
+    let original = TestTensor::<2>::from_data(data, &Default::default());
+
+    let window: TestTensor<1> = hann_window(16, true, &Default::default());
+    let o = opts(16, 4, true, true);
+    let spectrum = stft(original.clone(), Some(window.clone()), o);
+    let reconstructed = istft(spectrum, Some(window), Some(37), o);
+
+    reconstructed
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&original.into_data(), Tolerance::absolute(1e-3));
+}

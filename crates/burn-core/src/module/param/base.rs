@@ -10,7 +10,7 @@ use alloc::format;
 
 use alloc::boxed::Box;
 use burn_std::sync::{Arc, RwLock};
-use burn_tensor::{Device, Shape};
+use burn_tensor::{DType, Device, Shape};
 use core::ops::Deref;
 
 #[cfg(target_has_atomic = "ptr")]
@@ -251,6 +251,13 @@ pub trait Parameter: ParameterValue {
     /// Fetch the shape of the parameter.
     fn shape(&self) -> Shape;
 
+    /// Fetch the data type of the parameter.
+    fn dtype(&self) -> DType;
+
+    /// The data type a parameter of this kind is created at on `device` when nothing names one:
+    /// the device's default for its kind ([`Device::settings`]).
+    fn default_dtype(device: &Device) -> DType;
+
     /// Moves the parameter to the target device if it is not already on it,
     /// applying any kind-specific preparation required for the loading lifecycle (e.g. detach).
     fn load_to_device(self, device: &Device) -> Self;
@@ -385,7 +392,9 @@ impl<T: Parameter> Param<T> {
     /// The initializer receives the device and effective gradient requirement, which is false
     /// on devices without autodiff. The requested `is_require_grad` setting is preserved for
     /// [`Module::train`](crate::module::Module::train). The initializer must create the value on
-    /// the device it receives, which is not `device` when the parameter moves before initializing.
+    /// the device it receives, which is not `device` when the parameter moves before initializing,
+    /// at that device's default data type for its kind, which [`lazy_dtype`](Self::lazy_dtype)
+    /// reports before it runs.
     pub fn uninitialized<F>(
         id: ParamId,
         init: F,
@@ -645,6 +654,26 @@ impl<T: Parameter> Param<T> {
         match init.as_ref() {
             Some(value) => value.shape.clone(),
             None => self.shape(),
+        }
+    }
+
+    /// The data type of the parameter, **without triggering initialization**: the default data
+    /// type for its kind on the device it will initialize on, as [`Param::uninitialized`] asks its
+    /// initializer to create it at, and its own once it is initialized.
+    ///
+    /// Use this instead of [crate::tensor::Tensor::dtype] when you need the data type but want to
+    /// preserve lazy initialization, as when sizing a module before its weights are loaded.
+    pub fn lazy_dtype(&self) -> DType {
+        let initialization = match &self.state.initialization {
+            Some(init) => init,
+            None => return self.dtype(),
+        };
+
+        let init = initialization.read();
+
+        match init.as_ref() {
+            Some(value) => T::default_dtype(&value.device),
+            None => self.dtype(),
         }
     }
 

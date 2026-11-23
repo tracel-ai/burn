@@ -69,11 +69,12 @@ pub fn attention_with_logsumexp(
         value.plain(),
         None,
         lengths.plain(),
+        // The key and value are the call's own, every position attended.
+        seq_kv,
         None,
         scoring(&options, head_dim),
     )
     .unwrap_or_else(|why| panic!("no tile-DSL attention routine serves these operands: {why:?}"))
-    .attending_every_position()
     .with_logsumexp();
     let logsumexp = inputs.logsumexp().expect("`with_logsumexp` binds one");
     let out = launch_tuned(

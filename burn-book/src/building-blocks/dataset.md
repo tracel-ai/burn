@@ -367,6 +367,11 @@ let dataloader = DataLoaderBuilder::new(batcher)
     .build(dataset);
 ```
 
+By default, the dataloader keeps the last batch even if it is smaller than the configured batch
+size. Set `.drop_last(true)` when your model requires full batches. With multiple workers, only
+the dataset's final incomplete batch is dropped. `expected_num_items()` and iterator progress
+exclude dropped samples; `num_items()` still reports the input dataset size.
+
 Dataloader iterators yield `Result<Batch, DatasetError>`. Handle each result before using the batch.
 For example, this helper stops at the first retrieval error and returns it to the caller:
 

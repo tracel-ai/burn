@@ -313,11 +313,21 @@ pub fn tan(tensor: FlexTensor) -> FlexTensor {
 
 /// Hyperbolic cosine
 pub fn cosh(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Cosh) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.cosh(), |x| x.cosh())
 }
 
 /// Hyperbolic sine
 pub fn sinh(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Sinh) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.sinh(), |x| x.sinh())
 }
 

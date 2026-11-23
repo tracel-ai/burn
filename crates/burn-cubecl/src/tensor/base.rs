@@ -361,8 +361,11 @@ impl CubeTensor {
     /// Check if the tensor is safe to mutate. A storage-tiled one is not: a kernel writing in
     /// place writes rows. The elementwise kernels write its tiles in place all the same, through
     /// its buffer bound untiled at its physical shape (`kernel::memory_order`).
+    ///
+    /// Never while the client captures: whether another clone of the handle is still alive
+    /// depends on timing, and a recorded run must allocate exactly what its planning runs did.
     pub fn can_mut(&self) -> bool {
-        self.handle.can_mut() && !self.meta.is_tiled()
+        self.handle.can_mut() && !self.meta.is_tiled() && !self.client.is_capturing()
     }
 
     /// Assert that both tensors are on the same device.

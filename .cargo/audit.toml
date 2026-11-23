@@ -24,6 +24,11 @@ ignore = [
     "RUSTSEC-2026-0398",
     # Polars uses the unaffected read decoder, not the affected write decoder.
     "RUSTSEC-2026-0403",
+    # `chrono` (turso, polars), `chrono-tz` (polars-arrow) and `humantime` (polars →
+    # object_store) are marked unmaintained with no release to move to: their users pin them.
+    "RUSTSEC-2026-0543",
+    "RUSTSEC-2026-0555",
+    "RUSTSEC-2026-0542",
 ] # advisory IDs to ignore e.g. ["RUSTSEC-2019-0001", ...]
 informational_warnings = [
     "unmaintained",

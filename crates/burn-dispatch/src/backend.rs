@@ -15,8 +15,9 @@ use burn_backend::distributed::{DistributedParamId, DistributedParams};
 use burn_backend::{
     AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, DeviceDescription,
     DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
-    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
-    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
+    EnvironmentSummary, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
+    HostTransfer, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
+    ProfileToken, PruneOptions, Pruned, SaveOptions,
 };
 
 /// A captured graph from one of the dispatched backends (see
@@ -40,9 +41,9 @@ pub enum DispatchGraph {
     /// A graph captured on the [Remote backend](Remote).
     #[cfg(feature = "remote")]
     Remote(BackendGraph<Remote>),
-    /// A graph captured on the [device group backend](Group).
-    #[cfg(feature = "group")]
-    Group(BackendGraph<Group>),
+    /// A graph captured on the [sharded compute device backend](ShardedCompute).
+    #[cfg(feature = "shard")]
+    ShardedCompute(BackendGraph<ShardedCompute>),
     /// A graph captured by the non-executing capture backend.
     #[cfg(feature = "capture")]
     Capture(BackendGraph<Capture>),
@@ -264,8 +265,16 @@ impl Backend for Dispatch {
     fn environment_save(
         device: &Self::Device,
         id: EnvironmentId,
+        options: SaveOptions,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
-        dispatch_device!(device, |device| B::environment_save(device, id))
+        dispatch_device!(device, |device| B::environment_save(device, id, options))
+    }
+
+    fn environment_summary(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentSummary, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_summary(device, id))
     }
 
     fn environment_merge(
@@ -276,8 +285,24 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::environment_merge(device, id, origin))
     }
 
+    fn environment_prune(
+        device: &Self::Device,
+        id: EnvironmentId,
+        options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_prune(device, id, options))
+    }
+
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::graph_prepare(device))
+    }
+
+    fn graph_end_run(device: &Self::Device) -> Result<bool, ExecutionError> {
+        dispatch_device!(device, |device| B::graph_end_run(device))
+    }
+
+    fn graph_start_run(device: &Self::Device) -> Result<(), ExecutionError> {
+        dispatch_device!(device, |device| B::graph_start_run(device))
     }
 
     fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
@@ -317,8 +342,8 @@ impl Backend for Dispatch {
             DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Remote::device_count(backend_type_id),
-            #[cfg(feature = "group")]
-            DispatchDeviceId::Group => Group::device_count(backend_type_id),
+            #[cfg(feature = "shard")]
+            DispatchDeviceId::ShardedCompute => ShardedCompute::device_count(backend_type_id),
             #[cfg(feature = "capture")]
             DispatchDeviceId::Capture => Capture::device_count(backend_type_id),
             _ => unreachable!("No backend feature enabled."),
@@ -357,6 +382,30 @@ impl Backend for Dispatch {
 
     fn measure_peaks(device: &Self::Device, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
         dispatch_device!(device, |device| B::measure_peaks(device, keys))
+    }
+
+    /// Unsupported between devices of two backends: no backend moves data across that link.
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        dispatch_device_pair!(
+            measured(from),
+            measured(to),
+            |from, to| B::measure_link(from, to, sizes),
+            sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
+        )
+    }
+
+    fn measure_host_link(
+        device: &Self::Device,
+        transfer: HostTransfer,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        dispatch_device!(device, |device| B::measure_host_link(
+            device, transfer, sizes
+        ))
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
@@ -416,8 +465,8 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "group")]
-                DispatchTensorKind::Group(tensor) => tensor.autodiff().backward(),
+                #[cfg(feature = "shard")]
+                DispatchTensorKind::ShardedCompute(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "capture")]
                 DispatchTensorKind::Capture(_) => {
                     panic!("Capture tensors do not support autodiff")
@@ -451,11 +500,11 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Remote(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "group")]
-                DispatchTensorKind::Group(tensor) => tensor
+                #[cfg(feature = "shard")]
+                DispatchTensorKind::ShardedCompute(tensor) => tensor
                     .as_autodiff()
                     .grad(grads)
-                    .map(|t| DispatchTensorKind::Group(crate::BackendTensor::Float(t))),
+                    .map(|t| DispatchTensorKind::ShardedCompute(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "capture")]
                 DispatchTensorKind::Capture(_) => {
                     panic!("Capture tensors do not support autodiff")
@@ -493,11 +542,11 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Remote(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "group")]
-                DispatchTensorKind::Group(tensor) => tensor
+                #[cfg(feature = "shard")]
+                DispatchTensorKind::ShardedCompute(tensor) => tensor
                     .as_autodiff()
                     .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::Group(crate::BackendTensor::Float(t))),
+                    .map(|t| DispatchTensorKind::ShardedCompute(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "capture")]
                 DispatchTensorKind::Capture(_) => {
                     panic!("Capture tensors do not support autodiff")
@@ -540,10 +589,11 @@ impl AutodiffBackend for Dispatch {
                 (DispatchTensorKind::Remote(tensor), DispatchTensorKind::Remote(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
-                #[cfg(feature = "group")]
-                (DispatchTensorKind::Group(tensor), DispatchTensorKind::Group(grad)) => {
-                    tensor.as_autodiff().grad_replace(grads, grad.float())
-                }
+                #[cfg(feature = "shard")]
+                (
+                    DispatchTensorKind::ShardedCompute(tensor),
+                    DispatchTensorKind::ShardedCompute(grad),
+                ) => tensor.as_autodiff().grad_replace(grads, grad.float()),
                 (DispatchTensorKind::Autodiff(_), _) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -579,8 +629,8 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Remote(tensor) => DispatchTensorKind::Remote(
                     crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
-                #[cfg(feature = "group")]
-                DispatchTensorKind::Group(tensor) => DispatchTensorKind::Group(
+                #[cfg(feature = "shard")]
+                DispatchTensorKind::ShardedCompute(tensor) => DispatchTensorKind::ShardedCompute(
                     crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
                 #[cfg(feature = "capture")]
@@ -641,10 +691,12 @@ impl AutodiffBackend for Dispatch {
                     crate::BackendTensor::Autodiff(Autodiff::<Remote>::from_inner(tensor.float())),
                 )))
             }
-            #[cfg(feature = "group")]
-            DispatchTensorKind::Group(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Group(
-                    crate::BackendTensor::Autodiff(Autodiff::<Group>::from_inner(tensor.float())),
+            #[cfg(feature = "shard")]
+            DispatchTensorKind::ShardedCompute(tensor) => {
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::ShardedCompute(
+                    crate::BackendTensor::Autodiff(Autodiff::<ShardedCompute>::from_inner(
+                        tensor.float(),
+                    )),
                 )))
             }
             #[cfg(feature = "capture")]
@@ -1220,9 +1272,9 @@ impl Dispatch {
             #[cfg(feature = "remote")]
             // A remote device needs its server's address, which a type id cannot carry.
             DispatchDeviceId::Remote => Vec::new(),
-            #[cfg(feature = "group")]
-            // A group is made from its members, which a type id cannot carry.
-            DispatchDeviceId::Group => Vec::new(),
+            #[cfg(feature = "shard")]
+            // A sharded compute device is made from its members, which a type id cannot carry.
+            DispatchDeviceId::ShardedCompute => Vec::new(),
             #[cfg(feature = "capture")]
             // Capture devices are created together with a lifecycle handle and therefore
             // cannot be reconstructed from a type ID alone.
@@ -1283,4 +1335,13 @@ pub(crate) fn cube_devices(runtime: RuntimeId) -> Vec<CubeDevice> {
         .into_iter()
         .filter(|device| device.runtime() == runtime)
         .collect()
+}
+
+/// The device under an autodiff wrapper, which a measurement of the device itself runs on.
+fn measured(device: &DispatchDevice) -> &DispatchDevice {
+    match device {
+        #[cfg(feature = "autodiff")]
+        DispatchDevice::Autodiff(inner) => &inner.inner,
+        other => other,
+    }
 }

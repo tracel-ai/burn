@@ -9,9 +9,10 @@ use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_backend::{
     TensorMetadata,
     ops::{
-        AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
-        DeformConvOptions, FloatTensorOps, InterpolateOptions, MaxPool2dBackward,
-        MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
+        AttentionCache, AttentionModuleOptions, ConvOptions, ConvTransposeOptions,
+        DeformConv2dBackward, DeformConvOptions, FloatTensorOps, InterpolateOptions,
+        MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices,
+        ModuleOps,
     },
 };
 use burn_std::{DType, FloatDType, IntDType};
@@ -63,7 +64,7 @@ impl ModuleOps<Self> for CubeBackend {
         bias: FloatTensor<Self>,
         output_grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        conv_bias_backward::<false>(bias, output_grad)
+        conv_bias_backward(bias, output_grad)
     }
 
     fn conv2d(
@@ -116,7 +117,7 @@ impl ModuleOps<Self> for CubeBackend {
         bias: FloatTensor<Self>,
         output_grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        conv_bias_backward::<true>(bias, output_grad)
+        conv_bias_backward(bias, output_grad)
     }
 
     fn deform_conv2d(
@@ -198,7 +199,7 @@ impl ModuleOps<Self> for CubeBackend {
         bias: FloatTensor<Self>,
         output_grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        conv_bias_backward::<false>(bias, output_grad)
+        conv_bias_backward(bias, output_grad)
     }
 
     fn conv_transpose1d_bias_backward(
@@ -206,7 +207,7 @@ impl ModuleOps<Self> for CubeBackend {
         bias: FloatTensor<Self>,
         output_grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        conv_bias_backward::<false>(bias, output_grad)
+        conv_bias_backward(bias, output_grad)
     }
 
     fn conv_transpose2d_bias_backward(
@@ -214,7 +215,7 @@ impl ModuleOps<Self> for CubeBackend {
         bias: FloatTensor<Self>,
         output_grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        conv_bias_backward::<false>(bias, output_grad)
+        conv_bias_backward(bias, output_grad)
     }
 
     fn conv_transpose3d_bias_backward(
@@ -222,7 +223,7 @@ impl ModuleOps<Self> for CubeBackend {
         bias: FloatTensor<Self>,
         output_grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        conv_bias_backward::<false>(bias, output_grad)
+        conv_bias_backward(bias, output_grad)
     }
 
     fn conv_transpose2d(
@@ -493,6 +494,7 @@ impl ModuleOps<Self> for CubeBackend {
         value: FloatTensor<Self>,
         mask: Option<BoolTensor<Self>>,
         attn_bias: Option<FloatTensor<Self>>,
+        cache: Option<AttentionCache<Self>>,
         options: AttentionModuleOptions,
     ) -> FloatTensor<Self> {
         kernel::attention::attention(
@@ -501,6 +503,7 @@ impl ModuleOps<Self> for CubeBackend {
             value,
             mask,
             attn_bias,
+            cache,
             options,
             Default::default(),
         )
@@ -602,30 +605,25 @@ impl ModuleOps<Self> for CubeBackend {
 
 /// Sums rank-3 to rank-5 gradients `[batch, channels, ...spatial]` into `[channels]`.
 /// Preserves the gradient dtype and device. The bias has shape `[channels]`.
-/// `CHANNELS_LAST` retains the 2D operation's column layout for non-F32 sums.
-fn conv_bias_backward<const CHANNELS_LAST: bool>(
+fn conv_bias_backward(
     bias: FloatTensor<CubeBackend>,
     output_grad: FloatTensor<CubeBackend>,
 ) -> FloatTensor<CubeBackend> {
-    if output_grad.dtype == DType::F32 {
-        let dims = &[0, 2, 3, 4][..output_grad.shape().num_dims() - 1];
-        let grad = CubeBackend::float_sum_dims(output_grad, dims);
-        return CubeBackend::float_reshape(grad, bias.shape());
+    let shape = output_grad.shape();
+    if shape.contains(&0) {
+        return CubeBackend::float_zeros(
+            bias.shape(),
+            &output_grad.device,
+            output_grad.dtype.into(),
+        );
     }
 
-    // One reduction keeps low-precision partial sums from overflowing before cancellation.
-    let shape = output_grad.shape();
-    let channels = shape[1];
-    let samples = shape[0] * shape[2..].iter().product::<usize>();
-    let grad = if const { CHANNELS_LAST } {
-        // Preserve the 2D path's metadata-only reshape for dense NHWC storage.
-        let grad = super::permute_nchw_to_nhwc(output_grad);
-        let grad = CubeBackend::float_reshape(grad, [samples, channels].into());
-        CubeBackend::float_sum_dim(grad, 0)
+    let dims = &[0, 2, 3, 4][..shape.num_dims() - 1];
+    let grad = if output_grad.dtype == DType::F32 {
+        CubeBackend::float_sum_dims(output_grad, dims)
     } else {
-        let grad = CubeBackend::float_swap_dims(output_grad, 0, 1);
-        let grad = CubeBackend::float_reshape(grad, [channels, samples].into());
-        CubeBackend::float_sum_dim(grad, 1)
+        // Narrow only the final sum, so partial sums can cancel before conversion.
+        kernel::reduce::sum_dims_single_pass(output_grad, dims).unwrap()
     };
     CubeBackend::float_reshape(grad, bias.shape())
 }

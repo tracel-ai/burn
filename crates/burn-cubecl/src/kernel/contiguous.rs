@@ -175,7 +175,13 @@ fn into_contiguous_quantized(tensor: CubeTensor, strategy: MemoryLayoutStrategy)
 /// as rows.
 #[cfg(all(
     test,
-    any(feature = "wgpu", feature = "cpu", feature = "cuda", feature = "hip")
+    any(
+        feature = "wgpu",
+        feature = "metal",
+        feature = "cpu",
+        feature = "cuda",
+        feature = "hip"
+    )
 ))]
 mod storage_tiled {
     use burn_backend::{
@@ -410,6 +416,181 @@ mod storage_tiled {
         );
     }
 
+    /// The same tensors through fusion: every fused kernel reads them laid back in rows, but the
+    /// fused matmul, which reads a weight's tiles as stored.
+    #[cfg(feature = "fusion")]
+    mod fused {
+        use super::{assert_close, tensor, tiled, values};
+        use crate::{
+            CubeBackend, CubeDevice,
+            fusion::{CubeFusionHandle, FusionCubeRuntime},
+            ops::into_data_sync,
+            tensor::CubeTensor,
+        };
+        use burn_backend::{Scalar, ops::FloatTensorOps};
+        use burn_fusion::{
+            ExecutionError, Fusion, FusionTensor,
+            custom::{
+                CustomOpIr, HandleContainer, Operation, OperationIr, OperationOutput, StreamId,
+                TensorIr,
+            },
+        };
+
+        type Fused = Fusion<CubeBackend>;
+
+        /// `w * 2 + 1`, then `exp`, fuse into one elementwise block.
+        #[test]
+        fn a_fused_elementwise_chain_reads_the_tiles_as_rows() {
+            let device = CubeDevice::default();
+            let rows = tensor(&[64, 96], &device, 9);
+            let chain = |w| {
+                let w = Fused::float_mul_scalar(w, Scalar::from(2.0f32));
+                let w = Fused::float_add_scalar(w, Scalar::from(1.0f32));
+                Fused::float_exp(w)
+            };
+
+            assert_close(
+                &values(resolve(chain(stored_in_tiles(fusion_tensor(
+                    &rows, &device,
+                ))))),
+                &values(resolve(chain(fusion_tensor(&rows, &device)))),
+                "exp(2w + 1)",
+            );
+        }
+
+        /// A fused reduce.
+        #[test]
+        fn a_fused_reduce_reads_the_tiles_as_rows() {
+            let device = CubeDevice::default();
+            let rows = tensor(&[64, 96], &device, 12);
+            let reduce =
+                |w| Fused::float_sum_dim(Fused::float_mul_scalar(w, Scalar::from(2.0f32)), 1);
+
+            assert_close(
+                &values(resolve(reduce(stored_in_tiles(fusion_tensor(
+                    &rows, &device,
+                ))))),
+                &values(resolve(reduce(fusion_tensor(&rows, &device)))),
+                "sum of 2w along a row",
+            );
+        }
+
+        /// A transpose fused into an elementwise block: a view, whose strides are rewritten on the
+        /// rows.
+        #[test]
+        fn a_fused_view_reads_the_tiles_as_rows() {
+            let device = CubeDevice::default();
+            let rows = tensor(&[64, 96], &device, 13);
+            let view =
+                |w| Fused::float_mul_scalar(Fused::float_swap_dims(w, 0, 1), Scalar::from(3.0f32));
+
+            assert_close(
+                &values(resolve(view(stored_in_tiles(fusion_tensor(
+                    &rows, &device,
+                ))))),
+                &values(resolve(view(fusion_tensor(&rows, &device)))),
+                "3 wᵀ",
+            );
+        }
+
+        /// A product and its element-wise tail run as one fused matmul on a weight stored in
+        /// tiles, which the fused product reads as stored, and agree with the same on the weight in
+        /// rows. Run three times, as a tuned fused matmul is: the first run settles the matmul's
+        /// autotune, the second races the fused run against the fallback, the third runs the
+        /// winner.
+        #[cfg(feature = "autotune")]
+        #[test]
+        fn a_tiled_weight_runs_in_the_fused_matmul() {
+            use burn_fusion::inspect::{BlockKind, FusionInspector, matchers};
+
+            let device = CubeDevice::default();
+            let (m, k, n) = (8, 256, 512);
+            let (lhs, rhs) = (tensor(&[m, k], &device, 1), tensor(&[k, n], &device, 2));
+            let addend = tensor(&[m, n], &device, 3);
+            let projection = |weight| {
+                let product = Fused::float_matmul(fusion_tensor(&lhs, &device), weight);
+                let sum = Fused::float_add(product, fusion_tensor(&addend, &device));
+                values(resolve(Fused::float_mul_scalar(sum, Scalar::from(0.5f32))))
+            };
+            let plain = projection(fusion_tensor(&rhs, &device));
+
+            let inspector = FusionInspector::install(StreamId::current());
+            for _ in 0..3 {
+                let from_tiles = projection(stored_in_tiles(fusion_tensor(&rhs, &device)));
+                assert_close(&from_tiles, &plain, "(x · w + a) / 2, w in tiles");
+            }
+            let reports = inspector.drain();
+            let products = reports
+                .iter()
+                .flat_map(|report| report.blocks.iter())
+                .filter(|block| block.operations.iter().any(matchers::is_matmul()))
+                .collect::<Vec<_>>();
+            assert!(!products.is_empty(), "no block holds a matmul");
+            for block in products {
+                assert!(
+                    matches!(block.kind, BlockKind::Fused { name: "Matmul", .. }),
+                    "a product ran outside a fused matmul: {:?}",
+                    block.kind
+                );
+            }
+        }
+
+        /// Stores a tensor in `(16, 32)` tiles inside the fusion stream, as a backend extension
+        /// that lays a weight out does.
+        #[derive(Debug)]
+        struct StoreInTiles {
+            desc: CustomOpIr,
+        }
+
+        impl Operation<FusionCubeRuntime> for StoreInTiles {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<CubeFusionHandle>,
+            ) -> Result<(), ExecutionError> {
+                let ([input], [output]) = self.desc.as_fixed();
+                let rows = handles.get_float_tensor::<CubeBackend>(input);
+                handles.register_float_tensor::<CubeBackend>(&output.id, tiled(&rows, (16, 32)));
+                Ok(())
+            }
+        }
+
+        fn stored_in_tiles(
+            tensor: FusionTensor<FusionCubeRuntime>,
+        ) -> FusionTensor<FusionCubeRuntime> {
+            let client = tensor.client.clone();
+            let input = tensor.into_ir();
+            let output = TensorIr::uninit(
+                client.create_empty_handle(),
+                input.shape.clone(),
+                input.dtype,
+            );
+            let desc = CustomOpIr::new("test::store_in_tiles", &[input], &[output]);
+            client
+                .register(
+                    StreamId::current(),
+                    OperationIr::Custom(desc.clone()),
+                    StoreInTiles { desc },
+                )
+                .output()
+        }
+
+        fn fusion_tensor(
+            tensor: &CubeTensor,
+            device: &CubeDevice,
+        ) -> FusionTensor<FusionCubeRuntime> {
+            Fused::float_from_data(into_data_sync(tensor.clone()), device)
+        }
+
+        /// Runs the stream up to `tensor` and hands back the tensor it holds.
+        fn resolve(tensor: FusionTensor<FusionCubeRuntime>) -> CubeTensor {
+            tensor
+                .client
+                .clone()
+                .resolve_tensor_float::<CubeBackend>(tensor)
+                .unwrap()
+        }
+    }
+
     /// Every strategy a product may run under: cubek's rules, and autotune where it is built.
     fn strategies() -> Vec<MatmulStrategy> {
         vec![
@@ -432,9 +613,9 @@ mod storage_tiled {
     /// `tensor` stored in `(rows, cols)` tiles, a tile's rows one after another and the tiles
     /// row-major.
     fn tiled(tensor: &CubeTensor, (rows, cols): (usize, usize)) -> CubeTensor {
-        use cubek::matmul::tiled::storage::{Axis, StorageLevels, tile};
-        const ROW: Axis = Axis(0);
-        const COL: Axis = Axis(1);
+        use cubek::matmul::tiled::storage::{Dimension, StorageLevels, tile};
+        const ROW: Dimension = Dimension(0);
+        const COL: Dimension = Dimension(1);
         let client = tensor.client.clone();
         let storage = StorageLevels::new(&[(COL, cols), (ROW, rows)]).grid(&[COL, ROW]);
         let out = tile(

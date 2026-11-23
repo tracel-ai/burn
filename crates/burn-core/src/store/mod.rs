@@ -6,10 +6,11 @@
 //! [`Module`](crate::module::Module) trait itself ([`Module::into_record`](crate::module::Module::into_record) /
 //! [`Module::load_record`](crate::module::Module::load_record)).
 //!
-//! This module is intentionally tiny: traversal is a straightforward
+//! Traversal uses a
 //! [`ModuleVisitor`](crate::module::ModuleVisitor) / [`ModuleMapper`](crate::module::ModuleMapper)
-//! keyed by parameter path, with no filtering, adapters, or lazy snapshots.
-//! The richer snapshot/import tooling (filtering, key remapping, PyTorch/SafeTensors adapters,
+//! keyed by parameter path. [`Module::into_record_group`](crate::module::Module::into_record_group)
+//! selects parameters using a [`ParamGroup`](crate::module::ParamGroup).
+//! The richer snapshot/import tooling (key remapping, PyTorch/SafeTensors adapters,
 //! cross-framework stores) lives in the `burn-store` crate.
 
 use alloc::format;
@@ -40,8 +41,8 @@ pub enum DTypePolicy {
 pub enum RecordError {
     /// An I/O or format error occurred while reading or writing the record.
     Io(String),
-    /// Validation failed while applying the record (shape mismatch, or missing tensors
-    /// when partial loading is not allowed).
+    /// Validation failed while applying the record: a shape mismatch, missing tensors when
+    /// partial loading is disabled, or unused record tensors when unused entries are disallowed.
     Validation(String),
 }
 
@@ -78,8 +79,8 @@ struct RecordTensor {
 /// [`Module::load_record`]. Load-time behavior is
 /// configured with the builder methods; they are ignored when saving.
 ///
-/// The save-side dtype is intentionally not configurable: use `module.cast(dtype)` before
-/// taking the record. The record stores whatever dtype the module currently holds.
+/// The record preserves the dtypes of the collected tensors.
+/// [`with_dtype_policy`](Self::with_dtype_policy) only affects loading; it does not cast saved data.
 #[derive(Clone)]
 pub struct ModuleRecord {
     tensors: Vec<RecordTensor>,
@@ -137,27 +138,29 @@ impl ModuleRecord {
 
     /// Allow loading even when some module parameters are absent from the record.
     ///
-    /// What a record of a part of a module needs — one taken with
-    /// [`into_record_group`](crate::module::Module::into_record_group), say — since it holds
-    /// nothing for the parameters outside that part.
+    /// Disabled by default. Missing parameters are left unchanged when enabled. This setting is
+    /// independent of [`validate`](Self::validate) and [`allow_unused`](Self::allow_unused).
+    /// Use it for a record taken with [`Module::into_record_group`], which holds nothing for
+    /// parameters outside the selected group.
     pub fn allow_partial(mut self, allow: bool) -> Self {
         self.allow_partial = allow;
         self
     }
 
-    /// Allow loading even when the record holds tensors no module parameter matches.
+    /// Allow record tensors that do not match any module parameter.
     ///
-    /// The mirror of [`allow_partial`](Self::allow_partial), and refused by default: a record
-    /// entry that lands nowhere means the module is not the one the record was taken from, and
-    /// the load that looks like it succeeded has quietly done less than it was asked — or, at
-    /// `allow_partial(true)`, nothing at all. Allow it for the deliberate case, loading a
-    /// checkpoint into a part of the module it came from.
+    /// Disabled by default. Unmatched record tensors are ignored when enabled. This setting is
+    /// independent of [`validate`](Self::validate) and [`allow_partial`](Self::allow_partial).
     pub fn allow_unused(mut self, allow: bool) -> Self {
         self.allow_unused = allow;
         self
     }
 
-    /// Enable or disable validation while loading.
+    /// Check for shape mismatches while loading. Enabled by default.
+    ///
+    /// When disabled, shape-mismatched parameters are left unchanged. Missing and unused tensors
+    /// are still checked independently, according to [`allow_partial`](Self::allow_partial) and
+    /// [`allow_unused`](Self::allow_unused).
     pub fn validate(mut self, validate: bool) -> Self {
         self.validate = validate;
         self
@@ -227,7 +230,8 @@ impl ModuleRecord {
 
     /// Apply this record to a module, returning the loaded module.
     ///
-    /// Honors the record's [`DTypePolicy`], `validate`, and `allow_partial` settings. Backs
+    /// Honors the record's [`DTypePolicy`], [`validate`](Self::validate),
+    /// [`allow_partial`](Self::allow_partial), and [`allow_unused`](Self::allow_unused) settings. Backs
     /// [`Module::try_load_record`](crate::module::Module::try_load_record).
     pub(crate) fn apply<M: Module>(self, module: M) -> Result<M, RecordError> {
         let validate = self.validate;

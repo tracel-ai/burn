@@ -1,3 +1,4 @@
+pub use super::attention::AttentionCache;
 use super::{attention, conv, ctc, linear, pool};
 use crate::ops::unfold::{create_unfolding_weight, unfold4d_using_conv2d};
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
@@ -1069,6 +1070,12 @@ pub trait ModuleOps<B: Backend> {
     ///   where `true` indicates positions to mask (i.e. set to -inf before softmax).
     /// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
     ///   added to the attention scores before softmax (e.g. ALiBi, relative position biases).
+    /// - `cache`: Optional key/value [cache](AttentionCache) that `key` and `value` hold: each
+    ///   sequence then attends only its first `lengths[b]` positions, and, with `pages`, `key` and
+    ///   `value` are pools of pages. `seq_len_k` is then the cache's capacity, which `mask` and
+    ///   `attn_bias` span, and `causal_alignment` must be
+    ///   [`BottomRight`](crate::ops::CausalAlignment::BottomRight): the queries are the last
+    ///   attended positions of their sequence, the causal edge and the window at each one's own.
     /// - `options`: Additional attention options (custom scale, softcap, causal masking
     ///   and its [alignment](crate::ops::CausalAlignment), and sliding-window masking). A
     ///   sliding window must span at least one key when set.
@@ -1086,6 +1093,7 @@ pub trait ModuleOps<B: Backend> {
         value: FloatTensor<B>,
         mask: Option<BoolTensor<B>>,
         attn_bias: Option<FloatTensor<B>>,
+        cache: Option<AttentionCache<B>>,
         options: AttentionModuleOptions,
     ) -> FloatTensor<B>;
 

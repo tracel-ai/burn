@@ -32,16 +32,12 @@ impl<'a> InputPlanner<'a> {
                     // a clone in the container during planning made `can_mut()` always
                     // false, disabling every in-place alias. On execution failure the
                     // handle is restored by [FuseTraceLauncher::rollback](super::base).
+                    // A fused kernel reads its inputs as rows, so a storage-tiled one is laid
+                    // back in rows first.
                     let handle = context
                         .handles
-                        .get_handle(&tensor_global.id, &tensor_relative.status);
-                    // A fused kernel reads its inputs as rows; a storage-tiled tensor is read
-                    // only by the matmul it was tiled for, which falls back before this.
-                    assert!(
-                        handle.tiles.is_none(),
-                        "fusion: a storage-tiled tensor reached a fused kernel; it is read only \
-                         by the matmul it was tiled for, so untile it for anything else"
-                    );
+                        .get_handle(&tensor_global.id, &tensor_relative.status)
+                        .untile(tensor_global.shape.clone());
 
                     let mut new_strides = handle.strides.clone();
 
@@ -174,7 +170,12 @@ impl<'a> InputPlanner<'a> {
                 // TODO: Autotune trials run on forked contexts whose extra handle clone
                 // makes `can_mut()` false, so trials never alias: the tuner measures the
                 // non-aliased kernel while the winner then executes the aliased one.
-                if self.blocks[idx].settings.inplace && handle.handle.can_mut() {
+                // Whether another clone of the handle is still alive depends on timing, and a
+                // capture's recorded run must allocate exactly what its planning runs did.
+                if self.blocks[idx].settings.inplace
+                    && handle.handle.can_mut()
+                    && !handle.client.is_capturing()
+                {
                     block_plan.potential_inplaces.push(PotentialInplace {
                         input_pos: pos,
                         tensor_relative,

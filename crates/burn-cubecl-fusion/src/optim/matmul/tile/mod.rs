@@ -23,7 +23,7 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeTuneId,
-    tile::launch::{Refusal, SinkLaunch, SinkLaunchVisitor},
+    tile::launch::{Decline, SinkLaunch, SinkLaunchVisitor},
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
 use cubek::matmul::kernels::{
@@ -37,7 +37,7 @@ use cubek::matmul::kernels::{
 };
 use cubek::std::{
     Hardware,
-    matmul_axes::{K, M, N},
+    matmul_dimensions::{K, M, N},
 };
 use operand::TraceOperand;
 use runner::SinkRunner;
@@ -49,9 +49,9 @@ pub enum TileFusedMatmulError {
     /// No routine is elected for the product.
     NoRoutineElected,
     /// An operand the routines do not read as it is stored.
-    Operand(Refusal),
+    Operand(Decline),
     /// The elected routine declined the product, or a sink.
-    Routine(Refusal),
+    Routine(Decline),
     /// The launcher ran the trace twice, and the routine's launch is taken by the first.
     RanTwice,
     /// The trace holds other than one block, which the routine stores into.
@@ -115,9 +115,13 @@ pub(crate) fn execute(arg: MatmulOptimizationTuneArg, context: &mut Context<Cube
 /// The autotune is the one the unfused product races on, under the same device identity, so the
 /// fused product launches whichever routine the unfused one settled.
 fn elected<V: SinkLaunchVisitor>(call: &MatmulCall, visitor: V) -> Option<V::Output> {
+    let (lhs_shape, rhs_shape) = (
+        call.lhs.meta.logical_shape().ok()?,
+        call.rhs.meta.logical_shape().ok()?,
+    );
     let problem = MatmulProblem::new(
-        (call.lhs.meta.shape(), call.lhs.tensor.kind()),
-        (call.rhs.meta.shape(), call.rhs.tensor.kind()),
+        (&lhs_shape, call.lhs.tensor.kind()),
+        (&rhs_shape, call.rhs.tensor.kind()),
     );
     let autotune = measured_autotune(MatmulOpStrategy::Autotune, &problem, &call.hw)?;
     let (settings, _) = autotune.fastest_routine(call, MatmulAutotuneGroups::default())?;
@@ -144,7 +148,6 @@ fn execute_fused(
         lhs,
         rhs,
         out: dtype_to_storage_type(context.tensors[&op.out.id].dtype),
-        routes: None,
         destination: None,
     };
     elected(&call, FusedRun { arg, context }).unwrap_or(Err(TraceError::RunnerError(
@@ -162,7 +165,7 @@ struct FusedRun<'a> {
 impl SinkLaunchVisitor for FusedRun<'_> {
     type Output = Result<TuneOutput, TraceError<TileFusedMatmulError>>;
 
-    fn visit<L: SinkLaunch>(self, prepared: Result<L, Refusal>) -> Self::Output {
+    fn visit<L: SinkLaunch>(self, prepared: Result<L, Decline>) -> Self::Output {
         let info = &self.arg.info;
         let launch =
             prepared.map_err(|why| TraceError::RunnerError(TileFusedMatmulError::Routine(why)))?;

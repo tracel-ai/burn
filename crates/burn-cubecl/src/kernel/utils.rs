@@ -76,26 +76,6 @@ pub fn broadcast_shape<const N: usize>(tensors: &[&CubeTensor; N]) -> Shape {
     Shape::from(dims)
 }
 
-pub fn broadcast_strides(reference: &CubeTensor, tensor: &CubeTensor) -> SequenceArg<usize> {
-    if reference.meta.shape() != tensor.meta.shape() {
-        tensor
-            .meta
-            .strides()
-            .iter()
-            .zip(
-                tensor
-                    .meta
-                    .shape()
-                    .iter()
-                    .zip(reference.meta.shape().iter()),
-            )
-            .map(|(stride, (shape, ref_shape))| if *shape == *ref_shape { *stride } else { 0 })
-            .collect()
-    } else {
-        tensor.meta.strides().iter().copied().collect()
-    }
-}
-
 #[cube]
 pub(crate) fn decompose_linear<I: FastDivmodInt>(
     pos: I,

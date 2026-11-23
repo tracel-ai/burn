@@ -50,7 +50,9 @@ pub(crate) mod shared;
 /// the same type parameter can also appear in a participating field.
 ///
 /// Named and tuple structs support recursive children such as `Vec<Self>` and
-/// `Option<Box<Self>>`. Enums support variants containing a single unnamed field.
+/// `Option<Box<Self>>`. Enum variants can hold a single unnamed field, or named fields such as
+/// `Wide { first: Linear, second: Linear }`; their tensors are saved under `Wide.first` and
+/// `Wide.second`.
 ///
 /// # Field Attributes
 ///
@@ -94,7 +96,19 @@ pub fn module_derive(input: TokenStream) -> TokenStream {
     module::derive_impl(&input)
 }
 
-/// Derive macro for the config.
+/// Derive a serializable configuration with a `new` constructor and `with_*` setters.
+///
+/// Required fields become constructor arguments. `Option<T>` fields default to `None`, and
+/// `#[config(default = ...)]` supplies an explicit default; both receive setters.
+/// String literals in `default` are interpreted as Rust expressions.
+///
+/// Add `#[config(into)]` to a field to accept `impl Into<FieldType>` in its constructor
+/// argument or setter. It can be combined with a default as `#[config(default = ..., into)]`
+/// or written as a separate attribute. Stored types, default expressions and serialization
+/// are unchanged. For `Option<T>`, conversion targets the whole `Option<T>`, not its contents.
+///
+/// Opt in selectively: generic arguments can require annotations on existing `.collect()`
+/// calls or removal of explicit `.into()` calls. Unannotated fields keep their exact types.
 #[proc_macro_derive(Config, attributes(config))]
 pub fn config_derive(input: TokenStream) -> TokenStream {
     let item = syn::parse(input).unwrap();

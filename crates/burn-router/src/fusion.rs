@@ -89,6 +89,17 @@ impl<R: RouterChannel> FusionBackend for BackendRouter<R> {
     fn cast_float(tensor: burn_backend::tensor::FloatTensor<Self>, dtype: DType) -> Self::Handle {
         Self::float_cast(tensor, dtype.into())
     }
+
+    /// A router reaches its members' devices through the channel, so Fusion runs a collective on
+    /// the caller, which routes it as a whole.
+    fn collective_parts(
+        _devices: &[Self::Device],
+        _shape: &burn_backend::Shape,
+        _dtype: DType,
+        _collective: burn_fusion::Collective,
+    ) -> Option<Vec<Box<dyn burn_fusion::CollectivePart<Self>>>> {
+        None
+    }
 }
 
 /// The [fusion runtime](FusionRuntime) for a [router backend](BackendRouter).

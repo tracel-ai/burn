@@ -7,10 +7,10 @@ use crate::{Flex, FlexTensor, Layout};
 use burn_backend::{
     DType, Element, TensorMetadata,
     ops::{
-        AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
-        DeformConvOptions, FloatTensorOps, IntTensorOps, InterpolateMode, InterpolateOptions,
-        MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices,
-        ModuleOps, conv::pad_asymmetric_conv_input,
+        AttentionCache, AttentionModuleOptions, ConvOptions, ConvTransposeOptions,
+        DeformConv2dBackward, DeformConvOptions, FloatTensorOps, IntTensorOps, InterpolateMode,
+        InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward,
+        MaxPool3dWithIndices, ModuleOps, conv::pad_asymmetric_conv_input,
     },
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
@@ -876,9 +876,15 @@ impl ModuleOps<Flex> for Flex {
         value: FloatTensor<Flex>,
         mask: Option<BoolTensor<Flex>>,
         attn_bias: Option<FloatTensor<Flex>>,
+        cache: Option<AttentionCache<Flex>>,
         options: AttentionModuleOptions,
     ) -> FloatTensor<Flex> {
-        crate::ops::attention::attention(query, key, value, mask, attn_bias, options)
+        match cache {
+            Some(cache) => burn_backend::ops::attention::attention_fallback_over_cache::<Flex>(
+                query, key, value, mask, attn_bias, cache, options,
+            ),
+            None => crate::ops::attention::attention(query, key, value, mask, attn_bias, options),
+        }
     }
 
     fn embedding(weights: FloatTensor<Flex>, indices: IntTensor<Flex>) -> FloatTensor<Flex> {

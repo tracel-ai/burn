@@ -22,9 +22,41 @@ env:
   # from wgpu repo: https://github.com/gfx-rs/wgpu/blob/trunk/.github/workflows/ci.yml
 
   # GCP runners
+  # GPU jobs have a two-hour timeout and a three-hour runner lifetime.
+  # Snowpiercer starts the lifetime at queued-job intake; the extra hour covers
+  # capacity fallback, VM provisioning, and runner bootstrap before the job starts.
   GCP_RUNNERS_IMAGE_FAMILY: "tracel-ci-ubuntu-2404-amd64-nvidia"
   GCP_RUNNERS_MACHINE_TYPE: "g2-standard-4"
-  GCP_RUNNERS_ZONE: "us-east1-c"
+  # All G2/L4 zones, checked against the Snowpiercer GPU pool allowlist.
+  # Source: https://docs.cloud.google.com/compute/docs/regions-zones/gpu-regions-zones
+  # Try North America first, then Europe, the Middle East, and Asia-Pacific.
+  # Snowpiercer tries these zones in order and restarts the list on each retry.
+  # Split the list across @zones labels to stay below GitHub's 256-character limit.
+  # Snowpiercer must support combining repeated @zones labels in workflow order.
+  # Use semicolons: commas would split @zones into separate GitHub runner labels.
+  # Folded YAML adds spaces between lines; Snowpiercer trims each zone.
+  GCP_RUNNERS_ZONES_NA_EAST: >-
+    us-east1-c;us-east1-b;
+    us-east4-a;us-east4-c;
+    northamerica-northeast1-b;northamerica-northeast1-c;
+    northamerica-northeast2-a;northamerica-northeast2-b
+  GCP_RUNNERS_ZONES_NA_WEST: >-
+    us-central1-a;us-central1-b;us-central1-c;
+    us-west1-a;us-west1-b;
+    us-west4-a;us-west4-c
+  GCP_RUNNERS_ZONES_EUROPE: >-
+    europe-west2-a;europe-west2-b;
+    europe-west1-b;europe-west1-c;
+    europe-west4-a;europe-west4-b;europe-west4-c;
+    europe-west3-a;europe-west3-b;
+    europe-west6-b;europe-west6-c
+  GCP_RUNNERS_ZONES_MIDDLE_EAST: "me-central2-a;me-central2-c"
+  GCP_RUNNERS_ZONES_APAC: >-
+    asia-northeast1-a;asia-northeast1-b;asia-northeast1-c;
+    asia-northeast3-a;asia-northeast3-b;
+    asia-south1-a;asia-south1-b;asia-south1-c;
+    asia-east1-a;asia-east1-b;asia-east1-c;
+    asia-southeast1-a;asia-southeast1-b;asia-southeast1-c
 
   # Test in release mode (make it an empty string to test in debug mode)
   TEST_RELEASE_FLAG: "--release"
@@ -40,7 +72,11 @@ jobs:
       rust-prev-version: ${{ env.RUST_PREVIOUS_VERSION }}
       gcp_runners_image_family: ${{ env.GCP_RUNNERS_IMAGE_FAMILY }}
       gcp_runners_machine_type: ${{ env.GCP_RUNNERS_MACHINE_TYPE }}
-      gcp_runners_zone: ${{ env.GCP_RUNNERS_ZONE }}
+      gcp_runners_zones_na_east: ${{ env.GCP_RUNNERS_ZONES_NA_EAST }}
+      gcp_runners_zones_na_west: ${{ env.GCP_RUNNERS_ZONES_NA_WEST }}
+      gcp_runners_zones_europe: ${{ env.GCP_RUNNERS_ZONES_EUROPE }}
+      gcp_runners_zones_middle_east: ${{ env.GCP_RUNNERS_ZONES_MIDDLE_EAST }}
+      gcp_runners_zones_apac: ${{ env.GCP_RUNNERS_ZONES_APAC }}
     steps:
       - name: Do Nothing
         if: false
@@ -48,31 +84,28 @@ jobs:
 
   linux-std-cuda-tests:
     needs: [prepare-checks]
-    timeout-minutes: 60
+    timeout-minutes: 120
     # '@id:' label must be unique within this worklow
     runs-on:
       [
         "@id:burn-cuda-job-${{github.run_id}}-${{github.run_attempt}}",
-        "@max-lifetime-secs:5400",
+        "@max-lifetime-secs:10800",
         "@pr_number:${{ inputs.pr_number }}",
         "@organization:tracel-ai",
         "@repository:burn",
         "@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}",
         "@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}",
-        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zone }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zones_na_east }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zones_na_west }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zones_europe }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zones_middle_east }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zones_apac }}",
         "@gpu:true",
       ]
     env:
       LD_LIBRARY_PATH: "/usr/local/cuda/lib64"
       # disable incremental compilation (reduces artifact size)
       CARGO_PROFILE_TEST_INCREMENTAL: "false"
-    # Keep the stragegy to be able to easily add new rust versions if required
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -80,7 +113,7 @@ jobs:
       - name: Install Rust
         uses: tracel-ai/github-actions/install-rust@v12
         with:
-          rust-toolchain: ${{ matrix.toolchain }}
+          rust-toolchain: stable
           enable-cache: false
       # --------------------------------------------------------------------------------
       - name: Tests (burn-cuda)
@@ -88,30 +121,27 @@ jobs:
 
   linux-std-vulkan-tests:
     needs: [prepare-checks]
-    timeout-minutes: 80
+    timeout-minutes: 120
     # '@id:' label must be unique within this worklow
     runs-on:
       [
         "@id:burn-vulkan-job-${{github.run_id}}-${{github.run_attempt}}",
-        "@max-lifetime-secs:5400",
+        "@max-lifetime-secs:10800",
         "@pr_number:${{ inputs.pr_number }}",
         "@organization:tracel-ai",
         "@repository:burn",
         "@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}",
         "@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}",
-        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zone }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zones_na_east }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zones_na_west }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zones_europe }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zones_middle_east }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zones_apac }}",
         "@gpu:true",
       ]
     env:
       # disable incremental compilation (reduces artifact size)
       CARGO_PROFILE_TEST_INCREMENTAL: "false"
-    # Keep the stragegy to be able to easily add new rust versions if required
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -119,7 +149,7 @@ jobs:
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v12
         with:
-          rust-toolchain: ${{ matrix.toolchain }}
+          rust-toolchain: stable
           enable-cache: false
       # --------------------------------------------------------------------------------
       - name: Tests (burn-vulkan)
@@ -127,30 +157,27 @@ jobs:
 
   linux-std-wgpu-tests:
     needs: [prepare-checks]
-    timeout-minutes: 80
+    timeout-minutes: 120
     # '@id:' label must be unique within this worklow
     runs-on:
       [
         "@id:burn-wgpu-job-${{github.run_id}}-${{github.run_attempt}}",
-        "@max-lifetime-secs:5400",
+        "@max-lifetime-secs:10800",
         "@pr_number:${{ inputs.pr_number }}",
         "@organization:tracel-ai",
         "@repository:burn",
         "@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}",
         "@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}",
-        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zone }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zones_na_east }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zones_na_west }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zones_europe }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zones_middle_east }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zones_apac }}",
         "@gpu:true",
       ]
     env:
       # disable incremental compilation (reduces artifact size)
       CARGO_PROFILE_TEST_INCREMENTAL: "false"
-    # Keep the stragegy to be able to easily add new rust versions if required
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -158,7 +185,7 @@ jobs:
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v12
         with:
-          rust-toolchain: ${{ matrix.toolchain }}
+          rust-toolchain: stable
           enable-cache: false
       # --------------------------------------------------------------------------------
       - name: Tests (burn-wgpu)

@@ -281,6 +281,30 @@ fn test_reduce_broadcasted_max_nan() {
     });
 }
 
+#[test]
+fn test_reduce_broadcasted_channels_last_unit_axes() {
+    let device = Default::default();
+    // `4 * n + c` in `[2, 4, 1, 1]` with strides `[4, 1, 4, 4]`: channels-last memory
+    // pooled to one pixel, the same memory as the contiguous layout.
+    let tensor = TestTensorInt::<1>::arange(0..8, &device)
+        .reshape([2, 1, 1, 4])
+        .float()
+        .permute([0, 3, 1, 2]);
+
+    // Forces previous tensors to be materialized.
+    device.sync().unwrap();
+
+    let x = tensor * 2.0;
+    let x = x.clone().sum_dim(3) + x;
+
+    let actual = x.into_data();
+    let expected = TensorData::from([
+        [[[0.0]], [[4.0]], [[8.0]], [[12.0]]],
+        [[[16.0]], [[20.0]], [[24.0]], [[28.0]]],
+    ]);
+    actual.assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
 /// Elementwise ops around a reduction, so fusion builds a `Reduce` block.
 fn fused_reduce_graph(rows: usize) -> TestTensor<2> {
     let device = Default::default();

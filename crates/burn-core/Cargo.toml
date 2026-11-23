@@ -89,7 +89,7 @@ metal = ["burn-tensor/metal", "burn-instrument/cubecl"]
 cpu = ["burn-tensor/cpu", "dep:burn-cpu", "burn-instrument/cubecl"]
 autodiff = ["burn-tensor/autodiff"]
 capture = ["burn-tensor/capture"]
-group = ["burn-tensor/group"]
+shard = ["burn-tensor/shard"]
 ir = ["burn-ir"]
 
 # Backend features

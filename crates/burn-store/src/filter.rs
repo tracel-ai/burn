@@ -175,15 +175,9 @@ impl PathFilter {
         }
 
         // Check predicates with container path
-        if self
-            .predicates
+        self.predicates
             .iter()
             .any(|pred| pred(path, container_path))
-        {
-            return true;
-        }
-
-        false
     }
 
     /// Check if the filter is empty (matches nothing)
