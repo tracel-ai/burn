@@ -51,6 +51,8 @@ conflicts with it (E0119); delete the handwritten one.
 
 - `select` along a dim its input is not split on keeps the split on a sharded compute device,
   instead of gathering the input.
+  ([#6572](https://github.com/tracel-ai/burn/pull/6572),
+  [#6577](https://github.com/tracel-ai/burn/pull/6577))
 
 - On a sharded compute device, `flip`, `pad`, `unfold`, `cross`, `grid_sample_2d` and the sort,
   top-k and max/min-dim ops that return indices keep their first input's split of a dim they do
@@ -58,6 +60,7 @@ conflicts with it (E0119); delete the handwritten one.
   input along a dim they do not index, where every input has the same length, and `select_assign`
   one of its tensor or values. `gather_nd` and `scatter_nd` keep a split of a dim the index tuples
   do not address. Module ops other than attention still gather.
+  ([#6576](https://github.com/tracel-ai/burn/pull/6576))
 
 - On a sharded compute device, a quantized tensor whose scales are all per block stays split
   through `reshape`, `swap_dims`, `permute`, `flip`, `gather`, `select`, `slice` and `expand`
@@ -65,6 +68,7 @@ conflicts with it (E0119); delete the handwritten one.
   `quantize` keeps its input's split when its scales have exactly the block grid's shape, each
   member quantizing its own blocks. Those ops still land a tensor with a per-tensor or global
   scale whole, as do other ops with a quantized output.
+  ([#6577](https://github.com/tracel-ai/burn/pull/6577))
 
 #### Compilation and autotuning
 
