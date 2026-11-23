@@ -350,6 +350,9 @@ Reports also include the measured cost of a kernel launch.
 
 #### Matrix multiplication
 
+- Flex matrix multiplication now preserves empty batch dimensions when broadcasting against a batch
+  of size one.
+
 - Enable CUDA tensor-core acceleration on Blackwell and Blackwell Ultra GPUs, including B300.
   ([#6161](https://github.com/tracel-ai/burn/pull/6161))
 
@@ -615,14 +618,23 @@ whose tensors are split over `devices` (crate `burn-shard`).
 
 #### Integer arithmetic overflow
 
-- Wrap `i64` and `u64` `add`, `sub` and `mul` (and their scalar forms) on overflow on Flex, as
-  release builds and CubeCL backends already did. Debug builds used to panic.
-  ([#6455](https://github.com/tracel-ai/burn/pull/6455))
+- Wrap integer arithmetic on overflow on Flex, as release builds and CubeCL backends already did.
+  Debug builds used to panic. This covers `i64` and `u64` `add`, `sub` and `mul` (and their scalar
+  forms), `sum`, `sum_dim`, `prod`, `prod_dim` and `mean_dim`; `i64` `mean`, since Flex's `mean`
+  accepts only signed integer types; and `cumsum` and `cumprod` for every integer type.
+  ([#6455](https://github.com/tracel-ai/burn/pull/6455), [#6481](https://github.com/tracel-ai/burn/pull/6481))
 
 #### Mask filling
 
 - Fix `mask_fill` gradients not being reduced to the input shape when the input is broadcast to a
   larger mask.
+
+#### Pairwise extrema
+
+- `max_pair` and `min_pair` propagate NaN from either operand, including quantized values that
+  dequantize to NaN.
+  ([#6279](https://github.com/tracel-ai/burn/pull/6279),
+  [@b84330808](https://github.com/b84330808))
 
 #### Quantization
 
@@ -850,6 +862,10 @@ version 14).
   single-pass accumulation for FP16/BF16 to avoid intermediate overflow.
   ([#6173](https://github.com/tracel-ai/burn/pull/6173))
   [@EthanAlmloff](https://github.com/EthanAlmloff)
+
+- Extend CubeCL FP32 bias-gradient autotuning to 1D, 3D, and transposed convolutions, including
+  with fusion. Lower-precision gradients use a single reduction to avoid intermediate overflow.
+  ([#6394](https://github.com/tracel-ai/burn/pull/6394)) [@EthanAlmloff](https://github.com/EthanAlmloff)
 
 - Speed up CubeCL `conv_transpose3d` and reduce Flex `conv2d` memory use and layout conversions.
   ([#5793](https://github.com/tracel-ai/burn/pull/5793),

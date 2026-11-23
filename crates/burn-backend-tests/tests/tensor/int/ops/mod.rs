@@ -32,6 +32,18 @@ mod maxmin;
 mod movedim;
 mod mul;
 mod one_hot;
+// WGPU and remote can select a device without 64-bit integer arithmetic in mixed builds.
+#[cfg(all(
+    any(
+        feature = "flex",
+        feature = "cpu",
+        feature = "cuda",
+        feature = "rocm",
+        feature = "metal"
+    ),
+    not(any(feature = "wgpu", feature = "remote")),
+))]
+mod overflow_64bit;
 mod permute;
 mod powi;
 mod random;

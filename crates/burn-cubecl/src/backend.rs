@@ -424,18 +424,18 @@ impl Backend for CubeBackend {
                 };
                 Some(SlicedPoolReport {
                     page_size,
-                    pages: pool.pages,
-                    pages_peak: pool.pages_peak,
-                    largest_alloc: pool.largest_alloc,
+                    pages: pool.page_count,
+                    pages_peak: pool.peak_page_count,
+                    largest_alloc: pool.largest_alloc_bytes,
                 })
             })
             .collect();
         Some(MemoryReport {
             usage: MemoryPoolUsage {
-                number_allocs: usage.number_allocs,
-                bytes_in_use: usage.bytes_in_use,
-                bytes_padding: usage.bytes_padding,
-                bytes_reserved: usage.bytes_reserved,
+                number_allocs: usage.allocation_count,
+                bytes_in_use: usage.in_use_bytes,
+                bytes_padding: usage.padding_bytes,
+                bytes_reserved: usage.reserved_bytes,
             },
             pools,
         })
