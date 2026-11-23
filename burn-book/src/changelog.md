@@ -513,9 +513,9 @@ included.
   `no entry found for key`. ([#6405](https://github.com/tracel-ai/burn/pull/6405))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
-- A remote server no longer waits for a read before taking its next request, so a replayed graph
-  queued after a read starts while the read's copy is in flight. A backend's `*_into_data` and
-  `tr_execute` now submit their read when called, and the returned future borrows nothing.
+- A remote server queues a read in order with the work before it and takes its next request
+  without waiting for the copy, so a replayed graph queued after a read starts while the read is in
+  flight. A read after a replay returns what that replay wrote.
   ([#6598](https://github.com/tracel-ai/burn/pull/6598))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
