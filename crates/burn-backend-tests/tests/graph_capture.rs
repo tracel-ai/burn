@@ -143,6 +143,44 @@ mod cube {
         );
     }
 
+    /// Whether another clone of a buffer is still alive depends on the device's timing, so
+    /// work that writes in place when run eagerly writes nothing in place while captured.
+    #[test]
+    #[serial]
+    #[cfg(all(
+        feature = "fusion",
+        any(
+            feature = "cuda",
+            feature = "rocm",
+            feature = "metal",
+            feature = "wgpu"
+        )
+    ))]
+    fn nothing_is_written_in_place_while_capturing() {
+        use burn_cubecl_fusion::inspect::inplace_alias_count;
+
+        let device = Device::default();
+        let work = || {
+            let fresh = TestTensor::<2>::ones([64, 64], &device);
+            device.flush().unwrap();
+            fresh.add_scalar(1.0).mul_scalar(2.0)
+        };
+        // The first run may tune, and a tuning trial never writes in place.
+        let _ = work().into_data();
+
+        let eager = inplace_alias_count();
+        let _ = work().into_data();
+        assert!(
+            inplace_alias_count() > eager,
+            "the work writes in place when run eagerly"
+        );
+
+        let captured = inplace_alias_count();
+        let graph = burn_tensor::capture(&device, work);
+        assert!(graph.is_hardware(), "{:?}", graph.capture_error());
+        assert_eq!(inplace_alias_count(), captured);
+    }
+
     /// A closure that grows the memory pool inside the capture window cannot be
     /// recorded, since every replay must reuse the buffers prepared before it:
     /// the graph falls back to re-running the closure and says why. A backend

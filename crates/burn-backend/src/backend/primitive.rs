@@ -85,13 +85,12 @@ pub trait TensorMetadata: Clone + Send + Sync + core::fmt::Debug {
     /// Get the device associated with the tensor.
     fn device(&self) -> Self::Device;
 
-    /// Whether the tensor's buffer can be mutated in place — i.e. this handle
-    /// uniquely owns it, so an in-place op (`slice_assign`, an inplace kernel)
-    /// writes the existing allocation instead of copying it first.
+    /// Whether the backend considers this tensor eligible for an in-place write.
     ///
-    /// Backends that track buffer ownership (cubecl, fusion) answer
-    /// precisely; a backend that can't must return a conservative `false` —
-    /// the buffer may be aliased, so an in-place write can't be assumed safe.
+    /// Unfused CubeCL checks the buffer handle's reference count. Fusion checks
+    /// how many holders the logical tensor has. Return `false` if ownership is
+    /// shared or unknown. Even when this returns `true`, the operation may
+    /// allocate a separate output buffer.
     fn can_mut(&self) -> bool;
 
     /// Get the [quantization scheme](QuantScheme) for a quantized float tensor.
