@@ -44,6 +44,8 @@ impl<'a> VectorizationPlanner<'a> {
         context: &Context<CubeFusionHandle>,
         plan: &mut LaunchPlan<'a>,
     ) {
+        plan.resolve_vector_axes(self.blocks);
+
         let has_multiple_read = |tensor: &TensorId| {
             let mut read_count = 0;
             for block in plan.blocks.iter() {

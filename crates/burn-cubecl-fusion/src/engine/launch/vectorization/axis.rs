@@ -12,8 +12,7 @@
 //! ([VectorAxisPolicy]), and the decision is applied ([VectorAxisAction]).
 
 use super::super::{
-    HandleOutput, LaunchPlan, ReferenceSelection,
-    layout::permuted_innermost_axis,
+    HandleOutput, LaunchPlan,
     runner::{Vectorization, VectorizationAxis},
 };
 use super::Vect;
@@ -71,9 +70,9 @@ impl VectorAxisAnalysis {
     /// unlike this analysis it tells a broadcast dimension from one it merely
     /// cannot line up — a distinction worth keeping, since a broadcast operand
     /// does not constrain the block's width and a refused one does.
-    pub fn read(reference: &ReferenceSelection, rank: usize) -> Self {
+    pub fn read(block_axis: Option<usize>, rank: usize) -> Self {
         Self {
-            block_axis: block_axis(reference),
+            block_axis,
             rank,
             stride: None,
         }
@@ -84,9 +83,7 @@ impl VectorAxisAnalysis {
     /// [vectorization_output](super::base) is handed a shape and never sees a
     /// stride, so an output allocated in an order its block does not iterate in
     /// has to be caught here or not at all.
-    pub fn written(reference: &ReferenceSelection, rank: usize, strides: &[usize]) -> Self {
-        let block_axis = block_axis(reference);
-
+    pub fn written(block_axis: Option<usize>, rank: usize, strides: &[usize]) -> Self {
         Self {
             block_axis,
             rank,
@@ -117,11 +114,7 @@ impl VectorAxisPolicy {
     /// Unless some block iterates in a permuted order there is nothing to decide,
     /// and saying so up front skips the whole analysis.
     pub fn of_plan(plan: &LaunchPlan<'_>) -> Self {
-        match plan
-            .blocks
-            .iter()
-            .any(|block| block_axis(&block.reference).is_some())
-        {
+        match plan.blocks.iter().any(|block| block.vector_axis.is_some()) {
             true => VectorAxisPolicy::LineUpWithBlock,
             false => VectorAxisPolicy::AlwaysDefault,
         }
@@ -270,7 +263,7 @@ impl Actions {
                     && block.reads.contains_key(&input.relative_id)
                 {
                     let analysis =
-                        VectorAxisAnalysis::read(&block.reference, input.global_ir.shape.rank());
+                        VectorAxisAnalysis::read(block.vector_axis, input.global_ir.shape.rank());
 
                     actions.record(
                         input.global_ir.id,
@@ -291,7 +284,7 @@ impl Actions {
                     && block.writes.contains_key(relative_id)
                 {
                     let analysis = VectorAxisAnalysis::written(
-                        &block.reference,
+                        block.vector_axis,
                         global_shape.rank(),
                         &handle.strides,
                     );
@@ -332,7 +325,8 @@ impl Actions {
                     continue;
                 }
 
-                let analysis = VectorAxisAnalysis::read(&block.reference, view_global.shape.rank());
+                let analysis =
+                    VectorAxisAnalysis::read(block.vector_axis, view_global.shape.rank());
 
                 actions.record(view_global.id, original_global.id, policy.action(&analysis));
             }
@@ -349,23 +343,11 @@ impl Actions {
     }
 }
 
-/// The axis a block's reference iterates along, or `None` when it iterates in
-/// logical dimension order and so asks nothing of the tensors it touches.
-///
-/// A virtual reference indexes through a transform, and those paths were written
-/// against the last dimension.
-fn block_axis(reference: &ReferenceSelection) -> Option<usize> {
-    let ReferenceSelection::Concrete { shape, strides, .. } = reference else {
-        return None;
-    };
-
-    permuted_innermost_axis(shape, strides)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::engine::codegen::ir::{FuseArg, FuseType, LayoutInfo};
+    use crate::engine::launch::ReferenceSelection;
     use burn_std::{Shape, Strides};
 
     const CONTIGUOUS: [usize; 4] = [48 * 16 * 16, 16 * 16, 16, 1];
@@ -380,7 +362,8 @@ mod tests {
     }
 
     fn action(reference: &ReferenceSelection, rank: usize) -> VectorAxisAction {
-        VectorAxisPolicy::LineUpWithBlock.action(&VectorAxisAnalysis::read(reference, rank))
+        VectorAxisPolicy::LineUpWithBlock
+            .action(&VectorAxisAnalysis::read(reference.permuted_axis(), rank))
     }
 
     fn action_written(
@@ -388,8 +371,11 @@ mod tests {
         rank: usize,
         strides: &[usize],
     ) -> VectorAxisAction {
-        VectorAxisPolicy::LineUpWithBlock
-            .action(&VectorAxisAnalysis::written(reference, rank, strides))
+        VectorAxisPolicy::LineUpWithBlock.action(&VectorAxisAnalysis::written(
+            reference.permuted_axis(),
+            rank,
+            strides,
+        ))
     }
 
     #[test]
@@ -398,7 +384,7 @@ mod tests {
         // keep behaving exactly as it did before a block could choose its layout.
         let reference = concrete(&[2, 48, 16, 16], &CONTIGUOUS);
 
-        assert_eq!(block_axis(&reference), None);
+        assert_eq!(reference.permuted_axis(), None);
         assert_eq!(action(&reference, 4), VectorAxisAction::Default);
     }
 
@@ -410,7 +396,7 @@ mod tests {
             ReferenceSelection::Runtime { pos: 0 },
             ReferenceSelection::Searching,
         ] {
-            assert_eq!(block_axis(&reference), None);
+            assert_eq!(reference.permuted_axis(), None);
             assert_eq!(action(&reference, 4), VectorAxisAction::Default);
         }
     }
@@ -418,14 +404,14 @@ mod tests {
     #[test]
     fn a_reference_that_is_not_dense_asks_for_nothing() {
         // A padded or sliced reference has no dimension order to impose.
-        assert_eq!(block_axis(&concrete(&[4, 8], &[16, 1])), None);
+        assert_eq!(concrete(&[4, 8], &[16, 1]).permuted_axis(), None);
     }
 
     #[test]
     fn an_nhwc_block_asks_for_its_channel_axis() {
         let reference = concrete(&[2, 48, 16, 16], &NHWC);
 
-        assert_eq!(block_axis(&reference), Some(1));
+        assert_eq!(reference.permuted_axis(), Some(1));
         assert_eq!(action(&reference, 4), VectorAxisAction::Along(1));
     }
 
@@ -435,7 +421,7 @@ mod tests {
         // A vector stepping it would read the same element `width` times.
         let reference = concrete(&[2, 48, 16, 1], &[768, 1, 48, 0]);
 
-        assert_eq!(block_axis(&reference), Some(1));
+        assert_eq!(reference.permuted_axis(), Some(1));
     }
 
     #[test]
@@ -468,7 +454,7 @@ mod tests {
         // rank guard is exercised at a boundary the NHWC case cannot reach.
         // Dimension order [0, 3, 1, 2] over shape [2, 4, 8, 16].
         let deep = concrete(&[2, 4, 8, 16], &[512, 8, 1, 32]);
-        assert_eq!(block_axis(&deep), Some(2));
+        assert_eq!(deep.permuted_axis(), Some(2));
 
         assert_eq!(action(&deep, 2), VectorAxisAction::Refuse);
         assert_eq!(action(&deep, 3), VectorAxisAction::Along(2));
@@ -482,7 +468,7 @@ mod tests {
         let reference = concrete(&[2, 48, 16, 16], &NHWC);
 
         assert_eq!(
-            VectorAxisAnalysis::read(&reference, 4),
+            VectorAxisAnalysis::read(reference.permuted_axis(), 4),
             VectorAxisAnalysis {
                 block_axis: Some(1),
                 rank: 4,
@@ -498,9 +484,9 @@ mod tests {
         let reference = concrete(&[2, 48, 16, 16], &NHWC);
 
         for analysis in [
-            VectorAxisAnalysis::read(&reference, 4),
-            VectorAxisAnalysis::read(&reference, 1),
-            VectorAxisAnalysis::written(&reference, 4, &CONTIGUOUS),
+            VectorAxisAnalysis::read(reference.permuted_axis(), 4),
+            VectorAxisAnalysis::read(reference.permuted_axis(), 1),
+            VectorAxisAnalysis::written(reference.permuted_axis(), 4, &CONTIGUOUS),
         ] {
             assert_eq!(
                 VectorAxisPolicy::AlwaysDefault.action(&analysis),

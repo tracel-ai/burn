@@ -2,7 +2,8 @@ use crate::{
     CubeFusionHandle,
     engine::{
         codegen::ir::{FuseArg, FuseOp, FuseType},
-        launch::vectorization::Vect,
+        launch::{layout::permuted_innermost_axis, vectorization::Vect},
+        settings::RefLayoutSetting,
         trace::{RuntimeLayout, block::FuseBlock},
     },
 };
@@ -50,6 +51,9 @@ pub struct BlockPlan<'a> {
     pub reads: BTreeMap<TensorId, Vec<FuseOp>>,
     /// Mapping of tensor IDs to the write operations performed on them.
     pub writes: BTreeMap<TensorId, Vec<FuseOp>>,
+    /// Axis along which the block steps its vectors, or `None` for the last logical axis.
+    /// The planner sizes accesses along this axis and the kernel uses it to step between lanes.
+    pub vector_axis: Option<usize>,
     /// The width for the operations in this block.
     pub width: VectorSize,
 }
@@ -113,6 +117,7 @@ impl LaunchPlan<'_> {
                 reference: ReferenceSelection::Searching,
                 reads: b.reads.clone(),
                 writes: b.writes.clone(),
+                vector_axis: None,
                 width: 0,
                 potential_inplaces: Vec::new(),
                 potential_reference_input: None,
@@ -128,6 +133,19 @@ impl LaunchPlan<'_> {
             blocks,
             vectorizations: Default::default(),
             runtime_layouts: Default::default(),
+        }
+    }
+
+    /// Resolve axes after reference selection so inherited blocks use the same axis.
+    pub(super) fn resolve_vector_axes(&mut self, fuse_blocks: &[FuseBlock]) {
+        for (i, block) in fuse_blocks.iter().enumerate() {
+            self.blocks[i].vector_axis = match block.settings.ref_layout {
+                RefLayoutSetting::Any => self.blocks[i].reference.permuted_axis(),
+                RefLayoutSetting::OnlyContiguous => None,
+                RefLayoutSetting::SameAsBlock { block_pos } => {
+                    self.blocks[block_pos as usize].vector_axis
+                }
+            };
         }
     }
 }
@@ -259,6 +277,13 @@ pub struct PotentialInplace<'a> {
 }
 
 impl ReferenceSelection {
+    pub(super) fn permuted_axis(&self) -> Option<usize> {
+        match self {
+            Self::Concrete { shape, strides, .. } => permuted_innermost_axis(shape, strides),
+            _ => None,
+        }
+    }
+
     pub fn is_found(&self) -> bool {
         !matches!(self, Self::Searching)
     }
@@ -268,5 +293,45 @@ impl ReferenceSelection {
             ReferenceSelection::Concrete { strides, .. } => &**strides == strides_inplace,
             _ => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::{codegen::ir::LayoutInfo, settings::FuseSettings};
+
+    #[test]
+    fn vector_axis_follows_the_block_layout_constraint() {
+        let shape = Shape::from([2, 4, 1, 1]);
+        let blocks = [
+            RefLayoutSetting::Any,
+            RefLayoutSetting::OnlyContiguous,
+            RefLayoutSetting::SameAsBlock { block_pos: 0 },
+            RefLayoutSetting::SameAsBlock { block_pos: 1 },
+        ]
+        .map(|ref_layout| FuseBlock {
+            settings: FuseSettings {
+                ref_layout,
+                ..Default::default()
+            },
+            shape_ref: shape.clone(),
+            ops: Vec::new(),
+            reads: BTreeMap::new(),
+            writes: BTreeMap::new(),
+        });
+        let mut plan = LaunchPlan::new(&blocks);
+        for block in &mut plan.blocks {
+            block.reference = ReferenceSelection::Concrete {
+                layout: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
+                shape: shape.clone(),
+                strides: Strides::new(&[4, 1, 4, 4]),
+            };
+        }
+
+        plan.resolve_vector_axes(&blocks);
+
+        let axes: Vec<_> = plan.blocks.iter().map(|block| block.vector_axis).collect();
+        assert_eq!(axes, [Some(1), None, Some(1), None]);
     }
 }
