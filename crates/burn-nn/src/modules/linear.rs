@@ -69,7 +69,7 @@ impl LinearConfig {
                 let shape = [self.d_output, self.d_input];
 
                 self.initializer
-                    .init_with(shape, Some(self.d_output), Some(self.d_input), device)
+                    .init_with(shape, Some(self.d_input), Some(self.d_output), device)
                     // The param is already transposed when init. We re-transpose to have
                     // [d_output, d_input] while saving.
                     .save_mapper(move |tensor| {
@@ -222,12 +222,14 @@ mod tests {
         let _ = linear.forward(Tensor::<2>::zeros([1, 3], &device));
     }
 
-    #[test]
-    fn initializer_default() {
+    #[rstest::rstest]
+    #[case::row(LinearLayout::Row)]
+    #[case::col(LinearLayout::Col)]
+    fn initializer_default(#[case] layout: LinearLayout) {
         let device = Device::default();
         device.seed(0);
 
-        let config = LinearConfig::new(5, 5);
+        let config = LinearConfig::new(64, 4).with_layout(layout);
         let k = (1.0 / config.d_input as f64).sqrt().elem::<FT>();
         let linear = config.init(&device);
 
