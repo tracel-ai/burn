@@ -44,6 +44,7 @@ memory-checks = ["burn-fusion?/memory-checks"]
 fusion = [
     "burn-tensor/fusion",
     "burn-fusion/test-util",
+    "dep:burn-ir",
     "burn-cubecl-fusion?/test-util",
 ]
 
@@ -79,6 +80,7 @@ burn-cubecl = { workspace = true, optional = true }
 
 # Enabled alongside the `fusion` feature so spy-based tests can import the spy API.
 burn-fusion = { workspace = true, optional = true }
+burn-ir = { workspace = true, optional = true }
 
 # allows us to explicitly enable simd without rayon
 burn-flex = { workspace = true, optional = true }
