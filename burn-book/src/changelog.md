@@ -513,6 +513,16 @@ included.
   `no entry found for key`. ([#6405](https://github.com/tracel-ai/burn/pull/6405))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- A remote server no longer waits for a read before taking its next request, so a replayed graph
+  queued after a read starts while the read's copy is in flight. A backend's `*_into_data` and
+  `tr_execute` now submit their read when called, and the returned future borrows nothing.
+  ([#6598](https://github.com/tracel-ai/burn/pull/6598))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- A backend panic while a router or remote server submits a read fails that read instead of ending
+  the session. ([#6598](https://github.com/tracel-ai/burn/pull/6598))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 #### Sharded compute devices
 
 Experimental: with the `shard` feature, `Device::shard_options(&devices).init()` makes one device
