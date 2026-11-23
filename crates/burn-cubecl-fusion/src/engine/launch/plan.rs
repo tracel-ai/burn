@@ -283,3 +283,19 @@ impl ReferenceSelection {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ReferenceSelection;
+
+    #[test]
+    fn a_reshaped_reference_has_no_permuted_axis() {
+        let reference = ReferenceSelection::Reshaped { reshape_pos: 0 };
+        assert_eq!(reference.permuted_axis(), None);
+    }
+
+    #[test]
+    fn a_reference_still_being_selected_has_no_permuted_axis() {
+        assert_eq!(ReferenceSelection::Searching.permuted_axis(), None);
+    }
+}

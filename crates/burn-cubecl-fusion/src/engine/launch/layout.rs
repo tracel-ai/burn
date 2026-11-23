@@ -132,6 +132,14 @@ mod tests {
     }
 
     #[test]
+    fn a_permuted_layout_can_advance_along_axis_two() {
+        let shape = [2, 4, 8, 16];
+        let strides = [512, 8, 1, 32];
+
+        assert_eq!(permuted_innermost_axis(&shape, &strides), Some(2));
+    }
+
+    #[test]
     fn a_tensor_that_is_not_dense_asks_for_nothing() {
         assert_eq!(permuted_innermost_axis(&[4, 8], &[16, 1]), None);
         assert_eq!(

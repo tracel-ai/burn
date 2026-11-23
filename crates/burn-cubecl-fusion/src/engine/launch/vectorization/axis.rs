@@ -357,11 +357,20 @@ mod tests {
     }
 
     #[test]
-    fn a_read_uses_the_resolved_axis() {
-        let read = VectorAxisAnalysis::read(Some(1), 2);
+    fn a_read_can_follow_a_nonfinal_axis() {
+        let read = VectorAxisAnalysis::read(Some(1), 4);
         assert_eq!(
             VectorAxisPolicy::LineUpWithBlock.action(&read),
             VectorAxisAction::Along(1)
+        );
+    }
+
+    #[test]
+    fn a_read_can_follow_the_last_axis_in_its_rank() {
+        let read = VectorAxisAnalysis::read(Some(2), 3);
+        assert_eq!(
+            VectorAxisPolicy::LineUpWithBlock.action(&read),
+            VectorAxisAction::Along(2)
         );
     }
 
@@ -376,7 +385,7 @@ mod tests {
 
     #[test]
     fn a_write_along_a_strided_axis_is_refused() {
-        let write = VectorAxisAnalysis::written(Some(0), 2, &[4, 1]);
+        let write = VectorAxisAnalysis::written(Some(1), 3, &[12, 4, 1]);
         assert_eq!(
             VectorAxisPolicy::LineUpWithBlock.action(&write),
             VectorAxisAction::Refuse
@@ -385,16 +394,34 @@ mod tests {
 
     #[test]
     fn a_write_along_a_unit_stride_axis_is_allowed() {
-        let write = VectorAxisAnalysis::written(Some(0), 2, &[1, 4]);
+        let write = VectorAxisAnalysis::written(Some(1), 3, &[12, 1, 3]);
         assert_eq!(
             VectorAxisPolicy::LineUpWithBlock.action(&write),
-            VectorAxisAction::Along(0)
+            VectorAxisAction::Along(1)
         );
     }
 
     #[test]
-    fn the_default_policy_keeps_the_default_axis() {
-        let write = VectorAxisAnalysis::written(Some(0), 2, &[4, 1]);
+    fn the_default_policy_ignores_a_valid_read_axis() {
+        let read = VectorAxisAnalysis::read(Some(1), 4);
+        assert_eq!(
+            VectorAxisPolicy::AlwaysDefault.action(&read),
+            VectorAxisAction::Default
+        );
+    }
+
+    #[test]
+    fn the_default_policy_ignores_an_out_of_rank_read_axis() {
+        let read = VectorAxisAnalysis::read(Some(1), 1);
+        assert_eq!(
+            VectorAxisPolicy::AlwaysDefault.action(&read),
+            VectorAxisAction::Default
+        );
+    }
+
+    #[test]
+    fn the_default_policy_ignores_a_strided_write_axis() {
+        let write = VectorAxisAnalysis::written(Some(1), 3, &[12, 4, 1]);
         assert_eq!(
             VectorAxisPolicy::AlwaysDefault.action(&write),
             VectorAxisAction::Default
