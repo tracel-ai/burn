@@ -7,7 +7,6 @@ use burn_backend::{
     quantization::{QuantStore, params_shape},
 };
 use burn_backend::{TensorMetadata, ops::QTensorOps, ops::unfold::calculate_unfold_shape};
-use burn_std::future::DynFut;
 use burn_std::{
     Metadata, QuantValue, ReshapeAnalysis, reshape_analysis,
     tensor::{ReshapeAction, contiguous_strides, reshape_action},
@@ -49,25 +48,31 @@ pub(crate) fn into_data(
     // sync/threaded runtime the lazy read keeps the streaming optimization; it holds the
     // handle until its bytes are read, so no in-place kernel writes the buffer first.
     let (data_shape, dtype) = (tensor.meta.shape.clone(), tensor.dtype);
-    let read: DynFut<Result<TensorData, ExecutionError>> = match burn_std::runtime_kind() {
+    let read = match burn_std::runtime_kind() {
         burn_std::RuntimeKind::Async => {
             let binding = CopyDescriptor::new(tensor.handle.binding(), shape, strides, elem_size);
-            let read = tensor.client.read_one_tensor_async(binding);
-            Box::pin(async move {
-                let bytes = read.await.map_err(crate::backend::server_err)?;
-                Ok(TensorData::from_bytes(bytes, data_shape, dtype))
-            })
+            Read::Eager(tensor.client.read_one_tensor_async(binding))
         }
         _ => {
             let source = CopyDescriptor::new(tensor.handle.clone(), shape, strides, elem_size);
-            let read = tensor.client.read_lazy_async(source);
-            Box::pin(async move {
-                let bytes = read.await.map_err(crate::backend::server_err)?;
-                Ok(TensorData::from_bytes(bytes, data_shape, dtype))
-            })
+            Read::Lazy(tensor.client.read_lazy_async(source))
         }
     };
-    read
+
+    async move {
+        let bytes = match read {
+            Read::Eager(read) => read.await,
+            Read::Lazy(read) => read.await,
+        };
+        let bytes = bytes.map_err(crate::backend::server_err)?;
+        Ok(TensorData::from_bytes(bytes, data_shape, dtype))
+    }
+}
+
+/// A read [`into_data`] started, of either kind, held unboxed until awaited.
+enum Read<E, L> {
+    Eager(E),
+    Lazy(L),
 }
 
 /// Read data from a `CubeTensor` synchronously
