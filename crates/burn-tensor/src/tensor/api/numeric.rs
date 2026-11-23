@@ -853,8 +853,7 @@ where
     /// - The inner dimensions must match: the last dimension of `self` and the
     ///   second-to-last dimension of `other`.
     /// - Along each batch axis, the sizes must match or one must be `1`. A singleton
-    ///   broadcasts to the size of the other operand along that axis. When the sizes
-    ///   are `0` and `1`, Flex can incorrectly produce a batch of size `1`.
+    ///   broadcasts to the size of the other operand along that axis.
     ///
     /// ```rust
     /// use burn_tensor::Tensor;
