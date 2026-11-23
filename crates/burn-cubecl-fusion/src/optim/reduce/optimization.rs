@@ -20,12 +20,15 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;
 use cubecl::{
+    bytes::Bytes,
     client::Client,
     prelude::TensorBinding,
     tile::{Geometry, launch::Decline},
 };
 use cubek::microkernel::reduce::ReduceOperation;
-use cubek::reduce::kernels::{ReduceCandidate, ReduceElements, ReduceKey, ReduceTensors};
+use cubek::reduce::kernels::{
+    ReduceCandidate, ReduceElements, ReduceKey, ReduceTensors, ReduceWorkspace,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -82,7 +85,7 @@ impl ReduceOptimizationInfo {
 pub enum ReduceSettings {
     Always,
     /// We only activate fuse-on-write when the reduction isn't on the last dimension, otherwise
-    /// vectorization is impossible. Only [VectorizationMode::Perpendicular](cubek::reduce::VectorizationMode::Perpendicular) supports vectorization.
+    /// vectorization is impossible. Only `VectorizationMode::Perpendicular` supports vectorization.
     ///
     /// We could still fuse some output operations, but it would probably lead to worse performance.
     OnlyParallel,
@@ -378,19 +381,30 @@ impl TraceRunner for FusedReduceLaunch<'_> {
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedReduceError> {
         let config_read = &configs[0];
+        let geometry = block_geometry(&inputs, &outputs, config_read);
+        let operation = reduce_operation(self.reduce.inst);
+        let elements = ReduceElements {
+            input: dtype_to_storage_type(self.reduce.op.input.dtype),
+            accumulator: self.reduce.acc.into_elem(),
+            out: dtype_to_storage_type(self.reduce.op.out.dtype),
+        };
+        let workspace = reduce_workspace(
+            client,
+            geometry.shape(),
+            self.reduce.axis,
+            operation,
+            elements,
+        );
         let tensors = ReduceTensors::unbound(
             client,
-            block_geometry(&inputs, &outputs, config_read),
+            geometry,
             config_read.width,
             self.out.clone(),
             self.reduce.axis,
-            reduce_operation(self.reduce.inst),
-            ReduceElements {
-                input: dtype_to_storage_type(self.reduce.op.input.dtype),
-                accumulator: self.reduce.acc.into_elem(),
-                out: dtype_to_storage_type(self.reduce.op.out.dtype),
-            },
-        );
+            operation,
+            elements,
+        )
+        .with_workspace(workspace);
         let candidate = ReduceCandidate::fastest(client, self.device, &ReduceKey::from(&tensors))
             .ok_or(FusedReduceError::NoRoutineElected)?;
         candidate
@@ -404,6 +418,27 @@ impl TraceRunner for FusedReduceLaunch<'_> {
                 )
             })
             .map_err(FusedReduceError::Routine)
+    }
+}
+
+/// The scratch cubek's reductions that split a row across cubes take for reducing `axis` of an
+/// input of `shape` by `operation` in `elements`: cubek allocates none, so the fused launch does,
+/// sized for whichever kernel the autotune elected, its arrival counters zero.
+fn reduce_workspace(
+    client: &Client,
+    shape: &[usize],
+    axis: usize,
+    operation: ReduceOperation,
+    elements: ReduceElements,
+) -> ReduceWorkspace {
+    let bytes = ReduceWorkspace::bytes_for(client, shape, axis, operation, elements, false);
+    // A runtime may refuse an empty allocation: every buffer holds at least one counter.
+    let at_least_one = |bytes: u64| (bytes as usize).max(size_of::<u32>());
+    let counters = at_least_one(bytes.arrivals) / size_of::<u32>();
+    ReduceWorkspace {
+        partials: client.empty(at_least_one(bytes.partials)),
+        partial_indices: client.empty(at_least_one(bytes.partial_indices)),
+        arrivals: client.create(Bytes::from_elems(vec![0u32; counters])),
     }
 }
 

@@ -9,10 +9,14 @@ use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type, elem_type_
 use burn_backend::{DType, TensorMetadata};
 use burn_std::{BoolDType, Metadata};
 use burn_std::{Shape, Strides};
+use cubecl::bytes::Bytes;
+use cubecl::client::Client;
 use cubecl::prelude::InputScalar;
 use cubek::reduce::{
     ReduceError, ReduceOperation,
-    kernels::{ReduceElements, ReduceKernel, ReduceKernelHeuristic, ReduceOpStrategy},
+    kernels::{
+        ReduceElements, ReduceKernel, ReduceKernelHeuristic, ReduceOpStrategy, ReduceWorkspace,
+    },
 };
 
 /// The value a reduction over zero elements must produce, or `None` if there is none.
@@ -415,7 +419,9 @@ pub fn reduce_dim(
     }
 
     let device = input.device.clone();
+    let workspace = reduce_workspace(&client, &input, dim, config, elements, false);
     cubek::reduce::kernels::Reduce::new(strategy.into())
+        .with_workspace(workspace)
         .execute(
             &client,
             &device,
@@ -497,7 +503,9 @@ pub fn reduce_dim_with_indices(
     let client = input.client.clone();
 
     let device = input.device.clone();
+    let workspace = reduce_workspace(&client, &input, dim, config, elements, true);
     cubek::reduce::kernels::Reduce::new(strategy.into())
+        .with_workspace(workspace)
         .execute_with_indices(
             &client,
             &device,
@@ -510,6 +518,36 @@ pub fn reduce_dim_with_indices(
             dtype_to_elem_type(indices_dtype),
         )
         .map(|_| (values, indices))
+}
+
+/// The scratch cubek's reductions that split a row across cubes take for reducing `dim` of
+/// `input` by `config` in `elements`, `with_indices` where the indices go beside the values: cubek
+/// allocates none, so its caller does, sized for whichever kernel the strategy picks, its arrival
+/// counters zero.
+fn reduce_workspace(
+    client: &Client,
+    input: &CubeTensor,
+    dim: usize,
+    config: ReduceOperation,
+    elements: ReduceElements,
+    with_indices: bool,
+) -> ReduceWorkspace {
+    let bytes = ReduceWorkspace::bytes_for(
+        client,
+        input.meta.shape(),
+        dim,
+        config,
+        elements,
+        with_indices,
+    );
+    // A runtime may refuse an empty allocation: every buffer holds at least one counter.
+    let at_least_one = |bytes: u64| (bytes as usize).max(size_of::<u32>());
+    let counters = at_least_one(bytes.arrivals) / size_of::<u32>();
+    ReduceWorkspace {
+        partials: client.empty(at_least_one(bytes.partials)),
+        partial_indices: client.empty(at_least_one(bytes.partial_indices)),
+        arrivals: client.create(Bytes::from_elems(vec![0u32; counters])),
+    }
 }
 
 /// Creates an empty output tensor with the proper shape and decreasing strides to reduce the given `axis` of `input`
