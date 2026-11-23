@@ -3,7 +3,6 @@ use crate::{
     engine::{
         codegen::ir::{FuseArg, FuseOp, FuseType},
         launch::{layout::permuted_innermost_axis, vectorization::Vect},
-        settings::RefLayoutSetting,
         trace::{RuntimeLayout, block::FuseBlock},
     },
 };
@@ -135,19 +134,6 @@ impl LaunchPlan<'_> {
             runtime_layouts: Default::default(),
         }
     }
-
-    /// Resolve axes after reference selection so inherited blocks use the same axis.
-    pub(super) fn resolve_vector_axes(&mut self, fuse_blocks: &[FuseBlock]) {
-        for (i, block) in fuse_blocks.iter().enumerate() {
-            self.blocks[i].vector_axis = match block.settings.ref_layout {
-                RefLayoutSetting::Any => self.blocks[i].reference.permuted_axis(),
-                RefLayoutSetting::OnlyContiguous => None,
-                RefLayoutSetting::SameAsBlock { block_pos } => {
-                    self.blocks[block_pos as usize].vector_axis
-                }
-            };
-        }
-    }
 }
 
 /// Debugging information for aliased handles when `autotune-checks` is enabled.
@@ -277,13 +263,6 @@ pub struct PotentialInplace<'a> {
 }
 
 impl ReferenceSelection {
-    pub(super) fn permuted_axis(&self) -> Option<usize> {
-        match self {
-            Self::Concrete { shape, strides, .. } => permuted_innermost_axis(shape, strides),
-            _ => None,
-        }
-    }
-
     pub fn is_found(&self) -> bool {
         !matches!(self, Self::Searching)
     }
@@ -296,42 +275,11 @@ impl ReferenceSelection {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::engine::{codegen::ir::LayoutInfo, settings::FuseSettings};
-
-    #[test]
-    fn vector_axis_follows_the_block_layout_constraint() {
-        let shape = Shape::from([2, 4, 1, 1]);
-        let blocks = [
-            RefLayoutSetting::Any,
-            RefLayoutSetting::OnlyContiguous,
-            RefLayoutSetting::SameAsBlock { block_pos: 0 },
-            RefLayoutSetting::SameAsBlock { block_pos: 1 },
-        ]
-        .map(|ref_layout| FuseBlock {
-            settings: FuseSettings {
-                ref_layout,
-                ..Default::default()
-            },
-            shape_ref: shape.clone(),
-            ops: Vec::new(),
-            reads: BTreeMap::new(),
-            writes: BTreeMap::new(),
-        });
-        let mut plan = LaunchPlan::new(&blocks);
-        for block in &mut plan.blocks {
-            block.reference = ReferenceSelection::Concrete {
-                layout: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
-                shape: shape.clone(),
-                strides: Strides::new(&[4, 1, 4, 4]),
-            };
+impl ReferenceSelection {
+    pub(super) fn permuted_axis(&self) -> Option<usize> {
+        match self {
+            Self::Concrete { shape, strides, .. } => permuted_innermost_axis(shape, strides),
+            _ => None,
         }
-
-        plan.resolve_vector_axes(&blocks);
-
-        let axes: Vec<_> = plan.blocks.iter().map(|block| block.vector_axis).collect();
-        assert_eq!(axes, [Some(1), None, Some(1), None]);
     }
 }

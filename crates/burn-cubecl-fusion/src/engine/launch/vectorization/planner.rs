@@ -10,7 +10,7 @@ use crate::{
             HandleInput,
             runner::{Vectorization, VectorizationHandle},
         },
-        settings::VectorizationSetting,
+        settings::{RefLayoutSetting, VectorizationSetting},
         trace::{FuseResources, TensorView, block::FuseBlock},
     },
 };
@@ -44,7 +44,7 @@ impl<'a> VectorizationPlanner<'a> {
         context: &Context<CubeFusionHandle>,
         plan: &mut LaunchPlan<'a>,
     ) {
-        plan.resolve_vector_axes(self.blocks);
+        self.resolve_vector_axes(plan);
 
         let has_multiple_read = |tensor: &TensorId| {
             let mut read_count = 0;
@@ -322,6 +322,21 @@ impl<'a> VectorizationPlanner<'a> {
     }
 }
 
+impl VectorizationPlanner<'_> {
+    /// Resolve axes after reference selection so inherited blocks use the same axis.
+    fn resolve_vector_axes(&self, plan: &mut LaunchPlan) {
+        for (i, block) in self.blocks.iter().enumerate() {
+            plan.blocks[i].vector_axis = match block.settings.ref_layout {
+                RefLayoutSetting::Any => plan.blocks[i].reference.permuted_axis(),
+                RefLayoutSetting::OnlyContiguous => None,
+                RefLayoutSetting::SameAsBlock { block_pos } => {
+                    plan.blocks[block_pos as usize].vector_axis
+                }
+            };
+        }
+    }
+}
+
 #[derive(Debug)]
 enum VectorizationAction {
     Input(usize),
@@ -465,4 +480,58 @@ fn vector_sizes_quants(
             panic!("Not yet supported")
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::{
+        codegen::ir::{FuseArg, FuseType, LayoutInfo},
+        launch::ReferenceSelection,
+        settings::FuseSettings,
+    };
+    use burn_std::{Shape, Strides};
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn vector_axis_follows_the_block_layout_constraint() {
+        let shape = Shape::from([2, 4, 1, 1]);
+        let concrete = ReferenceSelection::Concrete {
+            layout: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
+            shape: shape.clone(),
+            strides: Strides::new(&[4, 1, 4, 4]),
+        };
+        let runtime = ReferenceSelection::Runtime { pos: 0 };
+        let layouts = [
+            (RefLayoutSetting::Any, &concrete),
+            (RefLayoutSetting::OnlyContiguous, &concrete),
+            (RefLayoutSetting::SameAsBlock { block_pos: 0 }, &concrete),
+            (RefLayoutSetting::SameAsBlock { block_pos: 1 }, &concrete),
+            (RefLayoutSetting::Any, &runtime),
+        ];
+        let blocks = layouts
+            .into_iter()
+            .map(|(ref_layout, _)| FuseBlock {
+                settings: FuseSettings {
+                    ref_layout,
+                    ..Default::default()
+                },
+                shape_ref: shape.clone(),
+                ops: Vec::new(),
+                reads: BTreeMap::new(),
+                writes: BTreeMap::new(),
+            })
+            .collect();
+        let resources = FuseResources::default();
+        let planner = VectorizationPlanner::new(&resources, &blocks);
+        let mut plan = LaunchPlan::new(&blocks);
+        for (block, (_, reference)) in plan.blocks.iter_mut().zip(layouts) {
+            block.reference = reference.clone();
+        }
+
+        planner.resolve_vector_axes(&mut plan);
+
+        let axes: Vec<_> = plan.blocks.iter().map(|block| block.vector_axis).collect();
+        assert_eq!(axes, [Some(1), None, Some(1), None, None]);
+    }
 }
