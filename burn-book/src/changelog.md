@@ -630,7 +630,7 @@ whose tensors are split over `devices` (crate `burn-shard`).
 #### Pairwise extrema
 
 - `max_pair` and `min_pair` propagate NaN from either operand, including quantized values that
-  dequantize to NaN.
+  dequantize to NaN. CubeCL fusion can evaluate each pairwise operation in a single kernel.
   ([#6279](https://github.com/tracel-ai/burn/pull/6279),
   [@b84330808](https://github.com/b84330808))
 

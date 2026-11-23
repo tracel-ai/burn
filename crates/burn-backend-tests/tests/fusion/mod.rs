@@ -20,6 +20,8 @@ mod matmul_epilogue_view;
 mod nhwc_relayout;
 #[cfg(feature = "cube")]
 mod padded_layout;
+#[cfg(feature = "cube")]
+mod pair_extrema;
 mod reduce_broadcasted;
 mod reduce_logical;
 mod select;
