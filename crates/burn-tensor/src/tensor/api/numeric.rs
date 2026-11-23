@@ -841,9 +841,42 @@ where
     /// C = AB
     /// ```
     ///
+    /// The last two dimensions hold the matrices: `[..., M, K] @ [..., K, N]` gives
+    /// `[..., M, N]`. Any dimensions before them are batch dimensions.
+    ///
+    /// # Shapes and broadcasting
+    ///
+    /// - Both tensors must have the same rank `D`, with `D >= 2`. The rank is part of
+    ///   the tensor type, so unlike NumPy or PyTorch, `matmul` does not add missing
+    ///   leading dimensions: use [`unsqueeze`](Tensor::unsqueeze) or
+    ///   [`unsqueeze_dim`](Tensor::unsqueeze_dim) to give both tensors the same rank first.
+    /// - The inner dimensions must match: the last dimension of `self` and the
+    ///   second-to-last dimension of `other`.
+    /// - Along each batch axis, the sizes must match or one must be `1`. A singleton
+    ///   broadcasts to the size of the other operand along that axis.
+    ///
+    /// ```rust
+    /// use burn_tensor::Tensor;
+    ///
+    /// let device = Default::default();
+    ///
+    /// let lhs = Tensor::<4>::ones([2, 1, 2, 3], &device);
+    /// let rhs = Tensor::<3>::ones([4, 3, 5], &device);
+    /// // Unsqueezing gives rhs shape [1, 4, 3, 5], so [2, 1] and [1, 4] broadcast to [2, 4].
+    /// let product = lhs.matmul(rhs.unsqueeze::<4>());
+    /// assert_eq!(product.dims(), [2, 4, 2, 5]);
+    /// ```
+    ///
     /// Shapes of the form `[..., B, 1, K] @ [..., 1, K, N]` are reinterpreted as
     /// `[..., 1, B, K] @ [..., 1, K, N]`, turning a batched vec-mat into a general
     /// matmul, which is often faster.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the rank is lower than 2, the inner dimensions differ, a batch
+    /// dimension is incompatible, or the tensors are on different devices.
+    /// The backend may also reject a dtype combination. For example, Flex requires
+    /// two unquantized floating-point operands to have the same dtype.
     pub fn matmul(self, other: Self) -> Self {
         check!(TensorCheck::matmul(&self, &other));
 
