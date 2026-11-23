@@ -21,4 +21,4 @@ logger = { level = "disabled", file = "/tmp/memory.log" }
 persistent_memory = "enabled"
 
 [cubecl.streaming]
-max_streams = 8
+max_stream_count = 8

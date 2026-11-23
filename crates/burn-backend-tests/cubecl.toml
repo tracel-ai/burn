@@ -12,4 +12,4 @@ logger = { file = "target/compilation.log", level = "full" }
 logger = { file = "target/memory.log", level = "disabled" }
 
 [streaming]
-max_streams = 4
+max_stream_count = 4
