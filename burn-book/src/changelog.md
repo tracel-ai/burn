@@ -627,6 +627,13 @@ whose tensors are split over `devices` (crate `burn-shard`).
 - Fix `mask_fill` gradients not being reduced to the input shape when the input is broadcast to a
   larger mask.
 
+#### Pairwise extrema
+
+- `max_pair` and `min_pair` propagate NaN from either operand, including quantized values that
+  dequantize to NaN.
+  ([#6279](https://github.com/tracel-ai/burn/pull/6279),
+  [@b84330808](https://github.com/b84330808))
+
 #### Quantization
 
 - **Breaking:** Remove `burn_std::quantization::pack_i8s_to_u32s`. For manual word packing, pad bytes

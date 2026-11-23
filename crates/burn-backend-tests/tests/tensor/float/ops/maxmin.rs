@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{ElementConversion, TensorData};
+use burn_tensor::{ElementConversion, TensorData, Tolerance};
 
 #[test]
 fn test_max_dim_2d() {
@@ -97,13 +97,13 @@ fn test_max_dim_2d_with_0th_dim() {
 
 #[test]
 fn test_max_pair() {
-    let a = TestTensor::<1>::from_data([1.0, 2.0, 3.0, 4.0], &Default::default());
-    let b = TestTensor::from_data([2.0, 1.0, 4.0, 5.0], &Default::default());
+    let a = TestTensor::<1>::from([1., 5., f32::NAN, 4.]);
+    let b = TestTensor::<1>::from([2., 3., 4., f32::NAN]);
+    let expected = TensorData::from([2., 5., f32::NAN, f32::NAN]);
 
-    let output = a.max_pair(b);
-    let expected = TensorData::from([2.0, 2.0, 4.0, 5.0]);
-
-    output.into_data().assert_eq(&expected, false);
+    a.max_pair(b)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::absolute(0.));
 }
 
 #[test]
@@ -202,13 +202,13 @@ fn test_min_dim_with_indices_2d_with_0th_dim() {
 
 #[test]
 fn test_min_pair() {
-    let a = TestTensor::<1>::from_data([1.0, 2.0, 3.0, 4.0], &Default::default());
-    let b = TestTensor::from_data([2.0, 1.0, 4.0, 5.0], &Default::default());
+    let a = TestTensor::<1>::from([1., 5., f32::NAN, 4.]);
+    let b = TestTensor::<1>::from([2., 3., 4., f32::NAN]);
+    let expected = TensorData::from([1., 3., f32::NAN, f32::NAN]);
 
-    let output = a.min_pair(b);
-    let expected = TensorData::from([1.0, 1.0, 3.0, 4.0]);
-
-    output.into_data().assert_eq(&expected, false);
+    a.min_pair(b)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::absolute(0.));
 }
 
 #[test]
