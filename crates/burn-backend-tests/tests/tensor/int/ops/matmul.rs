@@ -38,6 +38,15 @@ fn test_int_matmul_broadcast_1() {
 }
 
 #[test]
+fn test_int_matmul_broadcast_empty_batch() {
+    let device = Default::default();
+    let lhs = TestTensorInt::<3>::zeros([0, 2, 0], &device);
+    let rhs = TestTensorInt::<3>::zeros([1, 0, 4], &device);
+
+    assert_eq!(lhs.matmul(rhs).dims(), [0, 2, 4]);
+}
+
+#[test]
 fn test_int_matmul_broadcast_4d() {
     let device = Default::default();
     // [2, 1, 2, 2]
