@@ -70,3 +70,6 @@ mod collections {
     #[cfg(feature = "std")]
     pub use std::collections::{HashMap, HashSet};
 }
+
+#[cfg(test)]
+mod tests_nested;

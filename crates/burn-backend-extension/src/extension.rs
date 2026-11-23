@@ -393,7 +393,12 @@ fn gen_dispatch_method(ir: &Extension, op: &ExtensionOperation) -> TokenStream2 
             quote! { compile_error!("A backend extension operation with no tensor inputs can't be combined with `Autodiff` — there is no input tensor to carry the autodiff graph.") }
         } else if ir.backends.concrete.len() == 1 {
             let backend = &ir.backends.concrete[0];
-            let call = gen_backend_call(ir, op, backend, OutputRoute::ConcreteDisabled);
+            let call = gen_backend_call(
+                ir,
+                op,
+                backend,
+                OutputRoute::ConcreteDisabled(&backend.ident),
+            );
             match &backend.cfg_attr {
                 // Ungated backend: dispatch straight to it.
                 None => quote! {
@@ -498,19 +503,18 @@ fn validate_extension_ty(ty: &Type) -> syn::Result<()> {
 /// unwrap" path: handles any mix of bare tensors and extension structs/enums (including several),
 /// for both concrete backends and (when `Autodiff` is listed) the autodiff wrapper.
 ///
-/// Backend identity is nested inside `DispatchTensorKind::Autodiff` for tracked float tensors, and
-/// extension structs can't be destructured in a dispatch-kind match. Therefore we:
+/// Extension structs can't be destructured in a dispatch-kind match. Therefore we:
 /// 1. Find a routing [`DispatchTensor`] (a bare tensor itself, or a struct's via
-///    `ExtensionType::routing_tensor`) and fold its `.kind` into a backend tag. Separately merge
-///    every input's autodiff context and check whether any float has autodiff enabled. This drops
-///    all borrows before any input is moved.
-/// 2. In the matched context/backend arm, unwrap every input and re-wrap the output.
+///    `ExtensionType::routing_tensor`) and fold its `.kind` into a concrete backend tag. Separately
+///    merge every input's autodiff context and check whether any float has autodiff enabled. This
+///    drops all borrows before any input is moved.
+/// 2. Run the autodiff route first when an autodiff float is present, then the matched concrete
+///    backend arm, unwrapping every input and re-wrapping the output.
 ///
-/// For an autodiff arm the target backend is `Autodiff<B>`: float tensors/fields unwrap through the
-/// `Autodiff(Box(#b(BackendTensor::Autodiff(_))))` nesting into `FloatTensor<Autodiff<B>>`, while
-/// int/bool/quantized ones stay plain (autodiff only tracks floats). The op's own
-/// `impl ... for Autodiff<B, C>` still hand-writes the backward pass exactly as for a bare-tensor
-/// autodiff op; the macro only routes and re-wraps.
+/// The autodiff route targets `Autodiff<Dispatch>`, whose float primitive is the tracked dispatch
+/// tensor itself, so it needs no concrete backend. Int/bool/quantized fields stay dispatch tensors
+/// (autodiff only tracks floats). The op's own `impl ... for Autodiff<B, C>` still hand-writes the
+/// backward pass exactly as for a bare-tensor autodiff op; the macro only routes and re-wraps.
 fn gen_tensor_input_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream2 {
     let name = &op.name;
     let has_ad = ir.backends.autodiff.0;
@@ -533,21 +537,29 @@ fn gen_tensor_input_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream
     let (autodiff_routing, _) = routing::operation_autodiff_routing(op, &paths);
 
     // The routing tensor selects the concrete backend. The merged context controls the output
-    // association, while an autodiff-associated float selects the autodiff implementation.
-    let kind_arms = routing::backend_kind_arms(
+    // association. Any autodiff-associated float runs the operation on `Autodiff<Dispatch>`
+    // before a concrete backend is selected.
+    let concrete_tag_arms = routing::backend_kind_arms(
         &paths,
         &ir.backends.concrete,
         None,
-        has_ad.then(|| routing::AutodiffKindMatch {
-            cfg_attr: ad_cfg_attr.clone(),
-            inner_kind: quote!(__inner.as_ref()),
-            nested_autodiff: None,
-            fallback: quote!(usize::MAX),
-        }),
-        |index, _, _| quote!(#index),
+        |index, _| quote!(#index),
     );
-    let concrete_tag_arms = kind_arms.concrete;
-    let ad_tag_arm = kind_arms.autodiff;
+
+    let autodiff_guard = has_ad.then(|| {
+        let route = routing::autodiff_route(op, &paths);
+        quote! {
+            #ad_cfg_attr
+            {
+                if __has_autodiff_float_input {
+                    let burn::backend::DispatchAutodiffContext::Enabled(__strategy) = __ad_ctx else {
+                        panic!("an autodiff float primitive must have an enabled autodiff context")
+                    };
+                    return #route;
+                }
+            }
+        }
+    });
 
     let dispatch_arms = ir
         .backends
@@ -567,7 +579,6 @@ fn gen_tensor_input_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream
             #routing_tensor_init
             #autodiff_routing
             let __backend_tag = match &__routing_tensor.kind {
-                #ad_tag_arm
                 #( #concrete_tag_arms )*
                 #[allow(unreachable_patterns)]
                 _ => usize::MAX,
@@ -578,7 +589,8 @@ fn gen_tensor_input_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream
                 __has_autodiff_float_input,
             )
         };
-        match (__burn_backend_tag, __has_autodiff_float_input) {
+        #autodiff_guard
+        match __burn_backend_tag {
             #( #dispatch_arms )*
             _ => unimplemented!("Backend not supported for custom op `{}`", stringify!(#name)),
         }
@@ -603,7 +615,7 @@ fn gen_tensor_input_backend_arm(
     );
     quote! {
         #cfg_attr
-        (#i, __has_autodiff_float_input) => { #routes },
+        #i => { #routes },
     }
 }
 
@@ -614,12 +626,12 @@ fn gen_backend_call(
     _ir: &Extension,
     op: &Operation,
     backend: &Backend,
-    route: OutputRoute,
+    route: OutputRoute<'_>,
 ) -> TokenStream2 {
     let b_ident = &backend.ident;
     let paths = routing::RoutingPaths::extension();
     let invoke = routing::invoke(op, &paths);
-    let wrap_out = routing::wrap_output(&op.output, &paths, b_ident, route, quote!(__output));
+    let wrap_out = routing::wrap_output(&op.output, &paths, route, quote!(__output));
 
     quote! {
         type _B = burn::backend::#b_ident;

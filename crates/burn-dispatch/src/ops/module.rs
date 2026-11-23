@@ -697,10 +697,10 @@ impl ModuleOps<Self> for Dispatch {
 
     #[backend_dispatch(skip)]
     fn has_attention_backward() -> bool {
-        // Dispatch routes per-tensor at runtime, but autodiff queries this flag statically.
-        // Returning `false` makes autodiff differentiate the decomposed attention, which is safe
-        // for every inner backend regardless of whether it has its own attention_backward.
-        false
+        // The explicit backward is available for every inner backend: its native kernel where it
+        // has one, the default composition otherwise. Dispatching forwards the operation to the
+        // backend the tensor lives on, so autodiff can take that path.
+        true
     }
 
     #[backend_dispatch(skip)]
@@ -730,11 +730,9 @@ impl ModuleOps<Self> for Dispatch {
 
     #[backend_dispatch(skip)]
     fn has_ctc_loss_backward() -> bool {
-        // Dispatch routes per-tensor at runtime, but autodiff queries this flag
-        // statically. Returning `false` makes autodiff differentiate through
-        // the default decomposed forward, which is safe for every inner
-        // backend regardless of whether it has its own ctc_loss_backward.
-        false
+        // Same contract: the inner backend answers with its native kernel or the default
+        // composition, and dispatching forwards the operation to it.
+        true
     }
 
     fn ctc_loss(

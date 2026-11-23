@@ -36,8 +36,11 @@ impl FloatTensorOps<Self> for Dispatch {
         B::float_random(shape, distribution, device, dtype, key)
     }
 
+    // Reading the value strips every autodiff level and reads the concrete tensor. Routing this
+    // through `Autodiff<Dispatch>` would make the returned future recursively contain itself.
+    #[backend_dispatch(skip)]
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
-        B::float_into_data(tensor).await
+        backend_list!(float_into_data_arms, tensor)
     }
 
     #[backend_dispatch(skip)]
