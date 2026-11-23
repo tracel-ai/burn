@@ -1,6 +1,6 @@
+use burn_backend::ops::ReadFuture;
 use burn_backend::{
     DType, TensorData,
-    backend::ExecutionError,
     ops::{TransactionOps, TransactionPrimitive, TransactionPrimitiveData},
 };
 use burn_std::{Shape, Strides};
@@ -11,7 +11,7 @@ use crate::CubeBackend;
 impl TransactionOps<Self> for CubeBackend {
     fn tr_execute(
         transaction: TransactionPrimitive<Self>,
-    ) -> impl Future<Output = Result<TransactionPrimitiveData, ExecutionError>> + Send {
+    ) -> impl ReadFuture<TransactionPrimitiveData> {
         let mut client = None;
 
         enum Kind {

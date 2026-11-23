@@ -38,7 +38,7 @@ impl FloatTensorOps<Self> for Dispatch {
 
     // A concrete type, so that a build with no backend, whose body is never reached, still has one.
     #[allow(refining_impl_trait)]
-    fn float_into_data(tensor: FloatTensor<Self>) -> crate::backend::ReadFuture<TensorData> {
+    fn float_into_data(tensor: FloatTensor<Self>) -> crate::backend::BoxedRead<TensorData> {
         alloc::boxed::Box::pin(B::float_into_data(tensor))
     }
 

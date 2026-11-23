@@ -1,10 +1,11 @@
+use super::ReadFuture;
 use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
 use crate::RandomKey;
 use crate::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{Backend, Distribution, TensorData, TensorMetadata};
-use crate::{ExecutionError, Scalar, get_or_init_device_settings};
+use crate::{Scalar, get_or_init_device_settings};
 use alloc::vec::Vec;
 use burn_std::reader::try_read_sync;
 use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, PadMode, Shape, Slice};
@@ -39,9 +40,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn int_into_data(
-        tensor: IntTensor<B>,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
+    fn int_into_data(tensor: IntTensor<B>) -> impl ReadFuture<TensorData>;
 
     /// Creates a tensor from the data structure.
     ///

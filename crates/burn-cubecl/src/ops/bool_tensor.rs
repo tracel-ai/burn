@@ -5,9 +5,10 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::ops::ReadFuture;
 use burn_backend::{Backend, Scalar, Shape, TensorData};
 use burn_backend::{
-    ExecutionError, Slice,
+    Slice,
     ops::BoolTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
@@ -40,9 +41,7 @@ impl BoolTensorOps<Self> for CubeBackend {
         numeric::ones(device.clone(), shape, dtype.into())
     }
 
-    fn bool_into_data(
-        tensor: BoolTensor<Self>,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+    fn bool_into_data(tensor: BoolTensor<Self>) -> impl ReadFuture<TensorData> {
         super::into_data(tensor)
     }
 

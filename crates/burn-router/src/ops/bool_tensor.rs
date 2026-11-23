@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use burn_backend::backend::ExecutionError;
+use burn_backend::ops::ReadFuture;
 use burn_std::{BoolDType, FloatDType, IntDType};
 
 use crate::{BackendRouter, RouterChannel, RouterClient, get_client};
@@ -42,9 +42,7 @@ impl<R: RouterChannel> BoolTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn bool_into_data(
-        tensor: BoolTensor<Self>,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+    fn bool_into_data(tensor: BoolTensor<Self>) -> impl ReadFuture<TensorData> {
         tensor.into_data()
     }
 

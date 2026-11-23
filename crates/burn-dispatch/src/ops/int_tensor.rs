@@ -25,7 +25,7 @@ impl IntTensorOps<Self> for Dispatch {
 
     // A concrete type, so that a build with no backend, whose body is never reached, still has one.
     #[allow(refining_impl_trait)]
-    fn int_into_data(tensor: IntTensor<Self>) -> crate::backend::ReadFuture<TensorData> {
+    fn int_into_data(tensor: IntTensor<Self>) -> crate::backend::BoxedRead<TensorData> {
         alloc::boxed::Box::pin(B::int_into_data(tensor))
     }
 

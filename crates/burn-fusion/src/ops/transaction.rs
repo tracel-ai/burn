@@ -1,3 +1,4 @@
+use burn_backend::ops::ReadFuture;
 use burn_backend::{
     backend::ExecutionError,
     ops::{TransactionOps, TransactionPrimitive, TransactionPrimitiveData},
@@ -10,7 +11,7 @@ use crate::{Fusion, FusionBackend};
 impl<B: FusionBackend> TransactionOps<Fusion<B>> for Fusion<B> {
     fn tr_execute(
         transaction: TransactionPrimitive<Self>,
-    ) -> impl Future<Output = Result<TransactionPrimitiveData, ExecutionError>> + Send {
+    ) -> impl ReadFuture<TransactionPrimitiveData> {
         let read: DynFut<Result<TransactionPrimitiveData, ExecutionError>> =
             match resolve::<B>(transaction) {
                 Ok(transaction) => Box::pin(B::tr_execute(transaction)),

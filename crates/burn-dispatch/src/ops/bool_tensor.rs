@@ -24,7 +24,7 @@ impl BoolTensorOps<Self> for Dispatch {
 
     // A concrete type, so that a build with no backend, whose body is never reached, still has one.
     #[allow(refining_impl_trait)]
-    fn bool_into_data(tensor: BoolTensor<Self>) -> crate::backend::ReadFuture<TensorData> {
+    fn bool_into_data(tensor: BoolTensor<Self>) -> crate::backend::BoxedRead<TensorData> {
         alloc::boxed::Box::pin(B::bool_into_data(tensor))
     }
 

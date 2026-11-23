@@ -4,6 +4,7 @@ use crate::{
     get_client, reduce_ops,
     stream::{StreamId, execution::Operation},
 };
+use burn_backend::ops::ReadFuture;
 use burn_backend::{
     BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::BoolTensorOps,
@@ -124,9 +125,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bool_into_data(
-        tensor: BoolTensor<Self>,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+    fn bool_into_data(tensor: BoolTensor<Self>) -> impl ReadFuture<TensorData> {
         tensor.bool_into_data::<B>()
     }
 

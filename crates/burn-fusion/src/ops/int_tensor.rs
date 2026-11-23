@@ -6,6 +6,7 @@ use crate::{
     unary_int_ops,
 };
 use burn_backend::RandomKey;
+use burn_backend::ops::ReadFuture;
 use burn_backend::{
     BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
     TensorData,
@@ -89,9 +90,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_into_data(
-        tensor: IntTensor<Self>,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+    fn int_into_data(tensor: IntTensor<Self>) -> impl ReadFuture<TensorData> {
         tensor.int_into_data::<B>()
     }
 

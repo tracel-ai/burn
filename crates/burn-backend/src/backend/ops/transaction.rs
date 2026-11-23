@@ -1,5 +1,5 @@
+use super::ReadFuture;
 use alloc::vec::Vec;
-use core::future::Future;
 
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use crate::{Backend, ExecutionError, TensorData, TensorPrimitive};
@@ -40,7 +40,7 @@ pub struct TransactionPrimitiveData {
 
 async fn join_reads<F>(reads: Vec<F>) -> Result<Vec<TensorData>, ExecutionError>
 where
-    F: Future<Output = Result<TensorData, ExecutionError>>,
+    F: ReadFuture<TensorData>,
 {
     let mut data = Vec::with_capacity(reads.len());
     for read in reads {
@@ -58,7 +58,7 @@ pub trait TransactionOps<B: Backend> {
     /// The returned future borrows nothing, as `float_into_data`'s does not.
     fn tr_execute(
         transaction: TransactionPrimitive<B>,
-    ) -> impl Future<Output = Result<TransactionPrimitiveData, ExecutionError>> + Send {
+    ) -> impl ReadFuture<TransactionPrimitiveData> {
         let floats: Vec<_> = transaction
             .read_floats
             .into_iter()
@@ -114,12 +114,7 @@ impl<B: Backend> TransactionPrimitive<B> {
     }
     /// Executes the transaction asynchronously and returns the [data](TensorData) in the same order
     /// in which they were registered.
-    ///
-    /// The returned future borrows nothing, as [`tr_execute`](TransactionOps::tr_execute)'s does
-    /// not.
-    pub fn execute_async(
-        mut self,
-    ) -> impl Future<Output = Result<Vec<TensorData>, ExecutionError>> + Send + use<B> {
+    pub fn execute_async(mut self) -> impl ReadFuture<Vec<TensorData>> {
         let mut orders = Vec::new();
         core::mem::swap(&mut orders, &mut self.orders);
         let read = B::tr_execute(self);

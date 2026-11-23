@@ -1,8 +1,9 @@
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor};
 use alloc::vec::Vec;
+use burn_backend::ops::ReadFuture;
 
 use burn_backend::{
-    Backend, ExecutionError, Scalar, TensorData,
+    Backend, Scalar, TensorData,
     ops::BoolTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
@@ -13,9 +14,7 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_from_data(data, device)
     }
 
-    fn bool_into_data(
-        tensor: BoolTensor<B>,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+    fn bool_into_data(tensor: BoolTensor<B>) -> impl ReadFuture<TensorData> {
         B::bool_into_data(tensor)
     }
 

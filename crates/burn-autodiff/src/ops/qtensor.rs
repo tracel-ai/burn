@@ -1,5 +1,6 @@
+use burn_backend::ops::ReadFuture;
 use burn_backend::{
-    Backend, ExecutionError, TensorData,
+    Backend, TensorData,
     ops::QTensorOps,
     quantization::QuantizationParametersPrimitive,
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
@@ -51,9 +52,7 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
         B::q_reshape(tensor, shape)
     }
 
-    fn q_into_data(
-        tensor: QuantizedTensor<Self>,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+    fn q_into_data(tensor: QuantizedTensor<Self>) -> impl ReadFuture<TensorData> {
         B::q_into_data(tensor)
     }
 

@@ -1,3 +1,4 @@
+use burn_backend::ops::ReadFuture;
 use std::marker::PhantomData;
 
 use burn_backend::{
@@ -183,9 +184,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn q_into_data(
-        tensor: QuantizedTensor<Self>,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+    fn q_into_data(tensor: QuantizedTensor<Self>) -> impl ReadFuture<TensorData> {
         tensor.q_into_data::<B>()
     }
 

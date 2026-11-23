@@ -1,5 +1,6 @@
+use burn_backend::ops::ReadFuture;
 use burn_backend::{
-    DType, ExecutionError, FloatDType, Shape, Slice, TensorData, TensorMetadata, TensorPrimitive,
+    DType, FloatDType, Shape, Slice, TensorData, TensorMetadata, TensorPrimitive,
     get_or_init_device_settings,
     ops::{FloatTensorOps, QTensorOps},
     quantization::{QuantPropagation, QuantScheme, QuantizationParametersPrimitive},
@@ -61,9 +62,7 @@ impl<R: RouterChannel> QTensorOps<Self> for BackendRouter<R> {
         Self::float_reshape(tensor, shape)
     }
 
-    fn q_into_data(
-        tensor: QuantizedTensor<Self>,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+    fn q_into_data(tensor: QuantizedTensor<Self>) -> impl ReadFuture<TensorData> {
         tensor.into_data()
     }
 

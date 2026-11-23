@@ -517,7 +517,7 @@ macro_rules! transaction_op_arms {
                         // Not supported
                         let qfloats = $tx.read_qfloats.into_iter().map(|_t| todo!("Quantization not supported yet")).collect();
 
-                        let read: $crate::backend::ReadFuture<TransactionPrimitiveData> =
+                        let read: $crate::backend::BoxedRead<TransactionPrimitiveData> =
                             alloc::boxed::Box::pin(B::tr_execute(TransactionPrimitive::new(floats, qfloats, ints, bools)));
                         read
                     }
@@ -538,7 +538,7 @@ macro_rules! transaction_op_arms {
                     // Not supported
                     let qfloats = $tx.read_qfloats.into_iter().map(|_t| todo!("Quantization not supported yet")).collect();
 
-                    let read: $crate::backend::ReadFuture<TransactionPrimitiveData> =
+                    let read: $crate::backend::BoxedRead<TransactionPrimitiveData> =
                         alloc::boxed::Box::pin(B::tr_execute(TransactionPrimitive::new(floats, qfloats, ints, bools)));
                     read
                 }

@@ -34,6 +34,7 @@
 //! cannot host co-located collective / same-host-transfer participants (the single thread would
 //! stall on the blocking tasks above). Ordinary compute is unaffected.
 
+use burn_backend::ops::ReadFuture;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -773,7 +774,7 @@ where
         &mut self,
         stream: StreamId,
         f: impl FnOnce(&mut TensorInterpreter<B>) -> DynFut<Result<Data, ExecutionError>>,
-    ) -> impl Future<Output = Result<Data, ExecutionError>> + Send + 'static {
+    ) -> impl ReadFuture<Data> + 'static {
         let read = self.on_stream(stream, f);
         async move {
             CatchPanic::new(read)
@@ -816,7 +817,7 @@ where
     fn answer_when_ready<Value: Send + 'static>(
         &mut self,
         request_id: RequestId,
-        ready: impl Future<Output = Result<Value, ExecutionError>> + Send + 'static,
+        ready: impl ReadFuture<Value> + 'static,
         into_content: fn(Result<Value, ExecutionError>) -> TaskResponseContent,
     ) {
         let answer = self.answer(request_id, ready, into_content);
@@ -828,7 +829,7 @@ where
     fn answer<Value: Send + 'static>(
         &self,
         request_id: RequestId,
-        ready: impl Future<Output = Result<Value, ExecutionError>> + Send + 'static,
+        ready: impl ReadFuture<Value> + 'static,
         into_content: fn(Result<Value, ExecutionError>) -> TaskResponseContent,
     ) -> impl Future<Output = ()> + Send + 'static {
         let sender = self.response_sender.clone();

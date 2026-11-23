@@ -5,6 +5,7 @@ mod int_tensor;
 mod modules;
 mod pad;
 mod qtensor;
+mod read;
 mod tensor;
 mod transaction;
 
@@ -21,5 +22,6 @@ pub use modules::*;
 #[doc(hidden)]
 pub use pad::validate_padding;
 pub use qtensor::*;
+pub use read::ReadFuture;
 pub use tensor::*;
 pub use transaction::*;

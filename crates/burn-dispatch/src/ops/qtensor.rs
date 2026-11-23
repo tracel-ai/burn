@@ -248,7 +248,7 @@ impl QTensorOps<Self> for Dispatch {
 
     // A concrete type, so that a build with no backend, whose body is never reached, still has one.
     #[allow(refining_impl_trait)]
-    fn q_into_data(tensor: QuantizedTensor<Self>) -> crate::backend::ReadFuture<TensorData> {
+    fn q_into_data(tensor: QuantizedTensor<Self>) -> crate::backend::BoxedRead<TensorData> {
         alloc::boxed::Box::pin(B::q_into_data(tensor))
     }
 

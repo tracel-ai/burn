@@ -1,9 +1,10 @@
+use super::ReadFuture;
 use super::{
     argwhere::argwhere_data, cat::cat_with_slice_assign, repeat_dim::repeat_with_slice_assign,
 };
+use crate::Scalar;
 use crate::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{Backend, TensorData, TensorMetadata, get_or_init_device_settings};
-use crate::{ExecutionError, Scalar};
 use alloc::vec::Vec;
 use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, Shape, Slice};
 use core::future::Future;
@@ -63,9 +64,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn bool_into_data(
-        tensor: BoolTensor<B>,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
+    fn bool_into_data(tensor: BoolTensor<B>) -> impl ReadFuture<TensorData>;
 
     /// Creates a tensor from the data structure.
     ///

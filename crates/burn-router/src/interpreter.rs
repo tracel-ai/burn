@@ -11,6 +11,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
+use burn_backend::ops::ReadFuture;
 use burn_backend::{
     Backend, BackendGraph, DType, DeviceDescription, DeviceOps, DeviceTelemetry, EnvironmentBundle,
     EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary, ExecutionError,
@@ -2740,16 +2741,17 @@ impl<B: Backend> ReadBatch<B> {
     }
 
     /// Submits every read of the batch, then waits for them.
-    fn execute(self) -> impl Future<Output = Result<Vec<TensorData>, ExecutionError>> + Send {
+    fn execute(self) -> impl ReadFuture<Vec<TensorData>> {
         // Some backends' transactions cannot run without a tensor to find their device from.
-        let transaction = self
-            .transaction_holds_tensors()
-            .then(|| self.transaction.execute_async());
-        let quantized: Vec<_> = self
-            .quantized
-            .into_iter()
-            .map(|read| (read.position, B::q_into_data(read.tensor)))
-            .collect();
+        let transaction = if self.transaction_holds_tensors() {
+            Some(self.transaction.execute_async())
+        } else {
+            None
+        };
+        let mut quantized = Vec::with_capacity(self.quantized.len());
+        for read in self.quantized {
+            quantized.push((read.position, B::q_into_data(read.tensor)));
+        }
         let len = self.len;
         async move {
             let mut data = match transaction {

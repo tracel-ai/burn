@@ -1,9 +1,10 @@
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor};
 use alloc::vec::Vec;
 use burn_backend::RandomKey;
+use burn_backend::ops::ReadFuture;
 
 use burn_backend::{
-    Backend, Distribution, ExecutionError, Scalar, TensorData,
+    Backend, Distribution, Scalar, TensorData,
     ops::IntTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
@@ -14,9 +15,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_from_data(data, device)
     }
 
-    fn int_into_data(
-        tensor: IntTensor<B>,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+    fn int_into_data(tensor: IntTensor<B>) -> impl ReadFuture<TensorData> {
         B::int_into_data(tensor)
     }
 

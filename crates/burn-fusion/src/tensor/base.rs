@@ -6,6 +6,7 @@ use crate::{
     Client, FusionBackend, FusionRuntime,
     stream::{Operation, StreamId},
 };
+use burn_backend::ops::ReadFuture;
 use burn_backend::{DType, ExecutionError, Shape, TensorData, TensorMetadata};
 use burn_ir::{OperationIr, TensorId, TensorIr, TensorStatus};
 use std::sync::{
@@ -200,9 +201,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         )
     }
 
-    pub(crate) fn into_data<B>(
-        self,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send + use<B, R>
+    pub(crate) fn into_data<B>(self) -> impl ReadFuture<TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -212,9 +211,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         client.read_tensor_float::<B>(desc, id)
     }
 
-    pub(crate) fn q_into_data<B>(
-        self,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send + use<B, R>
+    pub(crate) fn q_into_data<B>(self) -> impl ReadFuture<TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -228,9 +225,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         }
     }
 
-    pub(crate) fn int_into_data<B>(
-        self,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send + use<B, R>
+    pub(crate) fn int_into_data<B>(self) -> impl ReadFuture<TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -240,9 +235,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         client.read_tensor_int::<B>(desc, id)
     }
 
-    pub(crate) fn bool_into_data<B>(
-        self,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send + use<B, R>
+    pub(crate) fn bool_into_data<B>(self) -> impl ReadFuture<TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
