@@ -222,29 +222,10 @@ mod tests {
         let _ = linear.forward(Tensor::<2>::zeros([1, 3], &device));
     }
 
-    #[test]
-    fn initializer_default() {
-        let device = Device::default();
-        device.seed(0);
-
-        let config = LinearConfig::new(5, 5);
-        let k = (1.0 / config.d_input as f64).sqrt().elem::<FT>();
-        let linear = config.init(&device);
-
-        assert_eq!(
-            config.initializer,
-            Initializer::KaimingUniform {
-                gain: 1.0 / 3.0f64.sqrt(),
-                fan_out_only: false
-            }
-        );
-        linear.weight.to_data().assert_within_range(-k..k);
-    }
-
     #[rstest::rstest]
     #[case::row(LinearLayout::Row)]
     #[case::col(LinearLayout::Col)]
-    fn initializer_default_per_layout(#[case] layout: LinearLayout) {
+    fn initializer_default(#[case] layout: LinearLayout) {
         let device = Device::default();
         device.seed(0);
 

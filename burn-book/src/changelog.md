@@ -895,7 +895,8 @@ for configuration and backend limitations.
 
 #### Linear layer initialization
 
-- `LinearLayout::Col` initializes weights with the same distribution as `LinearLayout::Row`. It passed `fan_in` and `fan_out` swapped, so Kaiming initializers scaled Col weights by `d_output` instead of `d_input`.
+- Column-major linear layers now use the same Kaiming initialization scale as row-major layers,
+  based on `d_input` in fan-in mode and `d_output` in fan-out mode.
 
 #### Linear-algebra layers behind `linalg`
 
