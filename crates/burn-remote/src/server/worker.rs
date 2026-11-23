@@ -777,7 +777,7 @@ where
     ) -> impl ReadFuture<Data> + 'static {
         let read = self.on_stream(stream, f);
         async move {
-            CatchPanic::new(read)
+            CatchPanic::from_boxed(read)
                 .await
                 .unwrap_or_else(|message| Err(server_panicked(&message)))
         }

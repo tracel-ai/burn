@@ -85,6 +85,10 @@ impl<T> CatchPanic<T> {
     pub(crate) fn new(future: impl Future<Output = T> + Send + 'static) -> Self {
         Self(Box::pin(future))
     }
+
+    pub(crate) fn from_boxed(future: Pin<Box<dyn Future<Output = T> + Send>>) -> Self {
+        Self(future)
+    }
 }
 
 impl<T> Future for CatchPanic<T> {

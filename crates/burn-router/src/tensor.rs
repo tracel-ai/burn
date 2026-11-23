@@ -248,6 +248,20 @@ mod tests {
     }
 
     #[test]
+    fn a_read_is_registered_before_it_is_awaited() {
+        let client = DropOnRead::default();
+        let id = TensorId::new(7);
+        let tensor = RouterTensor::new(id, Shape::from([1]), DType::F32, client.clone());
+
+        let _read = tensor.into_data();
+
+        assert_eq!(
+            client.events.lock().unwrap().first(),
+            Some(&Event::Read(id))
+        );
+    }
+
+    #[test]
     fn a_read_is_registered_before_the_drop_of_a_handle_given_up_meanwhile() {
         let client = DropOnRead::default();
         let id = TensorId::new(7);
