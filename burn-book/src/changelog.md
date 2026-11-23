@@ -338,6 +338,9 @@ Reports also include the measured cost of a kernel launch.
 
 #### Matrix multiplication
 
+- Flex matrix multiplication now preserves empty batch dimensions when broadcasting against a batch
+  of size one.
+
 - Enable CUDA tensor-core acceleration on Blackwell and Blackwell Ultra GPUs, including B300.
   ([#6161](https://github.com/tracel-ai/burn/pull/6161))
 
