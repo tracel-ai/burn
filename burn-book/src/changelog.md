@@ -863,6 +863,10 @@ version 14).
   ([#6173](https://github.com/tracel-ai/burn/pull/6173))
   [@EthanAlmloff](https://github.com/EthanAlmloff)
 
+- Extend CubeCL FP32 bias-gradient autotuning to 1D, 3D, and transposed convolutions, including
+  with fusion. Lower-precision gradients use a single reduction to avoid intermediate overflow.
+  ([#6394](https://github.com/tracel-ai/burn/pull/6394)) [@EthanAlmloff](https://github.com/EthanAlmloff)
+
 - Speed up CubeCL `conv_transpose3d` and reduce Flex `conv2d` memory use and layout conversions.
   ([#5793](https://github.com/tracel-ai/burn/pull/5793),
   [#6075](https://github.com/tracel-ai/burn/pull/6075))

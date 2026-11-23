@@ -687,6 +687,42 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             .output()
     }
 
+    fn conv_transpose1d_bias_backward(
+        x: FloatTensor<Fusion<B>>,
+        bias: FloatTensor<Fusion<B>>,
+        output_grad: FloatTensor<Fusion<B>>,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            ConvTranspose1dBiasBackwardOps,
+            ConvTranspose1dBiasBackwardOpIr,
+            |desc: &ConvTranspose1dBiasBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&desc.x);
+                let bias = handles.get_float_tensor::<B>(&desc.bias);
+                let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                let output = B::conv_transpose1d_bias_backward(x, bias, output_grad);
+                handles.register_float_tensor::<B>(&desc.out.id, output);
+            }
+        );
+
+        let streams = StreamId::current();
+
+        let client = x.client.clone();
+        let desc = ConvTranspose1dBiasBackwardOpIr::create(
+            x.into_ir(),
+            bias.into_ir(),
+            output_grad.into_ir(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::ConvTranspose1dBiasBackward(desc.clone())),
+                ConvTranspose1dBiasBackwardOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn conv_transpose2d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
@@ -729,6 +765,42 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             .output()
     }
 
+    fn conv_transpose2d_bias_backward(
+        x: FloatTensor<Fusion<B>>,
+        bias: FloatTensor<Fusion<B>>,
+        output_grad: FloatTensor<Fusion<B>>,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            ConvTranspose2dBiasBackwardOps,
+            ConvTranspose2dBiasBackwardOpIr,
+            |desc: &ConvTranspose2dBiasBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&desc.x);
+                let bias = handles.get_float_tensor::<B>(&desc.bias);
+                let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                let output = B::conv_transpose2d_bias_backward(x, bias, output_grad);
+                handles.register_float_tensor::<B>(&desc.out.id, output);
+            }
+        );
+
+        let streams = StreamId::current();
+
+        let client = x.client.clone();
+        let desc = ConvTranspose2dBiasBackwardOpIr::create(
+            x.into_ir(),
+            bias.into_ir(),
+            output_grad.into_ir(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::ConvTranspose2dBiasBackward(desc.clone())),
+                ConvTranspose2dBiasBackwardOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn conv_transpose3d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
@@ -767,6 +839,42 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                 streams,
                 OperationIr::Module(ModuleOperationIr::ConvTranspose3d(desc.clone())),
                 ConvTranspose3dOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn conv_transpose3d_bias_backward(
+        x: FloatTensor<Fusion<B>>,
+        bias: FloatTensor<Fusion<B>>,
+        output_grad: FloatTensor<Fusion<B>>,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            ConvTranspose3dBiasBackwardOps,
+            ConvTranspose3dBiasBackwardOpIr,
+            |desc: &ConvTranspose3dBiasBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&desc.x);
+                let bias = handles.get_float_tensor::<B>(&desc.bias);
+                let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                let output = B::conv_transpose3d_bias_backward(x, bias, output_grad);
+                handles.register_float_tensor::<B>(&desc.out.id, output);
+            }
+        );
+
+        let streams = StreamId::current();
+
+        let client = x.client.clone();
+        let desc = ConvTranspose3dBiasBackwardOpIr::create(
+            x.into_ir(),
+            bias.into_ir(),
+            output_grad.into_ir(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::ConvTranspose3dBiasBackward(desc.clone())),
+                ConvTranspose3dBiasBackwardOps::<B>::new(desc),
             )
             .output()
     }

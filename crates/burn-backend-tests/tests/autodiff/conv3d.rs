@@ -1,9 +1,25 @@
 use super::*;
 use burn_tensor::{
-    Shape, Tolerance,
+    Shape, TensorData, Tolerance,
     module::conv3d,
     ops::{ConvOptions, PadMode},
 };
+
+#[test]
+fn bias_gradient_is_zero_for_an_empty_batch() {
+    let device = AutodiffDevice::new();
+    let bias = TestTensor::ones([3], &device).require_grad();
+    let output = conv3d(
+        TestTensor::empty([0, 1, 2, 2, 2], &device),
+        TestTensor::ones([3, 1, 1, 1, 1], &device),
+        Some(bias.clone()),
+        ConvOptions::new([1; 3], [0; 3], [1; 3], 1),
+    );
+
+    let grad = bias.grad(&output.backward()).unwrap();
+    grad.into_data()
+        .assert_eq(&TensorData::from([0.; 3]), false);
+}
 
 #[test]
 fn test_conv3d_basic() {

@@ -1013,6 +1013,7 @@ dependencies = [
  "burn-dispatch",
  "burn-flex",
  "burn-fusion",
+ "burn-ir",
  "burn-tensor",
  "ctor",
  "cubek",
