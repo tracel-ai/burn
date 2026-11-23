@@ -69,7 +69,7 @@ impl LinearConfig {
                 let shape = [self.d_output, self.d_input];
 
                 self.initializer
-                    .init_with(shape, Some(self.d_output), Some(self.d_input), device)
+                    .init_with(shape, Some(self.d_input), Some(self.d_output), device)
                     // The param is already transposed when init. We re-transpose to have
                     // [d_output, d_input] while saving.
                     .save_mapper(move |tensor| {
@@ -248,7 +248,6 @@ mod tests {
         let device = Device::default();
         device.seed(0);
 
-        // d_input > d_output: swapped fans would widen the bound from sqrt(1/64) to sqrt(1/4).
         let config = LinearConfig::new(64, 4).with_layout(layout);
         let k = (1.0 / config.d_input as f64).sqrt().elem::<FT>();
         let linear = config.init(&device);

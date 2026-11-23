@@ -893,6 +893,10 @@ for configuration and backend limitations.
   which `Param::uninitialized` now documents its initializer creates the value at.
   `Parameter` gains `dtype` and `default_dtype`.
 
+#### Linear layer initialization
+
+- `LinearLayout::Col` initializes weights with the same distribution as `LinearLayout::Row`. It passed `fan_in` and `fan_out` swapped, so Kaiming initializers scaled Col weights by `d_output` instead of `d_input`.
+
 #### Linear-algebra layers behind `linalg`
 
 **Breaking:** `burn` and `burn-nn` no longer build `burn-linalg` unless the `linalg` feature is
