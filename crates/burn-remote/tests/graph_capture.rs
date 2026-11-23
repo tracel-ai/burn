@@ -110,8 +110,8 @@ fn a_remote_replay_sees_inputs_refreshed_in_place() {
     rt.shutdown_background();
 }
 
-/// A read is ordered after the replay sent before it, however long that replay runs: it returns
-/// what the replay wrote, not what the replay before it left.
+/// A read is ordered between the replays sent around it, however long they run: it returns what
+/// the replay before it wrote, not what that replay's predecessor left or its successor writes.
 ///
 /// Safety of the `replay` calls: the closure borrows `input` and `identity`, which outlive the
 /// graph, and the refreshes, replays and reads run in turn on this thread.
@@ -137,12 +137,22 @@ fn a_remote_read_returns_what_the_replay_before_it_wrote() {
     });
     assert!(graph.is_hardware(), "{:?}", graph.capture_error());
 
+    let mut reads = Vec::new();
     for value in [1.0, 2.0, 3.0, 4.0] {
         input
             .borrow_mut()
             .inplace(|tensor| tensor.mul_scalar(0.0).add_scalar(value));
         let out = unsafe { graph.replay() }.clone();
-        assert_eq!(out.try_into_vec_as::<f32>().unwrap(), [value]);
+        let mut read = Box::pin(out.into_data_async());
+        // The first poll sends the read, so the next replay is queued before this one is awaited.
+        let _ = read
+            .as_mut()
+            .poll(&mut std::task::Context::from_waker(std::task::Waker::noop()));
+        reads.push((value, read));
+    }
+    for (value, read) in reads {
+        let data = burn_std::future::block_on(read).unwrap();
+        assert_eq!(data.to_vec::<f32>().unwrap(), [value]);
     }
 
     drop(graph);
