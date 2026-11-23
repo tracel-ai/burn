@@ -4,9 +4,10 @@ use burn_std::{Slice, params_shape};
 
 use super::{CustomOpPlan, classify::OpClass, custom_ops::CustomOpRuleMap, shardings::Shardings};
 use crate::{
-    AlongDimRule, AttentionRule, ElementwiseRule, GridSampleRule, IndexNdRule, IndexRule,
-    LayoutRule, Linearity, MatmulRule, OpInputs, OpKind, OpOutputs, OpSharding, ReduceRule,
-    ReducedDims, ReductionKind, ReshapeRule, Resharding, Sharding, ShardingError,
+    AlongDimRule, AttentionRule, ConvPass, ConvRule, ElementwiseRule, EmbeddingRule,
+    GridSampleRule, IndexNdRule, IndexRule, LayoutRule, Linearity, MatmulRule, OpInputs, OpKind,
+    OpOutputs, OpSharding, PerChannelRule, ReduceRule, ReducedDims, ReductionKind, ReshapeRule,
+    Resharding, Sharding, ShardingError, SpatialRule,
 };
 
 /// Where each tensor of one op must be for the op to run on every member, where its outputs land,
@@ -303,6 +304,60 @@ impl TensorShardings<'_> {
                 OpPlan::from_rule(inputs, out, sharding, Execution::EveryMember)
             }
             (OpKind::Attention, _) => self.attention(inputs, out),
+            (OpKind::Spatial { leading }, [_, ..]) => {
+                let shardings: OpInputs<_> =
+                    inputs.iter().map(|input| self.sharding(input)).collect();
+                let sharding = SpatialRule::new(&shardings, leading).sharding(inputs.len());
+                OpPlan::from_rule(inputs, out, sharding, Execution::EveryMember)
+            }
+            (OpKind::PerChannel, [input, per_channel @ ..]) => {
+                let sharding =
+                    PerChannelRule::new(self.sharding(input)).sharding(per_channel.len());
+                OpPlan::from_rule(inputs, out, sharding, Execution::EveryMember)
+            }
+            (OpKind::Embedding, [table, indices]) => {
+                let rule = EmbeddingRule::new(
+                    self.sharding(table),
+                    self.sharding(indices),
+                    indices.shape.num_dims(),
+                );
+                OpPlan::from_rule(inputs, out, rule.sharding(), Execution::EveryMember)
+            }
+            (OpKind::EmbeddingBackward, [table, rows, indices]) => {
+                let rule = EmbeddingRule::backward(
+                    self.sharding(table),
+                    self.sharding(rows),
+                    self.sharding(indices),
+                    indices.shape.num_dims(),
+                );
+                OpPlan::from_rule(inputs, out, rule.grad_sharding(), Execution::EveryMember)
+            }
+            (
+                OpKind::Conv {
+                    pass,
+                    groups,
+                    transposed,
+                },
+                [_, _, _],
+            )
+            | (
+                OpKind::Conv {
+                    pass: pass @ ConvPass::Forward,
+                    groups,
+                    transposed,
+                },
+                [_, _],
+            ) => {
+                let shardings: OpInputs<_> =
+                    inputs.iter().map(|input| self.sharding(input)).collect();
+                let rule = ConvRule::new(pass, &shardings, groups, transposed);
+                OpPlan::from_rule(
+                    inputs,
+                    out,
+                    rule.sharding(inputs.len()),
+                    Execution::EveryMember,
+                )
+            }
             _ => None,
         }
     }

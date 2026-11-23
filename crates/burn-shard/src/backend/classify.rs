@@ -7,7 +7,7 @@ use burn_ir::{
     NumericOperationIr, OperationIr, ReduceDimOpIr, ReduceOpIr, ScalarOpIr, TensorIr, UnaryOpIr,
 };
 
-use crate::{Linearity, OpInputs, OpKind, OpOutputs, ReducedDims, ReductionKind};
+use crate::{ConvPass, Linearity, OpInputs, OpKind, OpOutputs, ReducedDims, ReductionKind};
 
 /// How the planner reads an op: by its kind and the tensors it reads, or not at all.
 #[derive(Debug, PartialEq)]
@@ -405,8 +405,257 @@ impl<'a> OpClass<'a> {
                 Self::CachedAttention(desc)
             }
             ModuleOperationIr::Attention(desc) => Self::attention(desc),
+            ModuleOperationIr::AvgPool1d(desc) => Self::spatial([&desc.x], &desc.out),
+            ModuleOperationIr::AvgPool2d(desc) => Self::spatial([&desc.x], &desc.out),
+            ModuleOperationIr::AvgPool3d(desc) => Self::spatial([&desc.x], &desc.out),
+            ModuleOperationIr::AvgPool1dBackward(desc) => {
+                Self::spatial([&desc.x, &desc.grad], &desc.out)
+            }
+            ModuleOperationIr::AvgPool2dBackward(desc) => {
+                Self::spatial([&desc.x, &desc.grad], &desc.out)
+            }
+            ModuleOperationIr::AvgPool3dBackward(desc) => {
+                Self::spatial([&desc.x, &desc.grad], &desc.out)
+            }
+            ModuleOperationIr::AdaptiveAvgPool1d(desc) => Self::spatial([&desc.x], &desc.out),
+            ModuleOperationIr::AdaptiveAvgPool2d(desc) => Self::spatial([&desc.x], &desc.out),
+            ModuleOperationIr::AdaptiveAvgPool3d(desc) => Self::spatial([&desc.x], &desc.out),
+            ModuleOperationIr::AdaptiveAvgPool1dBackward(desc) => {
+                Self::spatial([&desc.x, &desc.grad], &desc.out)
+            }
+            ModuleOperationIr::AdaptiveAvgPool2dBackward(desc) => {
+                Self::spatial([&desc.x, &desc.grad], &desc.out)
+            }
+            ModuleOperationIr::AdaptiveAvgPool3dBackward(desc) => {
+                Self::spatial([&desc.x, &desc.grad], &desc.out)
+            }
+            ModuleOperationIr::MaxPool1d(desc) => Self::spatial([&desc.x], &desc.out),
+            ModuleOperationIr::MaxPool2d(desc) => Self::spatial([&desc.x], &desc.out),
+            ModuleOperationIr::MaxPool3d(desc) => Self::spatial([&desc.x], &desc.out),
+            ModuleOperationIr::MaxPool1dWithIndices(desc) => Self::with_indices(
+                OpKind::Spatial { leading: 2 },
+                &desc.x,
+                [&desc.out, &desc.out_indices],
+            ),
+            ModuleOperationIr::MaxPool2dWithIndices(desc) => Self::with_indices(
+                OpKind::Spatial { leading: 2 },
+                &desc.x,
+                [&desc.out, &desc.out_indices],
+            ),
+            ModuleOperationIr::MaxPool3dWithIndices(desc) => Self::with_indices(
+                OpKind::Spatial { leading: 2 },
+                &desc.x,
+                [&desc.out, &desc.out_indices],
+            ),
+            ModuleOperationIr::MaxPool1dWithIndicesBackward(desc) => {
+                Self::spatial([&desc.x, &desc.grad, &desc.indices], &desc.out)
+            }
+            ModuleOperationIr::MaxPool2dWithIndicesBackward(desc) => {
+                Self::spatial([&desc.x, &desc.grad, &desc.indices], &desc.out)
+            }
+            ModuleOperationIr::MaxPool3dWithIndicesBackward(desc) => {
+                Self::spatial([&desc.x, &desc.grad, &desc.indices], &desc.out)
+            }
+            ModuleOperationIr::Interpolate(desc) => Self::spatial([&desc.x], &desc.out),
+            ModuleOperationIr::InterpolateBackward(desc) => {
+                Self::spatial([&desc.x, &desc.grad], &desc.out)
+            }
+            // Its output's channels are the input's times the kernel's positions, which a split of
+            // the channels would cut elsewhere than the input's.
+            ModuleOperationIr::Unfold4d(desc) => {
+                Self::of_kind(OpKind::Spatial { leading: 1 }, [&desc.x], &desc.out)
+            }
+            ModuleOperationIr::LayerNorm(desc) => Self::Kind {
+                kind: OpKind::AlongDim {
+                    dim: desc.input.shape.num_dims() - 1,
+                },
+                inputs: [&desc.input, &desc.gamma]
+                    .into_iter()
+                    .chain(desc.beta.as_ref())
+                    .collect(),
+                outputs: [&desc.out].into_iter().collect(),
+            },
+            ModuleOperationIr::BatchNorm(desc) => Self::of_kind(
+                OpKind::PerChannel,
+                [&desc.x, &desc.gamma, &desc.beta, &desc.mean, &desc.variance],
+                &desc.out,
+            ),
+            ModuleOperationIr::Embedding(desc) => {
+                Self::of_kind(OpKind::Embedding, [&desc.weights, &desc.indices], &desc.out)
+            }
+            ModuleOperationIr::EmbeddingBackward(desc) => Self::of_kind(
+                OpKind::EmbeddingBackward,
+                [&desc.weights, &desc.out_grad, &desc.indices],
+                &desc.out,
+            ),
+            ModuleOperationIr::Conv1d(desc) => Self::conv_forward(
+                [&desc.x, &desc.weight],
+                desc.bias.as_ref(),
+                desc.options.groups,
+                false,
+                &desc.out,
+            ),
+            ModuleOperationIr::Conv2d(desc) => Self::conv_forward(
+                [&desc.x, &desc.weight],
+                desc.bias.as_ref(),
+                desc.options.groups,
+                false,
+                &desc.out,
+            ),
+            ModuleOperationIr::Conv3d(desc) => Self::conv_forward(
+                [&desc.x, &desc.weight],
+                desc.bias.as_ref(),
+                desc.options.groups,
+                false,
+                &desc.out,
+            ),
+            ModuleOperationIr::ConvTranspose1d(desc) => Self::conv_forward(
+                [&desc.x, &desc.weight],
+                desc.bias.as_ref(),
+                desc.options.groups,
+                true,
+                &desc.out,
+            ),
+            ModuleOperationIr::ConvTranspose2d(desc) => Self::conv_forward(
+                [&desc.x, &desc.weight],
+                desc.bias.as_ref(),
+                desc.options.groups,
+                true,
+                &desc.out,
+            ),
+            ModuleOperationIr::ConvTranspose3d(desc) => Self::conv_forward(
+                [&desc.x, &desc.weight],
+                desc.bias.as_ref(),
+                desc.options.groups,
+                true,
+                &desc.out,
+            ),
+            ModuleOperationIr::Conv1dXBackward(desc) => Self::conv_grad(
+                ConvPass::InputGrad,
+                [&desc.x, &desc.weight, &desc.output_grad],
+                desc.options.groups,
+                false,
+                &desc.out,
+            ),
+            ModuleOperationIr::Conv2dXBackward(desc) => Self::conv_grad(
+                ConvPass::InputGrad,
+                [&desc.x, &desc.weight, &desc.output_grad],
+                desc.options.groups,
+                false,
+                &desc.out,
+            ),
+            ModuleOperationIr::Conv3dXBackward(desc) => Self::conv_grad(
+                ConvPass::InputGrad,
+                [&desc.x, &desc.weight, &desc.output_grad],
+                desc.options.groups,
+                false,
+                &desc.out,
+            ),
+            ModuleOperationIr::Conv1dWeightBackward(desc) => Self::conv_grad(
+                ConvPass::WeightGrad,
+                [&desc.x, &desc.weight, &desc.output_grad],
+                desc.options.groups,
+                false,
+                &desc.out,
+            ),
+            ModuleOperationIr::Conv2dWeightBackward(desc) => Self::conv_grad(
+                ConvPass::WeightGrad,
+                [&desc.x, &desc.weight, &desc.output_grad],
+                desc.options.groups,
+                false,
+                &desc.out,
+            ),
+            ModuleOperationIr::Conv3dWeightBackward(desc) => Self::conv_grad(
+                ConvPass::WeightGrad,
+                [&desc.x, &desc.weight, &desc.output_grad],
+                desc.options.groups,
+                false,
+                &desc.out,
+            ),
+            ModuleOperationIr::ConvTranspose1dWeightBackward(desc) => Self::conv_grad(
+                ConvPass::WeightGrad,
+                [&desc.x, &desc.weight, &desc.output_grad],
+                desc.options.groups,
+                true,
+                &desc.out,
+            ),
+            ModuleOperationIr::ConvTranspose2dWeightBackward(desc) => Self::conv_grad(
+                ConvPass::WeightGrad,
+                [&desc.x, &desc.weight, &desc.output_grad],
+                desc.options.groups,
+                true,
+                &desc.out,
+            ),
+            ModuleOperationIr::ConvTranspose3dWeightBackward(desc) => Self::conv_grad(
+                ConvPass::WeightGrad,
+                [&desc.x, &desc.weight, &desc.output_grad],
+                desc.options.groups,
+                true,
+                &desc.out,
+            ),
+            ModuleOperationIr::Conv1dBiasBackward(desc) => {
+                Self::conv_bias_grad([&desc.x, &desc.bias, &desc.output_grad], &desc.out)
+            }
+            ModuleOperationIr::Conv2dBiasBackward(desc) => {
+                Self::conv_bias_grad([&desc.x, &desc.bias, &desc.output_grad], &desc.out)
+            }
+            ModuleOperationIr::Conv3dBiasBackward(desc) => {
+                Self::conv_bias_grad([&desc.x, &desc.bias, &desc.output_grad], &desc.out)
+            }
+            ModuleOperationIr::ConvTranspose1dBiasBackward(desc) => {
+                Self::conv_bias_grad([&desc.x, &desc.bias, &desc.output_grad], &desc.out)
+            }
+            ModuleOperationIr::ConvTranspose2dBiasBackward(desc) => {
+                Self::conv_bias_grad([&desc.x, &desc.bias, &desc.output_grad], &desc.out)
+            }
+            ModuleOperationIr::ConvTranspose3dBiasBackward(desc) => {
+                Self::conv_bias_grad([&desc.x, &desc.bias, &desc.output_grad], &desc.out)
+            }
             _ => Self::Gathered,
         }
+    }
+
+    /// Over batch and channels.
+    fn spatial<const N: usize>(inputs: [&'a TensorIr; N], out: &'a TensorIr) -> Self {
+        Self::of_kind(OpKind::Spatial { leading: 2 }, inputs, out)
+    }
+
+    fn conv_forward(
+        [x, weight]: [&'a TensorIr; 2],
+        bias: Option<&'a TensorIr>,
+        groups: usize,
+        transposed: bool,
+        out: &'a TensorIr,
+    ) -> Self {
+        Self::Kind {
+            kind: OpKind::Conv {
+                pass: ConvPass::Forward,
+                groups,
+                transposed,
+            },
+            inputs: [x, weight].into_iter().chain(bias).collect(),
+            outputs: [out].into_iter().collect(),
+        }
+    }
+
+    fn conv_grad(
+        pass: ConvPass,
+        inputs: [&'a TensorIr; 3],
+        groups: usize,
+        transposed: bool,
+        out: &'a TensorIr,
+    ) -> Self {
+        let kind = OpKind::Conv {
+            pass,
+            groups,
+            transposed,
+        };
+        Self::of_kind(kind, inputs, out)
+    }
+
+    /// A bias's gradient reads neither the weight nor its layout.
+    fn conv_bias_grad(inputs: [&'a TensorIr; 3], out: &'a TensorIr) -> Self {
+        Self::conv_grad(ConvPass::BiasGrad, inputs, 1, false, out)
     }
 
     fn unary(linearity: Linearity, desc: &'a UnaryOpIr) -> Self {

@@ -1,8 +1,9 @@
 use burn_backend::{
     Backend, BoolDType, FloatDType, IntDType, Scalar, Shape, Slice, TensorData, TensorMetadata,
     ops::{
-        ActivationOps, AttentionModuleOptions, DimSplit, FloatTensorOps, GridSampleOptions,
-        IntTensorOps,
+        ActivationOps, AttentionModuleOptions, ConvOptions, ConvTransposeOptions,
+        CoordinateTransformMode, DimSplit, FloatTensorOps, GridSampleOptions, IntTensorOps,
+        InterpolateMode, InterpolateOptions, ModuleOps, UnfoldOptions,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -232,6 +233,163 @@ fn ops_along_a_dim_match_one_device_for_every_sharding() {
     }
 }
 
+/// Pools, interpolation and norms read batch and channels independently; gradients take their
+/// output's gradient from the forward op on the same input.
+#[test]
+fn module_ops_match_one_device_for_every_sharding() {
+    for num_members in 1..=4 {
+        let image = data([4, 4, 5, 6], 1);
+        check_unary!(num_members, &image, |B, a| B::avg_pool2d(
+            a,
+            [2, 2],
+            [1, 1],
+            [0, 0],
+            [1, 1],
+            true,
+            false
+        ));
+        check_unary!(num_members, &image, |B, a| {
+            let grad = B::avg_pool2d(a.clone(), [2, 2], [1, 1], [0, 0], [1, 1], true, false);
+            B::avg_pool2d_backward(a, grad, [2, 2], [1, 1], [0, 0], [1, 1], true, false)
+        });
+        check_unary!(num_members, &image, |B, a| B::adaptive_avg_pool2d(
+            a,
+            [2, 3]
+        ));
+        check_unary!(num_members, &image, |B, a| {
+            let grad = B::adaptive_avg_pool2d(a.clone(), [2, 3]);
+            B::adaptive_avg_pool2d_backward(a, grad)
+        });
+        check_unary!(num_members, &image, |B, a| B::max_pool2d(
+            a,
+            [2, 2],
+            [1, 1],
+            [0, 0],
+            [1, 1],
+            false
+        ));
+        check_unary!(num_members, &image, |B, a| {
+            let pooled =
+                B::max_pool2d_with_indices(a, [2, 2], [1, 1], [0, 0], [1, 1], false, IntDType::I64);
+            B::float_add(
+                pooled.output,
+                B::int_into_float(pooled.indices, FloatDType::F32),
+            )
+        });
+        check_unary!(num_members, &image, |B, a| {
+            let pooled = B::max_pool2d_with_indices(
+                a.clone(),
+                [2, 2],
+                [1, 1],
+                [0, 0],
+                [1, 1],
+                false,
+                IntDType::I64,
+            );
+            B::max_pool2d_with_indices_backward(
+                a,
+                [2, 2],
+                [1, 1],
+                [0, 0],
+                [1, 1],
+                false,
+                pooled.output,
+                pooled.indices,
+            )
+            .x_grad
+        });
+        check_unary!(num_members, &image, |B, a| B::interpolate(
+            a,
+            [3, 8],
+            InterpolateOptions::new(InterpolateMode::Bilinear {
+                coordinate_transform: CoordinateTransformMode::HalfPixel,
+            })
+        ));
+        check_unary!(num_members, &image, |B, a| {
+            let options = InterpolateOptions::new(InterpolateMode::Bilinear {
+                coordinate_transform: CoordinateTransformMode::HalfPixel,
+            });
+            let grad = B::interpolate(a.clone(), [3, 8], options.clone());
+            B::interpolate_backward(a, grad, [3, 8], options)
+        });
+        check_unary!(num_members, &image, |B, a| B::unfold4d(
+            a,
+            [2, 2],
+            UnfoldOptions::new([1, 1], [0, 0], [1, 1])
+        ));
+        check_unary!(num_members, &image, |B, a| {
+            let device = a.device();
+            let gamma = B::float_from_data(data([6], 5), &device);
+            let beta = B::float_from_data(data([6], 6), &device);
+            B::layer_norm(a, gamma, Some(beta), 1e-5)
+        });
+        check_unary!(num_members, &image, |B, a| {
+            let device = a.device();
+            let channel = |seed| B::float_from_data(data([4], seed), &device);
+            let variance = B::float_from_data(positive(data([4], 9)), &device);
+            B::batch_norm(a, channel(6), channel(7), channel(8), variance, 1e-5)
+        });
+        check_unary!(num_members, &data([7, 6], 1), |B, a| {
+            let indices = TensorData::new(vec![3i64, 0, 6, 3, 1, 2], [2, 3]);
+            let indices = B::int_from_data(indices, &a.device());
+            B::embedding(a, indices)
+        });
+        check_unary!(num_members, &data([2, 4, 6], 1), |B, a| {
+            let device = a.device();
+            let indices = TensorData::new(vec![3i64, 0, 6, 3, 1, 2, 3, 5], [2, 4]);
+            let table = B::float_from_data(data([7, 6], 2), &device);
+            B::embedding_backward(table, a, B::int_from_data(indices, &device))
+        });
+    }
+}
+
+/// Every sharding of the input and the weight, which also gives the bias, the output's gradient
+/// and their shardings.
+#[test]
+fn convolutions_match_one_device_for_every_sharding() {
+    let options = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
+    let transposed = ConvTransposeOptions::new([1, 1], [1, 1], [0, 0], [1, 1], 1);
+    for num_members in 1..=4 {
+        let (image, weight) = (data([4, 4, 5, 6], 1), data([6, 4, 3, 3], 2));
+        check_binary!(num_members, &image, &weight, [options: ConvOptions<2>] |B, x, w| {
+            B::conv2d(x, w, None, options)
+        });
+        check_binary!(num_members, &image, &weight, [options: ConvOptions<2>] |B, x, w| {
+            let bias = bias_of::<B>(w.clone());
+            B::conv2d(x, w, Some(bias), options)
+        });
+        check_binary!(num_members, &image, &weight, [options: ConvOptions<2>] |B, x, w| {
+            let grad = B::conv2d(x.clone(), w.clone(), None, options.clone());
+            B::conv2d_x_backward(x, w, grad, options)
+        });
+        check_binary!(num_members, &image, &weight, [options: ConvOptions<2>] |B, x, w| {
+            let grad = B::conv2d(x.clone(), w.clone(), None, options.clone());
+            B::conv2d_weight_backward(x, w, grad, options)
+        });
+        check_binary!(num_members, &image, &weight, [options: ConvOptions<2>] |B, x, w| {
+            let grad = B::conv2d(x.clone(), w.clone(), None, options);
+            B::conv2d_bias_backward(x, bias_of::<B>(w), grad)
+        });
+        check_binary!(num_members, &image, &data([6, 2, 3, 3], 3), |B, x, w| {
+            B::conv2d(x, w, None, ConvOptions::new([1, 1], [1, 1], [1, 1], 2))
+        });
+        check_binary!(
+            num_members,
+            &data([4, 4, 6], 4),
+            &data([6, 4, 3], 5),
+            |B, x, w| B::conv1d(x, w, None, ConvOptions::new([1], [1], [1], 1))
+        );
+        let weight = data([4, 6, 3, 3], 6);
+        check_binary!(num_members, &image, &weight, [transposed: ConvTransposeOptions<2>] |B, x, w| {
+            B::conv_transpose2d(x, w, None, transposed)
+        });
+        check_binary!(num_members, &image, &weight, [transposed: ConvTransposeOptions<2>] |B, x, w| {
+            let grad = B::conv_transpose2d(x.clone(), w.clone(), None, transposed.clone());
+            B::conv_transpose2d_weight_backward(x, w, grad, transposed)
+        });
+    }
+}
+
 /// Each slice takes dim 0 whole and cuts dim 1, so a split on dim 0 stays and one on dim 1
 /// gathers.
 #[test]
@@ -357,6 +515,56 @@ fn split_tensors_stay_split_where_megatron_keeps_them() {
         sharding_of(&Shard::float_gather_nd(x, tuples)),
         Split { dim: 2 }
     );
+}
+
+#[test]
+fn split_tensors_stay_split_through_module_ops() {
+    let device = sharded_compute(2);
+    let image = float_on_members(&data([4, 4, 5, 6], 1), &device, Split { dim: 1 });
+    let pooled = Shard::max_pool2d(image.clone(), [2, 2], [1, 1], [0, 0], [1, 1], false);
+    assert_eq!(sharding_of(&pooled), Split { dim: 1 });
+    let channel = |seed| float_on_members(&data([4], seed), &device, Replicated);
+    let variance = float_on_members(&positive(data([4], 9)), &device, Replicated);
+    let normed = Shard::batch_norm(image, channel(6), channel(7), channel(8), variance, 1e-5);
+    assert_eq!(sharding_of(&normed), Split { dim: 1 });
+
+    let x = float_on_members(&data([4, 4, 5, 6], 1), &device, Replicated);
+    let weight = float_on_members(&data([6, 4, 3, 3], 2), &device, Split { dim: 0 });
+    let options = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
+    let columns = Shard::conv2d(x, weight, None, options.clone());
+    assert_eq!(sharding_of(&columns), Split { dim: 1 });
+    let x = float_on_members(&data([4, 4, 5, 6], 1), &device, Split { dim: 1 });
+    let weight = float_on_members(&data([6, 4, 3, 3], 2), &device, Split { dim: 1 });
+    assert_eq!(
+        sharding_of(&Shard::conv2d(x, weight, None, options)),
+        PartialSum
+    );
+
+    let indices = TensorData::new(vec![3i64, 0, 6, 3, 1, 2, 3, 5], [2, 4]);
+    let split_indices = made_on_members(&indices, &device, Split { dim: 1 }, |data| {
+        HandleKind::Int(Flex::int_from_data(data, &FlexDevice))
+    });
+    let table = float_on_members(&data([7, 6], 2), &device, Replicated);
+    let rows = Shard::embedding(table, split_indices);
+    assert_eq!(sharding_of(&rows), Split { dim: 1 });
+    let expected = Flex::embedding(
+        Flex::float_from_data(data([7, 6], 2), &FlexDevice),
+        Flex::int_from_data(indices.clone(), &FlexDevice),
+    );
+    assert_close(read::<Shard>(rows), read::<Flex>(expected), "embedding");
+    let columns = float_on_members(&data([7, 6], 2), &device, Split { dim: 1 });
+    let whole_indices = Shard::int_from_data(indices, &device);
+    assert_eq!(
+        sharding_of(&Shard::embedding(columns, whole_indices)),
+        Split { dim: 2 }
+    );
+}
+
+/// A conv weight's per-channel sums, split alike when the weight's output channels are.
+fn bias_of<B: Backend>(weight: FloatTensor<B>) -> FloatTensor<B> {
+    let num_channels = weight.shape()[0];
+    let summed = (1..weight.shape().num_dims()).fold(weight, |sum, dim| B::float_sum_dim(sum, dim));
+    B::float_reshape(summed, Shape::new([num_channels]))
 }
 
 fn assert_unary_matches(
