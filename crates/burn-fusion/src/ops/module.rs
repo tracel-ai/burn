@@ -1843,10 +1843,15 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     .attn_bias
                     .as_ref()
                     .map(|ab| handles.get_float_tensor::<B>(ab));
-                let cache = args.lengths.as_ref().map(|lengths| AttentionCache {
-                    lengths: handles.get_int_tensor::<B>(lengths),
-                    pages: args.pages.as_ref().map(|p| handles.get_int_tensor::<B>(p)),
-                });
+                let cache = args
+                    .lengths
+                    .as_ref()
+                    .zip(args.depth)
+                    .map(|(lengths, depth)| AttentionCache {
+                        lengths: handles.get_int_tensor::<B>(lengths),
+                        pages: args.pages.as_ref().map(|p| handles.get_int_tensor::<B>(p)),
+                        depth,
+                    });
 
                 let output = B::attention(
                     query,
@@ -1865,11 +1870,17 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let streams = StreamId::current();
 
         let client = query.client.clone();
-        let (lengths, pages) = match cache {
-            Some(AttentionCache { lengths, pages }) => {
-                (Some(lengths.into_ir()), pages.map(|p| p.into_ir()))
-            }
-            None => (None, None),
+        let (lengths, pages, depth) = match cache {
+            Some(AttentionCache {
+                lengths,
+                pages,
+                depth,
+            }) => (
+                Some(lengths.into_ir()),
+                pages.map(|p| p.into_ir()),
+                Some(depth),
+            ),
+            None => (None, None, None),
         };
         let desc = AttentionOpIr::create(
             query.into_ir(),
@@ -1879,6 +1890,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             attn_bias.map(|ab| ab.into_ir()),
             lengths,
             pages,
+            depth,
             options.into(),
             || client.create_empty_handle(),
         );

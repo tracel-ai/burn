@@ -132,7 +132,11 @@ pub fn attention_autotune(
     let scoring = scoring(&options, head_dim);
     let (query, key, value) = (query.plain(), key.plain(), value.plain());
     let inputs = match cache {
-        Some(AttentionCache { lengths, pages }) => {
+        Some(AttentionCache {
+            lengths,
+            pages,
+            depth,
+        }) => {
             assert!(
                 mask.is_none(),
                 "the tile-DSL attention takes no mask over a cache"
@@ -146,6 +150,7 @@ pub fn attention_autotune(
                 value,
                 pages.map(|pages| cast(pages, DType::U32).plain()),
                 cast(lengths, DType::U32).plain(),
+                depth,
                 arrivals.map(CubeTensor::plain),
                 scoring,
             )
@@ -168,15 +173,14 @@ pub fn attention_autotune(
                 value,
                 None,
                 lengths.plain(),
+                // burn's key and value are the call's own, every position attended.
+                seq_kv,
                 None,
                 scoring,
             )
             .unwrap_or_else(|why| {
                 panic!("no tile-DSL attention routine serves these operands: {why:?}")
             })
-            // burn's key and value are the call's own, every position attended: the autotune key
-            // holds their extent rather than standing for a cache's.
-            .attending_every_position()
         }
     };
     // A mask broadcast over the batch or the heads is read at stride zero there, never copied.

@@ -32,6 +32,9 @@ pub enum OpKind<'a> {
     Concat { dim: usize },
     /// Its input broadcast along its dims of length 1, and along new leading dims.
     Expand,
+    /// The entries of its first input along `dim` at the indices of its second, which every
+    /// member reads whole.
+    Select { dim: usize },
     /// Attention of a query, key and value, then an optional mask or bias, or both.
     Attention,
 }

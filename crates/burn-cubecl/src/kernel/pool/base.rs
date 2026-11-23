@@ -13,7 +13,7 @@ use cubek::pool::{
     pool2d, pool2d_backward, pool2d_with_indices, pool2d_with_indices_backward, pool3d,
     pool3d_backward,
 };
-use cubek::reduce::components::instructions::ReduceOperationConfig;
+use cubek::reduce::ReduceOperation;
 
 pub(crate) fn max_pool2d(
     x: CubeTensor,
@@ -309,7 +309,7 @@ fn global_avg_pool2d(input: CubeTensor) -> CubeTensor {
         None,
         axis,
         KernelReduceStrategy::default(),
-        ReduceOperationConfig::Mean,
+        ReduceOperation::Mean,
     )
     .expect("the flattened spatial axis of a rank-3 tensor is reducible");
 

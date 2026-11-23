@@ -669,6 +669,7 @@ impl RelativeOps for ModuleOperationIr {
                     attn_bias: desc.attn_bias.as_ref().map(|ab| ab.to_relative(converter)),
                     lengths: desc.lengths.as_ref().map(|l| l.to_relative(converter)),
                     pages: desc.pages.as_ref().map(|p| p.to_relative(converter)),
+                    depth: desc.depth,
                     options: desc.options.clone(),
                     out: desc.out.to_relative(converter),
                 }))

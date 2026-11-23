@@ -222,6 +222,7 @@ impl TensorShardings<'_> {
                     Execution::EveryMember,
                 )
             }
+            (OpKind::Select { dim }, [input, indices]) => self.select(dim, input, indices, out),
             (OpKind::Attention, _) => self.attention(inputs, out),
             _ => None,
         }
@@ -274,6 +275,20 @@ impl TensorShardings<'_> {
             .chain(broadcast.iter().copied())
             .collect();
         OpPlan::from_rule(&inputs, out, sharding, Execution::EveryMember)
+    }
+
+    /// A select keeps its input's split along any other dim, each member picking from its own
+    /// part.
+    fn select(
+        &self,
+        dim: usize,
+        input: &TensorIr,
+        indices: &TensorIr,
+        out: &TensorIr,
+    ) -> Option<OpPlan> {
+        let mut sharding = AlongDimRule::new(self.sharding(input), dim).sharding();
+        sharding.inputs.push(Sharding::Replicated);
+        OpPlan::from_rule(&[input, indices], out, sharding, Execution::EveryMember)
     }
 
     fn reduction(

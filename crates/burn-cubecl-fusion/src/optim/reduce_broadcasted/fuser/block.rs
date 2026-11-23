@@ -1,7 +1,7 @@
 use crate::optim::{
     elemwise::ElemwiseOptimization,
-    reduce::{FusedReduce, ReduceFuser, ReduceFuserInfo},
-    reduce_broadcasted::{ReduceBlockOptimInfo, fuser::full::ReduceBroadcastedFullFuser},
+    reduce::{ReduceFuser, ReduceFuserInfo},
+    reduce_broadcasted::ReduceBlockOptimInfo,
 };
 use burn_fusion::{FuserProperties, OperationFuser};
 use burn_ir::OperationIr;
@@ -21,7 +21,6 @@ pub struct ReduceBlockFuser {
     /// A single elementwise block can only exist at the end of a full [ReduceBlockFuser],
     /// otherwise the optimization will be included in the reduce fusion block.
     pub fuser: ReduceFuser,
-    pub(crate) ops: Vec<OperationIr>,
     pub(crate) kind: ReduceBlockKind,
 }
 
@@ -58,7 +57,6 @@ impl ReduceBlockFuser {
     pub fn new(fuser: ReduceFuser) -> Self {
         Self {
             fuser: fuser.clone(),
-            ops: Vec::new(),
             kind: ReduceBlockKind::Elemwise,
         }
     }
@@ -154,14 +152,10 @@ impl ReduceBlockFuser {
     /// Ensure [Self::analyze()] is called before this function to confirm the operation is accepted.
     pub fn fuse(&mut self, op: &OperationIr) {
         self.fuser.fuse(op);
-        self.ops.push(op.clone());
 
-        // Update the kind if a reduction is introduced to an elementwise block.
-        if let (Some(reduce), ReduceBlockKind::Elemwise) = (&self.fuser.reduce, &self.kind) {
-            self.kind = ReduceBlockKind::Reduce {
-                ops_index: self.ops.len() - 1,
-                reduce: Box::new(reduce.clone()),
-            };
+        // The block becomes a reduce block once the reduction is fused.
+        if self.fuser.reduce.is_some() {
+            self.kind = ReduceBlockKind::Reduce;
         }
     }
 
@@ -175,13 +169,7 @@ impl ReduceBlockFuser {
         properties
     }
 
-    pub fn finish(
-        &mut self,
-        num_ops: &mut usize,
-        full: &mut ReduceBroadcastedFullFuser,
-    ) -> ReduceBlockOptimInfo {
-        full.register(self);
-
+    pub fn finish(&mut self, num_ops: &mut usize) -> ReduceBlockOptimInfo {
         match &self.kind {
             ReduceBlockKind::Elemwise => {
                 let len = self.fuser.fuser_read_fallback.len();
@@ -192,7 +180,7 @@ impl ReduceBlockFuser {
                 let elementwise = ElemwiseOptimization::new(trace, client, device, len);
                 ReduceBlockOptimInfo::Elemwise(Arc::new(elementwise))
             }
-            ReduceBlockKind::Reduce { .. } => {
+            ReduceBlockKind::Reduce => {
                 *num_ops += self.fuser.len();
                 ReduceBlockOptimInfo::Reduce(self.fuser.finish_reduce().info)
             }
@@ -200,21 +188,17 @@ impl ReduceBlockFuser {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum ReduceBlockKind {
     Elemwise,
-    Reduce {
-        ops_index: usize,
-        reduce: Box<FusedReduce>,
-    },
+    Reduce,
 }
 
 impl Clone for ReduceBlockFuser {
     fn clone(&self) -> Self {
         Self {
             fuser: self.fuser.clone(),
-            ops: self.ops.clone(),
-            kind: self.kind.clone(),
+            kind: self.kind,
         }
     }
 }
