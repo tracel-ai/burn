@@ -241,6 +241,28 @@ mod tests {
         linear.weight.to_data().assert_within_range(-k..k);
     }
 
+    #[rstest::rstest]
+    #[case::row(LinearLayout::Row)]
+    #[case::col(LinearLayout::Col)]
+    fn initializer_default_per_layout(#[case] layout: LinearLayout) {
+        let device = Device::default();
+        device.seed(0);
+
+        // d_input > d_output: swapped fans would widen the bound from sqrt(1/64) to sqrt(1/4).
+        let config = LinearConfig::new(64, 4).with_layout(layout);
+        let k = (1.0 / config.d_input as f64).sqrt().elem::<FT>();
+        let linear = config.init(&device);
+
+        assert_eq!(
+            config.initializer,
+            Initializer::KaimingUniform {
+                gain: 1.0 / 3.0f64.sqrt(),
+                fan_out_only: false
+            }
+        );
+        linear.weight.to_data().assert_within_range(-k..k);
+    }
+
     #[test]
     fn initializer_zeros() {
         let device = Device::default();
