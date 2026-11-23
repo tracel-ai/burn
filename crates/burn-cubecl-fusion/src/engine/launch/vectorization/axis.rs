@@ -12,8 +12,7 @@
 //! ([VectorAxisPolicy]), and the decision is applied ([VectorAxisAction]).
 
 use super::super::{
-    HandleOutput, LaunchPlan, ReferenceSelection,
-    layout::permuted_innermost_axis,
+    HandleOutput, LaunchPlan,
     runner::{Vectorization, VectorizationAxis},
 };
 use super::Vect;
@@ -71,9 +70,9 @@ impl VectorAxisAnalysis {
     /// unlike this analysis it tells a broadcast dimension from one it merely
     /// cannot line up — a distinction worth keeping, since a broadcast operand
     /// does not constrain the block's width and a refused one does.
-    pub fn read(reference: &ReferenceSelection, rank: usize) -> Self {
+    pub fn read(block_axis: Option<usize>, rank: usize) -> Self {
         Self {
-            block_axis: block_axis(reference),
+            block_axis,
             rank,
             stride: None,
         }
@@ -84,9 +83,7 @@ impl VectorAxisAnalysis {
     /// [vectorization_output](super::base) is handed a shape and never sees a
     /// stride, so an output allocated in an order its block does not iterate in
     /// has to be caught here or not at all.
-    pub fn written(reference: &ReferenceSelection, rank: usize, strides: &[usize]) -> Self {
-        let block_axis = block_axis(reference);
-
+    pub fn written(block_axis: Option<usize>, rank: usize, strides: &[usize]) -> Self {
         Self {
             block_axis,
             rank,
@@ -117,11 +114,7 @@ impl VectorAxisPolicy {
     /// Unless some block iterates in a permuted order there is nothing to decide,
     /// and saying so up front skips the whole analysis.
     pub fn of_plan(plan: &LaunchPlan<'_>) -> Self {
-        match plan
-            .blocks
-            .iter()
-            .any(|block| block_axis(&block.reference).is_some())
-        {
+        match plan.blocks.iter().any(|block| block.vector_axis.is_some()) {
             true => VectorAxisPolicy::LineUpWithBlock,
             false => VectorAxisPolicy::AlwaysDefault,
         }
@@ -270,7 +263,7 @@ impl Actions {
                     && block.reads.contains_key(&input.relative_id)
                 {
                     let analysis =
-                        VectorAxisAnalysis::read(&block.reference, input.global_ir.shape.rank());
+                        VectorAxisAnalysis::read(block.vector_axis, input.global_ir.shape.rank());
 
                     actions.record(
                         input.global_ir.id,
@@ -291,7 +284,7 @@ impl Actions {
                     && block.writes.contains_key(relative_id)
                 {
                     let analysis = VectorAxisAnalysis::written(
-                        &block.reference,
+                        block.vector_axis,
                         global_shape.rank(),
                         &handle.strides,
                     );
@@ -332,7 +325,8 @@ impl Actions {
                     continue;
                 }
 
-                let analysis = VectorAxisAnalysis::read(&block.reference, view_global.shape.rank());
+                let analysis =
+                    VectorAxisAnalysis::read(block.vector_axis, view_global.shape.rank());
 
                 actions.record(view_global.id, original_global.id, policy.action(&analysis));
             }
@@ -349,164 +343,89 @@ impl Actions {
     }
 }
 
-/// The axis a block's reference iterates along, or `None` when it iterates in
-/// logical dimension order and so asks nothing of the tensors it touches.
-///
-/// A virtual reference indexes through a transform, and those paths were written
-/// against the last dimension.
-fn block_axis(reference: &ReferenceSelection) -> Option<usize> {
-    let ReferenceSelection::Concrete { shape, strides, .. } = reference else {
-        return None;
-    };
-
-    permuted_innermost_axis(shape, strides)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::codegen::ir::{FuseArg, FuseType, LayoutInfo};
-    use burn_std::{Shape, Strides};
-
-    const CONTIGUOUS: [usize; 4] = [48 * 16 * 16, 16 * 16, 16, 1];
-    const NHWC: [usize; 4] = [16 * 16 * 48, 1, 16 * 48, 48];
-
-    fn concrete(shape: &[usize], strides: &[usize]) -> ReferenceSelection {
-        ReferenceSelection::Concrete {
-            layout: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
-            shape: Shape::from(shape.to_vec()),
-            strides: Strides::new(strides),
-        }
-    }
-
-    fn action(reference: &ReferenceSelection, rank: usize) -> VectorAxisAction {
-        VectorAxisPolicy::LineUpWithBlock.action(&VectorAxisAnalysis::read(reference, rank))
-    }
-
-    fn action_written(
-        reference: &ReferenceSelection,
-        rank: usize,
-        strides: &[usize],
-    ) -> VectorAxisAction {
-        VectorAxisPolicy::LineUpWithBlock
-            .action(&VectorAxisAnalysis::written(reference, rank, strides))
-    }
 
     #[test]
-    fn a_block_in_logical_dimension_order_asks_for_nothing() {
-        // The whole point: a block that iterates in logical dimension order has to
-        // keep behaving exactly as it did before a block could choose its layout.
-        let reference = concrete(&[2, 48, 16, 16], &CONTIGUOUS);
-
-        assert_eq!(block_axis(&reference), None);
-        assert_eq!(action(&reference, 4), VectorAxisAction::Default);
-    }
-
-    #[test]
-    fn a_virtual_reference_asks_for_nothing() {
-        // Those paths index through a transform written against the last dimension.
-        for reference in [
-            ReferenceSelection::Reshaped { reshape_pos: 0 },
-            ReferenceSelection::Runtime { pos: 0 },
-            ReferenceSelection::Searching,
-        ] {
-            assert_eq!(block_axis(&reference), None);
-            assert_eq!(action(&reference, 4), VectorAxisAction::Default);
-        }
-    }
-
-    #[test]
-    fn a_reference_that_is_not_dense_asks_for_nothing() {
-        // A padded or sliced reference has no dimension order to impose.
-        assert_eq!(block_axis(&concrete(&[4, 8], &[16, 1])), None);
-    }
-
-    #[test]
-    fn an_nhwc_block_asks_for_its_channel_axis() {
-        let reference = concrete(&[2, 48, 16, 16], &NHWC);
-
-        assert_eq!(block_axis(&reference), Some(1));
-        assert_eq!(action(&reference, 4), VectorAxisAction::Along(1));
-    }
-
-    #[test]
-    fn a_permuted_block_skips_its_degenerate_axes() {
-        // The dimension order ends at a size-one axis whose stride is zero.
-        // A vector stepping it would read the same element `width` times.
-        let reference = concrete(&[2, 48, 16, 1], &[768, 1, 48, 0]);
-
-        assert_eq!(block_axis(&reference), Some(1));
-    }
-
-    #[test]
-    fn an_output_the_block_cannot_write_in_vectors_is_refused() {
-        // A reshaped output on the recompute path is allocated contiguous while its
-        // block iterates NHWC. `vectorization_output` is handed a shape and never
-        // sees a stride, so nothing downstream would catch this.
-        let reference = concrete(&[2, 48, 16, 16], &NHWC);
-
+    fn no_resolved_axis_uses_the_default() {
+        let read = VectorAxisAnalysis::read(None, 2);
         assert_eq!(
-            action_written(&reference, 4, &CONTIGUOUS),
-            VectorAxisAction::Refuse,
-            "stride along the block's axis is not one",
+            VectorAxisPolicy::LineUpWithBlock.action(&read),
+            VectorAxisAction::Default
         );
+    }
+
+    #[test]
+    fn a_read_can_follow_a_nonfinal_axis() {
+        let read = VectorAxisAnalysis::read(Some(1), 4);
         assert_eq!(
-            action_written(&reference, 4, &NHWC),
+            VectorAxisPolicy::LineUpWithBlock.action(&read),
             VectorAxisAction::Along(1)
         );
     }
 
     #[test]
-    fn an_output_of_a_lower_rank_is_refused_rather_than_indexed_past_its_end() {
-        // A reshape can drop dimensions. Reading `shape[axis]` at the block's axis
-        // would panic; the default axis could never do that, since it came from the
-        // tensor's own rank.
-        let reference = concrete(&[2, 48, 16, 16], &NHWC);
-        assert_eq!(action(&reference, 1), VectorAxisAction::Refuse);
-
-        // A block axis that is neither the first nor the last dimension, so the
-        // rank guard is exercised at a boundary the NHWC case cannot reach.
-        // Dimension order [0, 3, 1, 2] over shape [2, 4, 8, 16].
-        let deep = concrete(&[2, 4, 8, 16], &[512, 8, 1, 32]);
-        assert_eq!(block_axis(&deep), Some(2));
-
-        assert_eq!(action(&deep, 2), VectorAxisAction::Refuse);
-        assert_eq!(action(&deep, 3), VectorAxisAction::Along(2));
-    }
-
-    #[test]
-    fn a_read_is_trusted_to_refuse_an_axis_it_cannot_use() {
-        // Reads are analysed without strides on purpose: `vectorization_input`
-        // makes the same check, and unlike this one it tells a broadcast dimension
-        // from a dimension it merely cannot line up.
-        let reference = concrete(&[2, 48, 16, 16], &NHWC);
-
+    fn a_read_can_follow_the_last_axis_in_its_rank() {
+        let read = VectorAxisAnalysis::read(Some(2), 3);
         assert_eq!(
-            VectorAxisAnalysis::read(&reference, 4),
-            VectorAxisAnalysis {
-                block_axis: Some(1),
-                rank: 4,
-                stride: None,
-            },
+            VectorAxisPolicy::LineUpWithBlock.action(&read),
+            VectorAxisAction::Along(2)
         );
     }
 
     #[test]
-    fn the_default_policy_decides_nothing() {
-        // The fast path for a plan where no block is permuted: it must answer
-        // `Default` even for an analysis that would otherwise be refused.
-        let reference = concrete(&[2, 48, 16, 16], &NHWC);
+    fn an_axis_outside_the_tensor_rank_is_refused() {
+        let read = VectorAxisAnalysis::read(Some(2), 2);
+        assert_eq!(
+            VectorAxisPolicy::LineUpWithBlock.action(&read),
+            VectorAxisAction::Refuse
+        );
+    }
 
-        for analysis in [
-            VectorAxisAnalysis::read(&reference, 4),
-            VectorAxisAnalysis::read(&reference, 1),
-            VectorAxisAnalysis::written(&reference, 4, &CONTIGUOUS),
-        ] {
-            assert_eq!(
-                VectorAxisPolicy::AlwaysDefault.action(&analysis),
-                VectorAxisAction::Default
-            );
-        }
+    #[test]
+    fn a_write_along_a_strided_axis_is_refused() {
+        let write = VectorAxisAnalysis::written(Some(1), 3, &[12, 4, 1]);
+        assert_eq!(
+            VectorAxisPolicy::LineUpWithBlock.action(&write),
+            VectorAxisAction::Refuse
+        );
+    }
+
+    #[test]
+    fn a_write_along_a_unit_stride_axis_is_allowed() {
+        let write = VectorAxisAnalysis::written(Some(1), 3, &[12, 1, 3]);
+        assert_eq!(
+            VectorAxisPolicy::LineUpWithBlock.action(&write),
+            VectorAxisAction::Along(1)
+        );
+    }
+
+    #[test]
+    fn the_default_policy_ignores_a_valid_read_axis() {
+        let read = VectorAxisAnalysis::read(Some(1), 4);
+        assert_eq!(
+            VectorAxisPolicy::AlwaysDefault.action(&read),
+            VectorAxisAction::Default
+        );
+    }
+
+    #[test]
+    fn the_default_policy_ignores_an_out_of_rank_read_axis() {
+        let read = VectorAxisAnalysis::read(Some(1), 1);
+        assert_eq!(
+            VectorAxisPolicy::AlwaysDefault.action(&read),
+            VectorAxisAction::Default
+        );
+    }
+
+    #[test]
+    fn the_default_policy_ignores_a_strided_write_axis() {
+        let write = VectorAxisAnalysis::written(Some(1), 3, &[12, 4, 1]);
+        assert_eq!(
+            VectorAxisPolicy::AlwaysDefault.action(&write),
+            VectorAxisAction::Default
+        );
     }
 
     #[test]
