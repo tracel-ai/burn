@@ -853,6 +853,12 @@ version 14).
 - Reject unsupported asymmetric deformable-convolution padding.
   ([#6101](https://github.com/tracel-ai/burn/pull/6101))
 
+#### Gated DeltaNet
+
+- Add `attention::GatedDeltaNet`, the Gated DeltaNet linear-attention layer used by Qwen3.5 and
+  Qwen3-Next. It runs chunked on every backend, trains with autodiff, and carries its state
+  between calls through `GatedDeltaNetState`. [@Ignalina](https://github.com/Ignalina)
+
 #### GELU and sigmoid
 
 - Run GELU and sigmoid forward and backward operations in single CubeCL kernels.
