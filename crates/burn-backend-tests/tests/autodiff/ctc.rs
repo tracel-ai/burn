@@ -59,6 +59,41 @@ fn test_ctc_loss_long_empty_target_precision() {
     );
 }
 
+/// Direct gradient convention: the explicit backward (native or the default
+/// composition) includes the `exp(log_probs)` term, so an empty target gives
+/// `[exp(log_p0) - 1, exp(log_p1)]` per step. The gradient through `log_softmax`
+/// is covered by `test_ctc_loss_grad_empty_target`.
+#[test]
+fn test_ctc_loss_grad_empty_target_direct_log_probs() {
+    let t_size: usize = 4;
+    let n_size: usize = 1;
+    let c_size: usize = 2;
+    let device = AutodiffDevice::new();
+
+    let log_p0 = -1.0f32;
+    let log_p1 = (1.0 - (-1.0f32).exp()).ln();
+    let data: Vec<f32> = (0..t_size).flat_map(|_| [log_p0, log_p1]).collect();
+    let log_probs =
+        TestTensor::<3>::from_data(TensorData::new(data, [t_size, n_size, c_size]), &device)
+            .require_grad();
+
+    let targets = TestTensorInt::<2>::from_data(TensorData::from([[0_i32]]), &device);
+    let input_lengths = TestTensorInt::<1>::from_data(TensorData::from([t_size as i32]), &device);
+    let target_lengths = TestTensorInt::<1>::from_data(TensorData::from([0_i32]), &device);
+
+    let loss = ctc_loss(log_probs.clone(), targets, input_lengths, target_lengths, 0).sum();
+    let grads = loss.backward();
+    let grad = log_probs.grad(&grads).unwrap();
+
+    let expected: Vec<f32> = (0..t_size)
+        .flat_map(|_| [log_p0.exp() - 1.0, log_p1.exp()])
+        .collect();
+    grad.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::new(expected, [t_size, n_size, c_size]),
+        Tolerance::rel_abs(1e-2, 1e-2).set_half_precision_absolute(1e-2),
+    );
+}
+
 /// Many target states expose overflow in the alignment posterior when rounded
 /// alpha and beta histories are combined with the negative log-likelihood.
 #[cfg(feature = "cube")]

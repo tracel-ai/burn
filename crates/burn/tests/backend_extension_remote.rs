@@ -245,7 +245,7 @@ impl AdGatedBackend for Remote {
 
 // Only referenced by the generated autodiff arms, which are gated off in this build.
 #[cfg(not(feature = "remote"))]
-impl<C: CheckpointStrategy> AdGatedBackend for burn::backend::Autodiff<Remote, C> {
+impl<B: burn::backend::Backend, C: CheckpointStrategy> AdGatedBackend for Autodiff<B, C> {
     fn ad_gated(_pair: Pair<Self>) -> FloatTensor<Self> {
         unimplemented!("would register the backward pass")
     }
@@ -296,7 +296,7 @@ impl EnumBackend for Remote {
 }
 
 #[cfg(feature = "autodiff")]
-impl<C: CheckpointStrategy> EnumBackend for burn::backend::Autodiff<Remote, C> {
+impl<B: burn::backend::Backend, C: CheckpointStrategy> EnumBackend for Autodiff<B, C> {
     fn use_operand(_op: Operand<Self>) -> FloatTensor<Self> {
         unimplemented!("would register the backward pass over the active variant's tracked fields")
     }
@@ -311,7 +311,7 @@ impl<C: CheckpointStrategy> EnumBackend for burn::backend::Autodiff<Remote, C> {
 #[test]
 fn enum_and_tuple_input_dispatch_compiles() {
     // Enum input, tuple-struct input, and enum-mixed-with-bare-tensor input all expand into
-    // well-typed dispatch methods routing concrete `Remote` and autodiff `Autodiff<Remote>`.
+    // well-typed dispatch methods routing concrete `Remote` and autodiff `Autodiff<Dispatch>`.
     let _a: fn(Operand<Dispatch>) -> FloatTensor<Dispatch> = <Dispatch as EnumBackend>::use_operand;
     let _b: fn(TupleInputs<Dispatch>) -> FloatTensor<Dispatch> =
         <Dispatch as EnumBackend>::use_tuple;
@@ -347,8 +347,8 @@ fn remote_backend_extension_gated_no_input_falls_back() {
 }
 
 // Struct inputs combined with `Autodiff`. The generated dispatch glue must, for the autodiff arm,
-// peel the `Autodiff(..)` nesting on each float field to rebuild `Pair<Autodiff<Remote>>`, call the
-// user's `impl ... for Autodiff<Remote>`, and re-wrap the output as an autodiff dispatch tensor.
+// rebuild `Pair<Autodiff<Dispatch>>` from the tracked dispatch tensors, call the user's
+// `impl ... for Autodiff<B, C>`, and re-wrap the output as an autodiff dispatch tensor.
 #[cfg(feature = "autodiff")]
 mod autodiff_struct_input {
     use super::*;
@@ -372,7 +372,7 @@ mod autodiff_struct_input {
 
     // User-written autodiff side: normally registers a `Backward` step; stubbed here since the test
     // only checks that the generated dispatch glue type-checks.
-    impl<C: CheckpointStrategy> AdBackend for Autodiff<Remote, C> {
+    impl<B: burn::backend::Backend, C: CheckpointStrategy> AdBackend for Autodiff<B, C> {
         fn ad_combine(_pair: Pair<Self>, _factor: f32) -> FloatTensor<Self> {
             unimplemented!("would register the backward pass over the struct's tracked fields")
         }
@@ -384,7 +384,7 @@ mod autodiff_struct_input {
     #[test]
     fn autodiff_struct_input_dispatch_compiles() {
         // Referencing the dispatch methods proves the macro expanded a well-typed `impl for Dispatch`
-        // whose match routes both concrete (`Remote`) and autodiff (`Autodiff<Remote>`) inputs.
+        // whose match routes both concrete (`Remote`) and autodiff (`Autodiff<Dispatch>`) inputs.
         let _a: fn(Pair<Dispatch>, f32) -> FloatTensor<Dispatch> =
             <Dispatch as AdBackend>::ad_combine;
         let _b: fn(FloatTensor<Dispatch>, Pair<Dispatch>) -> FloatTensor<Dispatch> =

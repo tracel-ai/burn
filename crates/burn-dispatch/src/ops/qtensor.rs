@@ -11,6 +11,7 @@ use crate::{
     DispatchTensorKind,
 };
 
+/// Wraps a concrete backend's `q_matmul` output.
 macro_rules! wrap_q_matmul_concrete {
     ($Backend:ident, $output:expr, $autodiff:expr) => {{
         match $output {
@@ -18,45 +19,25 @@ macro_rules! wrap_q_matmul_concrete {
                 kind: DispatchTensorKind::$Backend(BackendTensor::Quantized(output)),
                 autodiff: $autodiff,
             }),
-            TensorPrimitive::Float(output) => match $autodiff {
-                DispatchAutodiffContext::Disabled => TensorPrimitive::Float(DispatchTensor {
-                    kind: DispatchTensorKind::$Backend(BackendTensor::Float(output)),
-                    autodiff: DispatchAutodiffContext::Disabled,
-                }),
-                #[cfg(feature = "autodiff")]
-                DispatchAutodiffContext::Enabled(strategy) => {
-                    with_autodiff_backend!($Backend, strategy, |AD| {
-                        TensorPrimitive::Float(DispatchTensor {
-                            kind: DispatchTensorKind::Autodiff(alloc::boxed::Box::new(
-                                DispatchTensorKind::$Backend(BackendTensor::Autodiff(
-                                    <AD as burn_backend::AutodiffBackend>::from_inner(output),
-                                )),
-                            )),
-                            autodiff: DispatchAutodiffContext::Enabled(strategy),
-                        })
-                    })
-                }
-                #[cfg(not(feature = "autodiff"))]
-                DispatchAutodiffContext::Enabled(_) => {
-                    panic!("autodiff context requires the `autodiff` feature")
-                }
-            },
+            TensorPrimitive::Float(output) => TensorPrimitive::Float(DispatchTensor {
+                kind: DispatchTensorKind::$Backend(BackendTensor::Float(output)),
+                autodiff: $autodiff,
+            }),
         }
     }};
 }
 
 #[cfg(feature = "autodiff")]
+/// Wraps an `Autodiff<Dispatch>` `q_matmul` output.
 macro_rules! wrap_q_matmul_autodiff {
-    ($Backend:ident, $output:expr, $strategy:expr) => {{
+    ($output:expr, $strategy:expr) => {{
         match $output {
             TensorPrimitive::QFloat(output) => TensorPrimitive::QFloat(DispatchTensor {
-                kind: DispatchTensorKind::$Backend(BackendTensor::Quantized(output)),
+                kind: output.kind,
                 autodiff: DispatchAutodiffContext::Enabled($strategy),
             }),
             TensorPrimitive::Float(output) => TensorPrimitive::Float(DispatchTensor {
-                kind: DispatchTensorKind::Autodiff(alloc::boxed::Box::new(
-                    DispatchTensorKind::$Backend(BackendTensor::Autodiff(output)),
-                )),
+                kind: DispatchTensorKind::Autodiff(alloc::boxed::Box::new(output)),
                 autodiff: DispatchAutodiffContext::Enabled($strategy),
             }),
         }
@@ -84,58 +65,19 @@ macro_rules! q_matmul_qq_arms {
 }
 
 macro_rules! q_matmul_fq_arms {
-    ($lhs:expr, $rhs:expr, $autodiff:expr; $([$Backend:ident, $cfg:meta]),*) => {{
+    ($lhs:expr, $rhs:expr; $([$Backend:ident, $cfg:meta]),*) => {{
         match ($lhs.kind, $rhs.kind) {
             $(
                 #[cfg($cfg)]
                 (DispatchTensorKind::$Backend(lhs), DispatchTensorKind::$Backend(rhs)) => {
-                    match $autodiff {
-                        DispatchAutodiffContext::Disabled => {
-                            type B = crate::backends::$Backend;
-                            let output = B::q_matmul(
-                                TensorPrimitive::Float(lhs.float()),
-                                TensorPrimitive::QFloat(rhs.quantized()),
-                            );
-                            wrap_q_matmul_concrete!($Backend, output, DispatchAutodiffContext::Disabled)
-                        }
-                        #[cfg(feature = "autodiff")]
-                        DispatchAutodiffContext::Enabled(strategy) => {
-                            with_autodiff_backend!($Backend, strategy, |B| {
-                                let lhs = <B as burn_backend::AutodiffBackend>::from_inner(lhs.float());
-                                let output = B::q_matmul(
-                                    TensorPrimitive::Float(lhs),
-                                    TensorPrimitive::QFloat(rhs.quantized()),
-                                );
-                                wrap_q_matmul_autodiff!($Backend, output, strategy)
-                            })
-                        }
-                        #[cfg(not(feature = "autodiff"))]
-                        DispatchAutodiffContext::Enabled(_) => {
-                            panic!("autodiff context requires the `autodiff` feature")
-                        }
-                    }
+                    type B = crate::backends::$Backend;
+                    let output = B::q_matmul(
+                        TensorPrimitive::Float(lhs.float()),
+                        TensorPrimitive::QFloat(rhs.quantized()),
+                    );
+                    wrap_q_matmul_concrete!($Backend, output, DispatchAutodiffContext::Disabled)
                 }
             )*
-            #[cfg(feature = "autodiff")]
-            (DispatchTensorKind::Autodiff(lhs), rhs) => match (*lhs, rhs) {
-                $(
-                    #[cfg($cfg)]
-                    (DispatchTensorKind::$Backend(lhs), DispatchTensorKind::$Backend(rhs)) => {
-                        let DispatchAutodiffContext::Enabled(strategy) = $autodiff else {
-                            panic!("an autodiff float primitive must have an enabled autodiff context")
-                        };
-                        with_autodiff_backend!($Backend, strategy, |B| {
-                            let output = B::q_matmul(
-                                TensorPrimitive::Float(lhs.autodiff()),
-                                TensorPrimitive::QFloat(rhs.quantized()),
-                            );
-                            wrap_q_matmul_autodiff!($Backend, output, strategy)
-                        })
-                    }
-                )*
-                #[allow(unreachable_patterns)]
-                _ => panic!("q_matmul inputs are on different backends"),
-            },
             #[allow(unreachable_patterns)]
             _ => panic!("q_matmul inputs are on different backends"),
         }
@@ -143,62 +85,38 @@ macro_rules! q_matmul_fq_arms {
 }
 
 macro_rules! q_matmul_qf_arms {
-    ($lhs:expr, $rhs:expr, $autodiff:expr; $([$Backend:ident, $cfg:meta]),*) => {{
+    ($lhs:expr, $rhs:expr; $([$Backend:ident, $cfg:meta]),*) => {{
         match ($lhs.kind, $rhs.kind) {
             $(
                 #[cfg($cfg)]
                 (DispatchTensorKind::$Backend(lhs), DispatchTensorKind::$Backend(rhs)) => {
-                    match $autodiff {
-                        DispatchAutodiffContext::Disabled => {
-                            type B = crate::backends::$Backend;
-                            let output = B::q_matmul(
-                                TensorPrimitive::QFloat(lhs.quantized()),
-                                TensorPrimitive::Float(rhs.float()),
-                            );
-                            wrap_q_matmul_concrete!($Backend, output, DispatchAutodiffContext::Disabled)
-                        }
-                        #[cfg(feature = "autodiff")]
-                        DispatchAutodiffContext::Enabled(strategy) => {
-                            with_autodiff_backend!($Backend, strategy, |B| {
-                                let rhs = <B as burn_backend::AutodiffBackend>::from_inner(rhs.float());
-                                let output = B::q_matmul(
-                                    TensorPrimitive::QFloat(lhs.quantized()),
-                                    TensorPrimitive::Float(rhs),
-                                );
-                                wrap_q_matmul_autodiff!($Backend, output, strategy)
-                            })
-                        }
-                        #[cfg(not(feature = "autodiff"))]
-                        DispatchAutodiffContext::Enabled(_) => {
-                            panic!("autodiff context requires the `autodiff` feature")
-                        }
-                    }
+                    type B = crate::backends::$Backend;
+                    let output = B::q_matmul(
+                        TensorPrimitive::QFloat(lhs.quantized()),
+                        TensorPrimitive::Float(rhs.float()),
+                    );
+                    wrap_q_matmul_concrete!($Backend, output, DispatchAutodiffContext::Disabled)
                 }
             )*
-            #[cfg(feature = "autodiff")]
-            (lhs, DispatchTensorKind::Autodiff(rhs)) => match (lhs, *rhs) {
-                $(
-                    #[cfg($cfg)]
-                    (DispatchTensorKind::$Backend(lhs), DispatchTensorKind::$Backend(rhs)) => {
-                        let DispatchAutodiffContext::Enabled(strategy) = $autodiff else {
-                            panic!("an autodiff float primitive must have an enabled autodiff context")
-                        };
-                        with_autodiff_backend!($Backend, strategy, |B| {
-                            let output = B::q_matmul(
-                                TensorPrimitive::QFloat(lhs.quantized()),
-                                TensorPrimitive::Float(rhs.autodiff()),
-                            );
-                            wrap_q_matmul_autodiff!($Backend, output, strategy)
-                        })
-                    }
-                )*
-                #[allow(unreachable_patterns)]
-                _ => panic!("q_matmul inputs are on different backends"),
-            },
             #[allow(unreachable_patterns)]
             _ => panic!("q_matmul inputs are on different backends"),
         }
     }};
+}
+
+#[cfg(feature = "autodiff")]
+/// Panics when a float tensor's kind and autodiff context disagree.
+fn validate_float_tensor(tensor: &DispatchTensor) {
+    match (&tensor.kind, tensor.autodiff) {
+        (DispatchTensorKind::Autodiff(_), DispatchAutodiffContext::Enabled(_)) => {}
+        (DispatchTensorKind::Autodiff(_), DispatchAutodiffContext::Disabled) => {
+            panic!("an autodiff float primitive must have an enabled autodiff context")
+        }
+        (_, DispatchAutodiffContext::Enabled(_)) => {
+            panic!("an enabled float tensor must use an autodiff primitive")
+        }
+        _ => {}
+    }
 }
 
 #[backend_dispatch]
@@ -307,40 +225,56 @@ impl QTensorOps<Self> for Dispatch {
                 backend_list!(q_matmul_qq_arms, lhs, rhs, autodiff)
             }
             (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
-                let autodiff = lhs.autodiff.merge(rhs.autodiff);
-                #[cfg(feature = "autodiff")]
-                match (
-                    matches!(&lhs.kind, DispatchTensorKind::Autodiff(_)),
-                    lhs.autodiff,
-                ) {
-                    (true, DispatchAutodiffContext::Enabled(_))
-                    | (false, DispatchAutodiffContext::Disabled) => {}
-                    (true, DispatchAutodiffContext::Disabled) => {
-                        panic!("an autodiff float primitive must have an enabled autodiff context")
+                match lhs.autodiff.merge(rhs.autodiff) {
+                    DispatchAutodiffContext::Disabled => {
+                        backend_list!(q_matmul_fq_arms, lhs, rhs)
                     }
-                    (false, DispatchAutodiffContext::Enabled(_)) => {
-                        panic!("an enabled float tensor must use an autodiff primitive")
+                    #[cfg(feature = "autodiff")]
+                    DispatchAutodiffContext::Enabled(strategy) => {
+                        validate_float_tensor(&lhs);
+                        with_autodiff_backend!(strategy, |AD| {
+                            let lhs = match lhs.kind {
+                                DispatchTensorKind::Autodiff(tensor) => *tensor,
+                                _ => <AD as burn_backend::AutodiffBackend>::from_inner(lhs),
+                            };
+                            let output = AD::q_matmul(
+                                TensorPrimitive::Float(lhs),
+                                TensorPrimitive::QFloat(rhs),
+                            );
+                            wrap_q_matmul_autodiff!(output, strategy)
+                        })
+                    }
+                    #[cfg(not(feature = "autodiff"))]
+                    DispatchAutodiffContext::Enabled(_) => {
+                        panic!("autodiff context requires the `autodiff` feature")
                     }
                 }
-                backend_list!(q_matmul_fq_arms, lhs, rhs, autodiff)
             }
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
-                let autodiff = lhs.autodiff.merge(rhs.autodiff);
-                #[cfg(feature = "autodiff")]
-                match (
-                    matches!(&rhs.kind, DispatchTensorKind::Autodiff(_)),
-                    rhs.autodiff,
-                ) {
-                    (true, DispatchAutodiffContext::Enabled(_))
-                    | (false, DispatchAutodiffContext::Disabled) => {}
-                    (true, DispatchAutodiffContext::Disabled) => {
-                        panic!("an autodiff float primitive must have an enabled autodiff context")
+                match lhs.autodiff.merge(rhs.autodiff) {
+                    DispatchAutodiffContext::Disabled => {
+                        backend_list!(q_matmul_qf_arms, lhs, rhs)
                     }
-                    (false, DispatchAutodiffContext::Enabled(_)) => {
-                        panic!("an enabled float tensor must use an autodiff primitive")
+                    #[cfg(feature = "autodiff")]
+                    DispatchAutodiffContext::Enabled(strategy) => {
+                        validate_float_tensor(&rhs);
+                        with_autodiff_backend!(strategy, |AD| {
+                            let rhs = match rhs.kind {
+                                DispatchTensorKind::Autodiff(tensor) => *tensor,
+                                _ => <AD as burn_backend::AutodiffBackend>::from_inner(rhs),
+                            };
+                            let output = AD::q_matmul(
+                                TensorPrimitive::QFloat(lhs),
+                                TensorPrimitive::Float(rhs),
+                            );
+                            wrap_q_matmul_autodiff!(output, strategy)
+                        })
+                    }
+                    #[cfg(not(feature = "autodiff"))]
+                    DispatchAutodiffContext::Enabled(_) => {
+                        panic!("autodiff context requires the `autodiff` feature")
                     }
                 }
-                backend_list!(q_matmul_qf_arms, lhs, rhs, autodiff)
             }
             _ => unreachable!(),
         }
