@@ -50,10 +50,15 @@ let model = ModelConfig::new().init(&device).load_record(record);
 
 Load-time behavior is configured with builder methods on the record (ignored when saving):
 
-- `.allow_partial(true)` — load even when some module parameters are absent from the record;
-- `.validate(false)` — skip shape-mismatch / missing-tensor validation;
+- `.allow_partial(true)` — allow module parameters to be absent from the record, leaving them
+  unchanged;
+- `.allow_unused(true)` — ignore record tensors that do not match any module parameter;
+- `.validate(false)` — skip shape-mismatch errors, leaving mismatched parameters unchanged;
 - `.cast_to_module_dtype()` / `.with_dtype_policy(..)` — cast the record's data to the module
   parameter dtypes on load (by default the parameter adopts the record's dtype).
+
+Shape validation, partial loading, and unused-tensor handling are independent. By default, loading
+rejects shape mismatches, missing parameters, and unused record tensors.
 
 The save-side dtype is not configurable: the record stores whatever dtype the module currently holds.
 To control the dtype applied on load, use `.cast_to_module_dtype()` / `.with_dtype_policy(..)` above.

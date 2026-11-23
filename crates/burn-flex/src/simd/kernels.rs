@@ -10,7 +10,8 @@ use core::iter::Sum;
 use core::ops::AddAssign;
 
 use macerator::{
-    ReduceAdd, ReduceMax, ReduceMin, Simd, VAdd, VOrd, vload_unaligned, vstore_unaligned,
+    ReduceAdd, ReduceMax, ReduceMin, Simd, VAdd, VMaskReduce, VOrd, vload_unaligned,
+    vstore_unaligned,
 };
 use num_traits::Float;
 
@@ -205,7 +206,7 @@ pub fn min_f32(data: &[f32]) -> f32 {
 }
 
 #[macerator::with_simd]
-fn macerator_max<S: Simd, F: VOrd + ReduceMax + Float>(mut xs: &[F], init: F) -> F {
+fn macerator_max<S: Simd, F: VOrd + VMaskReduce + ReduceMax + Float>(mut xs: &[F], init: F) -> F {
     let lanes = F::lanes::<S>();
     let initial = init.splat::<S>();
     let mut acc = initial;
@@ -223,7 +224,7 @@ fn macerator_max<S: Simd, F: VOrd + ReduceMax + Float>(mut xs: &[F], init: F) ->
     }
 
     let mut result = acc.reduce_max();
-    let mut has_nan = false;
+    let mut has_nan = nan_mask.any();
     for &x in xs {
         has_nan |= x.is_nan();
         if x > result {
@@ -231,21 +232,11 @@ fn macerator_max<S: Simd, F: VOrd + ReduceMax + Float>(mut xs: &[F], init: F) ->
         }
     }
 
-    let mut nan_lanes = [false; 64];
-    assert!(
-        lanes <= nan_lanes.len(),
-        "SIMD f32 lane count {lanes} exceeds the supported maximum"
-    );
-    // SAFETY: `nan_lanes` is valid for 64 contiguous booleans, and the
-    // assertion above proves that the SIMD mask writes at most that many.
-    unsafe { nan_mask.store_as_bool(nan_lanes.as_mut_ptr()) };
-    has_nan |= nan_lanes[..lanes].iter().any(|value| *value);
-
     if has_nan { F::nan() } else { result }
 }
 
 #[macerator::with_simd]
-fn macerator_min<S: Simd, F: VOrd + ReduceMin + Float>(mut xs: &[F], init: F) -> F {
+fn macerator_min<S: Simd, F: VOrd + VMaskReduce + ReduceMin + Float>(mut xs: &[F], init: F) -> F {
     let lanes = F::lanes::<S>();
     let initial = init.splat::<S>();
     let mut acc = initial;
@@ -263,23 +254,13 @@ fn macerator_min<S: Simd, F: VOrd + ReduceMin + Float>(mut xs: &[F], init: F) ->
     }
 
     let mut result = acc.reduce_min();
-    let mut has_nan = false;
+    let mut has_nan = nan_mask.any();
     for &x in xs {
         has_nan |= x.is_nan();
         if x < result {
             result = x;
         }
     }
-
-    let mut nan_lanes = [false; 64];
-    assert!(
-        lanes <= nan_lanes.len(),
-        "SIMD f32 lane count {lanes} exceeds the supported maximum"
-    );
-    // SAFETY: `nan_lanes` is valid for 64 contiguous booleans, and the
-    // assertion above proves that the SIMD mask writes at most that many.
-    unsafe { nan_mask.store_as_bool(nan_lanes.as_mut_ptr()) };
-    has_nan |= nan_lanes[..lanes].iter().any(|value| *value);
 
     if has_nan { F::nan() } else { result }
 }

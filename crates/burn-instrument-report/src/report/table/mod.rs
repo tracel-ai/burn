@@ -4,6 +4,7 @@
 mod base;
 mod components;
 mod device;
+mod members;
 mod merges;
 mod method;
 mod recoverable;

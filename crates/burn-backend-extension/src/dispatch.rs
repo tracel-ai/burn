@@ -14,7 +14,7 @@ use crate::{
     routing::{self, OutputRoute},
 };
 
-pub(crate) fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
+pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
     if !attr.is_empty() {
         return Err(syn::Error::new_spanned(
             attr,

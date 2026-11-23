@@ -41,7 +41,7 @@ fn singleton_select_is_independent_of_unrelated_wide_operations() {
             index_storage[0] = 7;
             let indices =
                 TestTensorInt::<1>::from_data(TensorData::new(index_storage, [65_536]), &device)
-                    .slice([0..1]);
+                    .slice(0..1);
             let scalar = TestTensor::<1>::from_data([100.0], &device);
             let large =
                 TestTensor::<1>::from_data(TensorData::new(vec![-1.0; 65_536], [65_536]), &device)

@@ -66,6 +66,8 @@ fn test_max_pool3d_with_indices_gradient() {
 }
 
 #[test]
+// The center's index is written out as its (z, y, x) = (1, 1, 1).
+#[allow(clippy::identity_op)]
 fn test_max_pool3d_gradient_overlapping_windows() {
     let device = AutodiffDevice::new();
     // 1x1x3x3x3 tensor

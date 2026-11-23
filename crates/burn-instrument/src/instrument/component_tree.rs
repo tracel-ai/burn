@@ -18,7 +18,7 @@ use std::time::Duration;
 
 use super::cursor::{Attribution, Fusion, Placement};
 use super::timing::TimingQuality;
-use crate::breakdown::{Breakdown, Component, Kernel, Variant};
+use crate::breakdown::{Breakdown, Component, Kernel, PerMember, Variant};
 use crate::component_path::ComponentPath;
 use crate::{Bounds, Declaration};
 
@@ -128,7 +128,12 @@ impl ComponentTree {
     ///
     /// If a component is still open — a tree read mid-run is missing the
     /// kernels its open components have yet to launch.
-    pub fn breakdown(&self, timings: TimingQuality, fusion: Fusion) -> Breakdown {
+    pub fn breakdown(
+        &self,
+        timings: TimingQuality,
+        fusion: Fusion,
+        per_member: Option<PerMember>,
+    ) -> Breakdown {
         assert!(
             self.open.is_empty(),
             "a component is still open: read the tree after the run, not during it"
@@ -142,6 +147,7 @@ impl ComponentTree {
             timed_alone: timings.timed_alone,
             unplaced: timings.unplaced,
             unfused: fusion == Fusion::Unfused,
+            per_member,
         }
     }
 
@@ -740,7 +746,7 @@ mod tests {
 
     /// The breakdown of a run whose timings are all trusted.
     fn finished(components: &ComponentTree) -> Breakdown {
-        components.breakdown(TimingQuality::default(), Fusion::Fused)
+        components.breakdown(TimingQuality::default(), Fusion::Fused, None)
     }
 
     /// The id of the component `entered` lands on.

@@ -10,6 +10,7 @@
 //! - [`metric`]: loss, accuracy, precision and recall, F-scores, AUROC, BLEU, CER, WER, perplexity,
 //!   system usage and more; with the `vision` feature, image metrics such as PSNR, SSIM, LPIPS and
 //!   FID.
+//! - [`metric::optimizer`]: metrics for optimizer updates, including learning rates for all parameter groups.
 //! - [`renderer`]: a terminal dashboard (`tui` feature) or plain CLI output for training progress.
 //! - [`checkpoint`]: periodic and metric-based checkpointing, and resuming from a checkpoint.
 //! - Early stopping, interruption and an [`Evaluator`] for test sets.

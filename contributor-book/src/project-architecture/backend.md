@@ -53,11 +53,12 @@ does not mean every operation will be fused; execution also needs unfused and fa
 
 For example, ordinary matmul passes through
 [`burn-cubecl`'s matmul implementation](https://github.com/tracel-ai/burn/blob/main/crates/burn-cubecl/src/kernel/matmul/base.rs),
-which prepares tensor bindings and dtypes and launches a CubeK matmul kernel. For a supported matmul
-followed by element-wise operations,
+which states the operands as CubeK reads them and runs the plan CubeK's selection gives for the
+product. For a supported matmul followed by element-wise operations,
 [`burn-cubecl-fusion`'s matmul optimization](https://github.com/tracel-ai/burn/blob/main/crates/burn-cubecl-fusion/src/optim/matmul/optimization.rs)
-integrates the element-wise work into a CubeK matmul kernel through custom kernel arguments. This
-can avoid separate launches and intermediate memory traffic. Both paths execute through CubeCL.
+runs the routine CubeK elected for the product with its output stored through the fused
+element-wise block instead of a buffer. This can avoid separate launches and intermediate memory
+traffic. Both paths execute through CubeCL.
 
 Use these responsibilities to locate a change:
 

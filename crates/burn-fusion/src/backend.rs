@@ -1,11 +1,15 @@
 use crate::{
-    FusionTensor,
+    Collective, CollectivePart, FusionTensor,
     client::GlobalFusionClient,
     stream::{Context, OrderedExecution},
 };
+use burn_backend::RandomKey;
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError, MemoryPoolUsage,
-    ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport, profile_with_tokens,
+    Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceOps, DeviceTelemetry,
+    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
+    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, HostTransfer,
+    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
+    PruneOptions, Pruned, SaveOptions, Shape, profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -48,9 +52,11 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     }
 
     fn seed(device: &B::Device, seed: u64) {
-        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
-        let device = device.clone();
-        client.sync(move || B::seed(&device, seed));
+        B::seed(device, seed);
+    }
+
+    fn next_random_key(device: &Self::Device) -> RandomKey {
+        B::next_random_key(device)
     }
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
@@ -116,6 +122,127 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         let _ = client.run(move || B::profile_abandon(&device, token));
     }
 
+    /// Opened after the calling stream's queue drains, so what was registered
+    /// before runs under the mode it was registered in.
+    fn execution_mode_open(
+        device: &Self::Device,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::execution_mode_open(&device, mode))
+            .map_err(server_error)?
+    }
+
+    /// Read where the backend counts, without a hop through the queue: the
+    /// queue holds launches, not their statistics.
+    fn execution_mode_statistics(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::execution_mode_statistics(device, token)
+    }
+
+    /// Closed after the queue of the stream the mode was opened on drains, so
+    /// what was registered there under the mode runs under it, whichever
+    /// thread closes it. A drain that fails still closes the mode, here,
+    /// rather than leave it discarding every later launch.
+    fn execution_mode_close(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let inner = device.clone();
+        let drained = token
+            .opened_on
+            .executes(|| client.try_sync(move || B::execution_mode_close(&inner, token)));
+        match drained {
+            Ok(closed) => closed,
+            Err(err) => {
+                let closed = token
+                    .opened_on
+                    .executes(|| B::execution_mode_close(device, token));
+                closed.and(Err(server_error(err)))
+            }
+        }
+    }
+
+    fn environment_create(
+        device: &Self::Device,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_create(device, name, origin)
+    }
+
+    /// Activated after the calling stream's queue drains, so what was
+    /// registered before compiles into the environment it was registered in.
+    fn environment_activate(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::environment_activate(&device, id))
+            .map_err(server_error)?
+    }
+
+    fn environment_active(device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_active(device)
+    }
+
+    /// Saved after the calling stream's queue drains, so what it compiles is
+    /// in the save.
+    fn environment_save(
+        device: &Self::Device,
+        id: EnvironmentId,
+        options: SaveOptions,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::environment_save(&device, id, options))
+            .map_err(server_error)?
+    }
+
+    /// Counted without draining the calling stream's queue: the count is of
+    /// what has compiled and tuned so far, and work queued but not yet
+    /// executed is not in it.
+    fn environment_summary(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentSummary, EnvironmentError> {
+        B::environment_summary(device, id)
+    }
+
+    fn environment_merge(
+        device: &Self::Device,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::environment_merge(&device, id, origin))
+            .map_err(server_error)?
+    }
+
+    /// Pruned after the calling stream's queue drains, so what it compiles is
+    /// pruned or kept with the rest.
+    fn environment_prune(
+        device: &Self::Device,
+        id: EnvironmentId,
+        options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::environment_prune(&device, id, options))
+            .map_err(server_error)?
+    }
+
     fn ad_enabled(_device: &Self::Device) -> bool {
         false
     }
@@ -156,28 +283,44 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         B::memory_cleanup(device)
     }
 
-    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
-        // Reads the *calling* stream, which is the one the layout was installed
-        // on and the one fused operations allocate from, so it hops exactly as
-        // the install does.
+    fn device_description(device: &Self::Device) -> Option<DeviceDescription> {
+        B::device_description(device)
+    }
+
+    fn measure_telemetry(device: &Self::Device) -> DeviceTelemetry {
+        B::measure_telemetry(device)
+    }
+
+    /// Read on the *calling* stream, after its queue drains: the pools it
+    /// reports are the ones that stream's fused operations allocate from, and
+    /// what it still holds queued would otherwise be missing from the usage.
+    fn measure_memory(device: &Self::Device) -> Option<MemoryReport> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
 
-        client.sync(move || B::memory_pool_report(&device))
+        client.sync(move || B::measure_memory(&device))
     }
 
-    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
-        // Combined across the runtime's streams, so no hop is needed for the
-        // reading itself — but recorded operations have to be drained first or
-        // they are missing from it.
-        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
-        let device = device.clone();
-
-        client.sync(move || B::memory_pool_usage(&device))
+    /// The probes launch on the backend directly: the queue holds none of
+    /// their work.
+    fn measure_peaks(device: &Self::Device, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        B::measure_peaks(device, keys)
     }
 
-    fn memory_capacity(device: &Self::Device) -> Option<u64> {
-        B::memory_capacity(device)
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        B::measure_link(from, to, sizes)
+    }
+
+    fn measure_host_link(
+        device: &Self::Device,
+        transfer: HostTransfer,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        B::measure_host_link(device, transfer, sizes)
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
@@ -210,9 +353,26 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
-        // `client.sync` drains the lazy queue and runs the closure without a
-        // device sync — the inner backend then arms persistent allocation.
+        // `client.sync` drains the lazy queue first, so the operations before the planning run
+        // as they are and the planning run starts from the next one.
         client.sync(move || B::graph_prepare(&device))
+    }
+
+    fn graph_end_run(device: &Self::Device) -> Result<bool, ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        // Drain the run's fused operations first: they launch, and release the handles they
+        // consumed, only when the queue drains, and a temporary still held when the run ends
+        // would be taken for an output.
+        client.sync(move || B::graph_end_run(&device))
+    }
+
+    fn graph_start_run(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        // Drain the operations registered between the runs first, so they run as they are and
+        // the next planning run starts from the operation after them.
+        client.sync(move || B::graph_start_run(&device))
     }
 
     fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
@@ -423,6 +583,18 @@ pub trait FusionBackend:
     /// mode instead (see the `Backend` impl). Defaults to a no-op for
     /// backends without allocation modes.
     fn memory_persistent(_device: &Self::Device, _enabled: bool) {}
+
+    /// Each member's part of `collective` over members on `devices` of `shape` and `dtype`,
+    /// member `i` at position `i`, when each member's device runs its own part natively.
+    ///
+    /// Fusion queues each part on its member's stream, so the caller never waits for the members.
+    /// `None` when the members cannot run it so, which Fusion then runs on the caller.
+    fn collective_parts(
+        devices: &[Self::Device],
+        shape: &Shape,
+        dtype: DType,
+        collective: Collective,
+    ) -> Option<Vec<Box<dyn CollectivePart<Self>>>>;
 }
 
 // Fusion implements `BackendIr` to enable router backend usage.

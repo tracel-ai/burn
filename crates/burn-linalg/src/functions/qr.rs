@@ -105,9 +105,7 @@ pub fn qr<const D: usize>(tensor: Tensor<D>, reduced: bool) -> (Tensor<D>, Tenso
 
         // a closure to calculate tau*(w,w^{T} A)
         let f = |a: Tensor<D>| -> Tensor<D> {
-            // TODO: Remove `.clone()` on `aw_out` once the fusion bug is resolved.
-            let aw_out = a.matmul(w.clone());
-            let aw = aw_out.clone().mul(tau.clone());
+            let aw = a.matmul(w.clone()).mul(tau.clone());
 
             w.clone().matmul(aw.transpose())
         };

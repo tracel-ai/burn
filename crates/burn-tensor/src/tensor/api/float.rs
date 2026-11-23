@@ -15,7 +15,6 @@ use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Float, Int, TensorPrimitive};
 #[cfg(feature = "std")]
 use burn_backend::AutodiffBackend;
-use burn_backend::ElementConversion;
 use burn_backend::Scalar;
 use burn_backend::TensorMetadata;
 #[cfg(feature = "std")]
@@ -25,6 +24,7 @@ use burn_backend::ops::FloatTensorOps;
 use burn_backend::ops::GridSampleOptions;
 use burn_backend::ops::QTensorOps;
 use burn_backend::quantization::QuantizationParametersPrimitive;
+use burn_backend::{Backend, ElementConversion};
 use burn_dispatch::Dispatch;
 use core::f32;
 
@@ -106,8 +106,9 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// strategy as [`round`](Self::round), and `decimals == 0` is equivalent to
     /// [`round`](Self::round).
     ///
-    /// Scaling is inexact and can overflow in the tensor's dtype, producing infinity
-    /// or NaN, particularly for low-precision dtypes or large absolute decimal counts.
+    /// Scaling is inexact and can move halfway cases across the rounding boundary.
+    /// It can also overflow in the tensor's dtype, producing infinity or NaN,
+    /// particularly for low-precision dtypes or large absolute decimal counts.
     ///
     /// # Panics
     ///
@@ -716,13 +717,13 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example
     ///
     /// ```ignore
-    /// use burn_tensor::ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode};
+    /// use burn_tensor::ops::{GridSampleOptions, GridSamplePaddingMode, GridSampleMode};
     ///
     /// // Default options (bilinear, zeros padding, align_corners=false)
     /// let output = tensor.grid_sample_2d(grid, GridSampleOptions::default());
     ///
     /// // Custom options
-    /// let options = GridSampleOptions::new(InterpolateMode::Bilinear)
+    /// let options = GridSampleOptions::new(GridSampleMode::Bilinear)
     ///     .with_padding_mode(GridSamplePaddingMode::Border)
     ///     .with_align_corners(true);
     /// let output = tensor.grid_sample_2d(grid, options);
@@ -1201,11 +1202,13 @@ fn int_impl(p: BridgeTensor, device: Device) -> BridgeTensor {
 }
 
 fn random_like_impl(p: &BridgeTensor, distribution: Distribution) -> BridgeTensor {
+    let device = p.as_dispatch().device();
     BridgeTensor::float(Dispatch::float_random(
         p.shape(),
         distribution,
-        &p.as_dispatch().device(),
+        &device,
         p.dtype().into(),
+        Dispatch::next_random_key(&device),
     ))
 }
 

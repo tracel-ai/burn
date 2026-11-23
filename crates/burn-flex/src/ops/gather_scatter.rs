@@ -179,13 +179,15 @@ pub fn gather<E: Element + Pod + Default + Copy + Send + Sync>(
         ndims
     );
 
-    // Validate shapes: all dims except `dim` must match between tensor and indices
+    // Validate shapes: indices must not be larger than the tensor on dims other than `dim`
     for i in 0..ndims {
         if i != dim {
-            assert_eq!(
-                tensor_shape[i], indices_shape[i],
-                "gather: shape mismatch at dim {}: tensor {} vs indices {}",
-                i, tensor_shape[i], indices_shape[i]
+            assert!(
+                indices_shape[i] <= tensor_shape[i],
+                "gather: indices larger than tensor at dim {}: tensor {} vs indices {}",
+                i,
+                tensor_shape[i],
+                indices_shape[i]
             );
         }
     }
@@ -514,10 +516,12 @@ where
 
     for i in 0..ndims {
         if i != dim {
-            assert_eq!(
-                tensor_shape[i], indices_shape[i],
-                "{operation}: shape mismatch at dim {}: tensor {} vs indices {}",
-                i, tensor_shape[i], indices_shape[i]
+            assert!(
+                indices_shape[i] <= tensor_shape[i],
+                "{operation}: indices larger than tensor at dim {}: tensor {} vs indices {}",
+                i,
+                tensor_shape[i],
+                indices_shape[i]
             );
         }
     }
@@ -1451,7 +1455,18 @@ pub fn select_assign_bool(
 }
 
 pub fn gather_bool(tensor: FlexTensor, dim: usize, indices: FlexTensor) -> FlexTensor {
-    gather::<u8>(tensor, dim, indices)
+    let dtype = tensor.dtype();
+    let result = gather::<u8>(tensor, dim, indices);
+    // The shared gather kernel tags its output as u8; retain the input's bool dtype.
+    FlexTensor::from_arc(result.data_arc(), result.layout().clone(), dtype)
+}
+
+/// Select for bool tensors, keeping the input's bool dtype.
+pub fn select_bool(tensor: FlexTensor, dim: usize, indices: FlexTensor) -> FlexTensor {
+    let dtype = tensor.dtype();
+    let result = select::<u8>(tensor, dim, indices);
+    // The shared select kernel tags its output as u8; retain the input's bool dtype.
+    FlexTensor::from_arc(result.data_arc(), result.layout().clone(), dtype)
 }
 
 /// Scatter for bool tensors using the given update operation.

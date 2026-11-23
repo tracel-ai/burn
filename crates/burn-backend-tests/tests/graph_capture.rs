@@ -72,6 +72,115 @@ mod cube {
             .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
     }
 
+    /// A graph's output survives the replay of a graph captured before it on the device. The
+    /// earlier graph's temporaries, the products of a chain of matmuls, replay over memory the
+    /// device's graphs share; the later graph returns a tensor its closure allocates, which the
+    /// capture keeps off that memory, so it reads what its own replay wrote whatever replays
+    /// after it.
+    #[test]
+    #[serial]
+    fn an_output_survives_an_earlier_graphs_replay() {
+        const SIDE: usize = 1024;
+        let device = Device::default();
+        // Each entry 1/SIDE, so the matrix squares to itself and the chain keeps it.
+        let wide_in = TestTensor::<2>::ones([SIDE, SIDE], &device).div_scalar(SIDE as f32);
+        let mut wide = burn_tensor::capture(&device, || {
+            let mut product = wide_in.clone();
+            for _ in 0..4 {
+                product = product.matmul(wide_in.clone());
+            }
+            product
+        });
+        let narrow_in = TestTensor::<2>::ones([SIDE, SIDE], &device);
+        let mut narrow = burn_tensor::capture(&device, || narrow_in.clone().mul_scalar(3.0));
+        assert!(wide.is_hardware(), "{:?}", wide.capture_error());
+        assert!(narrow.is_hardware(), "{:?}", narrow.capture_error());
+
+        // Safety: see `capture_replay_matches_eager`.
+        let narrow_out = unsafe { narrow.replay() }.clone();
+        let wide_out = unsafe { wide.replay() }.clone();
+        narrow_out.into_data().assert_approx_eq::<FloatElem>(
+            &TestTensor::<2>::full([SIDE, SIDE], 3.0, &device).into_data(),
+            Tolerance::default(),
+        );
+        wide_out.into_data().assert_approx_eq::<FloatElem>(
+            &TestTensor::<2>::full([SIDE, SIDE], 1.0 / SIDE as f32, &device).into_data(),
+            Tolerance::default(),
+        );
+    }
+
+    /// A graph's output survives the replay of a graph captured after it on the device, whose
+    /// temporaries — the products of a chain of matmuls — take the memory the device's graphs
+    /// share: the earlier output was kept off that memory when its own graph recorded.
+    #[test]
+    #[serial]
+    fn an_output_survives_a_later_graphs_replay() {
+        const SIDE: usize = 1024;
+        let device = Device::default();
+        let narrow_in = TestTensor::<2>::ones([SIDE, SIDE], &device);
+        let mut narrow = burn_tensor::capture(&device, || narrow_in.clone().mul_scalar(3.0));
+        let wide_in = TestTensor::<2>::ones([SIDE, SIDE], &device).div_scalar(SIDE as f32);
+        let mut wide = burn_tensor::capture(&device, || {
+            let mut product = wide_in.clone();
+            for _ in 0..4 {
+                product = product.matmul(wide_in.clone());
+            }
+            product
+        });
+        assert!(narrow.is_hardware(), "{:?}", narrow.capture_error());
+        assert!(wide.is_hardware(), "{:?}", wide.capture_error());
+
+        // Safety: see `capture_replay_matches_eager`.
+        let narrow_out = unsafe { narrow.replay() }.clone();
+        let wide_out = unsafe { wide.replay() }.clone();
+        narrow_out.into_data().assert_approx_eq::<FloatElem>(
+            &TestTensor::<2>::full([SIDE, SIDE], 3.0, &device).into_data(),
+            Tolerance::default(),
+        );
+        wide_out.into_data().assert_approx_eq::<FloatElem>(
+            &TestTensor::<2>::full([SIDE, SIDE], 1.0 / SIDE as f32, &device).into_data(),
+            Tolerance::default(),
+        );
+    }
+
+    /// Whether another clone of a buffer is still alive depends on the device's timing, so
+    /// work that writes in place when run eagerly writes nothing in place while captured.
+    #[test]
+    #[serial]
+    #[cfg(all(
+        feature = "fusion",
+        any(
+            feature = "cuda",
+            feature = "rocm",
+            feature = "metal",
+            feature = "wgpu"
+        )
+    ))]
+    fn nothing_is_written_in_place_while_capturing() {
+        use burn_cubecl_fusion::inspect::inplace_alias_count;
+
+        let device = Device::default();
+        let work = || {
+            let fresh = TestTensor::<2>::ones([64, 64], &device);
+            device.flush().unwrap();
+            fresh.add_scalar(1.0).mul_scalar(2.0)
+        };
+        // The first run may tune, and a tuning trial never writes in place.
+        let _ = work().into_data();
+
+        let eager = inplace_alias_count();
+        let _ = work().into_data();
+        assert!(
+            inplace_alias_count() > eager,
+            "the work writes in place when run eagerly"
+        );
+
+        let captured = inplace_alias_count();
+        let graph = burn_tensor::capture(&device, work);
+        assert!(graph.is_hardware(), "{:?}", graph.capture_error());
+        assert_eq!(inplace_alias_count(), captured);
+    }
+
     /// A closure that grows the memory pool inside the capture window cannot be
     /// recorded, since every replay must reuse the buffers prepared before it:
     /// the graph falls back to re-running the closure and says why. A backend
@@ -83,8 +192,9 @@ mod cube {
         let device = Device::default();
         let mut runs = 0;
 
-        // Each run asks for a size no earlier run allocated, so the captured run
-        // cannot reuse a warmup buffer and must grow the pool.
+        // Each run asks for a size no earlier run allocated, so the planning runs
+        // never settle and the recorded run allocates otherwise than the last one.
+        // The output the graph hands back then comes from a run that executed.
         let graph = burn_tensor::capture(&device, || {
             runs += 1;
             TestTensor::<1>::ones([786_433 * runs], &device)
@@ -92,5 +202,10 @@ mod cube {
 
         assert!(!graph.is_hardware());
         assert!(graph.capture_error().is_some());
+        let output = graph.output().clone();
+        let ones = TestTensor::<1>::ones(output.shape(), &device);
+        output
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&ones.into_data(), Tolerance::default());
     }
 }

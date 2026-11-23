@@ -25,8 +25,9 @@ pub enum ServeError {
     /// The devices belong to more than one backend. Every CubeCL runtime is one backend, so CUDA
     /// and wgpu devices can be served together, but not with Flex ones.
     MixedBackends,
-    /// Custom operations were registered for a backend other than the devices'.
-    CustomOpBackend {
+    /// Custom operations or device queries were registered for a backend other than the
+    /// devices'.
+    HandlerBackend {
         /// The backend they were registered for.
         backend: &'static str,
     },
@@ -67,9 +68,10 @@ impl fmt::Display for ServeError {
             Self::NoDevices => f.write_str("a server needs at least one device"),
             Self::UnsupportedDevice { reason } => write!(f, "cannot serve this device: {reason}"),
             Self::MixedBackends => f.write_str("a server's devices must share one backend"),
-            Self::CustomOpBackend { backend } => write!(
+            Self::HandlerBackend { backend } => write!(
                 f,
-                "custom operations registered for {backend}, which the server's devices do not use"
+                "custom operations or device queries registered for {backend}, which the server's \
+                 devices do not use"
             ),
             Self::SignalHandler { source } => {
                 write!(f, "cannot install the shutdown signal handlers: {source}")

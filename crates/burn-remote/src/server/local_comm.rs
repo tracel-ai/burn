@@ -15,9 +15,11 @@
 //! and the target op travel on separate connections with no cross-connection ordering — so the
 //! taker waits on a [`Notify`] until the primitive shows up.
 
-use crate::shared::{LocalAllReducePart, LocalCollectiveId, LocalTransferId, SessionId};
-use burn_backend::tensor::FloatTensor;
-use burn_ir::{BackendIr, HandleKind};
+use crate::shared::{
+    LocalAllReducePart, LocalCollectiveId, LocalTransferId, SessionId, TransferCapability,
+};
+use burn_backend::tensor::{Device, FloatTensor};
+use burn_ir::{BackendIr, HandleKind, TensorError};
 use burn_std::id::StreamId;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -27,8 +29,12 @@ use tokio::sync::{Mutex, Notify, oneshot};
 /// be reclaimed if that session goes away before its target takes it.
 struct Pending<B: BackendIr> {
     source: SessionId,
-    tensor: HandleKind<B>,
+    tensor: Exposed<B>,
 }
+
+/// What a source session exposes for a same-host transfer: the primitive, or the failure that
+/// claimed it, for the target to claim its copy with.
+pub type Exposed<B> = Result<HandleKind<B>, TensorError>;
 
 /// A member that has handed its tensor to an all-reduce, waiting for its result.
 struct ArrivedMember<B: BackendIr> {
@@ -144,6 +150,9 @@ pub(crate) struct LocalCommService<B: BackendIr> {
     hosted_devices: usize,
     /// Wakes takers whenever a new primitive is exposed.
     notify: Arc<Notify>,
+    /// Devices sessions granted to a same-server link probe, by the capability their client holds
+    /// and with the granting session, so a closed session's grants are purged with it.
+    link_grants: Mutex<HashMap<TransferCapability, (SessionId, Device<B>)>>,
 }
 
 impl<B: BackendIr> LocalCommService<B> {
@@ -157,6 +166,7 @@ impl<B: BackendIr> LocalCommService<B> {
             }),
             hosted_devices,
             notify: Arc::new(Notify::new()),
+            link_grants: Mutex::new(HashMap::new()),
         }
     }
 
@@ -167,7 +177,7 @@ impl<B: BackendIr> LocalCommService<B> {
         &self,
         source: SessionId,
         transfer_id: LocalTransferId,
-        tensor: HandleKind<B>,
+        tensor: Exposed<B>,
     ) {
         self.pending
             .lock()
@@ -177,7 +187,7 @@ impl<B: BackendIr> LocalCommService<B> {
     }
 
     /// Take the primitive exposed under `transfer_id`, waiting until it is exposed.
-    pub async fn take(&self, transfer_id: LocalTransferId) -> HandleKind<B> {
+    pub async fn take(&self, transfer_id: LocalTransferId) -> Exposed<B> {
         loop {
             // Register interest *before* checking the map so an `expose` that lands between
             // the check and the await can't slip through the gap and leave us parked forever.
@@ -272,6 +282,30 @@ impl<B: BackendIr> LocalCommService<B> {
             .lock()
             .await
             .retain(|_, pending| pending.source != session);
+        self.link_grants
+            .lock()
+            .await
+            .retain(|_, (granter, _)| *granter != session);
+    }
+
+    /// Grant `session`'s device to the link probe of whichever session presents `capability`:
+    /// a probe reaches a device only through a session its client opened there.
+    pub async fn grant_link(
+        &self,
+        session: SessionId,
+        capability: TransferCapability,
+        device: Device<B>,
+    ) {
+        self.link_grants
+            .lock()
+            .await
+            .insert(capability, (session, device));
+    }
+
+    /// The device granted under `capability`, once.
+    pub async fn take_link(&self, capability: TransferCapability) -> Option<Device<B>> {
+        let (_, device) = self.link_grants.lock().await.remove(&capability)?;
+        Some(device)
     }
 
     #[cfg(all(test, not(target_family = "wasm")))]
@@ -311,6 +345,30 @@ mod tests {
 
     fn tensor(values: [f32; 2]) -> FloatTensor<Flex> {
         Flex::float_from_data(TensorData::from(values), &Default::default())
+    }
+
+    #[tokio::test]
+    async fn a_link_grant_is_taken_once() {
+        let comm = LocalCommService::<Flex>::new(2);
+        let capability = TransferCapability::random();
+
+        comm.grant_link(SessionId::new(), capability, Default::default())
+            .await;
+
+        assert!(comm.take_link(capability).await.is_some());
+        assert!(comm.take_link(capability).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_closed_sessions_link_grant_is_purged() {
+        let comm = LocalCommService::<Flex>::new(2);
+        let (session, capability) = (SessionId::new(), TransferCapability::random());
+        comm.grant_link(session, capability, Default::default())
+            .await;
+
+        comm.purge_session(session).await;
+
+        assert!(comm.take_link(capability).await.is_none());
     }
 
     #[tokio::test(flavor = "multi_thread")]

@@ -19,12 +19,27 @@ pub type TestDevice = burn_core::backend::RocmDevice;
     any(
         feature = "wgpu",
         feature = "vulkan",
-        feature = "metal",
+        feature = "wgpu-msl",
         feature = "webgpu"
     ),
     not(any(feature = "cuda", feature = "rocm"))
 ))]
 pub type TestDevice = burn_core::backend::WgpuDevice;
+
+#[allow(unused)]
+#[cfg(all(
+    test,
+    feature = "metal",
+    not(any(
+        feature = "cuda",
+        feature = "rocm",
+        feature = "wgpu",
+        feature = "vulkan",
+        feature = "wgpu-msl",
+        feature = "webgpu"
+    ))
+))]
+pub type TestDevice = burn_core::backend::MetalDevice;
 
 #[allow(unused)]
 #[cfg(all(
@@ -35,6 +50,7 @@ pub type TestDevice = burn_core::backend::WgpuDevice;
         feature = "rocm",
         feature = "wgpu",
         feature = "vulkan",
+        feature = "wgpu-msl",
         feature = "metal",
         feature = "webgpu"
     ))
@@ -50,6 +66,7 @@ pub type TestDevice = burn_core::backend::CpuDevice;
         feature = "rocm",
         feature = "wgpu",
         feature = "vulkan",
+        feature = "wgpu-msl",
         feature = "metal",
         feature = "webgpu",
         feature = "cpu"

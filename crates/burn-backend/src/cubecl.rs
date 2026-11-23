@@ -14,9 +14,12 @@ use burn_std::{
 use cubecl::ir::{ElemType, FloatKind, IntKind, UIntKind};
 
 pub mod autotune;
+mod device;
+mod execution;
 
 pub use cubecl::throughput::{
-    MemoryAccess, ThroughputError, ThroughputKey, ThroughputMode, ThroughputValue,
+    LinkKey, LinkRoute, MemoryAccess, ThroughputError, ThroughputKey, ThroughputMode,
+    ThroughputValue,
 };
 
 /// The device of every cubecl runtime, re-exported so a crate routing through
@@ -27,7 +30,22 @@ pub use cubecl::Device;
 /// subset of the devices.
 pub use cubecl::RuntimeId;
 pub use cubecl::ir::{AdapterLuid, DeviceIdentity, PciAddress, PciVendor, PhysicalDevice};
-pub use cubecl::std::throughput::measure_peak_throughput;
+pub use cubecl::std::throughput::{
+    measure_link_throughput, measure_peak_throughput, transfer_route,
+};
+
+/// What a cubecl device can do, as its runtime states it once the device is
+/// open: the features, limits and memory it reports, its identity, and the
+/// target its kernels compile for. What a kernel written in cubecl selects its
+/// routines by, so a device whose work runs elsewhere — a remote device's
+/// server — answers it from there.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CubeCapabilities {
+    /// The features, limits, memory and identity the runtime reports.
+    pub properties: cubecl::ir::DeviceProperties,
+    /// The target the runtime compiles kernels for.
+    pub target: cubecl::ir::TargetProperties,
+}
 
 /// Convert a cubecl [`ElemType`] into the corresponding burn [`DType`].
 ///

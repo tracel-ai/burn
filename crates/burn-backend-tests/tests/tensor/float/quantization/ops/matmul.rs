@@ -2,7 +2,7 @@ use super::qtensor::*;
 use super::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
-use burn_tensor::quantization::{QuantValue, ScaleDtype};
+use burn_tensor::quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype};
 
 #[test]
 #[ignore]
@@ -248,8 +248,7 @@ fn test_matmul_mixed_block_scale() {
     assert!(output.dtype().is_float());
 }
 
-/// No matmul kernel applies a per-tensor scale, and the autotune candidates panic on the level
-/// instead of declining it, so failing to fall back takes down the whole tuning run.
+/// A two-level rhs, its blocks under a per-tensor scale, is read as stored.
 #[test]
 fn should_matmul_two_level_rhs() {
     let device = Default::default();
@@ -277,6 +276,113 @@ fn should_matmul_two_level_rhs() {
         .matmul(quantized.clone().dequantize())
         .into_data();
     let actual = lhs.matmul(quantized).into_data();
+
+    actual.assert_approx_eq::<FloatElem>(&expected, Tolerance::relative(1e-2));
+}
+
+/// An NVFP4 rhs (`e2m1` values under 16-wide `ue4m3` block scales and an `f32` per-tensor
+/// scale), at one row and at many: the few-rows and the many-rows routines both read it.
+#[test]
+fn should_matmul_nvfp4_rhs() {
+    let device = Default::default();
+    let rhs: TestTensor<2> = TestTensorInt::arange(0..64 * 32, &device)
+        .float()
+        .div_scalar(2048.)
+        .reshape([64, 32]);
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::E2M1)
+        .per_block([16], ScaleDtype::UE4M3)
+        .per_tensor(ScaleDtype::F32)
+        .with_store(QuantStore::PackedU32(0));
+    let quantized = rhs.quantize_dynamic(&scheme);
+
+    for rows in [1, 48] {
+        let lhs: TestTensor<2> = TestTensorInt::arange(0..rows * 64, &device)
+            .float()
+            .div_scalar((rows * 64) as f32)
+            .reshape([rows as usize, 64]);
+        let expected = lhs
+            .clone()
+            .matmul(quantized.clone().dequantize())
+            .into_data();
+        let actual = lhs.matmul(quantized.clone()).into_data();
+
+        actual.assert_approx_eq::<FloatElem>(&expected, Tolerance::relative(1e-2));
+    }
+}
+
+/// A tied embedding as the vocabulary head reads it: `[n, k]` packed in NVFP4 along `k`, then
+/// transposed to the `[k, n]` rhs, at one row and at many.
+#[test]
+fn should_matmul_nvfp4_transposed_rhs() {
+    let device = Default::default();
+    let embedding: TestTensor<2> = TestTensorInt::arange(0..96 * 64, &device)
+        .float()
+        .div_scalar(6144.)
+        .reshape([96, 64]);
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::E2M1)
+        .per_block([16], ScaleDtype::UE4M3)
+        .per_tensor(ScaleDtype::F32)
+        .with_store(QuantStore::PackedU32(0));
+    let head = embedding.quantize_dynamic(&scheme).transpose();
+
+    for rows in [1, 48] {
+        let lhs: TestTensor<2> = TestTensorInt::arange(0..rows * 64, &device)
+            .float()
+            .div_scalar((rows * 64) as f32)
+            .reshape([rows as usize, 64]);
+        let expected = lhs.clone().matmul(head.clone().dequantize()).into_data();
+        let actual = lhs.matmul(head.clone()).into_data();
+
+        actual.assert_approx_eq::<FloatElem>(&expected, Tolerance::relative(1e-2));
+    }
+}
+
+/// A matmul on a block-scaled rhs followed by an element-wise tail, which a fusing backend runs as
+/// one kernel reading the rhs as stored.
+#[test]
+fn should_fuse_tail_of_block_scaled_matmul() {
+    assert_fused_tail_matches_dequantized(|scheme| {
+        scheme
+            .with_value(QuantValue::Q8S)
+            .per_block([16], ScaleDtype::F32)
+    });
+}
+
+/// As [`should_fuse_tail_of_block_scaled_matmul`], the rhs scaled per block and per tensor.
+#[test]
+fn should_fuse_tail_of_two_level_matmul() {
+    assert_fused_tail_matches_dequantized(|scheme| {
+        scheme
+            .with_value(QuantValue::Q8S)
+            .per_block([2, 16], ScaleDtype::F16)
+            .per_tensor(ScaleDtype::F32)
+    });
+}
+
+/// `(lhs · rhs + 1) / 2` on `rhs` quantized under the device's scheme as `scheme` sets it, against
+/// the same on `rhs` dequantized.
+fn assert_fused_tail_matches_dequantized(scheme: impl FnOnce(QuantScheme) -> QuantScheme) {
+    let device = Default::default();
+    let values = |offset: i64| -> TestTensor<2> {
+        TestTensorInt::arange(offset..offset + 256, &device)
+            .float()
+            .div_scalar(256.)
+            .reshape([16, 16])
+    };
+    let (lhs, rhs) = (values(0), values(64));
+    let quantized = rhs.quantize_dynamic(&scheme(device.settings().quantization.scheme));
+    let tail = |product: TestTensor<2>| product.add_scalar(1.).div_scalar(2.);
+
+    let expected = tail(lhs.clone().matmul(quantized.clone().dequantize())).into_data();
+    let actual = tail(lhs.matmul(quantized)).into_data();
 
     actual.assert_approx_eq::<FloatElem>(&expected, Tolerance::relative(1e-2));
 }

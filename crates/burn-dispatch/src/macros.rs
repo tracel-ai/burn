@@ -95,6 +95,41 @@ macro_rules! dispatch_device_arms {
     };
 }
 
+/// Match arm generator for `dispatch_device_pair`.
+macro_rules! dispatch_device_pair_arms {
+    (
+        $from:expr, $to:expr,
+        |$a:ident, $b:ident| $body:expr, $otherwise:expr;
+        $([$Backend:ident, $cfg:meta]),*
+    ) => {
+        match ($from, $to) {
+            $(
+                #[cfg($cfg)]
+                ($crate::DispatchDevice::$Backend($a), $crate::DispatchDevice::$Backend($b)) => {
+                    type B = $crate::backends::$Backend;
+                    $body
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            _ => $otherwise,
+        }
+    };
+}
+
+/// Dispatches an operation over two devices of one backend, or answers `$otherwise` for two
+/// devices of different backends.
+macro_rules! dispatch_device_pair {
+    ($from:expr, $to:expr, |$a:ident, $b:ident| $body:expr, $otherwise:expr) => {
+        backend_list!(
+            dispatch_device_pair_arms,
+            $from,
+            $to,
+            |$a, $b| $body,
+            $otherwise
+        )
+    };
+}
+
 /// Dispatches an operation body based on the provided device.
 macro_rules! dispatch_device {
     ($device:expr, |$inner:ident| $body:expr) => {
@@ -108,12 +143,19 @@ macro_rules! dispatch_device {
     };
 }
 
+// Bool moves carry an output dtype; integer and quantized moves preserve their dtype.
+macro_rules! to_device_call {
+    ($backend:ty, $method:ident, $tensor:expr, $device:expr, ($($args:expr),*)) => {
+        <$backend>::$method($tensor, $device $(, $args)*)
+    };
+}
+
 /// Match arm generator for `to_device`.
 /// Handles the logic for same-backend transfers (fast path) and cross-backend
 /// transfers by generating a grid of all device combinations provided via `backend_matrix`.
 macro_rules! to_device_arms {
     (
-        $kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr;
+        $kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident $args:tt, |$inner:ident, $device_ident:ident| $body:expr;
         $( [$B1:ident, $src_cfg:meta] => [ $( [$B2:ident, $dst_cfg:meta] ),+ ] );*
     ) => {
         #[allow(unreachable_patterns)]
@@ -124,7 +166,7 @@ macro_rules! to_device_arms {
             ($crate::DispatchTensorKind::Capture(t), $crate::DispatchDevice::Capture(d)) => {
                 $crate::DispatchTensor {
                     kind: $crate::DispatchTensorKind::Capture($crate::BackendTensor::$kind(
-                        $crate::backends::Capture::$to_device(t.$inner_fn(), d)
+                        to_device_call!($crate::backends::Capture, $to_device, t.$inner_fn(), d, $args)
                     )),
                     autodiff: $tensor.autodiff,
                 }
@@ -135,7 +177,7 @@ macro_rules! to_device_arms {
                 ($crate::DispatchTensorKind::$B1(t), $crate::DispatchDevice::$B1(d)) => {
                     $crate::DispatchTensor {
                         kind: $crate::DispatchTensorKind::$B1($crate::BackendTensor::$kind(
-                            $crate::backends::$B1::$to_device(t.$inner_fn(), d)
+                            to_device_call!($crate::backends::$B1, $to_device, t.$inner_fn(), d, $args)
                         )),
                         autodiff: $tensor.autodiff,
                     }
@@ -192,7 +234,7 @@ macro_rules! to_device_arms {
 
                     $crate::DispatchTensor {
                         kind: $crate::DispatchTensorKind::$B1($crate::BackendTensor::$kind(
-                            <$crate::backends::$B1>::$to_device(t.$inner_fn(), d)
+                            to_device_call!($crate::backends::$B1, $to_device, t.$inner_fn(), d, $args)
                         )),
                         autodiff: $crate::DispatchAutodiffContext::Enabled(
                             device_ad.checkpointing,
@@ -246,14 +288,14 @@ macro_rules! to_device_arms {
 /// Handles tensor movement between devices, supporting both same-backend transfers
 /// and cross-backend dispatches.
 macro_rules! to_device {
-    ($kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr) => {
+    ($kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident $args:tt, |$inner:ident, $device_ident:ident| $body:expr) => {
         backend_matrix!(
             to_device_arms,
             $kind,
             $inner_fn,
             $tensor,
             $device,
-            $to_device,
+            $to_device $args,
             |$inner, $device_ident| $body
         )
     };
@@ -509,24 +551,24 @@ macro_rules! transaction_op {
 }
 
 /// `$devices` as `$variant`'s own devices, each with its settings, or
-/// [`GroupError::MixedBackends`](burn_group::GroupError).
+/// [`ShardError::MixedBackends`](burn_shard::ShardError).
 ///
 /// A device is asked for its settings only once it is known to be a member, since asking a remote
 /// device for its own connects to its server.
-#[cfg(feature = "group")]
+#[cfg(feature = "shard")]
 #[allow(unused_macros)]
-macro_rules! group_members {
+macro_rules! shard_members {
     ($devices:expr, $variant:ident) => {
         $devices
             .iter()
             .map(|device| match device {
-                $crate::DispatchDevice::$variant(member) => Ok(burn_group::MemberDevice {
+                $crate::DispatchDevice::$variant(member) => Ok(burn_shard::MemberDevice {
                     device: member.clone(),
                     settings: burn_backend::get_device_settings::<crate::backend::Dispatch>(device),
                 }),
                 #[allow(unreachable_patterns)]
-                _ => Err(burn_group::GroupError::MixedBackends),
+                _ => Err(burn_shard::ShardError::MixedBackends),
             })
-            .collect::<Result<alloc::vec::Vec<_>, burn_group::GroupError>>()
+            .collect::<Result<alloc::vec::Vec<_>, burn_shard::ShardError>>()
     };
 }

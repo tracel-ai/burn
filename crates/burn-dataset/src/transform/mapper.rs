@@ -34,6 +34,14 @@ where
     }
 }
 
+impl<D, M, I> MapperDataset<D, M, I> {
+    /// The mapper applied to each item.
+    #[cfg(feature = "vision")]
+    pub(crate) fn mapper(&self) -> &M {
+        &self.mapper
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

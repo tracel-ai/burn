@@ -318,7 +318,7 @@ impl BridgeTensor {
         }
     }
 
-    #[cfg(any(feature = "autodiff", feature = "group"))]
+    #[cfg(any(feature = "autodiff", feature = "shard"))]
     pub(crate) fn from_parts(kind: BridgeKind, tensor: DispatchTensor) -> Self {
         match kind {
             BridgeKind::Bool => Self::bool(tensor),

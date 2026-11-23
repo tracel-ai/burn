@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use burn_backend::Backend;
 use burn_backend::{
     AutodiffBackend, Distribution, Scalar, TensorData, TensorMetadata,
     distributed::ReduceOperation,
@@ -368,6 +369,7 @@ impl Numeric for Int {
             distribution,
             device.as_dispatch(),
             dtype.into(),
+            Dispatch::next_random_key(device.as_dispatch()),
         ))
     }
 

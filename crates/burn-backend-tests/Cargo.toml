@@ -29,7 +29,8 @@ flex-simd = ["flex", "burn-flex/simd"]
 flex-rayon = ["flex", "burn-flex/rayon"]
 vulkan = ["wgpu", "burn-tensor/vulkan"]
 webgpu = ["wgpu", "burn-tensor/webgpu"]
-metal = ["wgpu", "burn-tensor/metal"]
+wgpu-msl = ["wgpu", "burn-tensor/wgpu-msl"]
+metal = ["burn-tensor/metal", "cube"]
 wgpu = ["burn-tensor/wgpu", "quantization", "cube"]
 cpu = ["burn-tensor/cpu", "cube"]
 # Runs the test suite against a remote `burn-remote` server.
@@ -39,11 +40,7 @@ remote = ["burn-tensor/remote-websocket"]
 persistence = ["burn-tensor/persistence"]
 autotune = ["burn-tensor/autotune"]
 autotune-checks = ["burn-tensor/autotune-checks"]
-# Runs the autodiff suite with attention's backward pass through cubek's routines.
-attention-backward = ["cube", "burn-tensor/attention-backward"]
 memory-checks = ["burn-fusion?/memory-checks"]
-# Runs the suite with autotune racing only cubek's tile-DSL matmul and attention routines.
-tile-kernels-only = ["cube", "burn-cubecl/tile-kernels-only"]
 fusion = [
     "burn-tensor/fusion",
     "burn-fusion/test-util",
@@ -98,6 +95,10 @@ divan = "0.1"
 [[test]]
 name = "autodiff_transfer"
 required-features = ["flex", "cpu"]
+
+[[test]]
+name = "bool_transfer"
+required-features = ["cpu", "wgpu"]
 
 [[bench]]
 name = "attention"

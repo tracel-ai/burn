@@ -124,7 +124,7 @@ fn should_panic_reshape_to_shape_with_wrong_rank() {
 #[test]
 fn should_not_corrupt_after_slice() {
     let zeros = TestTensor::<1>::zeros([2], &Default::default());
-    zeros.clone().slice([1..2]).reshape([1]).exp();
+    zeros.clone().slice(1..2).reshape([1]).exp();
 
     // May lead to zeroes being equal to [0.0, 1.0]
     zeros.into_data().assert_eq(

@@ -153,7 +153,7 @@ fn normalize_labels(mut labels: TensorData) -> TensorData {
 fn cube_fallback_statistics_are_not_padded() {
     let device = burn_core::tensor::Device::cpu();
     for (shape, data, counts) in [
-        ([0, 3], vec![], [1, 1]),
+        ([0, 3], vec![], [1usize, 1]),
         ([3, 0], vec![], [1, 1]),
         ([1, 1], vec![true], [2, 2]),
         ([1, 1], vec![false], [1, 1]),

@@ -8,7 +8,9 @@ use burn::module::Module;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
-use burn::tensor::ops::{AvgPoolOptions, InterpolateMode, InterpolateOptions, MaxPoolOptions};
+use burn::tensor::ops::{
+    AvgPoolOptions, CoordinateTransformMode, InterpolateMode, InterpolateOptions, MaxPoolOptions,
+};
 use burn_nn::conv::{Conv2d, Conv2dConfig};
 use burn_nn::{BatchNorm, BatchNormConfig, PaddingConfig2d};
 
@@ -428,7 +430,10 @@ impl InceptionV3FeatureExtractor {
         let x = if h != 299 || w != 299 {
             burn_core::tensor::module::interpolate(
                 x,
-                InterpolateOptions::new(InterpolateMode::Bilinear).with_output_size([299, 299]),
+                InterpolateOptions::new(InterpolateMode::Bilinear {
+                    coordinate_transform: CoordinateTransformMode::AlignCorners,
+                })
+                .with_output_size([299, 299]),
             )
         } else {
             x

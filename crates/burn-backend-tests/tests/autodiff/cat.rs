@@ -18,8 +18,8 @@ fn should_diff_cat() {
     let mut tensor_2_list = Vec::new();
 
     for i in 0..2 {
-        tensor_1_list.push(tensor_1.clone().slice([i..i + 1]));
-        tensor_2_list.push(tensor_2.clone().slice([i..i + 1]));
+        tensor_1_list.push(tensor_1.clone().slice(i..i + 1));
+        tensor_2_list.push(tensor_2.clone().slice(i..i + 1));
     }
 
     let tensor_1_cat = TestTensor::cat(tensor_1_list.clone(), 0);
@@ -28,29 +28,29 @@ fn should_diff_cat() {
     let tensor_3_cat = tensor_1_cat.clone().matmul(tensor_2_cat.clone());
     let grads = tensor_3_cat.backward();
 
-    let grad_1_slice_1 = tensor_1.grad(&grads).unwrap().slice([0..1]);
-    let grad_1_slice_2 = tensor_1.grad(&grads).unwrap().slice([1..2]);
+    let grad_1_slice_1 = tensor_1.grad(&grads).unwrap().slice(0..1);
+    let grad_1_slice_2 = tensor_1.grad(&grads).unwrap().slice(1..2);
 
-    let grad_2_slice_1 = tensor_2.grad(&grads).unwrap().slice([0..1]);
-    let grad_2_slice_2 = tensor_2.grad(&grads).unwrap().slice([1..2]);
+    let grad_2_slice_1 = tensor_2.grad(&grads).unwrap().slice(0..1);
+    let grad_2_slice_2 = tensor_2.grad(&grads).unwrap().slice(1..2);
 
     grad_1
         .clone()
-        .slice([0..1])
+        .slice(0..1)
         .to_data()
         .assert_approx_eq::<FloatElem>(&grad_1_slice_1.to_data(), Tolerance::default());
     grad_1
-        .slice([1..2])
+        .slice(1..2)
         .to_data()
         .assert_approx_eq::<FloatElem>(&grad_1_slice_2.to_data(), Tolerance::default());
 
     grad_2
         .clone()
-        .slice([0..1])
+        .slice(0..1)
         .to_data()
         .assert_approx_eq::<FloatElem>(&grad_2_slice_1.to_data(), Tolerance::default());
     grad_2
-        .slice([1..2])
+        .slice(1..2)
         .to_data()
         .assert_approx_eq::<FloatElem>(&grad_2_slice_2.to_data(), Tolerance::default());
 }

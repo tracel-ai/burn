@@ -152,7 +152,13 @@ impl CubeTensor {
 
 #[cfg(all(
     test,
-    any(feature = "wgpu", feature = "cpu", feature = "cuda", feature = "hip")
+    any(
+        feature = "wgpu",
+        feature = "metal",
+        feature = "cpu",
+        feature = "cuda",
+        feature = "hip"
+    )
 ))]
 mod storage_tiled {
     use burn_backend::{

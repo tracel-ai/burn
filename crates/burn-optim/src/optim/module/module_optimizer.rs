@@ -1,17 +1,16 @@
 use burn_core as burn;
 use burn_core::module::ParamGroup;
 
-use super::{Optimizer, ParameterContext};
-use crate::lr_scheduler::module_lr_scheduler::ModuleLearningRate;
+use super::{ModuleLearningRate, Optimizer, ParameterContext};
 use crate::{
     DynOptimizer, DynState, MultiGradientsParams, OptimizerRecord, RecordTensor, StateSink,
     StateSource, grad_clipping::GradientClipping, optim::GradientsParams, optim::state::join_path,
 };
 
 use alloc::collections::BTreeMap;
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
 use alloc::sync::Arc;
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use burn::module::{Module, ModuleMapper, Param, ParamId};
 use burn::store::RecordError;
 use burn::tensor::{Bytes, Device, Tensor};

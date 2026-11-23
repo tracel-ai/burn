@@ -339,3 +339,24 @@ fn should_select_assign_bool_2d_dim0() {
         false,
     );
 }
+
+#[test]
+fn should_keep_bool_dtype_on_select() {
+    let device = Default::default();
+    let tensor =
+        TestTensorBool::<2>::from_data([[true, false, true], [false, true, false]], &device);
+    let dtype = tensor.dtype();
+    let indices = TestTensorInt::from_data([2, 0], &device);
+
+    let output = tensor.select(1, indices);
+
+    assert_eq!(output.dtype(), dtype);
+    let data = output.clone().into_data();
+    assert_eq!(data.dtype(), dtype);
+    data.assert_eq(&TensorData::from([[true, true], [false, false]]), false);
+    // Bool ops on the output must accept its dtype.
+    output
+        .bool_not()
+        .into_data()
+        .assert_eq(&TensorData::from([[false, false], [true, true]]), false);
+}

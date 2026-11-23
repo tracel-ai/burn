@@ -136,12 +136,26 @@ impl<M: LearnerModel> SingleDeviceTrainEpoch<M> {
 
                         learner.lr_step();
                         learner.optimizer_step(grads);
+                        interrupter.fail_on_error(processor.process_train(
+                            LearnerEvent::OptimizerStep(
+                                crate::metric::optimizer::OptimizerStepOutput::new(
+                                    learner.lr_current(),
+                                ),
+                            ),
+                        ));
                         accumulation_current = 0;
                     }
                 }
                 None => {
                     learner.lr_step();
                     learner.optimizer_step(item.grads);
+                    interrupter.fail_on_error(processor.process_train(
+                        LearnerEvent::OptimizerStep(
+                            crate::metric::optimizer::OptimizerStepOutput::new(
+                                learner.lr_current(),
+                            ),
+                        ),
+                    ));
                 }
             }
 
@@ -164,6 +178,9 @@ impl<M: LearnerModel> SingleDeviceTrainEpoch<M> {
             let grads = accumulator.grads();
             learner.lr_step();
             learner.optimizer_step(grads);
+            interrupter.fail_on_error(processor.process_train(LearnerEvent::OptimizerStep(
+                crate::metric::optimizer::OptimizerStepOutput::new(learner.lr_current()),
+            )));
         }
 
         let mut progress = iterator.progress();

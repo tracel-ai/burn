@@ -272,24 +272,21 @@ pub fn istft(
     let window_sum = window_sum.clamp_min(1e-10);
     output = output.div(window_sum);
 
-    // Remove center padding
-    let output = if center {
-        let pad_amount = n_fft / 2;
-        let trimmed_len = expected_len - 2 * pad_amount;
-        output.narrow(1, pad_amount, trimmed_len)
+    // Remove the center padding and apply the requested length in a single slice of the
+    // overlap-add buffer, as torch.istft does. With `center`, the frames also cover samples past
+    // the trimmed length (the right padding region), so a requested length that reaches into it
+    // must be read from the buffer rather than zero-filled.
+    let start = if center { n_fft / 2 } else { 0 };
+    let end = match length {
+        Some(len) => start + len,
+        None => expected_len - start,
+    };
+    let available = end.min(expected_len) - start;
+    let output = output.narrow(1, start, available);
+
+    if end > expected_len {
+        output.pad([(0, 0), (0, end - expected_len)], PadMode::Constant(0.0))
     } else {
         output
-    };
-
-    match length {
-        Some(len) => {
-            let current_len = output.dims()[1];
-            if len <= current_len {
-                output.narrow(1, 0, len)
-            } else {
-                output.pad([(0, 0), (0, len - current_len)], PadMode::Constant(0.0))
-            }
-        }
-        None => output,
     }
 }

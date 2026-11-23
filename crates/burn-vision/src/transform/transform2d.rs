@@ -1,7 +1,7 @@
 use burn_core::tensor::{
     Tensor,
     grid::affine_grid_2d,
-    ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode},
+    ops::{GridSampleMode, GridSampleOptions, GridSamplePaddingMode},
 };
 
 /// 2D point transformation
@@ -29,7 +29,7 @@ impl Transform2D {
         let transform = transform.reshape([1, 2, 3]).expand([batch_size, 2, 3]);
         let grid = affine_grid_2d(transform, [batch_size, channels, height, width]);
 
-        let options = GridSampleOptions::new(InterpolateMode::Bilinear)
+        let options = GridSampleOptions::new(GridSampleMode::Bilinear)
             .with_padding_mode(self.padding_mode)
             .with_align_corners(true);
         img.grid_sample_2d(grid, options)

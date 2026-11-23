@@ -9,6 +9,10 @@ mod transaction;
 
 pub(crate) mod distributed;
 
+pub use collective::CollectiveTransport;
+#[cfg(feature = "fusion")]
+pub(crate) use collective::collective_parts;
+
 pub(crate) mod base;
 pub use base::*;
 pub use qtensor::*;

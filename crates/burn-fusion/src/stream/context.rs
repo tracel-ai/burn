@@ -30,9 +30,22 @@ impl<H: Clone> Context<H> {
     /// back. `HandleContainer::fork` clones the id→handle map; actual GPU buffers are
     /// refcounted so only the map itself is duplicated.
     pub fn fork(&self) -> Self {
+        self.with_handles(self.handles.fork())
+    }
+
+    /// [Fork](Self::fork) with only the handles of the tensors this context maps, the only ones
+    /// the work it was built for reaches.
+    pub fn fork_tensors(&self) -> Self {
+        self.with_handles(
+            self.handles
+                .fork_only(self.tensors.values().map(|tensor| &tensor.id)),
+        )
+    }
+
+    fn with_handles(&self, handles: HandleContainer<H>) -> Self {
         Self {
             tensors: self.tensors.clone(),
-            handles: self.handles.fork(),
+            handles,
             scalars: self.scalars.clone(),
             shapes_relative2global: self.shapes_relative2global.clone(),
             ranges: self.ranges.clone(),
@@ -647,15 +660,20 @@ impl RelativeOps for ModuleOperationIr {
                     out: desc.out.to_relative(converter),
                 })
             }
-            ModuleOperationIr::Attention(desc) => ModuleOperationIr::Attention(AttentionOpIr {
-                query: desc.query.to_relative(converter),
-                key: desc.key.to_relative(converter),
-                value: desc.value.to_relative(converter),
-                mask: desc.mask.as_ref().map(|m| m.to_relative(converter)),
-                attn_bias: desc.attn_bias.as_ref().map(|ab| ab.to_relative(converter)),
-                options: desc.options.clone(),
-                out: desc.out.to_relative(converter),
-            }),
+            ModuleOperationIr::Attention(desc) => {
+                ModuleOperationIr::Attention(Box::new(AttentionOpIr {
+                    query: desc.query.to_relative(converter),
+                    key: desc.key.to_relative(converter),
+                    value: desc.value.to_relative(converter),
+                    mask: desc.mask.as_ref().map(|m| m.to_relative(converter)),
+                    attn_bias: desc.attn_bias.as_ref().map(|ab| ab.to_relative(converter)),
+                    lengths: desc.lengths.as_ref().map(|l| l.to_relative(converter)),
+                    pages: desc.pages.as_ref().map(|p| p.to_relative(converter)),
+                    depth: desc.depth,
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                }))
+            }
             ModuleOperationIr::AttentionWithLogsumexp(desc) => {
                 ModuleOperationIr::AttentionWithLogsumexp(AttentionWithLogsumexpOpIr {
                     query: desc.query.to_relative(converter),
@@ -892,6 +910,7 @@ impl RelativeOps for FloatOperationIr {
             FloatOperationIr::Random(desc) => FloatOperationIr::Random(RandomOpIr {
                 out: desc.out.to_relative(converter),
                 distribution: desc.distribution,
+                key: desc.key.to_relative(converter),
             }),
             FloatOperationIr::Recip(desc) => FloatOperationIr::Recip(UnaryOpIr {
                 input: desc.input.to_relative(converter),
@@ -1411,6 +1430,7 @@ impl RelativeOps for NumericOperationIr {
             NumericOperationIr::IntRandom(desc) => NumericOperationIr::IntRandom(RandomOpIr {
                 out: desc.out.to_relative(converter),
                 distribution: desc.distribution,
+                key: desc.key.to_relative(converter),
             }),
             NumericOperationIr::Powi(desc) => NumericOperationIr::Powi(BinaryOpIr {
                 lhs: desc.lhs.to_relative(converter),
@@ -1804,6 +1824,37 @@ mod tests {
     }
 
     #[test]
+    fn fork_tensors_keeps_the_handles_of_the_global_ids_it_maps() {
+        let mut original = make_test_context();
+        let relative = TensorId::new(0);
+        let global = TensorId::new(42);
+        original.tensors.insert(
+            relative,
+            TensorIr {
+                id: global,
+                shape: Shape::new([4, 4]),
+                status: TensorStatus::ReadOnly,
+                dtype: DType::F32,
+            },
+        );
+        original
+            .handles
+            .register_handle(relative, "relative_handle".to_string());
+        original
+            .handles
+            .register_handle(global, "global_handle".to_string());
+        original
+            .handles
+            .register_handle(TensorId::new(7), "unmapped_handle".to_string());
+
+        let fork = original.fork_tensors();
+
+        assert!(fork.handles.get_handle_ref(&global).is_some());
+        assert!(fork.handles.get_handle_ref(&relative).is_none());
+        assert!(fork.handles.get_handle_ref(&TensorId::new(7)).is_none());
+    }
+
+    #[test]
     fn context_fork_preserves_input_handles() {
         let original = make_test_context();
         let input_id = TensorId::new(1);
@@ -1912,6 +1963,54 @@ mod tests_ir {
             converter.scalars.get(&ScalarId { value: 0 }),
             Some(&ScalarIr::Bool(true))
         );
+    }
+
+    #[test]
+    fn random_keys_are_per_invocation_bindings() {
+        let relative = |seed| {
+            let mut converter = OperationConverter::default();
+            let float = OperationIr::Float(
+                DType::F32,
+                FloatOperationIr::Random(RandomOpIr::create(
+                    [4, 6].into(),
+                    DType::F32,
+                    burn_backend::Distribution::Default,
+                    burn_backend::RandomKey::new(seed),
+                    || TensorId::new(10),
+                )),
+            )
+            .to_relative(&mut converter);
+            let int = OperationIr::NumericInt(
+                DType::I32,
+                NumericOperationIr::IntRandom(RandomOpIr::create(
+                    [4, 6].into(),
+                    DType::I32,
+                    burn_backend::Distribution::Default,
+                    burn_backend::RandomKey::new(seed + 1),
+                    || TensorId::new(11),
+                )),
+            )
+            .to_relative(&mut converter);
+            assert_eq!(
+                converter.scalars[&ScalarId { value: 0 }],
+                ScalarIr::UInt(seed)
+            );
+            assert_eq!(
+                converter.scalars[&ScalarId { value: 1 }],
+                ScalarIr::UInt(seed + 1)
+            );
+            assert!(
+                matches!(&float, OperationIr::Float(_, FloatOperationIr::Random(desc))
+                if desc.key == ScalarIr::UInt(0))
+            );
+            assert!(
+                matches!(&int, OperationIr::NumericInt(_, NumericOperationIr::IntRandom(desc))
+                if desc.key == ScalarIr::UInt(1))
+            );
+            [float, int]
+        };
+        // Fresh draws must reuse the graph structure without reusing its original keys.
+        assert_eq!(relative(7), relative(19));
     }
 
     #[test]

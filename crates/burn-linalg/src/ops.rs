@@ -9,6 +9,7 @@ use burn_std::reader::try_read_sync;
         feature = "wgpu",
         feature = "webgpu",
         feature = "vulkan",
+        feature = "wgpu-msl",
         feature = "metal",
         feature = "cuda",
         feature = "rocm",

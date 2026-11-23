@@ -1,4 +1,5 @@
 use alloc::{boxed::Box, vec, vec::Vec};
+use burn_backend::RandomKey;
 use core::marker::PhantomData;
 
 #[cfg(not(feature = "std"))]
@@ -121,8 +122,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         distribution: burn_backend::Distribution,
         device: &Device<Self>,
         dtype: FloatDType,
+        key: RandomKey,
     ) -> FloatTensor<Self> {
-        AutodiffTensor::new(B::float_random(shape, distribution, device, dtype))
+        AutodiffTensor::new(B::float_random(shape, distribution, device, dtype, key))
     }
 
     fn float_zeros(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
@@ -2515,7 +2517,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         struct MaskFill;
 
         impl<B: Backend> Backward<B, 1> for MaskFill {
-            type State = BoolTensor<B>;
+            type State = (BoolTensor<B>, Shape);
 
             fn backward(
                 self,
@@ -2523,8 +2525,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
             ) {
+                let (mask, shape) = ops.state;
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    B::float_mask_fill(grad, ops.state, 0f32.into())
+                    let grad = B::float_mask_fill(grad, mask, 0f32.into());
+                    broadcast_shape::<B>(grad, &shape)
                 });
             }
         }
@@ -2535,7 +2539,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
-                mask.clone(),
+                (mask.clone(), tensor.primitive.shape()),
                 B::float_mask_fill(tensor.primitive, mask, value),
             ),
             OpsKind::UnTracked(prep) => {

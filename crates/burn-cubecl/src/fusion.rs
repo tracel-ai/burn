@@ -3,7 +3,7 @@ use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{DType, Shape};
 pub use burn_cubecl_fusion::{CubeFusionHandle, FallbackOperation, Tiles};
 use burn_fusion::{
-    FusionBackend, FusionRuntime,
+    Collective, CollectivePart, FusionBackend, FusionRuntime,
     stream::{FallbackOp, OrderedExecution},
 };
 use burn_ir::{BackendIr, TensorHandle};
@@ -127,6 +127,15 @@ impl FusionBackend for CubeBackend {
         // Safety: called from the fusion execution thread, whose stream is the
         // one every fused operation allocates on.
         unsafe { client.allocation_mode(mode) };
+    }
+
+    fn collective_parts(
+        devices: &[Self::Device],
+        shape: &Shape,
+        dtype: DType,
+        collective: Collective,
+    ) -> Option<Vec<Box<dyn CollectivePart<Self>>>> {
+        crate::ops::collective_parts(devices, shape, dtype, collective)
     }
 }
 

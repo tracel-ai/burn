@@ -4,6 +4,7 @@ use burn_std::{AsIndex, IndexingUpdateOp};
 
 use crate::check::unwrap_dim_index;
 use crate::kind::Ordered;
+use crate::ops::Kind;
 use crate::{Bool, Float, Int, TensorData, check};
 use crate::{Tensor, check::TensorCheck};
 
@@ -1230,7 +1231,7 @@ fn or_where_nan<const D: usize, K: Ordered>(
     mask: Tensor<D, Bool>,
     other: &Tensor<D, K>,
 ) -> Tensor<D, Bool> {
-    if other.primitive.is_float() {
+    if K::KIND == Kind::Float {
         mask.bool_or(Tensor::<D, Float>::new(other.primitive.clone()).is_nan())
     } else {
         mask

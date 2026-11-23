@@ -4,12 +4,16 @@ use crate::{
     tensor::AutodiffTensor,
 };
 use alloc::{format, string::String, vec::Vec};
+use burn_backend::RandomKey;
 use core::marker::PhantomData;
 
 use burn_backend::{
     backend::{
-        AutodiffBackend, Backend, BackendTypes, ExecutionError, MemoryPoolUsage, ProfileDuration,
-        ProfileOptions, ProfileToken, SlicedPoolReport,
+        AutodiffBackend, Backend, BackendTypes, DeviceDescription, DeviceTelemetry,
+        EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
+        ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, HostTransfer,
+        MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
+        PruneOptions, Pruned, SaveOptions,
     },
     tensor::{BoolTensor, IntTensor, QuantizedTensor},
 };
@@ -55,6 +59,10 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::seed(device, seed)
     }
 
+    fn next_random_key(device: &Self::Device) -> RandomKey {
+        B::next_random_key(device)
+    }
+
     fn sync(device: &B::Device) -> Result<(), ExecutionError> {
         B::sync(device)
     }
@@ -83,6 +91,77 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::profile_abandon(device, token)
     }
 
+    fn execution_mode_open(
+        device: &Self::Device,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        B::execution_mode_open(device, mode)
+    }
+
+    fn execution_mode_statistics(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::execution_mode_statistics(device, token)
+    }
+
+    fn execution_mode_close(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::execution_mode_close(device, token)
+    }
+
+    fn environment_create(
+        device: &Self::Device,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_create(device, name, origin)
+    }
+
+    fn environment_activate(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_activate(device, id)
+    }
+
+    fn environment_active(device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_active(device)
+    }
+
+    fn environment_save(
+        device: &Self::Device,
+        id: EnvironmentId,
+        options: SaveOptions,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        B::environment_save(device, id, options)
+    }
+
+    fn environment_summary(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentSummary, EnvironmentError> {
+        B::environment_summary(device, id)
+    }
+
+    fn environment_merge(
+        device: &Self::Device,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        B::environment_merge(device, id, origin)
+    }
+
+    fn environment_prune(
+        device: &Self::Device,
+        id: EnvironmentId,
+        options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        B::environment_prune(device, id, options)
+    }
+
     fn memory_persistent_allocations<
         Output: Send,
         Input: Send,
@@ -99,16 +178,36 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::memory_cleanup(device)
     }
 
-    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
-        B::memory_pool_report(device)
+    fn device_description(device: &Self::Device) -> Option<DeviceDescription> {
+        B::device_description(device)
     }
 
-    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
-        B::memory_pool_usage(device)
+    fn measure_telemetry(device: &Self::Device) -> DeviceTelemetry {
+        B::measure_telemetry(device)
     }
 
-    fn memory_capacity(device: &Self::Device) -> Option<u64> {
-        B::memory_capacity(device)
+    fn measure_memory(device: &Self::Device) -> Option<MemoryReport> {
+        B::measure_memory(device)
+    }
+
+    fn measure_peaks(device: &Self::Device, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        B::measure_peaks(device, keys)
+    }
+
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        B::measure_link(from, to, sizes)
+    }
+
+    fn measure_host_link(
+        device: &Self::Device,
+        transfer: HostTransfer,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        B::measure_host_link(device, transfer, sizes)
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)

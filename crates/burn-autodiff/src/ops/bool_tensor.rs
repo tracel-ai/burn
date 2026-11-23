@@ -21,8 +21,12 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_into_int(tensor, out_dtype)
     }
 
-    fn bool_to_device(tensor: BoolTensor<B>, device: &Device<B>) -> BoolTensor<B> {
-        B::bool_to_device(tensor, device)
+    fn bool_to_device(
+        tensor: BoolTensor<B>,
+        device: &Device<B>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B> {
+        B::bool_to_device(tensor, device, out_dtype)
     }
 
     fn bool_reshape(tensor: BoolTensor<B>, shape: Shape) -> BoolTensor<B> {

@@ -765,6 +765,18 @@ impl ImageFolderDataset {
         Ok(Self { dataset })
     }
 
+    /// Returns the class name for a label, as used in [`Annotation`] values and
+    /// [`BoundingBox::label`].
+    ///
+    /// Returns `None` if no class has this label.
+    pub fn class_name(&self, label: usize) -> Option<&str> {
+        self.dataset
+            .mapper()
+            .classes
+            .iter()
+            .find_map(|(name, &id)| (id == label).then_some(name.as_str()))
+    }
+
     /// Check if extension is supported.
     fn check_extension<S: AsRef<str>>(extension: &S) -> Result<String, ImageLoaderError> {
         let extension = extension.as_ref();
@@ -801,6 +813,15 @@ mod tests {
         assert_eq!(dataset.get(0).unwrap().annotation, Annotation::Label(0));
         assert_eq!(dataset.get(1).unwrap().annotation, Annotation::Label(1));
         assert_eq!(dataset.get(2).unwrap().annotation, Annotation::Label(1));
+    }
+
+    #[test]
+    pub fn image_folder_dataset_class_names() {
+        let dataset = ImageFolderDataset::new_classification(DATASET_ROOT).unwrap();
+
+        assert_eq!(dataset.class_name(0), Some("orange"));
+        assert_eq!(dataset.class_name(1), Some("red"));
+        assert_eq!(dataset.class_name(2), None);
     }
 
     #[test]
@@ -1153,6 +1174,15 @@ mod tests {
                     .collect()
             })
         );
+    }
+
+    #[test]
+    pub fn coco_detection_dataset_class_names() {
+        let dataset = ImageFolderDataset::new_coco_detection(COCO_JSON, COCO_IMAGES).unwrap();
+
+        assert_eq!(dataset.class_name(0), Some("dot"));
+        assert_eq!(dataset.class_name(1), Some("triangle"));
+        assert_eq!(dataset.class_name(2), None);
     }
 
     #[test]

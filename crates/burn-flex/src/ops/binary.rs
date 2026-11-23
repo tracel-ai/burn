@@ -58,6 +58,54 @@ where
     }
 }
 
+/// Runs a SIMD `op` over `lhs` and `rhs` of dtype `E` after broadcasting
+/// them: in place into whichever is unique and starts at offset 0, otherwise
+/// in one pass into a new buffer. Other dtypes and strided operands are handed
+/// back as `Err`.
+#[cfg(feature = "simd")]
+// The `Err` hands both operands back for the scalar fallback, a move that
+// happens once per call.
+#[allow(clippy::result_large_err)]
+pub(crate) fn simd_zip_map<E, O>(
+    lhs: FlexTensor,
+    rhs: FlexTensor,
+    op: O,
+) -> Result<FlexTensor, (FlexTensor, FlexTensor)>
+where
+    E: burn_backend::Element + bytemuck::Pod + macerator::Scalar,
+    O: simd::LaneOp2<E>,
+{
+    if lhs.dtype() != E::dtype() || rhs.dtype() != E::dtype() {
+        return Err((lhs, rhs));
+    }
+    let (mut lhs, mut rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
+    let (Some((l_start, l_end)), Some((r_start, r_end))) = (
+        lhs.layout().contiguous_offsets(),
+        rhs.layout().contiguous_offsets(),
+    ) else {
+        return Err((lhs, rhs));
+    };
+
+    if lhs.is_unique() && l_start == 0 {
+        let b: &[E] = &rhs.storage()[r_start..r_end];
+        simd::zip_map_inplace(&mut lhs.storage_mut::<E>()[..l_end], b, op);
+        return Ok(lhs);
+    }
+    if rhs.is_unique() && r_start == 0 {
+        let a: &[E] = &lhs.storage()[l_start..l_end];
+        simd::zip_map_inplace(&mut rhs.storage_mut::<E>()[..r_end], a, simd::Swap(op));
+        return Ok(rhs);
+    }
+    let a: &[E] = &lhs.storage()[l_start..l_end];
+    let b: &[E] = &rhs.storage()[r_start..r_end];
+    let out = simd::zip_map_to_vec(a, b, op);
+    Ok(FlexTensor::new(
+        Bytes::from_elems(out),
+        Layout::contiguous(lhs.layout().shape().clone()),
+        E::dtype(),
+    ))
+}
+
 /// Specialized binary operation for f32 with SIMD fast path.
 #[cfg(feature = "simd")]
 fn binary_op_f32<Op>(
@@ -430,6 +478,76 @@ mod tests {
     use super::*;
     use alloc::vec;
     use burn_backend::{TensorData, Tolerance};
+
+    /// `simd_zip_map` writes into a unique `lhs` at offset 0, into a unique
+    /// `rhs` with the operands swapped back, or into a new buffer; strided and
+    /// broadcast operands go back to the caller. atan2 doesn't commute, so a
+    /// swap mix-up shows.
+    #[cfg(feature = "simd")]
+    #[test]
+    fn simd_zip_map_keeps_operand_order_on_every_path() {
+        let y = vec![1.0f32, -2.0, 0.5, 3.0, -0.25, 4.0, 2.0, -1.0, 0.75];
+        let x = vec![2.0f32, 1.0, -3.0, 0.5, -1.0, 2.0, -2.0, 0.25, 1.5];
+        let expected: Vec<f32> = y
+            .iter()
+            .zip(&x)
+            .map(|(a, b)| libm::atan2f(*a, *b))
+            .collect();
+        let make = |v: &Vec<f32>| FlexTensor::from_data(TensorData::new(v.clone(), [3, 3]));
+        let check = |out: FlexTensor| {
+            let got = out.into_data().try_to_vec::<f32>().unwrap();
+            for (g, e) in got.iter().zip(&expected) {
+                assert!(
+                    (g - e).abs() <= 4.0 * f32::EPSILON * e.abs().max(1.0),
+                    "{got:?}"
+                );
+            }
+        };
+
+        // Both unique: written into lhs.
+        check(
+            simd_zip_map::<f32, _>(make(&y), make(&x), simd::Atan2)
+                .ok()
+                .unwrap(),
+        );
+        // lhs shared: written into rhs through `Swap`.
+        let shared_y = make(&y);
+        check(
+            simd_zip_map::<f32, _>(shared_y.clone(), make(&x), simd::Atan2)
+                .ok()
+                .unwrap(),
+        );
+        // Both shared: a new buffer.
+        let shared_x = make(&x);
+        check(
+            simd_zip_map::<f32, _>(shared_y.clone(), shared_x.clone(), simd::Atan2)
+                .ok()
+                .unwrap(),
+        );
+        drop((shared_y, shared_x));
+
+        // A unique operand that doesn't start at offset 0 is read in place
+        // but not written into: rows 1..4 of a [4, 3] tensor against `x`.
+        let mut padded = vec![9.0f32; 3];
+        padded.extend(&y);
+        let sliced = crate::ops::slice::slice(
+            FlexTensor::from_data(TensorData::new(padded, [4, 3])),
+            &[burn_std::Slice::from(1..4)],
+        );
+        check(
+            simd_zip_map::<f32, _>(sliced, make(&x), simd::Atan2)
+                .ok()
+                .unwrap(),
+        );
+
+        // A transposed operand is strided and comes back unchanged.
+        let strided = make(&y).transpose(0, 1);
+        assert!(simd_zip_map::<f32, _>(strided, make(&x), simd::Atan2).is_err());
+
+        // A broadcast row is expanded first, so it is not contiguous either.
+        let row = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0], [1, 3]));
+        assert!(simd_zip_map::<f32, _>(row, make(&x), simd::Atan2).is_err());
+    }
 
     // ===================
     // F16 tests

@@ -246,4 +246,8 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
         };
         self.expose_response(message, 1, capability, target).await;
     }
+
+    async fn withdraw(&self, capability: TransferCapability) {
+        self.exposed.lock().await.remove(&capability);
+    }
 }

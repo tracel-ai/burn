@@ -197,6 +197,11 @@ focus more on _what_ the model should do, rather than on _how_ to do it. We take
 of making your code run as fast as possible during training as well as inference. The same
 principles apply to broadcasting; all operations support broadcasting unless specified otherwise.
 
+`Tensor::matmul` and elementwise operations such as tensor addition and multiplication take two
+tensors of the same rank. For example, `matmul` broadcasts the batch dimensions of `[2, 1, M, K]`
+and `[1, 4, K, N]` to give a result of shape `[2, 4, M, N]`. To multiply a single `[M, K]` matrix
+by a `[B, K, N]` batch, use `matrix.unsqueeze::<3>()` to give the matrix shape `[1, M, K]`.
+
 Here, we provide a list of all supported operations along with their PyTorch equivalents. Note that
 for the sake of simplicity, we ignore type signatures. For more details, refer to the
 [full documentation](https://docs.rs/burn/latest/burn/tensor/struct.Tensor.html).
@@ -283,7 +288,6 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.abs()`                                                  | `torch.abs(tensor)`                           |
 | `tensor.add(other)` or `tensor + other`                         | `tensor + other`                              |
 | `tensor.add_scalar(scalar)` or `tensor + scalar`                | `tensor + scalar`                             |
-| `tensor.all_close(other, atol, rtol)`                           | `torch.allclose(tensor, other, atol, rtol)`   |
 | `tensor.argmax(dim)`                                            | `tensor.argmax(dim)`                          |
 | `tensor.argmin(dim)`                                            | `tensor.argmin(dim)`                          |
 | `tensor.argsort(dim)`                                           | `tensor.argsort(dim)`                         |
@@ -363,6 +367,7 @@ Those operations are only available for `Float` tensors.
 | -------------------------------------------- | ------------------------------------------ |
 | `tensor.acos()`                              | `tensor.acos()`                            |
 | `tensor.acosh()`                             | `tensor.acosh()`                           |
+| `tensor.all_close(other, Some(rtol), Some(atol))` | `torch.allclose(tensor, other, rtol=rtol, atol=atol)` |
 | `tensor.asin()`                              | `tensor.asin()`                            |
 | `tensor.asinh()`                             | `tensor.asinh()`                           |
 | `tensor.atan()`                              | `tensor.atan()`                            |
@@ -382,7 +387,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.fmod_scalar(scalar)`                 | `tensor.fmod(scalar)`                      |
 | `tensor.from_floats(floats, device)`         | N/A                                        |
 | `tensor.int()`                               | Similar to `tensor.to(torch.long)`         |
-| `tensor.is_close(other, atol, rtol)`         | `torch.isclose(tensor, other, atol, rtol)` |
+| `tensor.is_close(other, Some(rtol), Some(atol))` | `torch.isclose(tensor, other, rtol=rtol, atol=atol)` |
 | `tensor.is_finite()`                         | `torch.isfinite(tensor)`                   |
 | `tensor.is_inf()`                            | `torch.isinf(tensor)`                      |
 | `tensor.is_nan()`                            | `torch.isnan(tensor)`                      |

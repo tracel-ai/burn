@@ -33,7 +33,7 @@ std = [
 ]
 
 cuda = ["burn-core/cuda"]
-metal = ["wgpu", "burn-core/metal"]
+wgpu-msl = ["wgpu", "burn-core/wgpu-msl"]
 wgpu = ["burn-core/wgpu"]
 
 safetensors = ["dep:safetensors"]

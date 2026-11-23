@@ -5,10 +5,9 @@ name: Staging
 # pinned at a commit already on that repo's default branch.
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  push:
     branches:
-      - main
+      - "staging/**"
 
 permissions:
   contents: read
@@ -19,11 +18,10 @@ concurrency:
 
 jobs:
   pins-on-main:
-    if: startsWith(github.head_ref, 'staging/')
     runs-on: ubuntu-24.04
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Every tracel-ai pin is on its main
         env:
           GH_TOKEN: ${{ github.token }}

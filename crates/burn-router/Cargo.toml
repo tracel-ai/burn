@@ -28,6 +28,7 @@ tracing = ["burn-backend/tracing", "burn-ir/tracing", "burn-std/tracing"]
 
 [dependencies]
 burn-ir = { workspace = true }
+log = { workspace = true }
 burn-backend = { workspace = true }
 burn-fusion = { workspace = true, optional = true }
 burn-std = { workspace = true }

@@ -1,6 +1,7 @@
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+use burn_backend::RandomKey;
 #[cfg(cube_backend)]
 use burn_backend::cubecl::{Device as CubeDevice, RuntimeId};
 
@@ -12,8 +13,11 @@ use alloc::vec;
 #[cfg(feature = "autodiff")]
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
 use burn_backend::{
-    AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError, MemoryPoolUsage,
-    ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport,
+    AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, DeviceDescription,
+    DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
+    EnvironmentSummary, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
+    HostTransfer, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
+    ProfileToken, PruneOptions, Pruned, SaveOptions,
 };
 
 /// A captured graph from one of the dispatched backends (see
@@ -37,9 +41,9 @@ pub enum DispatchGraph {
     /// A graph captured on the [Remote backend](Remote).
     #[cfg(feature = "remote")]
     Remote(BackendGraph<Remote>),
-    /// A graph captured on the [device group backend](Group).
-    #[cfg(feature = "group")]
-    Group(BackendGraph<Group>),
+    /// A graph captured on the [sharded compute device backend](ShardedCompute).
+    #[cfg(feature = "shard")]
+    ShardedCompute(BackendGraph<ShardedCompute>),
     /// A graph captured by the non-executing capture backend.
     #[cfg(feature = "capture")]
     Capture(BackendGraph<Capture>),
@@ -186,6 +190,10 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::seed(device, seed))
     }
 
+    fn next_random_key(device: &Self::Device) -> RandomKey {
+        dispatch_device!(device, |device| B::next_random_key(device))
+    }
+
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::sync(device))
     }
@@ -214,8 +222,87 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::profile_abandon(device, token))
     }
 
+    fn execution_mode_open(
+        device: &Self::Device,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        dispatch_device!(device, |device| B::execution_mode_open(device, mode))
+    }
+
+    fn execution_mode_statistics(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        dispatch_device!(device, |device| B::execution_mode_statistics(device, token))
+    }
+
+    fn execution_mode_close(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        dispatch_device!(device, |device| B::execution_mode_close(device, token))
+    }
+
+    fn environment_create(
+        device: &Self::Device,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_create(device, name, origin))
+    }
+
+    fn environment_activate(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_activate(device, id))
+    }
+
+    fn environment_active(device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_active(device))
+    }
+
+    fn environment_save(
+        device: &Self::Device,
+        id: EnvironmentId,
+        options: SaveOptions,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_save(device, id, options))
+    }
+
+    fn environment_summary(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentSummary, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_summary(device, id))
+    }
+
+    fn environment_merge(
+        device: &Self::Device,
+        id: EnvironmentId,
+        origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_merge(device, id, origin))
+    }
+
+    fn environment_prune(
+        device: &Self::Device,
+        id: EnvironmentId,
+        options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        dispatch_device!(device, |device| B::environment_prune(device, id, options))
+    }
+
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::graph_prepare(device))
+    }
+
+    fn graph_end_run(device: &Self::Device) -> Result<bool, ExecutionError> {
+        dispatch_device!(device, |device| B::graph_end_run(device))
+    }
+
+    fn graph_start_run(device: &Self::Device) -> Result<(), ExecutionError> {
+        dispatch_device!(device, |device| B::graph_start_run(device))
     }
 
     fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
@@ -255,8 +342,8 @@ impl Backend for Dispatch {
             DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Remote::device_count(backend_type_id),
-            #[cfg(feature = "group")]
-            DispatchDeviceId::Group => Group::device_count(backend_type_id),
+            #[cfg(feature = "shard")]
+            DispatchDeviceId::ShardedCompute => ShardedCompute::device_count(backend_type_id),
             #[cfg(feature = "capture")]
             DispatchDeviceId::Capture => Capture::device_count(backend_type_id),
             _ => unreachable!("No backend feature enabled."),
@@ -281,16 +368,44 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::memory_cleanup(device))
     }
 
-    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
-        dispatch_device!(device, |device| B::memory_pool_report(device))
+    fn device_description(device: &Self::Device) -> Option<DeviceDescription> {
+        dispatch_device!(device, |device| B::device_description(device))
     }
 
-    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
-        dispatch_device!(device, |device| B::memory_pool_usage(device))
+    fn measure_telemetry(device: &Self::Device) -> DeviceTelemetry {
+        dispatch_device!(device, |device| B::measure_telemetry(device))
     }
 
-    fn memory_capacity(device: &Self::Device) -> Option<u64> {
-        dispatch_device!(device, |device| B::memory_capacity(device))
+    fn measure_memory(device: &Self::Device) -> Option<MemoryReport> {
+        dispatch_device!(device, |device| B::measure_memory(device))
+    }
+
+    fn measure_peaks(device: &Self::Device, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        dispatch_device!(device, |device| B::measure_peaks(device, keys))
+    }
+
+    /// Unsupported between devices of two backends: no backend moves data across that link.
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        dispatch_device_pair!(
+            measured(from),
+            measured(to),
+            |from, to| B::measure_link(from, to, sizes),
+            sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
+        )
+    }
+
+    fn measure_host_link(
+        device: &Self::Device,
+        transfer: HostTransfer,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        dispatch_device!(device, |device| B::measure_host_link(
+            device, transfer, sizes
+        ))
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
@@ -350,8 +465,8 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "group")]
-                DispatchTensorKind::Group(tensor) => tensor.autodiff().backward(),
+                #[cfg(feature = "shard")]
+                DispatchTensorKind::ShardedCompute(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "capture")]
                 DispatchTensorKind::Capture(_) => {
                     panic!("Capture tensors do not support autodiff")
@@ -385,11 +500,11 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Remote(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "group")]
-                DispatchTensorKind::Group(tensor) => tensor
+                #[cfg(feature = "shard")]
+                DispatchTensorKind::ShardedCompute(tensor) => tensor
                     .as_autodiff()
                     .grad(grads)
-                    .map(|t| DispatchTensorKind::Group(crate::BackendTensor::Float(t))),
+                    .map(|t| DispatchTensorKind::ShardedCompute(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "capture")]
                 DispatchTensorKind::Capture(_) => {
                     panic!("Capture tensors do not support autodiff")
@@ -427,11 +542,11 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Remote(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "group")]
-                DispatchTensorKind::Group(tensor) => tensor
+                #[cfg(feature = "shard")]
+                DispatchTensorKind::ShardedCompute(tensor) => tensor
                     .as_autodiff()
                     .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::Group(crate::BackendTensor::Float(t))),
+                    .map(|t| DispatchTensorKind::ShardedCompute(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "capture")]
                 DispatchTensorKind::Capture(_) => {
                     panic!("Capture tensors do not support autodiff")
@@ -474,10 +589,11 @@ impl AutodiffBackend for Dispatch {
                 (DispatchTensorKind::Remote(tensor), DispatchTensorKind::Remote(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
-                #[cfg(feature = "group")]
-                (DispatchTensorKind::Group(tensor), DispatchTensorKind::Group(grad)) => {
-                    tensor.as_autodiff().grad_replace(grads, grad.float())
-                }
+                #[cfg(feature = "shard")]
+                (
+                    DispatchTensorKind::ShardedCompute(tensor),
+                    DispatchTensorKind::ShardedCompute(grad),
+                ) => tensor.as_autodiff().grad_replace(grads, grad.float()),
                 (DispatchTensorKind::Autodiff(_), _) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -513,8 +629,8 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Remote(tensor) => DispatchTensorKind::Remote(
                     crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
-                #[cfg(feature = "group")]
-                DispatchTensorKind::Group(tensor) => DispatchTensorKind::Group(
+                #[cfg(feature = "shard")]
+                DispatchTensorKind::ShardedCompute(tensor) => DispatchTensorKind::ShardedCompute(
                     crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
                 #[cfg(feature = "capture")]
@@ -575,10 +691,12 @@ impl AutodiffBackend for Dispatch {
                     crate::BackendTensor::Autodiff(Autodiff::<Remote>::from_inner(tensor.float())),
                 )))
             }
-            #[cfg(feature = "group")]
-            DispatchTensorKind::Group(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Group(
-                    crate::BackendTensor::Autodiff(Autodiff::<Group>::from_inner(tensor.float())),
+            #[cfg(feature = "shard")]
+            DispatchTensorKind::ShardedCompute(tensor) => {
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::ShardedCompute(
+                    crate::BackendTensor::Autodiff(Autodiff::<ShardedCompute>::from_inner(
+                        tensor.float(),
+                    )),
                 )))
             }
             #[cfg(feature = "capture")]
@@ -1154,9 +1272,9 @@ impl Dispatch {
             #[cfg(feature = "remote")]
             // A remote device needs its server's address, which a type id cannot carry.
             DispatchDeviceId::Remote => Vec::new(),
-            #[cfg(feature = "group")]
-            // A group is made from its members, which a type id cannot carry.
-            DispatchDeviceId::Group => Vec::new(),
+            #[cfg(feature = "shard")]
+            // A sharded compute device is made from its members, which a type id cannot carry.
+            DispatchDeviceId::ShardedCompute => Vec::new(),
             #[cfg(feature = "capture")]
             // Capture devices are created together with a lifecycle handle and therefore
             // cannot be reconstructed from a type ID alone.
@@ -1195,13 +1313,13 @@ fn cube_runtime_enabled(runtime: RuntimeId) -> bool {
         RuntimeId::Wgpu => cfg!(any(
             feature = "wgpu",
             feature = "vulkan",
-            feature = "metal",
+            feature = "wgpu-msl",
             feature = "webgpu"
         )),
         RuntimeId::Cpu => cfg!(feature = "cpu"),
-        // burn's `metal` feature is wgpu compiling to MSL; cubecl's native Metal runtime has no
-        // burn feature to enable it.
-        RuntimeId::Metal => false,
+        // `metal` is cubecl's own Metal runtime; `wgpu-msl` is wgpu compiling to MSL, a
+        // `RuntimeId::Wgpu` device.
+        RuntimeId::Metal => cfg!(feature = "metal"),
     }
 }
 
@@ -1217,4 +1335,13 @@ pub(crate) fn cube_devices(runtime: RuntimeId) -> Vec<CubeDevice> {
         .into_iter()
         .filter(|device| device.runtime() == runtime)
         .collect()
+}
+
+/// The device under an autodiff wrapper, which a measurement of the device itself runs on.
+fn measured(device: &DispatchDevice) -> &DispatchDevice {
+    match device {
+        #[cfg(feature = "autodiff")]
+        DispatchDevice::Autodiff(inner) => &inner.inner,
+        other => other,
+    }
 }

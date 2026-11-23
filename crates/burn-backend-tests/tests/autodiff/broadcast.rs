@@ -43,7 +43,7 @@ where
 
     // Slice isn't a broadcastable operation, so it will fail when the previous backward pass
     // of an operation that support broadcast doesn't support it during the backward pass.
-    let y = func(w.clone().slice([0..1]), x.clone());
+    let y = func(w.clone().slice(0..1), x.clone());
 
     // Will panic if broadcast isn't supported!
     let grads = y.backward();

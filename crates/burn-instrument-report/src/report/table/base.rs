@@ -4,6 +4,7 @@ use std::fmt::{self, Display};
 
 use super::components::ComponentTable;
 use super::device::DeviceHeader;
+use super::members::Members;
 use super::merges::MergeNotes;
 use super::method::Method;
 use super::recoverable::Recoverable;
@@ -19,6 +20,7 @@ impl Display for Report<'_> {
         write!(f, "{}", Method::new(self))?;
         write!(f, "{components}")?;
         write!(f, "{}", Totals::new(self, components.width()))?;
+        write!(f, "{}", Members::new(self, components.width()))?;
         write!(f, "{}", RooflineNote::new(self))?;
         write!(f, "{}", Recoverable::new(self.ladder()))?;
         write!(f, "{}", MergeNotes::new(self))?;

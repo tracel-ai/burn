@@ -41,6 +41,7 @@ fn test_attention_no_mask() {
         value.clone(),
         None,
         None,
+        None,
         Default::default(),
     );
 
@@ -81,6 +82,7 @@ fn test_attention_custom_scale() {
         query.clone(),
         key.clone(),
         value.clone(),
+        None,
         None,
         None,
         options,
@@ -125,6 +127,7 @@ fn test_attention_attn_bias() {
         value.clone(),
         None,
         Some(bias.clone()),
+        None,
         Default::default(),
     );
 
@@ -167,6 +170,7 @@ fn test_attention_softcap() {
         value.clone(),
         None,
         None,
+        None,
         options,
     );
 
@@ -207,6 +211,7 @@ fn test_attention_is_causal() {
         query.clone(),
         key.clone(),
         value.clone(),
+        None,
         None,
         None,
         options,
@@ -257,6 +262,7 @@ fn test_attention_cross_attention_with_bias() {
         value.clone(),
         None,
         Some(bias.clone()),
+        None,
         options,
     );
 
@@ -477,6 +483,7 @@ fn test_attention_all_options() {
         value.clone(),
         Some(mask.clone()),
         Some(bias.clone()),
+        None,
         options,
     );
 
@@ -523,6 +530,7 @@ fn test_attention_bias_broadcast_batch_and_heads() {
         value.clone(),
         None,
         Some(bias.clone()),
+        None,
         Default::default(),
     );
 
@@ -567,6 +575,7 @@ fn test_attention_bias_broadcast_heads_only() {
         value.clone(),
         None,
         Some(bias.clone()),
+        None,
         Default::default(),
     );
 
@@ -623,6 +632,7 @@ fn test_attention_bool_mask_broadcast_batch_and_heads() {
         key.clone(),
         value.clone(),
         Some(mask.clone()),
+        None,
         None,
         Default::default(),
     );
@@ -685,6 +695,7 @@ fn test_attention_grouped_query_matches_repeated_kv() {
             value.clone(),
             mask.clone(),
             None,
+            None,
             options,
         );
         let expected = attention_fallback(
@@ -710,7 +721,7 @@ fn test_attention_kv_heads_must_divide_query_heads() {
     let query = TestTensor::<4>::zeros([1, 4, 2, 8], &device);
     let key = TestTensor::<4>::zeros([1, 3, 2, 8], &device);
     let value = TestTensor::<4>::zeros([1, 3, 2, 8], &device);
-    let _ = attention(query, key, value, None, None, Default::default());
+    let _ = attention(query, key, value, None, None, None, Default::default());
 }
 
 #[test]
@@ -720,7 +731,7 @@ fn test_attention_zero_head_dim() {
     let query = TestTensor::<4>::zeros([1, 2, 2, 0], &device);
     let key = TestTensor::<4>::zeros([1, 2, 2, 0], &device);
     let value = TestTensor::<4>::zeros([1, 2, 2, 8], &device);
-    let _ = attention(query, key, value, None, None, Default::default());
+    let _ = attention(query, key, value, None, None, None, Default::default());
 }
 
 /// `CausalAlignment::TopLeft` hides key `j` from query `i` when `j > i`, whatever the
@@ -752,6 +763,7 @@ fn test_attention_causal_alignment() {
                 query.clone(),
                 key.clone(),
                 value.clone(),
+                None,
                 None,
                 None,
                 AttentionModuleOptions {
@@ -823,6 +835,7 @@ fn test_attention_mask_with_causal_matches_fallback() {
                 value.clone(),
                 Some(mask.clone()),
                 None,
+                None,
                 options,
             );
             let expected = attention_fallback(
@@ -863,7 +876,7 @@ fn test_attention_softcap_applies_before_bias() {
         ..Default::default()
     };
 
-    let output = attention(query, key, value, None, Some(bias), options);
+    let output = attention(query, key, value, None, Some(bias), None, options);
 
     // softmax([2·tanh(2), 0] + [0, 1])[0]; the other order would give 0.7318.
     let expected = TensorData::from([[[[0.716_680_6]]]]);
@@ -905,6 +918,7 @@ fn assert_attention_matches_fallback(
         value.clone(),
         None,
         None,
+        None,
         options,
     );
 
@@ -942,4 +956,259 @@ fn test_attention_causal_chunk() {
         ..Default::default()
     };
     assert_attention_matches_fallback([2, 4, 4, 64, 192, 64], options);
+}
+
+/// Mask for a bottom-right aligned sliding window: `true` drops the key.
+fn sliding_window_mask(
+    batch: usize,
+    heads: usize,
+    seq_q: usize,
+    seq_kv: usize,
+    window: u32,
+) -> TensorData {
+    let window = window as isize;
+    let mut mask = Vec::with_capacity(batch * heads * seq_q * seq_kv);
+    for _ in 0..batch {
+        for _ in 0..heads {
+            for i in 0..seq_q {
+                let right = i as isize + seq_kv as isize - seq_q as isize;
+                let left = right - (window - 1);
+                for j in 0..seq_kv {
+                    mask.push((j as isize) > right || (j as isize) < left);
+                }
+            }
+        }
+    }
+    TensorData::new(mask, [batch, heads, seq_q, seq_kv])
+}
+
+#[test]
+fn test_attention_sliding_window_matches_explicit_mask() {
+    let [num_batches, num_heads, seq_q, seq_kv, head_dim] = [1, 2, 12, 12, 32];
+    let device = Default::default();
+    let window = 4;
+
+    let query = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_q, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &device,
+    );
+    let key = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_kv, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &device,
+    );
+    let value = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_kv, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &device,
+    );
+
+    let options = AttentionModuleOptions {
+        sliding_window: Some(window),
+        ..Default::default()
+    };
+
+    let output = attention(
+        query.clone(),
+        key.clone(),
+        value.clone(),
+        None,
+        None,
+        None,
+        options,
+    );
+
+    let mask = TestTensorBool::<4>::from_bool(
+        sliding_window_mask(num_batches, num_heads, seq_q, seq_kv, window),
+        &device,
+    );
+    let expected = attention(
+        query.clone(),
+        key.clone(),
+        value.clone(),
+        Some(mask.clone()),
+        None,
+        None,
+        Default::default(),
+    );
+
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected.into_data(),
+        Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
+    );
+
+    // The generic fallback (used when cubek cannot run, and by autodiff) must
+    // build the same windowed mask.
+    let fallback = attention_fallback(
+        query.clone(),
+        key.clone(),
+        value.clone(),
+        None,
+        None,
+        options,
+    );
+    let fallback_expected =
+        attention_fallback(query, key, value, Some(mask), None, Default::default());
+
+    fallback.into_data().assert_approx_eq::<FloatElem>(
+        &fallback_expected.into_data(),
+        Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
+    );
+}
+
+/// Cross-attention (`seq_q != seq_kv`) checks the bottom-right alignment of
+/// the window against an explicit mask.
+#[test]
+fn test_attention_sliding_window_cross_attention() {
+    let [num_batches, num_heads, seq_q, seq_kv, head_dim] = [1, 2, 6, 14, 32];
+    let device = Default::default();
+    let window = 5;
+
+    let query = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_q, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &device,
+    );
+    let key = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_kv, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &device,
+    );
+    let value = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_kv, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &device,
+    );
+
+    let output = attention(
+        query.clone(),
+        key.clone(),
+        value.clone(),
+        None,
+        None,
+        None,
+        AttentionModuleOptions {
+            sliding_window: Some(window),
+            ..Default::default()
+        },
+    );
+
+    let mask = TestTensorBool::<4>::from_bool(
+        sliding_window_mask(num_batches, num_heads, seq_q, seq_kv, window),
+        &device,
+    );
+    let expected = attention(
+        query,
+        key,
+        value,
+        Some(mask),
+        None,
+        None,
+        Default::default(),
+    );
+
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected.into_data(),
+        Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
+    );
+}
+
+/// Mask for a bottom-right sliding window intersected with a top-left causal mask: `true` drops
+/// the key.
+fn top_left_causal_sliding_window_mask(
+    batch: usize,
+    heads: usize,
+    seq_q: usize,
+    seq_kv: usize,
+    window: u32,
+) -> TensorData {
+    let window = window as isize;
+    let mut mask = Vec::with_capacity(batch * heads * seq_q * seq_kv);
+    for _ in 0..batch {
+        for _ in 0..heads {
+            for i in 0..seq_q {
+                let right = i as isize + seq_kv as isize - seq_q as isize;
+                let left = right - (window - 1);
+                for j in 0..seq_kv {
+                    let j = j as isize;
+                    mask.push(j > i as isize || j > right || j < left);
+                }
+            }
+        }
+    }
+    TensorData::new(mask, [batch, heads, seq_q, seq_kv])
+}
+
+/// The window stays bottom-right aligned while a top-left causal edge keeps only keys up to the
+/// query's own position. Over different lengths the two masks intersect, which can hide keys the
+/// window keeps and, when the window starts after the query, every key of a row.
+#[test]
+fn test_attention_sliding_window_with_top_left_causal_intersects() {
+    let [num_batches, num_heads, seq_q, seq_kv, head_dim] = [1, 2, 5, 8, 32];
+    let device = Default::default();
+    let random =
+        |shape: [usize; 4]| TestTensor::<4>::random(shape, Distribution::Uniform(-1., 1.), &device);
+    let query = random([num_batches, num_heads, seq_q, head_dim]);
+    let key = random([num_batches, num_heads, seq_kv, head_dim]);
+    let value = random([num_batches, num_heads, seq_kv, head_dim]);
+
+    // The first window leaves each row its own key and two before it; the second starts after
+    // the query's position, so the causal edge hides every key of every row.
+    for window in [6, 2] {
+        let options = AttentionModuleOptions {
+            is_causal: true,
+            causal_alignment: CausalAlignment::TopLeft,
+            sliding_window: Some(window),
+            ..Default::default()
+        };
+        let mask = TestTensorBool::<4>::from_bool(
+            top_left_causal_sliding_window_mask(num_batches, num_heads, seq_q, seq_kv, window),
+            &device,
+        );
+        let expected = attention(
+            query.clone(),
+            key.clone(),
+            value.clone(),
+            Some(mask.clone()),
+            None,
+            None,
+            Default::default(),
+        );
+
+        let output = attention(
+            query.clone(),
+            key.clone(),
+            value.clone(),
+            None,
+            None,
+            None,
+            options,
+        );
+        output.into_data().assert_approx_eq::<FloatElem>(
+            &expected.into_data(),
+            Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
+        );
+
+        let fallback = attention_fallback(
+            query.clone(),
+            key.clone(),
+            value.clone(),
+            None,
+            None,
+            options,
+        );
+        let fallback_expected = attention_fallback(
+            query.clone(),
+            key.clone(),
+            value.clone(),
+            Some(mask),
+            None,
+            Default::default(),
+        );
+        fallback.into_data().assert_approx_eq::<FloatElem>(
+            &fallback_expected.into_data(),
+            Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
+        );
+    }
 }

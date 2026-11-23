@@ -1,5 +1,4 @@
 use super::qtensor::*;
-use super::*;
 use burn_tensor::TensorData;
 
 #[test]

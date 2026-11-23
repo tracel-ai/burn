@@ -145,12 +145,14 @@ impl Conv2d {
     /// The options the convolution runs with, its padding resolved against `input`'s size.
     fn options(&self, input: &Tensor<4>) -> ConvOptions<2> {
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
+        let effective_kernel =
+            core::array::from_fn(|i| (self.kernel_size[i] - 1) * self.dilation[i] + 1);
 
         // Calculate padding as pairs - handles Same, Valid, and Explicit uniformly
         let ((top, bottom), (left, right)) = self.padding.calculate_padding_2d_pairs(
             height_in,
             width_in,
-            &self.kernel_size,
+            &effective_kernel,
             &self.stride,
         );
 
@@ -351,6 +353,20 @@ mod tests {
 
         // Same padding should preserve spatial dimensions
         assert_eq!(output.dims(), [1, 4, 5, 5]);
+    }
+
+    #[test]
+    fn same_with_dilation_uses_effective_kernel() {
+        let device = Default::default();
+        let conv = Conv2dConfig::new([1, 1], [3, 3])
+            .with_padding(PaddingConfig2d::Same)
+            .with_dilation([2, 2])
+            .with_bias(false)
+            .init(&device);
+
+        let output = conv.forward(Tensor::<4>::zeros([1, 1, 8, 9], &device));
+
+        assert_eq!(output.dims(), [1, 1, 8, 9]);
     }
 
     #[test]

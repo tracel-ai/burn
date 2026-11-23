@@ -1,45 +1,36 @@
-use super::args::{
-    FusedReduceInput, FusedReduceInputLaunch, FusedReduceOutput, FusedReduceOutputLaunch,
-};
 #[cfg(feature = "autotune")]
 use super::tune::fused_reduce_autotune;
+#[cfg(feature = "autotune")]
+use crate::tune::TunedTrace;
 use crate::{
     CubeFusionHandle, FallbackOperation,
+    base::strides_dyn_rank,
     engine::{
-        codegen::ir::{
-            FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout,
-            multi_block_variables_init,
-        },
+        codegen::ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout},
         launch::{
             FuseTraceLauncher,
             runner::{TraceRunner, Vectorization},
         },
+        tile::{TraceReadArgLaunch, TraceReadTileOperand},
         trace::{FuseTrace, TraceError, TuneOutput},
     },
-    optim::{FusedOperation, elemwise::ElemwiseRunner, reduce::args::FusedReduceArgs},
-    tune::TunedTrace,
+    optim::{FusedOperation, elemwise::ElemwiseRunner},
 };
-use burn_backend::cubecl::{dtype_to_storage_type, elem_type_to_dtype};
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;
-use burn_std::DType;
-use cubecl::{client::Client, prelude::*};
-use cubek::reduce::{
-    ReduceDtypes, ReduceError, VectorizationMode,
-    components::instructions::ReduceOperationConfig,
-    init_tensors,
-    launch::{RoutineStrategy, reduce_kernel_virtual},
-    output_vectorization_axis,
-    routines::{
-        ReduceBlueprint, ReduceLaunchSettings, ReduceProblem, ReduceVectorSettings, Routine,
-        cube::CubeRoutine, plane::PlaneRoutine, unit::UnitRoutine,
-    },
+use cubecl::{
+    bytes::Bytes,
+    client::Client,
+    prelude::TensorBinding,
+    tile::{Geometry, launch::Decline},
+};
+use cubek::microkernel::reduce::ReduceOperation;
+use cubek::reduce::kernels::{
+    ReduceCandidate, ReduceElements, ReduceKey, ReduceTensors, ReduceWorkspace,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-
-#[cfg(not(feature = "autotune"))]
-use cubek::reduce::routines::{BlueprintStrategy, unit::UnitStrategy};
 
 pub struct ReduceOptimization {
     pub(crate) info: Arc<ReduceOptimizationInfo>,
@@ -47,6 +38,8 @@ pub struct ReduceOptimization {
 
 pub(crate) struct ReduceOptimizationInfo {
     pub(crate) trace: FuseTrace,
+    /// The trace the fused reduce runs: `trace`'s read block, without its write block.
+    trace_read: FuseTrace,
     trace_read_fallback: FuseTrace,
     trace_write_fallback: FuseTrace,
     pub(crate) client: Client,
@@ -63,6 +56,7 @@ impl ReduceOptimizationInfo {
 
         Self {
             trace: state.trace,
+            trace_read: state.trace_read,
             trace_read_fallback: state.trace_read_fallback,
             trace_write_fallback: state.trace_write_fallback,
             client,
@@ -76,6 +70,7 @@ impl ReduceOptimizationInfo {
     pub fn to_state(&self) -> ReduceOptimizationState {
         ReduceOptimizationState {
             trace: self.trace.clone(),
+            trace_read: self.trace_read.clone(),
             trace_read_fallback: self.trace_read_fallback.clone(),
             trace_write_fallback: self.trace_write_fallback.clone(),
             len: self.len,
@@ -90,7 +85,7 @@ impl ReduceOptimizationInfo {
 pub enum ReduceSettings {
     Always,
     /// We only activate fuse-on-write when the reduction isn't on the last dimension, otherwise
-    /// vectorization is impossible. Only [VectorizationMode::Perpendicular] supports vectorization.
+    /// vectorization is impossible. Only `VectorizationMode::Perpendicular` supports vectorization.
     ///
     /// We could still fuse some output operations, but it would probably lead to worse performance.
     OnlyParallel,
@@ -111,6 +106,7 @@ impl Clone for ReduceOptimizationTuneArg {
     }
 }
 
+#[cfg(feature = "autotune")]
 impl TunedTrace for ReduceOptimizationTuneArg {
     fn trace(&self) -> &FuseTrace {
         &self.info.trace
@@ -138,6 +134,7 @@ pub trait ReduceFallbackFn: Send + Sync {
 #[derive(Serialize, Deserialize)]
 pub struct ReduceOptimizationState {
     pub(crate) trace: FuseTrace,
+    pub(crate) trace_read: FuseTrace,
     pub(crate) trace_read_fallback: FuseTrace,
     pub(crate) trace_write_fallback: FuseTrace,
     pub(crate) reduce: FusedReduce,
@@ -167,34 +164,85 @@ pub struct FusedReduce {
     pub(crate) inst: ReduceInstruction,
 }
 
+/// A fused reduce on the routine cubek's reduce autotune elected for the unfused reduce: its input
+/// read through the trace's read block, its output written to `out`.
 #[derive(new)]
 pub struct FusedReduceLaunch<'a> {
     reduce: &'a FusedReduce,
-    strategy: RoutineStrategy,
+    device: &'a cubecl::Device,
+    out: TensorBinding,
 }
 
+/// Why a fused reduce did not run fused; the fallback runs it instead.
 #[derive(Debug)]
 pub enum FusedReduceError {
-    Reduce(ReduceError),
-    InvalidSelection(Box<&'static str>),
-    InvalidInput,
-}
-
-impl From<ReduceError> for FusedReduceError {
-    fn from(value: ReduceError) -> Self {
-        Self::Reduce(value)
-    }
+    /// No routine is elected for the reduce: the autotune has not measured its key yet.
+    NoRoutineElected,
+    /// The elected routine declined the reduce, as its read block states it.
+    Routine(Decline),
 }
 
 impl ReduceOptimizationTuneArg {
+    /// Run the reduce: fused where the autotune measured that faster, the fallback otherwise.
+    pub fn run(self, context: &mut Context<CubeFusionHandle>) {
+        // An empty input leaves the fused launch either an axis it rejects or nothing to launch
+        // over.
+        let input = context.tensors.get(&self.info.reduce.op.input.id).unwrap();
+        if input.shape.num_elements() == 0 {
+            self.execute_fallback(context);
+            return;
+        }
+
+        #[cfg(feature = "autotune")]
+        fused_reduce_autotune(self, context);
+
+        #[cfg(not(feature = "autotune"))]
+        if self.execute_fused(context).is_err() {
+            self.execute_fallback(context);
+        }
+    }
+
+    /// The read block and the reduce in one launch, into a new output, then the write block on
+    /// that output in a second one.
     pub fn execute_fused(
         &self,
         context: &mut Context<CubeFusionHandle>,
-        strategy: RoutineStrategy,
     ) -> Result<TuneOutput, TraceError<FusedReduceError>> {
-        let launch = FusedReduceLaunch::new(&self.info.reduce, strategy);
-        let launcher = FuseTraceLauncher::new(&self.info.trace, &launch);
-        launcher.launch(&self.info.client, &self.info.device, context)
+        let out_desc = context.tensors.get(&self.info.reduce.op.out.id).unwrap();
+        let (out_id, out_shape) = (out_desc.id, out_desc.shape.clone());
+        let size = out_shape.num_elements() * dtype_to_storage_type(out_desc.dtype).size();
+        let out = CubeFusionHandle {
+            client: self.info.client.clone(),
+            handle: self.info.client.empty(size),
+            device: self.info.device.clone(),
+            strides: strides_dyn_rank(&out_shape),
+            tiles: None,
+            dtype: out_desc.dtype,
+            qparams: None,
+        };
+
+        let launch = FusedReduceLaunch::new(
+            &self.info.reduce,
+            &self.info.device,
+            out.clone().binding(out_shape.clone()),
+        );
+        let launcher = FuseTraceLauncher::new(&self.info.trace_read, &launch);
+        #[allow(unused_mut)] // It is used when `autotune-checks` is activated.
+        let mut output_read = launcher.launch(&self.info.client, &self.info.device, context)?;
+
+        context.handles.register_handle(out_id, out.clone());
+
+        #[cfg(feature = "autotune-checks")]
+        if let TuneOutput::Checked { handles } = &mut output_read {
+            handles.insert(self.info.reduce.op.out.id, (out_shape, out));
+        }
+
+        let launcher = FuseTraceLauncher::new(&self.info.trace_write_fallback, &ElemwiseRunner);
+        let output_write = launcher
+            .launch(&self.info.client, &self.info.device, context)
+            .unwrap();
+
+        Ok(output_read.merge(output_write))
     }
 
     pub fn execute_fallback(&self, context: &mut Context<CubeFusionHandle>) -> TuneOutput {
@@ -234,6 +282,7 @@ impl ReduceOptimizationTuneArg {
 impl ReduceOptimization {
     pub fn new(
         trace: FuseTrace,
+        trace_read: FuseTrace,
         trace_read_fallback: FuseTrace,
         trace_write_fallback: FuseTrace,
         client: Client,
@@ -245,6 +294,7 @@ impl ReduceOptimization {
     ) -> Self {
         let info = ReduceOptimizationInfo {
             trace,
+            trace_read,
             trace_read_fallback,
             trace_write_fallback,
             client,
@@ -267,32 +317,11 @@ impl ReduceOptimization {
     ) {
         // The index of the fallback reduce is the number of ops fused as read.
         let fallback = fallback(self.info.len_read);
-        let arg = ReduceOptimizationTuneArg {
+        ReduceOptimizationTuneArg {
             info: self.info.clone(),
             fallback: Arc::new(fallback),
-        };
-
-        // Same as `ReduceBroadcastedOptimization::execute`: an empty input leaves the fused
-        // kernels either an axis they reject or nothing to launch over.
-        let input = context.tensors.get(&self.info.reduce.op.input.id).unwrap();
-        if input.shape.num_elements() == 0 {
-            arg.execute_fallback(context);
-            return;
         }
-
-        #[cfg(feature = "autotune")]
-        fused_reduce_autotune(arg, context);
-
-        #[cfg(not(feature = "autotune"))]
-        if arg
-            .execute_fused(
-                context,
-                RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
-            )
-            .is_err()
-        {
-            arg.execute_fallback(context);
-        }
+        .run(context);
     }
 
     pub fn num_output_buffers(&self) -> usize {
@@ -302,6 +331,7 @@ impl ReduceOptimization {
     pub fn to_state(&self) -> ReduceOptimizationState {
         ReduceOptimizationState {
             trace: self.info.trace.clone(),
+            trace_read: self.info.trace_read.clone(),
             trace_read_fallback: self.info.trace_read_fallback.clone(),
             trace_write_fallback: self.info.trace_write_fallback.clone(),
             reduce: self.info.reduce.clone(),
@@ -316,6 +346,7 @@ impl ReduceOptimization {
 
         let info = ReduceOptimizationInfo {
             trace: state.trace,
+            trace_read: state.trace_read,
             trace_read_fallback: state.trace_read_fallback,
             trace_write_fallback: state.trace_write_fallback,
             reduce: state.reduce,
@@ -337,7 +368,6 @@ impl ReduceOptimization {
     }
 }
 
-// TODO: Implement better vectorization here.
 impl Vectorization for FusedReduceLaunch<'_> {}
 
 impl TraceRunner for FusedReduceLaunch<'_> {
@@ -350,195 +380,100 @@ impl TraceRunner for FusedReduceLaunch<'_> {
         outputs: GlobalArgsLaunch,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedReduceError> {
-        let [config_read, config_write] = [&configs[0], &configs[1]];
-        // An output-concrete reference indexes the output arguments; shape and
-        // strides must both be resolved against that list.
-        let ref_args = match &config_read.ref_layout {
-            RefLayout::Concrete(FuseArg::Output(..)) => &outputs,
-            _ => &inputs,
+        let config_read = &configs[0];
+        let geometry = block_geometry(&inputs, &outputs, config_read);
+        let operation = reduce_operation(self.reduce.inst);
+        let elements = ReduceElements {
+            input: dtype_to_storage_type(self.reduce.op.input.dtype),
+            accumulator: self.reduce.acc.into_elem(),
+            out: dtype_to_storage_type(self.reduce.op.out.dtype),
         };
-        let shape = ref_args.shape_ref(&config_read.ref_layout, config_read.rank);
-        let ref_strides = ref_args.strides_ref(&config_read.ref_layout, config_read.rank);
-        let reduce_count: usize = shape
-            .iter()
-            .enumerate()
-            .map(|(i, s)| if i == self.reduce.axis { 1 } else { *s })
-            .product();
-
-        let vectorization_mode = match self.reduce.axis == config_read.rank - 1 {
-            true => VectorizationMode::Parallel,
-            false => VectorizationMode::Perpendicular,
-        };
-        let address_type = inputs
-            .required_address_type()
-            .max(outputs.required_address_type());
-
-        let settings = ReduceVectorSettings {
-            vectorization_mode,
-            vector_size_input: config_read.width,
-            vector_size_output: config_write.width,
-            // Fused-reduce selection is cached per anchored key, so the
-            // unchecked comptime fast paths are never stable here.
-            unchecked_fast_paths: false,
-            // The fused read runs the trace, which may write materialized
-            // intermediates to global outputs.
-            fuse_on_read: true,
-        };
-        let problem = ReduceProblem {
-            reduce_len: shape[self.reduce.axis],
-            reduce_count,
-            axis: self.reduce.axis,
-            dtypes: ReduceDtypes {
-                input: dtype_to_storage_type(self.reduce.op.input.dtype),
-                output: dtype_to_storage_type(self.reduce.op.out.dtype),
-                accumulation: self.reduce.acc.into_elem(),
-            },
-            address_type,
-            instruction: reduce_instruction2config(&self.reduce.inst),
-        };
-
-        let (blueprint, settings) = match self.strategy.clone() {
-            RoutineStrategy::Unit(strategy) => {
-                let routine = UnitRoutine;
-                routine.prepare(client, problem, settings, strategy)?
-            }
-            RoutineStrategy::Plane(strategy) => {
-                let routine = PlaneRoutine;
-                routine.prepare(client, problem, settings, strategy)?
-            }
-            RoutineStrategy::Cube(strategy) => {
-                let routine = CubeRoutine;
-                routine.prepare(client, problem, settings, strategy)?
-            }
-        };
-
-        let out_vec_axis =
-            output_vectorization_axis(&ref_strides, self.reduce.axis, vectorization_mode);
-
-        let kwargs = ReduceKwArgs {
+        let workspace = reduce_workspace(
             client,
-            inputs,
-            outputs,
-            reduce_axis: self.reduce.axis,
-            out_vec_axis,
-            config_fuse_read: config_read.clone(),
-            config_fuse_write: config_write.clone(),
-            input: self.reduce.input.clone(),
-            output: self.reduce.output.clone(),
-            blueprint,
-            settings,
-        };
-        let result = launch_reduce_mixed_precision(
-            kwargs,
-            self.reduce.inst,
-            self.reduce.op.input.dtype,
-            self.reduce.op.out.dtype,
-            elem_type_to_dtype(self.reduce.acc.into_elem()),
+            geometry.shape(),
+            self.reduce.axis,
+            operation,
+            elements,
         );
-
-        match result {
-            Ok(_) => Ok(()),
-            Err(err) => Err(FusedReduceError::Reduce(ReduceError::Launch(err))),
-        }
-    }
-}
-
-struct ReduceKwArgs<'b> {
-    client: &'b Client,
-    inputs: GlobalArgsLaunch,
-    outputs: GlobalArgsLaunch,
-    reduce_axis: usize,
-    out_vec_axis: usize,
-    blueprint: ReduceBlueprint,
-    settings: ReduceLaunchSettings,
-    config_fuse_read: FuseBlockConfig,
-    config_fuse_write: FuseBlockConfig,
-    input: FuseArg,
-    output: FuseArg,
-}
-
-fn launch_reduce_mixed_precision(
-    kwargs: ReduceKwArgs<'_>,
-    instruction: ReduceInstruction,
-    dtype_input: DType,
-    dtype_output: DType,
-    dtype_acc: DType,
-) -> Result<(), LaunchError> {
-    let config = reduce_instruction2config(&instruction);
-    launch_reduce(kwargs, config, dtype_input, dtype_output, dtype_acc)
-}
-
-pub(crate) fn reduce_instruction2config(instruction: &ReduceInstruction) -> ReduceOperationConfig {
-    match instruction {
-        ReduceInstruction::ArgMax => ReduceOperationConfig::ArgMax,
-        ReduceInstruction::ArgMin => ReduceOperationConfig::ArgMin,
-        ReduceInstruction::Prod => ReduceOperationConfig::Prod,
-        ReduceInstruction::Mean => ReduceOperationConfig::Mean,
-        ReduceInstruction::Sum => ReduceOperationConfig::Sum,
-        ReduceInstruction::Max => ReduceOperationConfig::Max,
-        ReduceInstruction::Min => ReduceOperationConfig::Min,
-        ReduceInstruction::MaxAbs => ReduceOperationConfig::MaxAbs,
-        ReduceInstruction::Any => ReduceOperationConfig::Any,
-        ReduceInstruction::All => ReduceOperationConfig::All,
-    }
-}
-
-fn launch_reduce(
-    kwargs: ReduceKwArgs<'_>,
-    inst: ReduceOperationConfig,
-    dtype_input: DType,
-    dtype_output: DType,
-    dtype_acc: DType,
-) -> Result<(), LaunchError> {
-    unsafe {
-        reduce_kernel_fused::launch_unchecked(
-            kwargs.client,
-            kwargs.settings.cube_count,
-            kwargs.settings.cube_dim,
-            kwargs.settings.address_type,
-            kwargs.config_fuse_read.width,
-            kwargs.config_fuse_write.width,
-            FusedReduceInputLaunch::new(kwargs.inputs, kwargs.config_fuse_read, kwargs.input),
-            FusedReduceOutputLaunch::new(kwargs.outputs, kwargs.config_fuse_write, kwargs.output),
-            kwargs.reduce_axis,
-            kwargs.out_vec_axis,
-            kwargs.blueprint,
-            inst,
-            dtype_to_storage_type(dtype_input),
-            dtype_to_storage_type(dtype_output),
-            dtype_to_storage_type(dtype_acc),
+        let tensors = ReduceTensors::unbound(
+            client,
+            geometry,
+            config_read.width,
+            self.out.clone(),
+            self.reduce.axis,
+            operation,
+            elements,
         )
-    };
-
-    Ok(())
+        .with_workspace(workspace);
+        let candidate = ReduceCandidate::fastest(client, self.device, &ReduceKey::from(&tensors))
+            .ok_or(FusedReduceError::NoRoutineElected)?;
+        candidate
+            .launch_unbound::<TraceReadTileOperand>(&tensors, |source| {
+                TraceReadArgLaunch::of(
+                    inputs,
+                    outputs,
+                    source,
+                    self.reduce.input.clone(),
+                    config_read.clone(),
+                )
+            })
+            .map_err(FusedReduceError::Routine)
+    }
 }
 
-#[cube(launch_unchecked, address_type = "dynamic")]
-pub fn reduce_kernel_fused<In: Numeric, SizeIn: Size, Out: Numeric, SizeOut: Size, Acc: Numeric>(
-    input: &FusedReduceInput,
-    output: &mut FusedReduceOutput,
-    reduce_axis: usize,
-    out_vec_axis: usize,
-    #[comptime] blueprint: ReduceBlueprint,
-    #[comptime] config: ReduceOperationConfig,
-    #[define(In)] _input_dtype: ElemType,
-    #[define(Out)] _output_dtype: ElemType,
-    #[define(Acc)] _acc_dtype: ElemType,
-) {
-    multi_block_variables_init(&input.config, &mut output.global.variables);
-    multi_block_variables_init(&output.config, &mut output.global.variables);
+/// The scratch cubek's reductions that split a row across cubes take for reducing `axis` of an
+/// input of `shape` by `operation` in `elements`: cubek allocates none, so the fused launch does,
+/// sized for whichever kernel the autotune elected, its arrival counters zero.
+fn reduce_workspace(
+    client: &Client,
+    shape: &[usize],
+    axis: usize,
+    operation: ReduceOperation,
+    elements: ReduceElements,
+) -> ReduceWorkspace {
+    let bytes = ReduceWorkspace::bytes_for(client, shape, axis, operation, elements, false);
+    // A runtime may refuse an empty allocation: every buffer holds at least one counter.
+    let at_least_one = |bytes: u64| (bytes as usize).max(size_of::<u32>());
+    let counters = at_least_one(bytes.arrivals) / size_of::<u32>();
+    ReduceWorkspace {
+        partials: client.empty(at_least_one(bytes.partials)),
+        partial_indices: client.empty(at_least_one(bytes.partial_indices)),
+        arrivals: client.create(Bytes::from_elems(vec![0u32; counters])),
+    }
+}
 
-    let (input, mut output) =
-        init_tensors::<FusedReduceArgs, In, SizeIn, Out, SizeOut>(input, output);
+/// The shape and strides of `config`'s reference layout, which its block reads or writes lines of.
+fn block_geometry(
+    inputs: &GlobalArgsLaunch,
+    outputs: &GlobalArgsLaunch,
+    config: &FuseBlockConfig,
+) -> Geometry {
+    // An output-concrete reference indexes the output arguments; shape and strides must both be
+    // resolved against that list.
+    let args = match &config.ref_layout {
+        RefLayout::Concrete(FuseArg::Output(..)) => outputs,
+        _ => inputs,
+    };
+    let shape = args.shape_ref(&config.ref_layout, config.rank);
+    let strides = args.strides_ref(&config.ref_layout, config.rank);
+    let dims: Vec<(usize, usize)> = shape.iter().copied().zip(strides.iter().copied()).collect();
+    Geometry::new(&dims)
+}
 
-    reduce_kernel_virtual::<In, SizeIn, Out, SizeOut, Acc>(
-        &input,
-        &mut output,
-        reduce_axis,
-        out_vec_axis,
-        blueprint,
-        config,
-    );
+/// The operation `instruction` names, as the reduce microkernels name it.
+pub(crate) fn reduce_operation(instruction: ReduceInstruction) -> ReduceOperation {
+    match instruction {
+        ReduceInstruction::ArgMax => ReduceOperation::ArgMax,
+        ReduceInstruction::ArgMin => ReduceOperation::ArgMin,
+        ReduceInstruction::Prod => ReduceOperation::Prod,
+        ReduceInstruction::Mean => ReduceOperation::Mean,
+        ReduceInstruction::Sum => ReduceOperation::Sum,
+        ReduceInstruction::Max => ReduceOperation::Max,
+        ReduceInstruction::Min => ReduceOperation::Min,
+        ReduceInstruction::MaxAbs => ReduceOperation::MaxAbs,
+        ReduceInstruction::Any => ReduceOperation::Any,
+        ReduceInstruction::All => ReduceOperation::All,
+    }
 }
 
 /// Name of the reduce fusion optimization.
@@ -549,6 +484,7 @@ impl ReduceOptimizationInfo {
     pub(crate) fn max_relative_shape_id(&self) -> Option<usize> {
         [
             self.trace.max_relative_shape_id(),
+            self.trace_read.max_relative_shape_id(),
             self.trace_read_fallback.max_relative_shape_id(),
             self.trace_write_fallback.max_relative_shape_id(),
         ]

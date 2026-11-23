@@ -118,6 +118,16 @@ impl From<Vec<OperationIr>> for GraphIr {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct GraphId(pub u64);
 
+/// Identifier for a hardware graph captured on the backend behind a router interpreter (see
+/// `Backend::graph_stop_capture`).
+///
+/// Unlike a [`GraphId`], which names operations the interpreter re-runs one by one, this names
+/// a recording the interpreter's backend replays as a single dispatch. The client picks it when
+/// it stops the capture, and the interpreter keeps the backend's graph under it until the client
+/// releases it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct CapturedGraphId(pub u64);
+
 /// Per-invocation bindings used to specialize a cached graph to concrete tensors.
 ///
 /// The cached graph is in *relative* form (positional tensor ids, relative shape-dim ids, scalar

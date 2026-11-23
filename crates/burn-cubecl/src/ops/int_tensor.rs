@@ -1,4 +1,5 @@
 use self::unary_basic_int::BasicIntUnaryKind;
+use burn_backend::RandomKey;
 use burn_backend::cubecl::dtype_to_storage_type;
 
 use super::{expand, numeric, permute, unfold};
@@ -23,7 +24,7 @@ use burn_backend::{ExecutionError, Scalar};
 use burn_std::{BoolDType, FloatDType};
 use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
-use cubek::reduce::components::instructions::ReduceOperationConfig;
+use cubek::reduce::ReduceOperation;
 use std::ops::Range;
 
 impl IntTensorOps<Self> for CubeBackend {
@@ -386,70 +387,43 @@ impl IntTensorOps<Self> for CubeBackend {
     }
 
     fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::sum_fallback(tensor, Default::default()).unwrap()
+        reduce::sum(tensor, Default::default()).unwrap()
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim(
-            tensor,
-            None,
-            dim,
-            Default::default(),
-            ReduceOperationConfig::Sum,
-        )
-        .unwrap()
+        reduce::reduce_dim(tensor, None, dim, Default::default(), ReduceOperation::Sum).unwrap()
     }
 
     fn int_any(tensor: IntTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
-        reduce::reduce_logical(tensor, None, ReduceOperationConfig::Any, out_dtype)
+        reduce::reduce_logical(tensor, None, ReduceOperation::Any, out_dtype)
     }
 
     fn int_any_dim(tensor: IntTensor<Self>, dim: usize, out_dtype: BoolDType) -> BoolTensor<Self> {
-        reduce::reduce_logical(tensor, Some(dim), ReduceOperationConfig::Any, out_dtype)
+        reduce::reduce_logical(tensor, Some(dim), ReduceOperation::Any, out_dtype)
     }
 
     fn int_all(tensor: IntTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
-        reduce::reduce_logical(tensor, None, ReduceOperationConfig::All, out_dtype)
+        reduce::reduce_logical(tensor, None, ReduceOperation::All, out_dtype)
     }
 
     fn int_all_dim(tensor: IntTensor<Self>, dim: usize, out_dtype: BoolDType) -> BoolTensor<Self> {
-        reduce::reduce_logical(tensor, Some(dim), ReduceOperationConfig::All, out_dtype)
+        reduce::reduce_logical(tensor, Some(dim), ReduceOperation::All, out_dtype)
     }
 
     fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce(
-            tensor,
-            None,
-            Default::default(),
-            ReduceOperationConfig::Prod,
-        )
-        .unwrap()
+        reduce::reduce(tensor, None, Default::default(), ReduceOperation::Prod).unwrap()
     }
 
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim(
-            tensor,
-            None,
-            dim,
-            Default::default(),
-            ReduceOperationConfig::Prod,
-        )
-        .unwrap()
+        reduce::reduce_dim(tensor, None, dim, Default::default(), ReduceOperation::Prod).unwrap()
     }
 
     fn int_max(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce(tensor, None, Default::default(), ReduceOperationConfig::Max).unwrap()
+        reduce::reduce(tensor, None, Default::default(), ReduceOperation::Max).unwrap()
     }
 
     fn int_max_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim(
-            tensor,
-            None,
-            dim,
-            Default::default(),
-            ReduceOperationConfig::Max,
-        )
-        .unwrap()
+        reduce::reduce_dim(tensor, None, dim, Default::default(), ReduceOperation::Max).unwrap()
     }
 
     fn int_topk(tensor: IntTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
@@ -458,7 +432,7 @@ impl IntTensorOps<Self> for CubeBackend {
             None,
             dim,
             Default::default(),
-            ReduceOperationConfig::TopK(k),
+            ReduceOperation::TopK { k },
         )
         .unwrap()
     }
@@ -477,7 +451,7 @@ impl IntTensorOps<Self> for CubeBackend {
             dtype,
             dim,
             Default::default(),
-            ReduceOperationConfig::TopK(k),
+            ReduceOperation::TopK { k },
         )
         .unwrap()
     }
@@ -493,7 +467,7 @@ impl IntTensorOps<Self> for CubeBackend {
             dtype,
             dim,
             Default::default(),
-            ReduceOperationConfig::Max,
+            ReduceOperation::Max,
         )
         .unwrap()
     }
@@ -509,19 +483,13 @@ impl IntTensorOps<Self> for CubeBackend {
             dtype,
             dim,
             Default::default(),
-            ReduceOperationConfig::Min,
+            ReduceOperation::Min,
         )
         .unwrap()
     }
 
     fn int_max_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce(
-            tensor,
-            None,
-            Default::default(),
-            ReduceOperationConfig::MaxAbs,
-        )
-        .unwrap()
+        reduce::reduce(tensor, None, Default::default(), ReduceOperation::MaxAbs).unwrap()
     }
 
     fn int_max_abs_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
@@ -530,35 +498,21 @@ impl IntTensorOps<Self> for CubeBackend {
             None,
             dim,
             Default::default(),
-            ReduceOperationConfig::MaxAbs,
+            ReduceOperation::MaxAbs,
         )
         .unwrap()
     }
 
     fn int_min(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce(tensor, None, Default::default(), ReduceOperationConfig::Min).unwrap()
+        reduce::reduce(tensor, None, Default::default(), ReduceOperation::Min).unwrap()
     }
 
     fn int_min_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim(
-            tensor,
-            None,
-            dim,
-            Default::default(),
-            ReduceOperationConfig::Min,
-        )
-        .unwrap()
+        reduce::reduce_dim(tensor, None, dim, Default::default(), ReduceOperation::Min).unwrap()
     }
 
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim(
-            tensor,
-            None,
-            dim,
-            Default::default(),
-            ReduceOperationConfig::Mean,
-        )
-        .unwrap()
+        reduce::reduce_dim(tensor, None, dim, Default::default(), ReduceOperation::Mean).unwrap()
     }
 
     fn int_cumsum(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
@@ -584,7 +538,7 @@ impl IntTensorOps<Self> for CubeBackend {
             Some(dtype),
             dim,
             Default::default(),
-            ReduceOperationConfig::ArgMax,
+            ReduceOperation::ArgMax,
         )
         .unwrap()
     }
@@ -596,7 +550,7 @@ impl IntTensorOps<Self> for CubeBackend {
             Some(dtype),
             dim,
             Default::default(),
-            ReduceOperationConfig::ArgTopK(k),
+            ReduceOperation::ArgTopK { k },
         )
         .unwrap()
     }
@@ -608,7 +562,7 @@ impl IntTensorOps<Self> for CubeBackend {
             Some(dtype),
             dim,
             Default::default(),
-            ReduceOperationConfig::ArgMin,
+            ReduceOperation::ArgMin,
         )
         .unwrap()
     }
@@ -665,16 +619,19 @@ impl IntTensorOps<Self> for CubeBackend {
         distribution: Distribution,
         device: &Device<Self>,
         dtype: IntDType,
+        key: RandomKey,
     ) -> IntTensor<Self> {
         let dtype = dtype.into();
         match distribution {
-            Distribution::Default => random_uniform(shape, device, 0., 255., dtype),
+            Distribution::Default => random_uniform(shape, device, 0., 255., dtype, key),
             Distribution::Uniform(low, high) => {
-                random_uniform(shape, device, low.elem(), high.elem(), dtype)
+                random_uniform(shape, device, low.elem(), high.elem(), dtype, key)
             }
-            Distribution::Bernoulli(prob) => random_bernoulli(shape, device, prob as f32, dtype),
+            Distribution::Bernoulli(prob) => {
+                random_bernoulli(shape, device, prob as f32, dtype, key)
+            }
             Distribution::Normal(mean, std) => {
-                random_normal(shape, device, mean.elem(), std.elem(), dtype)
+                random_normal(shape, device, mean.elem(), std.elem(), dtype, key)
             }
         }
     }

@@ -5,24 +5,41 @@ use crate::{
     optim::matmul::args::MatmulArg,
 };
 use burn_fusion::{FuserStatus, OperationFuser};
-use burn_ir::{FloatOperationIr, OperationIr, TensorIr};
+use burn_ir::{BaseOperationIr, BinaryOpIr, FloatOperationIr, OperationIr, TensorIr, TensorStatus};
 use burn_std::DType;
 
 /// Fused element wise operations that are normally memory bound.
+#[derive(Clone)]
 pub struct MatmulFuser {
     fuser: TraceOperationFuser,
     fuser_fallback: TraceOperationFuser,
     device: cubecl::Device,
-    matmul: Option<FusedMatmul>,
+    matmul: Option<Product>,
 }
 
-impl Clone for MatmulFuser {
-    fn clone(&self) -> Self {
-        Self {
-            fuser: self.fuser.clone(),
-            fuser_fallback: self.fuser_fallback.clone(),
-            device: self.device.clone(),
-            matmul: self.matmul.clone(),
+/// The matmul the fuser anchored on, before and after its output takes its slot in the trace.
+#[derive(Clone)]
+enum Product {
+    /// Its output not yet registered: a reshape of it may still change the tensor the routine
+    /// writes, and the operations the fuser absorbed that way.
+    Open {
+        lhs: MatmulArg,
+        rhs: MatmulArg,
+        op: BinaryOpIr,
+        output: TensorIr,
+        reshapes: usize,
+    },
+    /// Its output registered, as the tensor the routine writes.
+    Slotted(FusedMatmul),
+}
+
+impl Product {
+    /// The operations the fuser claimed for the product: the matmul, then the reshapes of its
+    /// output it absorbed.
+    fn len(&self) -> usize {
+        match self {
+            Self::Open { reshapes, .. } => 1 + reshapes,
+            Self::Slotted(matmul) => 1 + matmul.reshapes,
         }
     }
 }
@@ -34,6 +51,11 @@ impl MatmulFuser {
         let max_bindings = props.hardware.max_bindings;
         let settings_matmul = FuseSettings {
             output_shape_updates: false,
+            // An output aliasing an input reuses that input's buffer argument in the compiled
+            // kernel, found by its position among the kernel's arguments. The routine's kernel
+            // declares its own operands before the trace's, so the alias would name another
+            // argument and the output would never be written.
+            inplace: false,
             ..Default::default()
         };
         let settings_fallback = FuseSettings::default();
@@ -61,6 +83,58 @@ impl MatmulFuser {
             _ => Some(MatmulArg::Normal(self.fuser.input_unhandled(tensor))),
         }
     }
+
+    /// Absorb `operation` where it reshapes the product's output before the output takes its
+    /// slot: the routine then writes the reshaped tensor. That is exact, since the routine writes
+    /// its product at linear positions and a reshape moves no element's.
+    ///
+    /// Only where the reshape is the output's last use: an output something else still reads
+    /// has to be written as it is. The fallback runs the reshape on its own, after the matmul.
+    fn reshapes_the_output(&mut self, operation: &OperationIr) -> bool {
+        let (
+            Some(Product::Open {
+                output, reshapes, ..
+            }),
+            OperationIr::BaseFloat(BaseOperationIr::Reshape(reshape)),
+        ) = (self.matmul.as_mut(), operation)
+        else {
+            return false;
+        };
+        if reshape.input.id != output.id || reshape.input.status != TensorStatus::ReadWrite {
+            return false;
+        }
+        *output = reshape.out.clone();
+        *reshapes += 1;
+        true
+    }
+
+    /// Register the product's output, as its last reshape left it, before the first operation
+    /// of its tail. Idempotent.
+    fn slot_output(&mut self) {
+        self.matmul = match self.matmul.take() {
+            Some(Product::Open {
+                lhs,
+                rhs,
+                op,
+                output,
+                reshapes,
+            }) => {
+                let out = self.fuser.output_unhandled(&output);
+                Some(Product::Slotted(FusedMatmul::new(
+                    lhs, rhs, out, op, output, reshapes,
+                )))
+            }
+            slotted => slotted,
+        };
+    }
+
+    /// The fused matmul, once its output has its slot.
+    fn fused_matmul(&self) -> &FusedMatmul {
+        match &self.matmul {
+            Some(Product::Slotted(matmul)) => matmul,
+            _ => panic!("MatmulFuser::finish called before the tail claimed the product's output"),
+        }
+    }
 }
 
 impl OperationFuser<CubeOptimization> for MatmulFuser {
@@ -77,15 +151,13 @@ impl OperationFuser<CubeOptimization> for MatmulFuser {
 
                 match (lhs, rhs) {
                     (Some(lhs), Some(rhs)) => {
-                        let out = self.fuser.output_unhandled(&op.out);
-
-                        self.matmul = Some(FusedMatmul::new(
+                        self.matmul = Some(Product::Open {
                             lhs,
                             rhs,
-                            out,
-                            op.clone().into(),
-                            Default::default(),
-                        ));
+                            op: op.clone().into(),
+                            output: op.out.clone(),
+                            reshapes: 0,
+                        });
                     }
                     _ => {
                         self.fuser.close();
@@ -97,6 +169,10 @@ impl OperationFuser<CubeOptimization> for MatmulFuser {
                 self.fuser_fallback.close();
             }
         } else {
+            if self.reshapes_the_output(operation) {
+                return;
+            }
+            self.slot_output();
             let can_register =
                 self.fuser.can_fuse(operation) && self.fuser_fallback.can_fuse(operation);
 
@@ -124,7 +200,7 @@ impl OperationFuser<CubeOptimization> for MatmulFuser {
             client,
             self.device.clone(),
             self.len(),
-            self.matmul.as_ref().unwrap().clone(),
+            self.fused_matmul().clone(),
         );
 
         CubeOptimization::new(matmul)
@@ -145,8 +221,8 @@ impl OperationFuser<CubeOptimization> for MatmulFuser {
     }
 
     fn len(&self) -> usize {
-        // Matmul operation isn't registered in the fuser
-        self.fuser.len() + 1
+        // The matmul and the reshapes of its output aren't registered in the fused trace.
+        self.fuser.len() + self.matmul.as_ref().map_or(1, Product::len)
     }
 
     fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization>> {

@@ -98,6 +98,9 @@ let output = model.forward(input);
 Use `Tensor::to_device` or `Module::to_device` to move existing values. Operations involving
 multiple tensors require compatible devices, so move them explicitly before combining them.
 
+Boolean transfers preserve values and storage dtype when the destination supports that storage.
+Otherwise, they use the destination device's configured bool storage.
+
 ```rust, ignore
 let cpu = Device::flex();
 let gpu = Device::cuda(0);

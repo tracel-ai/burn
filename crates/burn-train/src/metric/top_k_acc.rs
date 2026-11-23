@@ -173,7 +173,7 @@ mod tests {
             Tensor::from_data([2], &device),
         );
 
-        metric.update(&input, &MetricMetadata::fake());
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
     }
 
     #[test]
@@ -185,7 +185,7 @@ mod tests {
             Tensor::from_data([0, 1, 2], &device),
         );
 
-        metric.update(&input, &MetricMetadata::fake());
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert_eq!(100.0, metric.value().unwrap().current());
     }
 
@@ -199,7 +199,7 @@ mod tests {
         );
 
         assert_eq!(metric.name(), TopKAccuracyMetric::new(1).name());
-        metric.update(&input, &MetricMetadata::fake());
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert_eq!(50.0, metric.value().unwrap().current());
     }
 

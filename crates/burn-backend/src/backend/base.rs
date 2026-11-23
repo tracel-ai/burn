@@ -1,3 +1,4 @@
+use crate::RandomKey;
 use burn_std::DType;
 pub use burn_std::{ExecutionError, backtrace::BackTrace};
 
@@ -14,7 +15,14 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
 use super::profile::profile_unsupported;
-use super::{MemoryPoolUsage, SlicedPoolReport};
+use super::{
+    DeviceDescription, DeviceTelemetry, HostTransfer, MemoryReport, Peak, PeakError, PeakKey,
+};
+use super::{
+    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
+    PruneOptions, Pruned, SaveOptions,
+};
+use super::{ExecutionMode, ExecutionModeToken, ExecutionStatistics, UnknownExecutionMode};
 use super::{ProfileDuration, ProfileOptions, ProfileToken, profile_system_time};
 
 /// The mapping of types used by Backend and traits.
@@ -155,30 +163,63 @@ pub trait Backend:
     #[allow(unused_variables)]
     fn memory_cleanup(device: &Self::Device) {}
 
-    /// The dynamic pools' measured state, in the order allocations are routed
-    /// through them. `None` on a backend that does not report one, or whose
-    /// stream has failed.
-    ///
-    /// One entry per pool that carves pages, the pools a growth left behind
-    /// last. Pools of other kinds — an allocation's own page, the metadata
-    /// churn — are left out.
+    /// What `device` is, as its driver states it, without opening it: cheap
+    /// enough to describe every device a machine has. `None` from a backend
+    /// whose driver states nothing.
     #[allow(unused_variables)]
-    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
+    fn device_description(device: &Self::Device) -> Option<DeviceDescription> {
         None
     }
 
-    /// The device allocator's current state. `None` on a backend that does not
-    /// report one, or whose stream has failed.
+    /// One reading of the counters of the card behind `device`. Every figure
+    /// is `None` from a backend that reads none.
     #[allow(unused_variables)]
-    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
+    fn measure_telemetry(device: &Self::Device) -> DeviceTelemetry {
+        DeviceTelemetry::default()
+    }
+
+    /// What `device`'s allocator holds now, after the work registered so far
+    /// on the calling stream. `None` from a backend that does not report it,
+    /// or whose stream has failed.
+    #[allow(unused_variables)]
+    fn measure_memory(device: &Self::Device) -> Option<MemoryReport> {
         None
     }
 
-    /// How many bytes the device can hold at once, as its runtime states it. `None` on a backend
-    /// that states no figure.
+    /// The peak throughput of `device` for each of `keys`, in order, by
+    /// launching a probe for each: the peak, or why the device has none. Every
+    /// key is [unsupported](PeakError::Unsupported) by a backend that runs no
+    /// probe.
     #[allow(unused_variables)]
-    fn memory_capacity(device: &Self::Device) -> Option<u64> {
-        None
+    fn measure_peaks(device: &Self::Device, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        keys.iter().map(|_| Err(PeakError::Unsupported)).collect()
+    }
+
+    /// The peak throughput of the link from `from` to `to` for each of `sizes`, in order, in bytes
+    /// per second when one transfer moves that many bytes: the peak, or why the link has none.
+    /// Every size is [unsupported](PeakError::Unsupported) by a backend that runs no link probe,
+    /// and between a device and itself.
+    #[allow(unused_variables)]
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
+    }
+
+    /// The peak throughput of the link between the calling process and `device` for each of
+    /// `sizes`, in order, in bytes per second when one transfer moves that many bytes the way
+    /// `transfer` names: the peak, or why the link has none. It depends on where the caller is, so
+    /// a remote device answers for this process's network. Every size is
+    /// [unsupported](PeakError::Unsupported) by a backend that runs no host link probe.
+    #[allow(unused_variables)]
+    fn measure_host_link(
+        device: &Self::Device,
+        transfer: HostTransfer,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        sizes.iter().map(|_| Err(PeakError::Unsupported)).collect()
     }
 
     /// Name of the backend.
@@ -190,7 +231,14 @@ pub trait Backend:
     /// that at least the specified device will be seeded.
     ///
     /// In all cases, this should ensure deterministic execution for a single-threaded program.
+    /// Random operations already requested retain their reserved keys, even if not yet executed.
     fn seed(device: &Self::Device, seed: u64);
+
+    /// Advances the backend's implicit random generator and returns a key for one random operation.
+    ///
+    /// Call before queueing work. The returned key remains valid after reseeding, and
+    /// executing an explicitly keyed operation must not advance this generator.
+    fn next_random_key(device: &Self::Device) -> RandomKey;
 
     /// Sync the backend, ensure that all computation are finished.
     fn sync(_device: &Self::Device) -> Result<(), ExecutionError> {
@@ -289,13 +337,244 @@ pub trait Backend:
         let _ = Self::profile_end(device, token, ProfileOptions::default());
     }
 
-    /// Prepare `device` for an upcoming graph capture: route allocations into a
-    /// stable pool so every buffer allocated before graph_stop_capture can
-    /// be pinned. Call before the warmup run. No-op by default.
+    /// Open `mode` on `device` until
+    /// [`execution_mode_close`](Self::execution_mode_close).
     ///
-    /// See [`burn_graph`](crate) — the closure-based `capture` helper drives
-    /// this whole sequence.
+    /// - A [`ProcessMode`](super::ProcessMode) applies to all the device's work, and counts what
+    ///   that work triggers into the token's
+    ///   [statistics](Self::execution_mode_statistics).
+    /// - A [`StreamMode`](super::StreamMode) applies to the calling stream's work alone, whatever
+    ///   the process mode says: what a step that has to run for real inside a
+    ///   pass that discards launches opens. It counts nothing.
+    ///
+    /// Opens after every operation registered so far on the calling stream:
+    /// a backend that queues operations runs those first, under the mode they
+    /// were registered in. Operations another stream still holds queued are
+    /// not waited for, and may run under the new mode.
+    ///
+    /// `None`, the default, from a backend that compiles nothing and so runs
+    /// every launch whatever the mode: the work runs, and nothing is counted.
+    ///
+    /// The contract is the device's: at least `device` runs under a process
+    /// mode. A backend whose runtime only applies one to the whole process
+    /// applies it to every device of that process — on a server, to the work
+    /// of all its clients — and refuses a second process mode while one is
+    /// open there.
+    ///
+    /// # Errors
+    ///
+    /// Another process mode is open where this one would apply, or the device
+    /// could not be reached.
+    fn execution_mode_open(
+        _device: &Self::Device,
+        _mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        Ok(None)
+    }
+
+    /// What the work run under the mode `token` opened has triggered so far;
+    /// nothing, for a stream mode. Opens and closes nothing, so it can be read
+    /// from any thread while the work runs.
+    ///
+    /// # Errors
+    ///
+    /// The backend has no mode open under `token`, or the device could not be
+    /// reached.
+    fn execution_mode_statistics(
+        _device: &Self::Device,
+        _token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        Err(UnknownExecutionMode.into())
+    }
+
+    /// Close the mode `token` opened, after every operation registered so far
+    /// on [the stream it was opened on](ExecutionModeToken::opened_on), and
+    /// answer what the work run under it triggered.
+    ///
+    /// A backend that fails to run the queued operations still closes the
+    /// mode, and answers the failure: a mode left open would discard every
+    /// later launch.
+    ///
+    /// # Errors
+    ///
+    /// The backend has no mode open under `token`, the queued operations
+    /// failed, or the device could not be reached.
+    fn execution_mode_close(
+        _device: &Self::Device,
+        _token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        Err(UnknownExecutionMode.into())
+    }
+
+    /// Create the compute environment `name` in the storage `device` reaches,
+    /// holding what `origin` says, and answer its id. It is active nowhere
+    /// until [activated](Self::environment_activate).
+    ///
+    /// An environment of that name already in the storage is replaced.
+    ///
+    /// # Errors
+    ///
+    /// The backend keeps no compute environment, the environment to replace is
+    /// active, a fork's source lives in a storage `device` does not reach, or
+    /// the storage refused the write.
+    fn environment_create(
+        _device: &Self::Device,
+        _name: String,
+        _origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        Err(EnvironmentError::unsupported())
+    }
+
+    /// Make `id` the compute environment `device`'s work reads and writes,
+    /// after every operation registered so far on the calling stream, and
+    /// answer the one it replaces.
+    ///
+    /// The contract is the device's: at least `device` works in it. A backend
+    /// whose runtime keeps one environment for the whole process activates it
+    /// for every device of that process — on a server, for every client.
+    ///
+    /// # Errors
+    ///
+    /// The backend keeps no compute environment, or `id` lives in a storage
+    /// `device` does not reach.
+    fn environment_activate(
+        _device: &Self::Device,
+        _id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        Err(EnvironmentError::unsupported())
+    }
+
+    /// The compute environment `device`'s work reads and writes now.
+    ///
+    /// # Errors
+    ///
+    /// The backend keeps no compute environment.
+    fn environment_active(_device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
+        Err(EnvironmentError::unsupported())
+    }
+
+    /// Serialize the compute environment `id` whole, after every operation
+    /// registered so far on the calling stream, so what that work compiled
+    /// and tuned is in it. The bundle carries the name `options` gives it and
+    /// the [stamp](super::BuildStamp) of the executable that saved it, the
+    /// server's for a remote device.
+    ///
+    /// # Errors
+    ///
+    /// The backend keeps no compute environment, `id` lives in a storage
+    /// `device` does not reach, or the storage refused the read.
+    fn environment_save(
+        _device: &Self::Device,
+        _id: EnvironmentId,
+        _options: SaveOptions,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        Err(EnvironmentError::unsupported())
+    }
+
+    /// Count what the compute environment `id` holds as it stands, without
+    /// saving it and without waiting on the operations registered before:
+    /// cheap enough to ask after every step of a build.
+    ///
+    /// # Errors
+    ///
+    /// The backend keeps no compute environment, `id` lives in a storage
+    /// `device` does not reach, or the storage refused the read.
+    fn environment_summary(
+        _device: &Self::Device,
+        _id: EnvironmentId,
+    ) -> Result<EnvironmentSummary, EnvironmentError> {
+        Err(EnvironmentError::unsupported())
+    }
+
+    /// Bring what `origin` holds into the compute environment `id`, after
+    /// every operation registered so far on the calling stream: a key `id`
+    /// already holds keeps its value, and every other entry of `origin` is
+    /// added. The merge only writes entries and never activates an
+    /// environment, so the active one is not switched. Merging an
+    /// environment into itself changes nothing.
+    ///
+    /// # Errors
+    ///
+    /// The backend keeps no compute environment, `id` or a fork's source lives
+    /// in a storage `device` does not reach, or the storage refused the write.
+    fn environment_merge(
+        _device: &Self::Device,
+        _id: EnvironmentId,
+        _origin: EnvironmentOrigin,
+    ) -> Result<(), EnvironmentError> {
+        Err(EnvironmentError::unsupported())
+    }
+
+    /// Remove from the compute environment `id` the compiled kernels the work
+    /// never loaded, after every operation registered so far on the calling
+    /// stream: those only an autotune race loaded, those another executable
+    /// compiled, and the build records `options` does not keep. What the work
+    /// loaded and the autotune answers stay. A
+    /// [save](Self::environment_save) after it holds no space the removed
+    /// entries took.
+    ///
+    /// # Errors
+    ///
+    /// The backend keeps no compute environment, `id` lives in a storage
+    /// `device` does not reach, or the storage refused the write.
+    fn environment_prune(
+        _device: &Self::Device,
+        _id: EnvironmentId,
+        _options: PruneOptions,
+    ) -> Result<Pruned, EnvironmentError> {
+        Err(EnvironmentError::unsupported())
+    }
+
+    /// Prepare `device` for an upcoming graph capture and start planning the work it will
+    /// record: until [`graph_start_capture`](Backend::graph_start_capture), the work's launches
+    /// do everything short of running, so kernels compile, tunes measure and the memory grows
+    /// to what the recording needs. Each run of the work ends with
+    /// [`graph_end_run`](Backend::graph_end_run). No-op by default.
+    ///
+    /// The closure-based `capture` helper of `burn-tensor` drives this whole sequence.
+    ///
+    /// # Errors
+    ///
+    /// An implementation fails when a capture is already under way on the calling stream,
+    /// leaving it as it was.
     fn graph_prepare(_device: &Self::Device) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    /// End one planning run of the work, with what it returned still held, and answer whether
+    /// it allocated what the run before it did: the work has settled, and the recording can
+    /// follow it. What the last run left allocated is the work's output, which the recording
+    /// keeps off the memory the device's other graphs replay over.
+    ///
+    /// An implementation answers once every operation registered before it on the calling stream
+    /// has been issued, so the run's temporaries are released and only what the caller holds
+    /// counts as an output. `true` by default, for a backend that needs no planning runs.
+    ///
+    /// # Errors
+    ///
+    /// An implementation fails when the calling stream is not planning a capture, and ends
+    /// the capture it was planning when it fails for any other reason: the stream runs its
+    /// launches again, and the caller has nothing left to end.
+    fn graph_end_run(_device: &Self::Device) -> Result<bool, ExecutionError> {
+        Ok(true)
+    }
+
+    /// Start the next planning run of the work, once the last one ended with
+    /// [`graph_end_run`](Backend::graph_end_run): the first starts with
+    /// [`graph_prepare`](Backend::graph_prepare). Between two runs, what the device allocates, a
+    /// fresh input say, is not the work's: it is left out of the plan, and kept off the memory
+    /// the device's other graphs replay over.
+    ///
+    /// An implementation starts it once every operation registered before it on the calling
+    /// stream has been issued, so what was registered between the runs stays out of it. `Ok` by
+    /// default, for a backend that needs no planning runs.
+    ///
+    /// # Errors
+    ///
+    /// An implementation fails when the calling stream is not planning a capture or a run is
+    /// already under way, and ends the capture it was planning when it fails: the stream runs
+    /// its launches again, and the caller has nothing left to end.
+    fn graph_start_run(_device: &Self::Device) -> Result<(), ExecutionError> {
         Ok(())
     }
 

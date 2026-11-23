@@ -321,6 +321,7 @@ mod cube {
     feature = "cpu",
     feature = "cuda",
     feature = "flex",
+    feature = "wgpu-msl",
     feature = "metal",
     feature = "rocm",
     feature = "vulkan",

@@ -85,11 +85,13 @@ pub(crate) fn handle_command(
                     // - `burn-autodiff` requires `arbitrary_self_types` for
                     //   `clone_if_require_grad`;
                     // - `burn-capture` relies on `Arc`, which requires pointer-width atomics.
+                    // - `burn-optim` pulls in `burn-autodiff`.
                     crates.retain(|&v| {
                         v != "burn-autodiff"
                             && v != "burn-std"
                             && v != "burn-backend"
                             && v != "burn-capture"
+                            && v != "burn-optim"
                     });
 
                     build_helpers::custom_crates_build(

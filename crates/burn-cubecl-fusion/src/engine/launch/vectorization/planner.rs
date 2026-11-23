@@ -10,7 +10,7 @@ use crate::{
             HandleInput,
             runner::{Vectorization, VectorizationHandle},
         },
-        settings::VectorizationSetting,
+        settings::{RefLayoutSetting, VectorizationSetting},
         trace::{FuseResources, TensorView, block::FuseBlock},
     },
 };
@@ -44,6 +44,8 @@ impl<'a> VectorizationPlanner<'a> {
         context: &Context<CubeFusionHandle>,
         plan: &mut LaunchPlan<'a>,
     ) {
+        self.resolve_vector_axes(plan);
+
         let has_multiple_read = |tensor: &TensorId| {
             let mut read_count = 0;
             for block in plan.blocks.iter() {
@@ -320,6 +322,21 @@ impl<'a> VectorizationPlanner<'a> {
     }
 }
 
+impl VectorizationPlanner<'_> {
+    /// Resolve axes after reference selection so inherited blocks use the same axis.
+    fn resolve_vector_axes(&self, plan: &mut LaunchPlan) {
+        for (i, block) in self.blocks.iter().enumerate() {
+            plan.blocks[i].vector_axis = match block.settings.ref_layout {
+                RefLayoutSetting::Any => plan.blocks[i].reference.permuted_axis(),
+                RefLayoutSetting::OnlyContiguous => None,
+                RefLayoutSetting::SameAsBlock { block_pos } => {
+                    plan.blocks[block_pos as usize].vector_axis
+                }
+            };
+        }
+    }
+}
+
 #[derive(Debug)]
 enum VectorizationAction {
     Input(usize),
@@ -463,4 +480,98 @@ fn vector_sizes_quants(
             panic!("Not yet supported")
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::{
+        codegen::ir::{FuseArg, FuseType, LayoutInfo},
+        launch::ReferenceSelection,
+        settings::FuseSettings,
+    };
+    use burn_std::{Shape, Strides};
+    use std::collections::BTreeMap;
+
+    fn channels_last_reference() -> ReferenceSelection {
+        ReferenceSelection::Concrete {
+            layout: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
+            shape: Shape::from([2, 4, 1, 1]),
+            strides: Strides::new(&[4, 1, 4, 4]),
+        }
+    }
+
+    fn last_block_axis(
+        layouts: &[RefLayoutSetting],
+        reference: ReferenceSelection,
+    ) -> Option<usize> {
+        let blocks: Vec<_> = layouts
+            .iter()
+            .map(|&ref_layout| FuseBlock {
+                settings: FuseSettings {
+                    ref_layout,
+                    ..Default::default()
+                },
+                shape_ref: Shape::from([2, 4, 1, 1]),
+                ops: Vec::new(),
+                reads: BTreeMap::new(),
+                writes: BTreeMap::new(),
+            })
+            .collect();
+        let resources = FuseResources::default();
+        let mut plan = LaunchPlan::new(&blocks);
+        for block in &mut plan.blocks {
+            block.reference = reference.clone();
+        }
+
+        VectorizationPlanner::new(&resources, &blocks).resolve_vector_axes(&mut plan);
+        plan.blocks.last().unwrap().vector_axis
+    }
+
+    #[test]
+    fn any_layout_uses_the_channel_axis_of_a_channels_last_reference() {
+        let axis = last_block_axis(&[RefLayoutSetting::Any], channels_last_reference());
+        assert_eq!(axis, Some(1));
+    }
+
+    #[test]
+    fn contiguous_only_uses_the_last_axis_of_a_channels_last_reference() {
+        let axis = last_block_axis(
+            &[RefLayoutSetting::OnlyContiguous],
+            channels_last_reference(),
+        );
+        assert_eq!(axis, None);
+    }
+
+    #[test]
+    fn any_layout_uses_the_last_axis_for_a_runtime_reference() {
+        let axis = last_block_axis(
+            &[RefLayoutSetting::Any],
+            ReferenceSelection::Runtime { pos: 0 },
+        );
+        assert_eq!(axis, None);
+    }
+
+    #[test]
+    fn same_as_block_inherits_the_channel_axis() {
+        let layouts = [
+            RefLayoutSetting::Any,
+            RefLayoutSetting::OnlyContiguous,
+            RefLayoutSetting::SameAsBlock { block_pos: 0 },
+        ];
+        assert_eq!(
+            last_block_axis(&layouts, channels_last_reference()),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn same_as_block_inherits_the_last_axis() {
+        let layouts = [
+            RefLayoutSetting::Any,
+            RefLayoutSetting::OnlyContiguous,
+            RefLayoutSetting::SameAsBlock { block_pos: 1 },
+        ];
+        assert_eq!(last_block_axis(&layouts, channels_last_reference()), None);
+    }
 }

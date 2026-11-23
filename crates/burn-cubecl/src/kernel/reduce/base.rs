@@ -1,5 +1,5 @@
 #[cfg(feature = "autotune")]
-use super::{autotune_reduce, autotune_reduce_with_indices, autotune_sum};
+use super::autotune_reduce_dims_plan;
 use crate::ops::permute;
 use crate::{
     ops::numeric::{empty_device_contiguous_dtype, fill_device_dtype, zeros_client},
@@ -9,25 +9,15 @@ use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type, elem_type_
 use burn_backend::{DType, TensorMetadata};
 use burn_std::{BoolDType, Metadata};
 use burn_std::{Shape, Strides};
-use cubecl::{AutotuneKey, client::Client, features::AtomicUsage, ir::Type, prelude::InputScalar};
+use cubecl::bytes::Bytes;
+use cubecl::client::Client;
+use cubecl::prelude::InputScalar;
 use cubek::reduce::{
-    ReduceDtypes, ReduceError, ReduceStrategy, ReduceWithIndicesDtypes,
-    components::instructions::ReduceOperationConfig,
-    launch::{RoutineStrategy, VectorizationStrategy},
-    routines::{BlueprintStrategy, unit::UnitStrategy},
-    shared_sum,
+    ReduceError, ReduceOperation,
+    kernels::{
+        ReduceElements, ReduceKernel, ReduceKernelHeuristic, ReduceOpStrategy, ReduceWorkspace,
+    },
 };
-use serde::{Deserialize, Serialize};
-
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
-/// Autotune key representative of sum versions
-pub struct SumAutotuneKey {
-    /// The type of the tensor
-    dtype: burn_backend::DType,
-    /// The anchored length of the tensor
-    #[autotune(anchor)]
-    length: usize,
-}
 
 /// The value a reduction over zero elements must produce, or `None` if there is none.
 ///
@@ -35,19 +25,19 @@ pub struct SumAutotuneKey {
 /// a bounded numeric type (there is no integer below `i32::MIN`) and an `Arg*` would have to name
 /// an element that does not exist, so they return `None`: numpy raises `ValueError` and torch
 /// raises `IndexError` for all of them, as do burn's CPU backends for an empty `max`/`min`.
-fn empty_reduce_identity(config: ReduceOperationConfig, dtype: DType) -> Option<f64> {
+fn empty_reduce_identity(config: ReduceOperation, dtype: DType) -> Option<f64> {
     match config {
-        ReduceOperationConfig::Sum | ReduceOperationConfig::Any => Some(0.0),
-        ReduceOperationConfig::Prod | ReduceOperationConfig::All => Some(1.0),
+        ReduceOperation::Sum | ReduceOperation::Any => Some(0.0),
+        ReduceOperation::Prod | ReduceOperation::All => Some(1.0),
         // Only floats can carry `NaN`; an integer mean of nothing has no representable value.
-        ReduceOperationConfig::Mean => dtype.is_float().then_some(f64::NAN),
-        ReduceOperationConfig::Max
-        | ReduceOperationConfig::Min
-        | ReduceOperationConfig::MaxAbs
-        | ReduceOperationConfig::TopK(_)
-        | ReduceOperationConfig::ArgMax
-        | ReduceOperationConfig::ArgMin
-        | ReduceOperationConfig::ArgTopK(_) => None,
+        ReduceOperation::Mean => dtype.is_float().then_some(f64::NAN),
+        ReduceOperation::Max
+        | ReduceOperation::Min
+        | ReduceOperation::MaxAbs
+        | ReduceOperation::TopK { .. }
+        | ReduceOperation::ArgMax
+        | ReduceOperation::ArgMin
+        | ReduceOperation::ArgTopK { .. } => None,
     }
 }
 
@@ -62,7 +52,7 @@ fn empty_reduce_identity(config: ReduceOperationConfig, dtype: DType) -> Option<
 fn reduce_empty_axis(
     output: CubeTensor,
     axis_length: usize,
-    config: ReduceOperationConfig,
+    config: ReduceOperation,
 ) -> Result<CubeTensor, ReduceError> {
     let identity =
         empty_reduce_identity(config, output.dtype).ok_or(ReduceError::ReduceAxisTooSmall {
@@ -79,89 +69,27 @@ fn reduce_empty_axis(
     Ok(fill_device_dtype(output, identity))
 }
 
-/// Check if the client supports atomic add for the given element type.
-fn supports_atomic_add(client: &Client, dtype: DType) -> bool {
-    client
-        .properties()
-        .atomic_type_usage(Type::atomic(dtype_to_elem_type(dtype)))
-        .contains(AtomicUsage::Add)
-}
-
-/// [Sum](sum) with fallback when `client` doesn't support atomic add for the type `E`.
-pub fn sum_fallback(
-    tensor: CubeTensor,
-    mut strategy: SumStrategy,
-) -> Result<CubeTensor, ReduceError> {
-    // Early check before creating output and fallback
-    if matches!(strategy, SumStrategy::OneShot(_))
-        && !supports_atomic_add(&tensor.client, tensor.dtype)
-    {
-        strategy = SumStrategy::Chained(Default::default());
-    }
-    sum(tensor, strategy)
-}
-
-/// Specialize reduce function to compute the sum of all elements of the `input` tensor and return
-/// the value into a single-element tensor of shape `1 x 1 x 1 x ...` with the same rank as `input`.
-///
-/// This is expected to be faster for larger tensors than calling [reduce] with the `Sum` instruction.
-///
-/// Return an error if the `client` doesn't support atomic add for the type `E`.
-pub fn sum(tensor: CubeTensor, strategy: SumStrategy) -> Result<CubeTensor, ReduceError> {
-    let client = tensor.client.clone();
-    let device = tensor.device.clone();
-
-    // No strategy can launch a kernel over an empty input, so write the additive identity.
+/// The sum of every element of `tensor`, in a tensor of shape `[1]`: one reduction over the
+/// elements as one row where they lie contiguous, which cubek splits across cubes, and one a dim
+/// otherwise.
+pub fn sum(tensor: CubeTensor, strategy: KernelReduceStrategy) -> Result<CubeTensor, ReduceError> {
+    // No kernel launches over an empty input, so write the additive identity.
     if tensor.meta.num_elements() == 0 {
-        return Ok(zeros_client(client, device, [1].into(), tensor.dtype));
+        return Ok(zeros_client(
+            tensor.client.clone(),
+            tensor.device.clone(),
+            [1].into(),
+            tensor.dtype,
+        ));
     }
-
-    match strategy {
-        SumStrategy::OneShot(cube_count) => {
-            let output = zeros_client(client.clone(), device, [1].into(), tensor.dtype);
-            let dtype = tensor.dtype;
-
-            shared_sum(
-                &client,
-                tensor.binding(),
-                output.clone().binding(),
-                cube_count,
-                dtype_to_elem_type(dtype),
-            )?;
-
-            Ok(output)
-        }
-        SumStrategy::Chained(strategy) => {
-            reduce(tensor, None, strategy, ReduceOperationConfig::Sum)
-        }
-        #[cfg(feature = "autotune")]
-        SumStrategy::Autotune => Ok(autotune_sum(&client, tensor)),
+    let mut tensor = crate::kernel::untile(tensor);
+    if tensor.is_contiguous() {
+        *tensor.meta = Metadata::new([tensor.meta.num_elements()], [1]);
     }
+    reduce(tensor, None, strategy, ReduceOperation::Sum)
 }
 
-/// Select a strategy to perform a sum.
-pub enum SumStrategy {
-    /// Run a single kernel with many cubes working in parallel to sum all elements.
-    /// The provided value is the number of elements summed per unit (up-to-rounding )
-    OneShot(u32),
-    /// Use multiple kernels
-    Chained(KernelReduceStrategy),
-    /// Use autotune to find the best cube count given the hardware and the input.
-    #[cfg(feature = "autotune")]
-    Autotune,
-}
-
-impl Default for SumStrategy {
-    fn default() -> Self {
-        #[cfg(feature = "autotune")]
-        return Self::Autotune;
-
-        #[cfg(not(feature = "autotune"))]
-        return Self::OneShot(4);
-    }
-}
-
-/// Reduce all elements of the `input` tensor using the instruction `Rd` and the given [Strategy](ReduceStrategy).
+/// Reduce all elements of the `input` tensor using the instruction `Rd` and the given [strategy](KernelReduceStrategy).
 ///
 /// Return an error if `strategy` is `Specific(strategy)` and the specified strategy is not supported by the `client`.
 ///
@@ -171,7 +99,7 @@ pub fn reduce(
     mut tensor: CubeTensor,
     output_dtype: Option<DType>,
     strategy: KernelReduceStrategy,
-    config: ReduceOperationConfig,
+    config: ReduceOperation,
 ) -> Result<CubeTensor, cubek::reduce::ReduceError> {
     // In practice, it looks like starting by the axis with the smallest shape
     // and going in increasing order lead to the fastest calculation.
@@ -201,12 +129,41 @@ pub fn reduce(
 /// tensor whose memory order is its logical one. A layout holding every reduced
 /// dimension together therefore takes a single launch, and one that scatters them
 /// takes no more launches than reducing them one at a time would have.
+/// With autotuning enabled, multi-axis sum and mean also compare this plan with
+/// a permutation and reshape followed by one reduction, including any required copy.
 pub fn reduce_dims(
     input: CubeTensor,
     output_dtype: Option<DType>,
     dims: &[usize],
     strategy: KernelReduceStrategy,
-    config: ReduceOperationConfig,
+    config: ReduceOperation,
+) -> Result<CubeTensor, ReduceError> {
+    let input = crate::kernel::untile(input);
+
+    #[cfg(feature = "autotune")]
+    if matches!(strategy, KernelReduceStrategy::Autotune)
+        && output_dtype.is_none()
+        && matches!(config, ReduceOperation::Sum | ReduceOperation::Mean)
+        && (matches!(config, ReduceOperation::Sum) || input.dtype.is_float())
+        && (0..input.meta.num_dims())
+            .filter(|dim| dims.contains(dim))
+            .count()
+            > 1
+        && input.meta.shape().iter().all(|&size| size > 0)
+    {
+        return Ok(autotune_reduce_dims_plan(input, dims, config));
+    }
+
+    reduce_dims_folded(input, output_dtype, dims, strategy, config)
+}
+
+/// Reduces a rank-N input in contiguous memory runs, keeping reduced axes at size one.
+pub(super) fn reduce_dims_folded(
+    input: CubeTensor,
+    output_dtype: Option<DType>,
+    dims: &[usize],
+    strategy: KernelReduceStrategy,
+    config: ReduceOperation,
 ) -> Result<CubeTensor, ReduceError> {
     let rank = input.meta.num_dims();
     let mut shape = input.meta.shape().clone();
@@ -268,6 +225,37 @@ pub fn reduce_dims(
     Ok(tensor)
 }
 
+#[cfg(feature = "autotune")]
+/// Presents the input as `[kept_elements, reduced_elements]`, copying when required.
+/// Restores the input rank with reduced axes at size one after a single reduction.
+pub(super) fn reduce_dims_copy(
+    input: CubeTensor,
+    dims: &[usize],
+    config: ReduceOperation,
+) -> Result<CubeTensor, ReduceError> {
+    let rank = input.meta.num_dims();
+    let original_shape = input.meta.shape().clone();
+    let kept: Vec<usize> = (0..rank).filter(|dim| !dims.contains(dim)).collect();
+    let reduced: Vec<usize> = (0..rank).filter(|dim| dims.contains(dim)).collect();
+    let kept_len = kept.iter().map(|&dim| original_shape[dim]).product();
+    let reduced_len = reduced.iter().map(|&dim| original_shape[dim]).product();
+    let order: Vec<usize> = kept.into_iter().chain(reduced.iter().copied()).collect();
+
+    let presented = permute(input, &order);
+    let folded = crate::ops::reshape(presented, Shape::new([kept_len, reduced_len]));
+    let mut output = reduce_dim(folded, None, 1, KernelReduceStrategy::Autotune, config)?;
+
+    let mut output_shape = original_shape;
+    for dim in reduced {
+        output_shape[dim] = 1;
+    }
+    *output.meta = Metadata::new(
+        output_shape.clone(),
+        burn_std::tensor::contiguous_strides(&output_shape),
+    );
+    Ok(output)
+}
+
 /// The dimensions among `left` that memory already holds together — consecutive in
 /// memory order and nesting densely, so folding them into one axis is a stride
 /// change — taking the run of most elements where there is more than one.
@@ -326,8 +314,8 @@ fn fold_leading_dims(tensor: &mut CubeTensor, count: usize) {
     *tensor.meta = Metadata::new(Shape::from(folded_shape), Strides::new(&folded_strides));
 }
 
-/// Reduce with a logical instruction ([`Any`](ReduceOperationConfig::Any) /
-/// [`All`](ReduceOperationConfig::All)) and return the result as a boolean tensor.
+/// Reduce with a logical instruction ([`Any`](ReduceOperation::Any) /
+/// [`All`](ReduceOperation::All)) and return the result as a boolean tensor.
 ///
 /// `Any` / `All` require the output dtype (like `Arg*` index outputs): the
 /// kernel writes the `0/1` flags directly into the numeric backing of the
@@ -339,14 +327,11 @@ fn fold_leading_dims(tensor: &mut CubeTensor, count: usize) {
 pub fn reduce_logical(
     tensor: CubeTensor,
     dim: Option<usize>,
-    config: ReduceOperationConfig,
+    config: ReduceOperation,
     out_dtype: BoolDType,
 ) -> CubeTensor {
     debug_assert!(
-        matches!(
-            config,
-            ReduceOperationConfig::Any | ReduceOperationConfig::All
-        ),
+        matches!(config, ReduceOperation::Any | ReduceOperation::All),
         "reduce_logical only supports Any / All, got {config:?}"
     );
     let out_bool = DType::Bool(out_dtype);
@@ -367,9 +352,9 @@ pub fn reduce_logical(
 /// Shared memory scales with it, so a routine that fits at one length can overrun the
 /// device limit at another. That makes it part of the fused autotune key as well as the
 /// output length along the reduced axis.
-pub(crate) fn accumulator_len(config: ReduceOperationConfig) -> usize {
+pub(crate) fn accumulator_len(config: ReduceOperation) -> usize {
     match config {
-        ReduceOperationConfig::TopK(k) | ReduceOperationConfig::ArgTopK(k) => k,
+        ReduceOperation::TopK { k } | ReduceOperation::ArgTopK { k } => k,
         _ => 1,
     }
 }
@@ -380,7 +365,7 @@ fn argsort(shape: &[usize]) -> Vec<usize> {
     indices
 }
 
-/// Reduce the given `axis` of the `input` tensor using the instruction `Rd` and the given [Strategy](ReduceStrategy).
+/// Reduce the given `axis` of the `input` tensor using the instruction `Rd` and the given [strategy](KernelReduceStrategy).
 ///
 /// Return an error if `strategy` is `Specific(strategy)` and the specified strategy is not supported by the `client`.
 /// Also returns an error if the `axis` is larger than the `input` rank or if the shape of `output` is invalid.
@@ -392,29 +377,30 @@ pub fn reduce_dim(
     output_dtype: Option<DType>,
     dim: usize,
     strategy: KernelReduceStrategy,
-    config: ReduceOperationConfig,
+    config: ReduceOperation,
 ) -> Result<CubeTensor, cubek::reduce::ReduceError> {
     let input = crate::kernel::untile(input);
     debug_assert!(
         !matches!(
             config,
-            ReduceOperationConfig::ArgMax
-                | ReduceOperationConfig::ArgMin
-                | ReduceOperationConfig::ArgTopK(_)
-                | ReduceOperationConfig::Any
-                | ReduceOperationConfig::All
+            ReduceOperation::ArgMax
+                | ReduceOperation::ArgMin
+                | ReduceOperation::ArgTopK { .. }
+                | ReduceOperation::Any
+                | ReduceOperation::All
         ) || output_dtype.is_some(),
         "The `output_dtype` has to be `Some` when the `config` is `ArgMax`, `ArgMin`, `ArgTopK`, `Any` or `All`.
         "
     );
 
     let accumulator_len = accumulator_len(config);
-    let dtypes = config.precision(
+    let elements = ReduceElements::for_operation(
+        config,
         dtype_to_elem_type(input.dtype),
         output_dtype.map(dtype_to_elem_type),
     );
     let client = input.client.clone();
-    let output = init_reduce_output(&input, dim, &dtypes, accumulator_len).ok_or(
+    let output = init_reduce_output(&input, dim, &elements, accumulator_len).ok_or(
         cubek::reduce::ReduceError::InvalidAxis {
             axis: dim,
             rank: input.meta.num_dims(),
@@ -432,38 +418,20 @@ pub fn reduce_dim(
         return Ok(output);
     }
 
-    let result = match strategy {
-        KernelReduceStrategy::Unspecified => cubek::reduce::reduce(
+    let device = input.device.clone();
+    let workspace = reduce_workspace(&client, &input, dim, config, elements, false);
+    cubek::reduce::kernels::Reduce::new(strategy.into())
+        .with_workspace(workspace)
+        .execute(
             &client,
+            &device,
             input.binding(),
             output.clone().binding(),
             dim,
-            ReduceStrategy {
-                routine: RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
-                vectorization: VectorizationStrategy {
-                    parallel_output_vectorization: false,
-                },
-                autotune_level: Default::default(),
-            },
             config,
-            dtypes,
-        ),
-        KernelReduceStrategy::Specific(strategy) => cubek::reduce::reduce(
-            &client,
-            input.binding(),
-            output.clone().binding(),
-            dim,
-            strategy,
-            config,
-            dtypes,
-        ),
-        #[cfg(feature = "autotune")]
-        KernelReduceStrategy::Autotune => {
-            autotune_reduce(&client, input, output.clone(), dim, config, dtypes);
-            Ok(())
-        }
-    };
-    result.map(|_| output)
+            elements,
+        )
+        .map(|_| output)
 }
 
 /// Reduce the given `axis` of `input`, returning the values **and** their indices from a
@@ -483,46 +451,37 @@ pub fn reduce_dim_with_indices(
     indices_dtype: DType,
     dim: usize,
     strategy: KernelReduceStrategy,
-    config: ReduceOperationConfig,
+    config: ReduceOperation,
 ) -> Result<(CubeTensor, CubeTensor), ReduceError> {
     let unsupported = |operation| ReduceError::IndicesUnsupported { operation };
 
-    // Fold each `Arg*` onto its value counterpart: `precision` would otherwise demand an
+    // Fold each `Arg*` onto its value counterpart: its elements would otherwise demand an
     // output dtype, which here only ever applies to the indices.
     let config = match config {
-        ReduceOperationConfig::ArgMax => ReduceOperationConfig::Max,
-        ReduceOperationConfig::ArgMin => ReduceOperationConfig::Min,
-        ReduceOperationConfig::ArgTopK(k) => ReduceOperationConfig::TopK(k),
-        ReduceOperationConfig::Max
-        | ReduceOperationConfig::Min
-        | ReduceOperationConfig::TopK(_) => config,
-        ReduceOperationConfig::Sum => return Err(unsupported("Sum")),
-        ReduceOperationConfig::Prod => return Err(unsupported("Prod")),
-        ReduceOperationConfig::Mean => return Err(unsupported("Mean")),
-        ReduceOperationConfig::MaxAbs => return Err(unsupported("MaxAbs")),
-        ReduceOperationConfig::Any => return Err(unsupported("Any")),
-        ReduceOperationConfig::All => return Err(unsupported("All")),
+        ReduceOperation::ArgMax => ReduceOperation::Max,
+        ReduceOperation::ArgMin => ReduceOperation::Min,
+        ReduceOperation::ArgTopK { k } => ReduceOperation::TopK { k },
+        ReduceOperation::Max | ReduceOperation::Min | ReduceOperation::TopK { .. } => config,
+        ReduceOperation::Sum => return Err(unsupported("Sum")),
+        ReduceOperation::Prod => return Err(unsupported("Prod")),
+        ReduceOperation::Mean => return Err(unsupported("Mean")),
+        ReduceOperation::MaxAbs => return Err(unsupported("MaxAbs")),
+        ReduceOperation::Any => return Err(unsupported("Any")),
+        ReduceOperation::All => return Err(unsupported("All")),
     };
 
     let out_len = accumulator_len(config);
 
-    // `precision` for these operations keeps input/values/accumulation at the input
-    // dtype; the index dtype is the caller's and is converted for free in the final
-    // output write.
-    let value_dtypes = config.precision(dtype_to_elem_type(input.dtype), None);
-    let dtypes = ReduceWithIndicesDtypes {
-        input: value_dtypes.input,
-        values: value_dtypes.output,
-        indices: dtype_to_elem_type(indices_dtype),
-        accumulation: value_dtypes.accumulation,
-    };
+    // These operations keep input, values and accumulation at the input dtype; the index dtype is
+    // the caller's and is converted for free in the final output write.
+    let elements = ReduceElements::for_operation(config, dtype_to_elem_type(input.dtype), None);
 
     let invalid_axis = || ReduceError::InvalidAxis {
         axis: dim,
         rank: input.meta.num_dims(),
     };
 
-    let values = init_reduce_output_dtype(&input, dim, elem_type_to_dtype(dtypes.values), out_len)
+    let values = init_reduce_output_dtype(&input, dim, elem_type_to_dtype(elements.out), out_len)
         .ok_or_else(invalid_axis)?;
     let indices =
         init_reduce_output_dtype(&input, dim, indices_dtype, out_len).ok_or_else(invalid_axis)?;
@@ -543,49 +502,52 @@ pub fn reduce_dim_with_indices(
 
     let client = input.client.clone();
 
-    let result = match strategy {
-        KernelReduceStrategy::Unspecified => cubek::reduce::reduce_with_indices(
+    let device = input.device.clone();
+    let workspace = reduce_workspace(&client, &input, dim, config, elements, true);
+    cubek::reduce::kernels::Reduce::new(strategy.into())
+        .with_workspace(workspace)
+        .execute_with_indices(
             &client,
+            &device,
             input.binding(),
             values.clone().binding(),
             indices.clone().binding(),
             dim,
-            ReduceStrategy {
-                routine: RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
-                vectorization: VectorizationStrategy {
-                    parallel_output_vectorization: false,
-                },
-                autotune_level: Default::default(),
-            },
             config,
-            dtypes,
-        ),
-        KernelReduceStrategy::Specific(strategy) => cubek::reduce::reduce_with_indices(
-            &client,
-            input.binding(),
-            values.clone().binding(),
-            indices.clone().binding(),
-            dim,
-            strategy,
-            config,
-            dtypes,
-        ),
-        #[cfg(feature = "autotune")]
-        KernelReduceStrategy::Autotune => {
-            autotune_reduce_with_indices(
-                &client,
-                input,
-                values.clone(),
-                indices.clone(),
-                dim,
-                config,
-                dtypes,
-            );
-            Ok(())
-        }
-    };
+            elements,
+            dtype_to_elem_type(indices_dtype),
+        )
+        .map(|_| (values, indices))
+}
 
-    result.map(|_| (values, indices))
+/// The scratch cubek's reductions that split a row across cubes take for reducing `dim` of
+/// `input` by `config` in `elements`, `with_indices` where the indices go beside the values: cubek
+/// allocates none, so its caller does, sized for whichever kernel the strategy picks, its arrival
+/// counters zero.
+fn reduce_workspace(
+    client: &Client,
+    input: &CubeTensor,
+    dim: usize,
+    config: ReduceOperation,
+    elements: ReduceElements,
+    with_indices: bool,
+) -> ReduceWorkspace {
+    let bytes = ReduceWorkspace::bytes_for(
+        client,
+        input.meta.shape(),
+        dim,
+        config,
+        elements,
+        with_indices,
+    );
+    // A runtime may refuse an empty allocation: every buffer holds at least one counter.
+    let at_least_one = |bytes: u64| (bytes as usize).max(size_of::<u32>());
+    let counters = at_least_one(bytes.arrivals) / size_of::<u32>();
+    ReduceWorkspace {
+        partials: client.empty(at_least_one(bytes.partials)),
+        partial_indices: client.empty(at_least_one(bytes.partial_indices)),
+        arrivals: client.create(Bytes::from_elems(vec![0u32; counters])),
+    }
 }
 
 /// Creates an empty output tensor with the proper shape and decreasing strides to reduce the given `axis` of `input`
@@ -593,19 +555,19 @@ pub fn reduce_dim_with_indices(
 pub fn init_reduce_output(
     input: &CubeTensor,
     dim: usize,
-    dtypes: &ReduceDtypes,
+    elements: &ReduceElements,
     accumulator_len: usize,
 ) -> Option<CubeTensor> {
     init_reduce_output_dtype(
         input,
         dim,
-        elem_type_to_dtype(dtypes.output),
+        elem_type_to_dtype(elements.out),
         accumulator_len,
     )
 }
 
 /// Like [`init_reduce_output`], but with the output dtype given directly rather than taken
-/// from a [`ReduceDtypes`]. Needed when one reduce writes two outputs of different dtypes.
+/// from a [`ReduceElements`]. Needed when one reduce writes two outputs of different dtypes.
 pub fn init_reduce_output_dtype(
     input: &CubeTensor,
     dim: usize,
@@ -620,16 +582,29 @@ pub fn init_reduce_output_dtype(
 }
 
 /// Select a strategy to perform a reduction.
+/// How a reduction picks its kernel. Every way runs cubek's tile-DSL reduce routines.
 #[derive(Clone, Debug)]
 pub enum KernelReduceStrategy {
-    /// Use a best-effort strategy based on the hardware capacity.
-    /// This differs from Autotune as it doesn't try and compare many strategies to select the best.
+    /// The routine cubek's rules pick, without a tuning round.
     Unspecified,
-    /// Fix the exact strategy for the reduction.
-    Specific(cubek::reduce::launch::ReduceStrategy),
-    /// Use autotune to find the best strategy given the hardware and the inputs.
+    /// Exactly this kernel.
+    Specific(ReduceKernel),
+    /// The routine measured fastest for the problem on this device.
     #[cfg(feature = "autotune")]
     Autotune,
+}
+
+impl From<KernelReduceStrategy> for ReduceOpStrategy {
+    fn from(strategy: KernelReduceStrategy) -> Self {
+        match strategy {
+            KernelReduceStrategy::Unspecified => {
+                ReduceOpStrategy::Heuristic(ReduceKernelHeuristic::Tile)
+            }
+            KernelReduceStrategy::Specific(kernel) => ReduceOpStrategy::Specific(kernel),
+            #[cfg(feature = "autotune")]
+            KernelReduceStrategy::Autotune => ReduceOpStrategy::Autotune,
+        }
+    }
 }
 
 impl Default for KernelReduceStrategy {

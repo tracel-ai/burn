@@ -289,6 +289,51 @@ mod tests {
     }
 
     #[test]
+    fn bind_resolves_random_keys() {
+        use burn_backend::{Distribution, RandomKey};
+        use burn_ir::{FloatOperationIr, RandomOpIr};
+
+        let graph = Graph::new(vec![
+            OperationIr::Float(
+                DType::F32,
+                FloatOperationIr::Random(RandomOpIr::create(
+                    [0].into(),
+                    DType::F32,
+                    Distribution::Default,
+                    RandomKey::new(0),
+                    || TensorId::new(0),
+                )),
+            ),
+            OperationIr::NumericInt(
+                DType::I32,
+                NumericOperationIr::IntRandom(RandomOpIr::create(
+                    [0].into(),
+                    DType::I32,
+                    Distribution::Default,
+                    RandomKey::new(1),
+                    || TensorId::new(1),
+                )),
+            ),
+        ]);
+        let bound = graph.bind(GraphBindings {
+            tensors: vec![],
+            shapes: vec![12],
+            scalars: vec![ScalarIr::UInt(7), ScalarIr::UInt(19)],
+            ranges: vec![],
+        });
+        let keys: Vec<RandomKey> = bound
+            .operations
+            .iter()
+            .map(|op| match op {
+                OperationIr::Float(_, FloatOperationIr::Random(desc))
+                | OperationIr::NumericInt(_, NumericOperationIr::IntRandom(desc)) => desc.key(),
+                _ => unreachable!(),
+            })
+            .collect();
+        assert_eq!(keys, [RandomKey::new(7), RandomKey::new(19)]);
+    }
+
+    #[test]
     fn bind_resolves_pad_constant_scalar() {
         let relative_input = tensor(0, [0, 1]);
         let relative_output = tensor(1, [2, 3]);

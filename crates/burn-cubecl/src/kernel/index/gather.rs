@@ -1,5 +1,5 @@
 use crate::{
-    kernel::utils::{address_type, broadcast_strides, shape_divmod},
+    kernel::utils::{address_type, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
@@ -18,7 +18,7 @@ fn gather_kernel<T: Numeric, I: Numeric>(
     input: &Tensor<T>,
     indices: LinearView<'_, I>,
     mut output: LinearViewMut<'_, T>,
-    in_strides: Sequence<usize>, // zeroed out for broadcast dims and `dim`
+    in_strides: Sequence<usize>, // zeroed out for `dim`
     out_shape: Sequence<FastDivmod<usize>>,
     dim: usize,
     #[define(T, I)] _dtypes: [ElemType; 2],
@@ -51,8 +51,10 @@ pub(crate) fn gather(dim: usize, tensor: CubeTensor, indices: CubeTensor) -> Cub
 
     let cube_dim = CubeDim::new(&tensor.client, total_elem);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, total_elem, cube_dim);
-    let mut in_strides = broadcast_strides(&output, &tensor);
-    in_strides.values[dim] = 0; // Zero `dim` to exclude it from the indexing
+    // The indices may be smaller than the tensor on any dim, so each output coordinate reads
+    // the same tensor coordinate; `dim` is zeroed to exclude it from the indexing
+    let mut in_strides: SequenceArg<usize> = tensor.meta.strides().iter().copied().collect();
+    in_strides.values[dim] = 0;
 
     let (dtype, indices_dtype) = (tensor.dtype, indices.dtype);
 

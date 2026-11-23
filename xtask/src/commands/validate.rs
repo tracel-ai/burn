@@ -106,7 +106,7 @@ pub(crate) fn check_backend_features() -> anyhow::Result<()> {
                 "burn-cubecl",
                 "burn-remote",
                 "burn-capture",
-                "burn-group",
+                "burn-shard",
             ][..],
         ),
         ("wgpu,signal,linalg,vision", &["burn-flex"][..]),

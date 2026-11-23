@@ -1,11 +1,8 @@
 mod base;
-#[cfg(feature = "autotune")]
-mod tune;
+mod tile;
 
 /// Contains utilities for matmul operation
 pub mod utils;
 
 pub use base::*;
-#[cfg(feature = "autotune")]
-pub use tune::*;
 pub use utils::*;

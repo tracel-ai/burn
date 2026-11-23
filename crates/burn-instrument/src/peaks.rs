@@ -1,7 +1,7 @@
 //! What a device can do at best: the ceilings a component's [`Bounds`](crate::Bounds) are
 //! divided by.
 
-use burn_tensor::FloatDType;
+use burn_tensor::{FloatDType, MatmulTile, MemoryAccess, PeakKey};
 use serde::{Deserialize, Serialize};
 
 /// A device's practical peaks, measured by saturating probe kernels.
@@ -176,25 +176,15 @@ impl Peaks {
     }
 }
 
-#[cfg(feature = "cubecl")]
 impl Peaks {
     /// Measure `device`'s peaks, the arithmetic one at `dtype`.
     ///
     /// The probes are saturating kernels that move clocks and thermals for whatever runs after
     /// them, so measure before the run, not between its parts. The runtime keeps each value for
-    /// the process, so a second call is free. A device with no probes (a non-cubecl one, or a
-    /// runtime without timing) reports `None` for each.
+    /// the process, so a second call is free. A device with no probes (one whose backend runs
+    /// none, or a runtime without timing) reports `None` for each.
     pub fn new(device: &burn_tensor::Device, dtype: FloatDType) -> Self {
-        use cubecl::throughput::{MemoryAccess, ThroughputKey, ThroughputMode};
-
-        let memory = |access| {
-            measured(
-                device,
-                ThroughputKey {
-                    mode: ThroughputMode::memory(access),
-                },
-            )
-        };
+        let memory = |access| measured(device, PeakKey::Memory(access));
         Self {
             copy_bytes_per_s: memory(MemoryAccess::Copy),
             read_bytes_per_s: memory(MemoryAccess::Read),
@@ -203,13 +193,7 @@ impl Peaks {
                 .into_iter()
                 .find_map(|key| measured(device, key))
                 .map(|per_s| ComputePeak { per_s, dtype }),
-            launch_seconds: measured(
-                device,
-                ThroughputKey {
-                    mode: ThroughputMode::Launch,
-                },
-            )
-            .map(|per_s| 1.0 / per_s),
+            launch_seconds: measured(device, PeakKey::Launch).map(|per_s| 1.0 / per_s),
         }
     }
 }
@@ -219,55 +203,34 @@ impl Peaks {
 /// A 16-bit float runs on tensor cores accumulating in f32, as a matmul does, at the largest
 /// tile the device implements: a runtime declines a tile it does not, so the next is tried.
 /// Every other dtype is plain arithmetic.
-#[cfg(feature = "cubecl")]
-fn compute_keys(dtype: FloatDType) -> Vec<cubecl::throughput::ThroughputKey> {
-    use cubecl::ir::{ElemType, FloatKind};
-    use cubecl::throughput::{CmmaDims, ComputeCmmaConfig, ThroughputKey, ThroughputMode};
-
-    let elem = ElemType::Float(match dtype {
-        FloatDType::F64 => FloatKind::F64,
-        FloatDType::F32 | FloatDType::Flex32 => FloatKind::F32,
-        FloatDType::F16 => FloatKind::F16,
-        FloatDType::BF16 => FloatKind::BF16,
-    });
+fn compute_keys(dtype: FloatDType) -> Vec<PeakKey> {
     match dtype {
         FloatDType::F16 | FloatDType::BF16 => [16, 8]
             .into_iter()
-            .map(|edge| ThroughputKey {
-                mode: ThroughputMode::ComputeCmma {
-                    dtype: elem,
-                    config: ComputeCmmaConfig {
-                        accumulator_type: ElemType::Float(FloatKind::F32),
-                        cmma_dims: CmmaDims {
-                            m: edge,
-                            n: edge,
-                            k: edge,
-                        },
-                    },
+            .map(|edge| PeakKey::Matmul {
+                dtype: dtype.into(),
+                accumulator: FloatDType::F32.into(),
+                tile: MatmulTile {
+                    m: edge,
+                    n: edge,
+                    k: edge,
                 },
             })
             .collect(),
-        FloatDType::F32 | FloatDType::F64 | FloatDType::Flex32 => vec![ThroughputKey {
-            mode: ThroughputMode::ComputeDirect { dtype: elem },
+        FloatDType::F32 | FloatDType::Flex32 | FloatDType::F64 => vec![PeakKey::Compute {
+            dtype: match dtype {
+                FloatDType::Flex32 => FloatDType::F32.into(),
+                dtype => dtype.into(),
+            },
         }],
     }
 }
 
 /// One peak, per second, or `None` where the device has none for `key` or reported a reading
 /// that is zero or not finite.
-#[cfg(feature = "cubecl")]
-fn measured(device: &burn_tensor::Device, key: cubecl::throughput::ThroughputKey) -> Option<f64> {
-    let value = device
-        .as_dispatch()
-        .performance_stats(&[key])
-        .into_iter()
-        .next()?
-        .ok()?;
-    let per_s = match key.mode.memory_probe() {
-        Some(_) => value.bytes_per_s(&key),
-        None => value.ops_per_s(),
-    };
-    (per_s.is_finite() && per_s > 0.0).then_some(per_s)
+fn measured(device: &burn_tensor::Device, key: PeakKey) -> Option<f64> {
+    let peak = device.measure_peaks(&[key]).into_iter().next()?.ok()?;
+    (peak.per_second.is_finite() && peak.per_second > 0.0).then_some(peak.per_second)
 }
 
 #[cfg(test)]

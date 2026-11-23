@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use burn_core::tensor::TensorReadError;
+use burn_core::{data::dataloader::Progress, tensor::TensorReadError};
 
 use super::{ItemLazy, MetricError, TrainingItem};
 use crate::{
     EvaluationItem,
     metric::{
         Adaptor, Metric, MetricDefinition, MetricEntry, MetricId, MetricMetadata, MetricName,
-        Numeric,
+        Numeric, OptimizerStepOutput,
         store::{MetricsUpdate, NumericMetricUpdate, Split},
     },
 };
@@ -17,6 +17,9 @@ pub(crate) struct MetricsTraining<T: ItemLazy, V: ItemLazy> {
     valid: Vec<Box<dyn MetricUpdater<V>>>,
     train_numeric: Vec<Box<dyn NumericMetricUpdater<T>>>,
     valid_numeric: Vec<Box<dyn NumericMetricUpdater<V>>>,
+    optimizer: Vec<Box<dyn MetricUpdater<OptimizerStepOutput>>>,
+    optimizer_numeric: Vec<Box<dyn NumericMetricUpdater<OptimizerStepOutput>>>,
+    optimizer_steps: usize,
     // Vec preserves metrics registration order; reflected in TUI tabs order
     metric_definitions: Vec<MetricDefinition>,
 }
@@ -44,6 +47,9 @@ impl<T: ItemLazy, V: ItemLazy> Default for MetricsTraining<T, V> {
             valid: Vec::default(),
             train_numeric: Vec::default(),
             valid_numeric: Vec::default(),
+            optimizer: Vec::default(),
+            optimizer_numeric: Vec::default(),
+            optimizer_steps: 0,
             metric_definitions: Vec::default(),
         }
     }
@@ -146,6 +152,61 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
         self.valid_numeric.push(Box::new(metric))
+    }
+
+    pub(crate) fn register_optimizer_metric<Me: Metric + 'static>(&mut self, metric: Me)
+    where
+        OptimizerStepOutput: Adaptor<Me::Input>,
+    {
+        let metric = MetricWrapper::new(metric);
+        self.register_definition(&metric);
+        self.optimizer.push(Box::new(metric));
+    }
+
+    pub(crate) fn register_optimizer_metric_numeric<Me: Metric + Numeric + 'static>(
+        &mut self,
+        metric: Me,
+    ) where
+        OptimizerStepOutput: Adaptor<Me::Input>,
+    {
+        let metric = MetricWrapper::new(metric);
+        self.register_definition(&metric);
+        self.optimizer_numeric.push(Box::new(metric));
+    }
+
+    pub(crate) fn update_optimizer(
+        &mut self,
+        output: &OptimizerStepOutput,
+    ) -> (MetricsUpdate, Vec<MetricError>) {
+        if self.optimizer.is_empty() && self.optimizer_numeric.is_empty() {
+            return (MetricsUpdate::new(Vec::new(), Vec::new()), Vec::new());
+        }
+        self.optimizer_steps += 1;
+        let metadata = MetricMetadata {
+            progress: Progress::new(self.optimizer_steps, None, Some("optimizer updates".into())),
+            iteration: Some(self.optimizer_steps),
+            lr: Some(output.learning_rate().clone()),
+        };
+        update_metrics(
+            &mut self.optimizer,
+            &mut self.optimizer_numeric,
+            output,
+            &metadata,
+            Split::Train,
+        )
+    }
+
+    pub(crate) fn end_epoch_optimizer(&mut self) -> (MetricsUpdate, Vec<MetricError>) {
+        // An empty split has no optimizer samples to finalize.
+        if self.optimizer_steps == 0 {
+            return (MetricsUpdate::new(Vec::new(), Vec::new()), Vec::new());
+        }
+        self.optimizer_steps = 0;
+        end_epoch_metrics(
+            &mut self.optimizer,
+            &mut self.optimizer_numeric,
+            Split::Train,
+        )
     }
 
     fn register_definition<Me: Metric>(&mut self, metric: &MetricWrapper<Me>) {

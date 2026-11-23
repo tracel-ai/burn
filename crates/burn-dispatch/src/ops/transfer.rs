@@ -42,10 +42,14 @@ mod tests {
     use burn_autodiff::{
         Autodiff, checkpoint::strategy::BalancedCheckpointing, ops::DifferentiableTransfer,
     };
-    use burn_backend::{AutodiffBackend, TensorData, TensorMetadata, ops::FloatTensorOps};
+    use burn_backend::{
+        AutodiffBackend, TensorData, TensorMetadata, get_or_init_device_settings,
+        ops::{BoolTensorOps, FloatTensorOps},
+    };
     use core::sync::atomic::{AtomicUsize, Ordering};
 
     use crate::backends::{Cube, Flex};
+    use crate::{Dispatch, DispatchDevice};
 
     /// Used when backward must not execute, either for an invalid graph or an untracked constant.
     #[derive(Debug)]
@@ -177,5 +181,20 @@ mod tests {
             .assert_eq(&TensorData::from([4.0f32, 6.0]), true);
         assert_eq!(FORWARD.load(Ordering::Relaxed), 1);
         assert_eq!(BACKWARD.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn bool_transfer_uses_target_bool_storage() {
+        let flex = DispatchDevice::Flex(Default::default());
+        let cube = DispatchDevice::Cube(burn_cubecl::CubeDevice::cpu().unwrap());
+        let data = TensorData::from([true, false, true]);
+        let tensor = Dispatch::bool_from_data(data.clone(), &flex);
+
+        let target_dtype = get_or_init_device_settings::<Dispatch>(&cube).bool_dtype;
+        let moved = Dispatch::bool_to_device(tensor, &cube, target_dtype);
+
+        let moved = burn_backend::read_sync(Dispatch::bool_into_data(moved)).unwrap();
+        assert_eq!(moved.dtype(), target_dtype.into());
+        moved.convert_dtype(data.dtype()).assert_eq(&data, true);
     }
 }

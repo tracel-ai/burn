@@ -84,11 +84,12 @@ flex = ["burn-tensor/flex"]
 vulkan = ["wgpu", "burn-tensor/vulkan", "burn-wgpu/vulkan"]
 webgpu = ["wgpu", "burn-tensor/webgpu", "burn-wgpu/webgpu"]
 wgpu = ["burn-tensor/wgpu", "dep:burn-wgpu", "burn-instrument/cubecl"]
-metal = ["wgpu", "burn-tensor/metal", "burn-wgpu/metal"]
+wgpu-msl = ["wgpu", "burn-tensor/wgpu-msl", "burn-wgpu/wgpu-msl"]
+metal = ["burn-tensor/metal", "burn-instrument/cubecl"]
 cpu = ["burn-tensor/cpu", "dep:burn-cpu", "burn-instrument/cubecl"]
 autodiff = ["burn-tensor/autodiff"]
 capture = ["burn-tensor/capture"]
-group = ["burn-tensor/group"]
+shard = ["burn-tensor/shard"]
 ir = ["burn-ir"]
 
 # Backend features
@@ -114,7 +115,6 @@ autotune-checks = [
     "burn-rocm?/autotune-checks",
     "burn-wgpu?/autotune-checks",
 ]
-attention-backward = ["burn-tensor/attention-backward"]
 fusion = [
     "dep:burn-fusion",
     "burn-tensor/fusion",

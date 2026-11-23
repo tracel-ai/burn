@@ -1,3 +1,4 @@
+pub use super::attention::AttentionCache;
 use super::{attention, conv, ctc, linear, pool};
 use crate::ops::unfold::{create_unfolding_weight, unfold4d_using_conv2d};
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
@@ -5,9 +6,9 @@ use crate::{Backend, Scalar, TensorMetadata};
 #[allow(deprecated)]
 pub use burn_std::ops::{
     AttentionModuleOptions, AvgPoolOptions, CausalAlignment, ConvOptions, ConvTransposeOptions,
-    CoordinateTransformMode, CubicOptions, DeformConvOptions, GridSampleOptions,
-    GridSamplePaddingMode, InterpolateMode, InterpolateOptions, MaxPoolOptions,
-    NearestRoundingMode, PadMode, PaddedConvOptions, UnfoldOptions,
+    CoordinateTransformMode, DeformConvOptions, GridSampleMode, GridSampleOptions,
+    GridSamplePaddingMode, InterpolateMode, InterpolateOptions, MaxPoolOptions, PadMode,
+    PaddedConvOptions, UnfoldOptions,
 };
 use burn_std::{IndexingUpdateOp, IntDType, Shape};
 
@@ -1045,12 +1046,12 @@ pub trait ModuleOps<B: Backend> {
 
     /// Computes scaled dot-product attention: softmax(QKᵗ * scale) · V,
     /// where scale defaults to 1/sqrt(head_dim). Optionally applies masking,
-    /// additive bias, causal masking, and softcap to the attention scores.
+    /// additive bias, causal and sliding-window masking, and softcap to the attention scores.
     ///
     /// The scores are computed in this order, which every backend must follow:
     /// 1. `s = Q·Kᵗ · scale`
     /// 2. `s = softcap · tanh(s / softcap)` if `options.softcap` is set
-    /// 3. `s = -inf` where `mask` is `true` or the causal mask hides the key
+    /// 3. `s = -inf` where `mask` is `true` or the causal or sliding-window mask hides the key
     /// 4. `s = s + attn_bias`
     /// 5. `p = softmax(s)` over keys; a row with every key hidden yields `p = 0`
     /// 6. `out = p · V`
@@ -1069,8 +1070,15 @@ pub trait ModuleOps<B: Backend> {
     ///   where `true` indicates positions to mask (i.e. set to -inf before softmax).
     /// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
     ///   added to the attention scores before softmax (e.g. ALiBi, relative position biases).
+    /// - `cache`: Optional key/value [cache](AttentionCache) that `key` and `value` hold: each
+    ///   sequence then attends only its first `lengths[b]` positions, and, with `pages`, `key` and
+    ///   `value` are pools of pages. `seq_len_k` is then the cache's capacity, which `mask` and
+    ///   `attn_bias` span, and `causal_alignment` must be
+    ///   [`BottomRight`](crate::ops::CausalAlignment::BottomRight): the queries are the last
+    ///   attended positions of their sequence, the causal edge and the window at each one's own.
     /// - `options`: Additional attention options (custom scale, softcap, causal masking
-    ///   and its [alignment](crate::ops::CausalAlignment)).
+    ///   and its [alignment](crate::ops::CausalAlignment), and sliding-window masking). A
+    ///   sliding window must span at least one key when set.
     ///
     /// # Returns
     /// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`
@@ -1085,6 +1093,7 @@ pub trait ModuleOps<B: Backend> {
         value: FloatTensor<B>,
         mask: Option<BoolTensor<B>>,
         attn_bias: Option<FloatTensor<B>>,
+        cache: Option<AttentionCache<B>>,
         options: AttentionModuleOptions,
     ) -> FloatTensor<B>;
 

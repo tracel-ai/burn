@@ -101,8 +101,16 @@ pub trait BoolTensorOps<B: Backend> {
     /// The float tensor with the same data as the bool tensor.
     fn bool_into_float(tensor: BoolTensor<B>, out_dtype: FloatDType) -> FloatTensor<B>;
 
-    /// Moves the tensor to the device.
-    fn bool_to_device(tensor: BoolTensor<B>, device: &Device<B>) -> BoolTensor<B>;
+    /// Moves the tensor to the device using the requested boolean storage.
+    ///
+    /// Preserves boolean values and shape. The returned tensor's dtype is `out_dtype`, which
+    /// must be supported by the destination device. Conversion can run on either device,
+    /// depending on which supports both the source and destination storage representations.
+    fn bool_to_device(
+        tensor: BoolTensor<B>,
+        device: &Device<B>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B>;
 
     /// Reshapes the tensor.
     ///

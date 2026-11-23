@@ -91,6 +91,7 @@ fn test_batch_norm_train_gradients_match_the_decomposed_statistics() {
     feature = "vulkan",
     feature = "cuda",
     feature = "rocm",
+    feature = "wgpu-msl",
     feature = "metal"
 ))]
 #[test]

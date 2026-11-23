@@ -37,7 +37,8 @@ burn-std = { workspace = true, features = ["default"] }
 cubecl = { workspace = true }
 cubek = { workspace = true, features = [
     "matmul",
-    "matmul-multi-level",
+    "matmul-tiled",
+    "microkernel",
     "reduce",
     "quantization",
     "stdlib",

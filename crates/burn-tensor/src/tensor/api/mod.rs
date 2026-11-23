@@ -10,13 +10,12 @@ mod einsum;
 mod float;
 mod fmod;
 mod graph;
-#[cfg(feature = "group")]
-mod group;
 mod int;
 mod numeric;
 mod options;
 mod orderable;
 mod pad;
+mod shard;
 pub use pad::IntoPadding;
 mod take;
 mod transaction;
