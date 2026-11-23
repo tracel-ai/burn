@@ -4,9 +4,9 @@ use burn_std::Slice;
 
 use super::{CustomOpPlan, classify::OpClass, custom_ops::CustomOpRuleMap, shardings::Shardings};
 use crate::{
-    AlongDimRule, AttentionRule, ElementwiseRule, LayoutRule, Linearity, MatmulRule, OpInputs,
-    OpKind, OpOutputs, OpSharding, ReduceRule, ReducedDims, ReductionKind, ReshapeRule, Resharding,
-    Sharding, ShardingError,
+    AlongDimRule, AttentionRule, ElementwiseRule, GridSampleRule, IndexNdRule, IndexRule,
+    LayoutRule, Linearity, MatmulRule, OpInputs, OpKind, OpOutputs, OpSharding, ReduceRule,
+    ReducedDims, ReductionKind, ReshapeRule, Resharding, Sharding, ShardingError,
 };
 
 /// Where each tensor of one op must be for the op to run on every member, where its outputs land,
@@ -112,6 +112,16 @@ impl OpPlan {
         })
     }
 
+    /// This plan with `others` landing as its first output does, as an op's indices land with
+    /// its values.
+    fn with_outputs_alike(mut self, others: &[&TensorIr]) -> Self {
+        if let Some(&(_, sharding)) = self.output_shardings.first() {
+            let others = others.iter().map(|other| (other.id, sharding));
+            self.output_shardings.extend(others);
+        }
+        self
+    }
+
     /// The plan of an op that never runs, its outputs failing with `error`.
     fn refused(error: ShardingError) -> Self {
         Self {
@@ -141,7 +151,11 @@ struct TensorShardings<'a> {
 impl TensorShardings<'_> {
     fn plan(&self, class: OpClass) -> Option<OpPlan> {
         match class {
-            OpClass::Kind { kind, inputs, out } => self.apply(kind, &inputs, out),
+            OpClass::Kind {
+                kind,
+                inputs,
+                outputs,
+            } => self.apply(kind, &inputs, &outputs),
             OpClass::Custom(op) => self.custom(op),
             OpClass::CachedAttention(desc) => self.cached_attention(desc),
             OpClass::Gathered => None,
@@ -151,18 +165,20 @@ impl TensorShardings<'_> {
     /// The plan an op of `kind` runs by, or `None` when its inputs are not the ones the kind
     /// reads, or when it would move a quantized tensor to anything but whole or the split it
     /// already has: cutting one goes through the host, and a quantized output is never split.
-    fn apply(&self, kind: OpKind, inputs: &[&TensorIr], out: &TensorIr) -> Option<OpPlan> {
+    fn apply(&self, kind: OpKind, inputs: &[&TensorIr], outputs: &[&TensorIr]) -> Option<OpPlan> {
+        let (out, others) = outputs.split_first()?;
         self.rule_plan(kind, inputs, out)
-            .filter(|plan| self.keeps_quantized(plan, inputs, out))
+            .map(|plan| plan.with_outputs_alike(others))
+            .filter(|plan| self.keeps_quantized(plan, inputs, outputs))
     }
 
-    fn keeps_quantized(&self, plan: &OpPlan, inputs: &[&TensorIr], out: &TensorIr) -> bool {
+    fn keeps_quantized(&self, plan: &OpPlan, inputs: &[&TensorIr], outputs: &[&TensorIr]) -> bool {
         let quantized = |tensor: &TensorIr| matches!(tensor.dtype, DType::QFloat(_));
         let inputs_kept = inputs.iter().filter(|input| quantized(input)).all(|input| {
             let target = plan.input_sharding(&input.id);
             target == Sharding::Replicated || target == self.sharding(input)
         });
-        let output_whole = !quantized(out)
+        let output_whole = !outputs.iter().any(|out| quantized(out))
             || plan
                 .output_shardings()
                 .iter()
@@ -184,7 +200,8 @@ impl TensorShardings<'_> {
                 [input],
             ) => self.reduction(input, out, dims, reduction),
             (OpKind::Matmul, [lhs, rhs]) => self.matmul(lhs, rhs, out),
-            (OpKind::Random, []) => self.random(out),
+            (OpKind::Random, []) => self.whole(out, Execution::FirstMemberCopied),
+            (OpKind::Creation, []) => self.whole(out, Execution::EveryMember),
             (OpKind::Reshape, [input]) => self.reshape(input, out),
             (OpKind::SwapDims { dim1, dim2 }, [input]) => self.layout(
                 input,
@@ -223,6 +240,29 @@ impl TensorShardings<'_> {
                 )
             }
             (OpKind::Select { dim }, [input, indices]) => self.select(dim, input, indices, out),
+            (OpKind::SelectAssign { dim }, [tensor, indices, value]) => {
+                self.select_assign(dim, tensor, indices, value, out)
+            }
+            (OpKind::Index { dim }, [_, _] | [_, _, _]) => self.index(dim, inputs, out),
+            (OpKind::GatherNd, [data, indices]) => {
+                let sharding = self.index_nd(data, indices)?.gather_sharding();
+                OpPlan::from_rule(inputs, out, sharding, Execution::EveryMember)
+            }
+            (OpKind::ScatterNd, [data, indices, _]) => {
+                let sharding = self.index_nd(data, indices)?.scatter_sharding();
+                OpPlan::from_rule(inputs, out, sharding, Execution::EveryMember)
+            }
+            (OpKind::Flip { axes }, [input]) => {
+                self.layout(input, out, LayoutRule::flip(self.sharding(input), axes))
+            }
+            (OpKind::Pad { padding }, [input]) => {
+                let sharding = AlongDimRule::pad(self.sharding(input), padding).sharding();
+                OpPlan::from_rule(inputs, out, sharding, Execution::EveryMember)
+            }
+            (OpKind::GridSample, [input, _]) => {
+                let sharding = GridSampleRule::new(self.sharding(input)).sharding();
+                OpPlan::from_rule(inputs, out, sharding, Execution::EveryMember)
+            }
             (OpKind::Attention, _) => self.attention(inputs, out),
             _ => None,
         }
@@ -289,6 +329,54 @@ impl TensorShardings<'_> {
         let mut sharding = AlongDimRule::new(self.sharding(input), dim).sharding();
         sharding.inputs.push(Sharding::Replicated);
         OpPlan::from_rule(&[input, indices], out, sharding, Execution::EveryMember)
+    }
+
+    /// A select_assign keeps a split of its tensor or values along another dim, each member
+    /// writing its own part at every index.
+    fn select_assign(
+        &self,
+        dim: usize,
+        tensor: &TensorIr,
+        indices: &TensorIr,
+        value: &TensorIr,
+        out: &TensorIr,
+    ) -> Option<OpPlan> {
+        let rule = IndexRule::new(
+            &[self.sharding(tensor), self.sharding(value)],
+            &[&tensor.shape, &value.shape],
+            dim,
+        );
+        let mut sharding = rule.sharding(2);
+        sharding.inputs.insert(1, Sharding::Replicated);
+        OpPlan::from_rule(
+            &[tensor, indices, value],
+            out,
+            sharding,
+            Execution::EveryMember,
+        )
+    }
+
+    fn index(&self, dim: usize, inputs: &[&TensorIr], out: &TensorIr) -> Option<OpPlan> {
+        let shardings: OpInputs<_> = inputs.iter().map(|input| self.sharding(input)).collect();
+        let shapes: OpInputs<_> = inputs.iter().map(|input| &input.shape).collect();
+        let rule = IndexRule::new(&shardings, &shapes, dim);
+        OpPlan::from_rule(
+            inputs,
+            out,
+            rule.sharding(inputs.len()),
+            Execution::EveryMember,
+        )
+    }
+
+    /// The rule of a gather_nd or scatter_nd, or `None` for indices without a dim to hold the
+    /// tuples.
+    fn index_nd(&self, data: &TensorIr, indices: &TensorIr) -> Option<IndexNdRule> {
+        let batch_dims = indices.shape.num_dims().checked_sub(1)?;
+        Some(IndexNdRule::new(
+            self.sharding(data),
+            indices.shape[batch_dims],
+            batch_dims,
+        ))
     }
 
     fn reduction(
@@ -396,12 +484,13 @@ impl TensorShardings<'_> {
         )
     }
 
-    fn random(&self, out: &TensorIr) -> Option<OpPlan> {
+    /// An op with no inputs makes its output whole on every member.
+    fn whole(&self, out: &TensorIr, execution: Execution) -> Option<OpPlan> {
         let sharding = OpSharding {
             inputs: OpInputs::new(),
             output: Sharding::Replicated,
         };
-        OpPlan::from_rule(&[], out, sharding, Execution::FirstMemberCopied)
+        OpPlan::from_rule(&[], out, sharding, execution)
     }
 
     /// The plan its rule gives a custom op, or `None` to gather it: without a rule, or for a
@@ -433,7 +522,7 @@ impl TensorShardings<'_> {
                 | OpKind::Expand,
                 _,
             ) => None,
-            (kind, [out]) => self.apply(kind, &op.inputs.iter().collect::<Vec<_>>(), out),
+            (kind, [out]) => self.apply(kind, &op.inputs.iter().collect::<Vec<_>>(), &[out]),
             _ => None,
         }
     }

@@ -52,6 +52,14 @@ conflicts with it (E0119); delete the handwritten one.
 - `select` along a dim its input is not split on keeps the split on a sharded compute device,
   instead of gathering the input. A quantized input still gathers.
 
+- On a sharded compute device, `flip`, `pad`, `unfold`, `cross`, `grid_sample_2d` and the sort,
+  top-k and max/min-dim ops that return indices keep their first input's split of a dim they do
+  not read whole, instead of gathering their inputs. `gather` and `scatter` keep a split of any
+  input along a dim they do not index, where every input has the same length, and `select_assign`
+  one of its tensor or values. `gather_nd` and `scatter_nd` keep a split of a dim the index tuples
+  do not address. A built-in op's quantized output still lands whole, and `quantize` and module
+  ops other than attention still gather.
+
 #### Compilation and autotuning
 
 - Include the preceding `CompileOnly` pass's statistics in the following
