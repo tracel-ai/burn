@@ -660,6 +660,10 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// The result is NaN only if every element is NaN, like NumPy's `nanmax`. Use
     /// [`max`](Tensor::max) to propagate NaN instead.
     ///
+    /// # Panics
+    ///
+    /// If the tensor is empty.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -679,6 +683,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// The reduced dimension has size 1 in the output. A slice is NaN only if all its elements
     /// are NaN, like NumPy's `nanmax`. Use [`max_dim`](Tensor::max_dim) to propagate NaN instead.
+    ///
+    /// # Panics
+    ///
+    /// If `dim` is out of range or the reduced dimension is empty. Empty dimensions other than
+    /// `dim` are allowed and give an empty output.
     ///
     /// # Example
     ///
@@ -701,6 +710,10 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// The result is NaN only if every element is NaN, like NumPy's `nanmin`. Use
     /// [`min`](Tensor::min) to propagate NaN instead.
     ///
+    /// # Panics
+    ///
+    /// If the tensor is empty.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -720,6 +733,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// The reduced dimension has size 1 in the output. A slice is NaN only if all its elements
     /// are NaN, like NumPy's `nanmin`. Use [`min_dim`](Tensor::min_dim) to propagate NaN instead.
+    ///
+    /// # Panics
+    ///
+    /// If `dim` is out of range or the reduced dimension is empty. Empty dimensions other than
+    /// `dim` are allowed and give an empty output.
     ///
     /// # Example
     ///
