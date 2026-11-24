@@ -148,6 +148,7 @@ impl ComponentTree {
             unplaced: timings.unplaced,
             unfused: fusion == Fusion::Unfused,
             per_member,
+            reshardings: Vec::new(),
         }
     }
 

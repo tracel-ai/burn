@@ -72,6 +72,14 @@ conflicts with it (E0119); delete the handwritten one.
   scale whole, as do other ops with a quantized output.
   ([#6577](https://github.com/tracel-ai/burn/pull/6577))
 
+- A sharded compute device logs at debug level each op that sends part of an input between
+  members. `ShardOptions::with_strict_gathers` fails an op that would gather a split input, so a
+  test or benchmark catches an op that lost its split.
+
+- **Breaking (experimental):** `ShardedComputeDevice::with_member_settings` and
+  `DispatchDevice::shard` take a `SplitGathers`: pass `SplitGathers::Allowed` to gather as before.
+  `ShardingError` has a new `SplitGathered` variant.
+
 #### Compilation and autotuning
 
 - Include the preceding `CompileOnly` pass's statistics in the following
@@ -264,10 +272,13 @@ Reports also include the measured cost of a kernel launch.
 - `PerMember::collectives` counts the collectives a sharded compute device ran, by operation, path
   and size, with each member's part time and exposed time (`CollectiveTime`). Kernels are placed on
   the member whose device ran them, so a sharded compute device whose members do not fuse is timed
-  per member too; `DispatchDevice::shard_member_ids` names the members' devices. Measurement files
-  are version 6.
+  per member too; `DispatchDevice::shard_member_ids` names the members' devices.
   ([#6527](https://github.com/tracel-ai/burn/pull/6527))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- `Breakdown::reshardings` names the ops behind a run's collectives on a sharded compute device:
+  each op that asked for an input in another sharding, with the two shardings, how many times and
+  the bytes. Measurement files are version 7.
 
 #### Flex SIMD operations
 

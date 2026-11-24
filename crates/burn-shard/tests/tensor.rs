@@ -41,6 +41,27 @@ fn silu_keeps_a_split() {
 }
 
 #[test]
+fn a_cumsum_along_the_split_dim_is_tallied_as_a_gather() {
+    let device = sharded_compute(2);
+    let x = sharded::<2>(values([4, 6], 1), &device, Split { dim: 0 });
+
+    let _ = x.cumsum(0).into_data();
+
+    let tallies = device
+        .as_dispatch()
+        .shard_reshardings()
+        .expect("A sharded compute device");
+    let gathers: Vec<_> = tallies
+        .iter()
+        .map(|tally| (tally.operation.as_str(), tally.from, tally.to, tally.count))
+        .collect();
+    assert_eq!(
+        gathers,
+        [("NumericFloat::CumSum", Split { dim: 0 }, Replicated, 1)]
+    );
+}
+
+#[test]
 fn heads_split_out_of_a_split_hidden_dim_stay_split() {
     let data = values([2, 3, 12], 1);
     let expected = Tensor::<3>::from_data(data.clone(), &Device::flex())

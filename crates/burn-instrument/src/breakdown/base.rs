@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use burn_tensor::ReshardingTally;
 use serde::{Deserialize, Serialize};
 
 use crate::Bounds;
@@ -94,6 +95,11 @@ pub struct Breakdown {
     ///
     /// Partial where [`timed_alone`](Self::timed_alone) is set: launches ran one at a time.
     pub per_member: Option<PerMember>,
+    /// On a sharded compute device, the operations that asked for an input in another sharding,
+    /// sending part of it between members: what most of [`PerMember::collectives`] carry out.
+    /// One entry per operation and pair of shardings, in the order each was first seen on the
+    /// device; empty on any other device, and without this crate's `shard` feature.
+    pub reshardings: Vec<ReshardingTally>,
 }
 
 impl Breakdown {
@@ -606,6 +612,7 @@ mod tests {
             unplaced: Unplaced::default(),
             unfused: false,
             per_member: None,
+            reshardings: Vec::new(),
         };
 
         let fused_elsewhere = breakdown.fused_elsewhere();
@@ -669,6 +676,7 @@ mod tests {
             unplaced: Unplaced::default(),
             unfused: false,
             per_member: None,
+            reshardings: Vec::new(),
         };
 
         let fused_elsewhere = breakdown.fused_elsewhere();

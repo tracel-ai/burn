@@ -9,15 +9,16 @@ use burn_ir::{
 use burn_router::TensorInterpreter;
 use burn_std::{
     QuantConfig, Slice,
-    distributed::{Shards, ShardsError},
+    distributed::{ReshardingTally, Shards, ShardsError},
     future::DynFut,
 };
 
 use super::{
-    CollectiveMember, CollectiveOpRegistry, MemberDevice, ShardCustomOps, ShardError,
+    CollectiveMember, CollectiveOpRegistry, MemberDevice, ShardCustomOps, ShardError, SplitGathers,
     custom_ops::{CustomOpRuleMap, MemberCustomOps},
     graph::MemberGraphs,
     plan::{Execution, OpPlan},
+    reshardings::{OpName, ReshardingRecorder},
     shardings::Shardings,
     shards::MemberShards,
     tensor::ShardedTensor,
@@ -43,6 +44,10 @@ pub trait DynShardInterpreter: Send {
 
     /// How many members the tensors are split over.
     fn num_members(&self) -> usize;
+
+    /// Every resharding that sent part of an input between members, tallied by operation and
+    /// shardings, in the order each tally was first recorded.
+    fn reshardings(&self) -> &[ReshardingTally];
 
     /// A new tensor holding `data`, uploaded whole to every member.
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId;
@@ -127,10 +132,13 @@ pub struct ShardInterpreter<B: BackendIr> {
     collectives: CollectiveOpRegistry<B>,
     rules: CustomOpRuleMap,
     graphs: MemberGraphs<B>,
+    split_gathers: SplitGathers,
+    reshardings: ReshardingRecorder,
 }
 
 impl<B: BackendIr> ShardInterpreter<B> {
-    /// The members of `devices` run the custom operations of `custom_ops`.
+    /// The members of `devices` run the custom operations of `custom_ops`, and gather a split
+    /// input when an op asks for it whole.
     ///
     /// # Errors
     ///
@@ -152,7 +160,17 @@ impl<B: BackendIr> ShardInterpreter<B> {
             collectives,
             rules,
             graphs: MemberGraphs::default(),
+            split_gathers: SplitGathers::Allowed,
+            reshardings: ReshardingRecorder::default(),
         })
+    }
+
+    /// The same interpreter, gathering a split input as `split_gathers` says.
+    pub fn with_split_gathers(self, split_gathers: SplitGathers) -> Self {
+        Self {
+            split_gathers,
+            ..self
+        }
     }
 
     /// Each default dtype is the first of the `members`' own that every member supports, so a
@@ -215,6 +233,10 @@ impl<B: BackendIr> DynShardInterpreter for ShardInterpreter<B> {
 
     fn num_members(&self) -> usize {
         self.interpreters.len()
+    }
+
+    fn reshardings(&self) -> &[ReshardingTally] {
+        self.reshardings.tallies()
     }
 
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId {
@@ -349,7 +371,7 @@ impl<B: BackendIr> ShardInterpreter<B> {
         let temporaries = match self.shard_inputs(&mut op, &plan) {
             Ok(temporaries) => temporaries,
             Err(error) => {
-                let reason = format!("An input of the op cannot be resharded: {error}");
+                let reason = format!("An input of `{}` cannot be resharded: {error}", op.name());
                 return self.fail(&op, &TensorError::new(ExecutionError::with_context(reason)));
             }
         };
@@ -385,6 +407,7 @@ impl<B: BackendIr> ShardInterpreter<B> {
         plan: &OpPlan,
     ) -> Result<Vec<TensorId>, ShardingError> {
         let inputs: Vec<TensorIr> = op.inputs().cloned().collect();
+        let name = OpName::new(op);
         let mut resharded = ReshardedInputs::default();
         for input in &inputs {
             if resharded.temporaries.contains_key(&input.id) {
@@ -405,7 +428,7 @@ impl<B: BackendIr> ShardInterpreter<B> {
                 },
                 ..input.clone()
             };
-            match self.resharded(&read, current, target) {
+            match self.resharded(&name, &read, current, target) {
                 Ok(temporary) => resharded.temporaries.insert(input.id, temporary),
                 Err(error) => {
                     let made: Vec<_> = resharded.temporaries.into_values().collect();
@@ -577,17 +600,28 @@ impl<B: BackendIr> ShardInterpreter<B> {
         ShardedTensor::new(shards)
     }
 
-    /// The value of `tensor` resharded from `current` to `target`, under a new id.
+    /// The value of `tensor`, an input of `op`, resharded from `current` to `target`, under a
+    /// new id.
     fn resharded(
         &mut self,
+        op: &OpName<'_>,
         tensor: &TensorIr,
         current: Sharding,
         target: Sharding,
     ) -> Result<TensorId, ShardingError> {
         let resharding = Resharding::of_tensor(current, target, tensor, self.interpreters.len())?;
+        if resharding.gathers_split() && self.split_gathers == SplitGathers::Refused {
+            return Err(ShardingError::SplitGathered {
+                from: current,
+                to: target,
+            });
+        }
         let shards = self
             .sharded_tensor(tensor, current)
             .reshard(resharding, &tensor.shape)?;
+        if resharding.sends(tensor.dtype) {
+            self.reshardings.record(op, tensor, current, target);
+        }
         let id = self.new_tensor_id();
         self.register_sharded(id, shards);
         self.shardings.insert(id, target);
@@ -718,6 +752,11 @@ mod tests {
         }
     }
 
+    /// The op a test's resharding is tallied under.
+    fn asking_op() -> OperationIr {
+        OperationIr::Drop(whole(TensorId::new(0), TensorStatus::ReadWrite))
+    }
+
     fn whole(id: TensorId, status: TensorStatus) -> TensorIr {
         TensorIr {
             id,
@@ -830,7 +869,12 @@ mod tests {
                     let (id, value) = joined(&mut interpreter, &data, from);
 
                     let moved = interpreter
-                        .resharded(&tensor(id, TensorStatus::ReadWrite), from, to)
+                        .resharded(
+                            &OpName::new(&asking_op()),
+                            &tensor(id, TensorStatus::ReadWrite),
+                            from,
+                            to,
+                        )
                         .unwrap();
 
                     let case = format!("{num_members} members, {from:?} to {to:?}");
@@ -902,13 +946,23 @@ mod tests {
         let replicated = interpreter.register_tensor_data(data.clone());
 
         let split = interpreter
-            .resharded(&tensor(replicated), Sharding::Replicated, pairs)
+            .resharded(
+                &OpName::new(&asking_op()),
+                &tensor(replicated),
+                Sharding::Replicated,
+                pairs,
+            )
             .unwrap();
         let held = interpreter
             .sharded_tensor(&tensor(split), pairs)
             .into_handles();
         let gathered = interpreter
-            .resharded(&tensor(split), pairs, Sharding::Replicated)
+            .resharded(
+                &OpName::new(&asking_op()),
+                &tensor(split),
+                pairs,
+                Sharding::Replicated,
+            )
             .unwrap();
 
         for (member, handle) in held.into_iter().enumerate() {
@@ -964,6 +1018,7 @@ mod tests {
 
         let by_columns = interpreter
             .resharded(
+                &OpName::new(&asking_op()),
                 &tensor(by_rows),
                 Sharding::Split { dim: 0 },
                 Sharding::Split { dim: 1 },
@@ -971,6 +1026,7 @@ mod tests {
             .unwrap();
         let gathered = interpreter
             .resharded(
+                &OpName::new(&asking_op()),
                 &tensor(by_columns),
                 Sharding::Split { dim: 1 },
                 Sharding::Replicated,
@@ -1011,8 +1067,12 @@ mod tests {
         let tensor = unjoinable_quantized(&mut interpreter);
 
         let read = block_on(interpreter.read(tensor.clone()));
-        let gathered =
-            interpreter.resharded(&tensor, Sharding::Split { dim: 0 }, Sharding::Replicated);
+        let gathered = interpreter.resharded(
+            &OpName::new(&asking_op()),
+            &tensor,
+            Sharding::Split { dim: 0 },
+            Sharding::Replicated,
+        );
 
         assert!(read.is_err());
         assert_eq!(gathered, Err(ShardingError::QuantizedScales { shard: 1 }));
@@ -1044,7 +1104,12 @@ mod tests {
             dtype: joined.dtype,
         };
 
-        let gathered = interpreter.resharded(&tensor, pairs, Sharding::Replicated);
+        let gathered = interpreter.resharded(
+            &OpName::new(&asking_op()),
+            &tensor,
+            pairs,
+            Sharding::Replicated,
+        );
 
         assert_eq!(gathered, Err(ShardingError::QuantizedScales { shard: 2 }));
     }
@@ -1156,6 +1221,53 @@ mod tests {
         interpreter.register_op(custom_op("gather", input, out));
 
         assert_fails_on_every_member(&interpreter, &out, "shorter than");
+    }
+
+    /// A Flex pair gathering as `split_gathers` says, and an op without a rule, which asks for
+    /// its input whole, run on a tensor of `sharding`.
+    fn run_unruled_op(
+        split_gathers: SplitGathers,
+        sharding: Sharding,
+    ) -> (ShardInterpreter<Flex>, TensorId) {
+        let mut interpreter =
+            ShardInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice], ShardCustomOps::default())
+                .unwrap()
+                .with_split_gathers(split_gathers);
+        let data = TensorData::new(vec![1f32; 24], [4, 6]);
+        let (x, _) = joined(&mut interpreter, &data, sharding);
+        let out = interpreter.new_tensor_id();
+        interpreter.register_op(custom_op("unruled", whole(x, TensorStatus::ReadOnly), out));
+        (interpreter, out)
+    }
+
+    #[test]
+    fn a_gathered_input_is_tallied_under_its_op() {
+        let (interpreter, _) = run_unruled_op(SplitGathers::Allowed, Sharding::Split { dim: 0 });
+
+        assert_eq!(
+            interpreter.reshardings(),
+            [ReshardingTally {
+                operation: "Custom::unruled".into(),
+                from: Sharding::Split { dim: 0 },
+                to: Sharding::Replicated,
+                count: 1,
+                bytes: 4 * 6 * 4,
+            }]
+        );
+    }
+
+    #[test]
+    fn strict_gathers_fail_an_op_that_gathers_a_split_input() {
+        let (interpreter, out) = run_unruled_op(SplitGathers::Refused, Sharding::Split { dim: 0 });
+
+        assert_fails_on_every_member(&interpreter, &out, "strict gathers");
+    }
+
+    #[test]
+    fn strict_gathers_still_reduce_a_partial_sum() {
+        let (interpreter, _) = run_unruled_op(SplitGathers::Refused, Sharding::PartialSum);
+
+        assert_eq!(interpreter.reshardings()[0].from, Sharding::PartialSum);
     }
 
     /// A built-in reshape keeps this split, but a custom one reads its target shape from its own

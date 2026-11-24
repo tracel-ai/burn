@@ -8,7 +8,7 @@ mod processor;
 mod scope;
 pub(crate) mod trace;
 
-pub(crate) use trace::{log_execution_table, op_kind};
+pub(crate) use trace::log_execution_table;
 
 pub use base::*;
 pub use ordering::*;

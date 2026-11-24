@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 
 use crate::{DType, Shape};
 
@@ -21,7 +21,8 @@ pub struct DistributedConfig {
 }
 
 /// How a tensor's shards, one per member of its sharded compute device, make up its value.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum Sharding {
     /// Every member holds the whole value.
     Replicated,
@@ -96,6 +97,34 @@ impl<T> Shards<T> {
     }
 }
 
+/// The times one operation moved an input of a sharded compute device between members, from
+/// one sharding to another.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReshardingTally {
+    /// The operation that asked for its input in the sharding `to`, such as `BaseFloat::Select`.
+    pub operation: String,
+    /// The input's sharding before.
+    pub from: Sharding,
+    /// The sharding the operation asked for.
+    pub to: Sharding,
+    /// How many times.
+    pub count: u64,
+    /// The size of the whole inputs as stored, summed: a quantized tensor's scales included.
+    pub bytes: u64,
+}
+
+impl ReshardingTally {
+    /// What was added to the tally since `earlier`, a tally of the same operation and shardings.
+    pub fn since(&self, earlier: &Self) -> Self {
+        Self {
+            count: self.count - earlier.count,
+            bytes: self.bytes - earlier.bytes,
+            ..self.clone()
+        }
+    }
+}
+
 /// Why a tensor cannot take a sharding.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ShardingError {
@@ -143,6 +172,14 @@ pub enum ShardingError {
         /// The tensor's sharding.
         from: Sharding,
     },
+    /// The sharded compute device was made with strict gathers, which refuse to make a split
+    /// tensor whole on every member.
+    SplitGathered {
+        /// The tensor's sharding.
+        from: Sharding,
+        /// The sharding asked for.
+        to: Sharding,
+    },
 }
 
 impl core::fmt::Display for ShardingError {
@@ -180,6 +217,11 @@ impl core::fmt::Display for ShardingError {
                     "A {from:?} tensor is not a partial sum and cannot become one"
                 )
             }
+            Self::SplitGathered { from, to } => write!(
+                f,
+                "Gathering a {from:?} tensor to {to:?} is refused: the sharded compute device \
+                 was made with strict gathers"
+            ),
         }
     }
 }
@@ -279,5 +321,25 @@ impl core::error::Error for ShardsError {}
 impl From<ShardingError> for ShardsError {
     fn from(error: ShardingError) -> Self {
         Self::Sharding(error)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::borrow::ToOwned;
+
+    use super::*;
+
+    #[test]
+    fn a_tally_since_an_earlier_one_holds_only_what_was_added() {
+        let tally = |count, bytes| ReshardingTally {
+            operation: "BaseFloat::Select".to_owned(),
+            from: Sharding::Split { dim: 0 },
+            to: Sharding::Replicated,
+            count,
+            bytes,
+        };
+
+        assert_eq!(tally(5, 500).since(&tally(2, 200)), tally(3, 300));
     }
 }

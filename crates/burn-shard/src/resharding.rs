@@ -39,6 +39,22 @@ pub enum Resharding {
 }
 
 impl Resharding {
+    /// Whether part of a tensor of `dtype` goes from one member to another: a quantized slice is
+    /// cut on the host from the first member's copy.
+    pub fn sends(self, dtype: DType) -> bool {
+        match self {
+            Self::Keep => false,
+            Self::Slice { .. } => matches!(dtype, DType::QFloat(_)),
+            _ => true,
+        }
+    }
+
+    /// Whether a split tensor ends whole on every member. A split that only moves to another
+    /// split is not, though it may pass through a gather.
+    pub fn gathers_split(self) -> bool {
+        matches!(self, Self::AllGather { .. })
+    }
+
     /// How `tensor` moves from `from` to `to`, or why it cannot: as [`new`](Self::new), and a
     /// quantized tensor's split must give each member whole quantization blocks and packed
     /// words, since its codes and scales are cut as they are.
@@ -196,6 +212,27 @@ mod tests {
             Resharding::new(PartialSum, PartialSum, &shape, 2),
             Ok(Resharding::Keep)
         );
+    }
+
+    #[test]
+    fn a_replicated_split_moving_to_a_split_does_not_gather_it() {
+        let resharding = Resharding::new(
+            ReplicatedSplit { dim: 0, groups: 2 },
+            Split { dim: 0 },
+            &Shape::new([8, 8]),
+            4,
+        )
+        .unwrap();
+
+        assert!(!resharding.gathers_split());
+    }
+
+    #[test]
+    fn only_a_quantized_slice_sends_between_members() {
+        let slice = Resharding::Slice { dim: 0, chunks: 2 };
+
+        assert!(!slice.sends(DType::F32));
+        assert!(slice.sends(DType::QFloat(QuantScheme::default())));
     }
 
     #[test]

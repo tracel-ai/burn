@@ -6,7 +6,7 @@ use std::{
 use burn_backend::{DType, DeviceId, DeviceOps, DeviceSettings, RouterDeviceType};
 use burn_ir::{BackendIr, HandleKind};
 use burn_router::{RouterTensor, get_client, register_scoped_client};
-use burn_std::{QuantConfig, device::Device};
+use burn_std::{QuantConfig, device::Device, distributed::ReshardingTally};
 
 use super::{ShardClient, ShardCustomOps, channel::ShardChannel, interpreter::ShardInterpreter};
 use crate::{Shards, ShardsError};
@@ -58,6 +58,16 @@ pub enum ShardError {
     },
 }
 
+/// Whether a sharded compute device gathers a split input that an op asks for whole.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SplitGathers {
+    /// Gathered on every member, as the op asks.
+    #[default]
+    Allowed,
+    /// The op fails instead, so a test or benchmark catches an op that lost its split.
+    Refused,
+}
+
 /// A member of a sharded compute device: its device, and the settings it runs with.
 #[derive(Clone, Debug)]
 pub struct MemberDevice<D> {
@@ -89,12 +99,13 @@ impl ShardedComputeDevice {
                 settings: device.defaults(),
             })
             .collect();
-        Self::with_member_settings::<B>(&members, ShardCustomOps::default())
+        Self::with_member_settings::<B>(&members, ShardCustomOps::default(), SplitGathers::Allowed)
     }
 
     /// A new sharded compute device whose `members` run `B`, each with its own settings and with
-    /// `B`'s handlers in `custom_ops`. Each of its default dtypes is the first of the members' own,
-    /// in member order, that every member supports.
+    /// `B`'s handlers in `custom_ops`, gathering a split input as `split_gathers` says. Each of its
+    /// default dtypes is the first of the members' own, in member order, that every member
+    /// supports.
     ///
     /// A custom operation without a [rule](crate::CustomOpRule) gathers its inputs and runs whole
     /// on every member.
@@ -110,12 +121,14 @@ impl ShardedComputeDevice {
     pub fn with_member_settings<B: BackendIr>(
         members: &[MemberDevice<B::Device>],
         custom_ops: ShardCustomOps,
+        split_gathers: SplitGathers,
     ) -> Result<Self, ShardError> {
         if members.is_empty() {
             return Err(ShardError::NoDevices);
         }
         let devices: Vec<B::Device> = members.iter().map(|it| it.device.clone()).collect();
-        let interpreter = ShardInterpreter::<B>::new(devices.clone(), custom_ops)?;
+        let interpreter = ShardInterpreter::<B>::new(devices.clone(), custom_ops)?
+            .with_split_gathers(split_gathers);
         let shared_settings = interpreter.default_settings(members)?;
         let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
         let device = Self {
@@ -138,6 +151,15 @@ impl ShardedComputeDevice {
     /// caller lays a split out for, such as heads every member holds as many of.
     pub fn num_members(&self) -> usize {
         get_client::<ShardChannel>(self).num_members()
+    }
+
+    /// Every resharding that has sent part of an op's input between members since the device
+    /// was made, tallied by operation and pair of shardings, in the order each tally was first
+    /// recorded. A tally keeps its position, so a later call extends an earlier one's list.
+    ///
+    /// Replaying a captured graph runs no op through the device, so it adds nothing.
+    pub fn reshardings(&self) -> Vec<ReshardingTally> {
+        get_client::<ShardChannel>(self).reshardings()
     }
 
     /// The tensor `shards` make up: one shard per member, of the members' backend `B`, each

@@ -23,7 +23,7 @@ use alloc::vec::Vec;
 pub use burn_backend::ops::DimSplit;
 pub use burn_dispatch::__shard::{
     CollectiveMember, CollectiveOpHandler, CollectiveOpRegistry, CustomOpPlan, CustomOpRegistry,
-    CustomOpRule, Linearity, OpKind, ReducedDims, ReductionKind, ShardCustomOps,
+    CustomOpRule, Linearity, OpKind, ReducedDims, ReductionKind, ShardCustomOps, SplitGathers,
 };
 use burn_dispatch::DispatchDevice;
 pub use burn_dispatch::backends::ShardError;
@@ -37,6 +37,7 @@ use crate::Device;
 pub struct ShardOptions {
     devices: Vec<Device>,
     custom_ops: ShardCustomOps,
+    split_gathers: SplitGathers,
 }
 
 impl ShardOptions {
@@ -50,6 +51,16 @@ impl ShardOptions {
     /// this again replaces them.
     pub fn with_custom_ops(mut self, custom_ops: impl Into<ShardCustomOps>) -> Self {
         self.custom_ops = custom_ops.into();
+        self
+    }
+
+    /// An op that asks for a split input whole fails instead of gathering it on every member,
+    /// so a test or benchmark catches an op that lost its split. A partial sum is still reduced.
+    ///
+    /// The error surfaces only where the op's output, or something computed from it, is read: a
+    /// run that drops its output unread succeeds.
+    pub fn with_strict_gathers(mut self) -> Self {
+        self.split_gathers = SplitGathers::Refused;
         self
     }
 
@@ -88,6 +99,7 @@ impl ShardOptions {
         Ok(Device::new(DispatchDevice::shard(
             members,
             self.custom_ops,
+            self.split_gathers,
         )?))
     }
 }
@@ -98,6 +110,7 @@ impl Device {
         ShardOptions {
             devices: devices.to_vec(),
             custom_ops: ShardCustomOps::default(),
+            split_gathers: SplitGathers::Allowed,
         }
     }
 }

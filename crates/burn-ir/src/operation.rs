@@ -2433,6 +2433,31 @@ impl OperationIr {
         }
     }
 
+    /// The operation's variant and the variant inside it, such as `BaseFloat::Select`, or
+    /// `Custom::<id>` for a custom operation.
+    pub fn name(&self) -> String {
+        fn inner(op: &impl core::fmt::Debug) -> String {
+            let debug = alloc::format!("{op:?}");
+            let end = debug.find(['(', '{', ' ']).unwrap_or(debug.len());
+            debug[..end].to_owned()
+        }
+        match self {
+            OperationIr::BaseFloat(x) => alloc::format!("BaseFloat::{}", inner(x)),
+            OperationIr::BaseInt(x) => alloc::format!("BaseInt::{}", inner(x)),
+            OperationIr::BaseBool(x) => alloc::format!("BaseBool::{}", inner(x)),
+            OperationIr::NumericFloat(_, x) => alloc::format!("NumericFloat::{}", inner(x)),
+            OperationIr::NumericInt(_, x) => alloc::format!("NumericInt::{}", inner(x)),
+            OperationIr::Bool(x) => alloc::format!("Bool::{}", inner(x)),
+            OperationIr::Int(x) => alloc::format!("Int::{}", inner(x)),
+            OperationIr::Float(_, x) => alloc::format!("Float::{}", inner(x)),
+            OperationIr::Module(x) => alloc::format!("Module::{}", inner(x)),
+            OperationIr::Init(x) => alloc::format!("Init::{}", inner(x)),
+            OperationIr::Custom(x) => alloc::format!("Custom::{}", x.id),
+            OperationIr::Drop(_) => "Drop".to_owned(),
+            OperationIr::Activation(x) => alloc::format!("Activation::{}", inner(x)),
+        }
+    }
+
     /// Get all [tensor](TensorIr) involved with the current operation.
     pub fn nodes(&self) -> Vec<&TensorIr> {
         self.inputs().chain(self.outputs()).collect()
@@ -5525,6 +5550,29 @@ mod tests {
 
     fn tensor(id: u64) -> TensorIr {
         TensorIr::uninit(TensorId::new(id), Shape::from([2, 2]), DType::F32)
+    }
+
+    #[test]
+    fn a_name_holds_the_inner_variant() {
+        let op = OperationIr::BaseFloat(BaseOperationIr::Permute(PermuteOpIr {
+            input: tensor(1),
+            out: tensor(2),
+            axes: Vec::from([1, 0]),
+        }));
+
+        assert_eq!(op.name(), "BaseFloat::Permute");
+    }
+
+    #[test]
+    fn a_custom_operation_is_named_by_its_id() {
+        let op = OperationIr::Custom(CustomOpIr {
+            id: "fused_rope".to_owned(),
+            inputs: Vec::from([tensor(1)]),
+            outputs: Vec::from([tensor(2)]),
+            scalars: Vec::new(),
+        });
+
+        assert_eq!(op.name(), "Custom::fused_rope");
     }
 
     /// Bumps every visited tensor id by 100 and collects (and rewrites) every visited scalar.

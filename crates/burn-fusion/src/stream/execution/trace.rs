@@ -137,7 +137,7 @@ pub(crate) fn format_table(blocks: &[FusionBlock]) -> String {
                 } else {
                     String::new()
                 },
-                op: op_kind(op),
+                op: op.name(),
                 inputs: format_tensors(op.inputs()),
                 outputs: format_tensors(op.outputs()),
             };
@@ -211,36 +211,6 @@ fn block_header(kind: &BlockKind, size: usize) -> String {
     }
 }
 
-/// Take the top-level variant name from a Debug representation (`"Foo(..)"` → `"Foo"`).
-fn debug_head(s: &str) -> &str {
-    let end = s.find(['(', '{', ' ']).unwrap_or(s.len());
-    &s[..end]
-}
-
-/// Produce a "Outer::Inner" kind string for every variant that has an inner enum,
-/// so the table shows the concrete operation (e.g. `BaseFloat::Reshape`) rather than
-/// just the category.
-pub(crate) fn op_kind(op: &OperationIr) -> String {
-    fn inner(s: String) -> String {
-        debug_head(&s).to_string()
-    }
-    match op {
-        OperationIr::BaseFloat(x) => format!("BaseFloat::{}", inner(format!("{x:?}"))),
-        OperationIr::BaseInt(x) => format!("BaseInt::{}", inner(format!("{x:?}"))),
-        OperationIr::BaseBool(x) => format!("BaseBool::{}", inner(format!("{x:?}"))),
-        OperationIr::NumericFloat(_, x) => format!("NumericFloat::{}", inner(format!("{x:?}"))),
-        OperationIr::NumericInt(_, x) => format!("NumericInt::{}", inner(format!("{x:?}"))),
-        OperationIr::Bool(x) => format!("Bool::{}", inner(format!("{x:?}"))),
-        OperationIr::Int(x) => format!("Int::{}", inner(format!("{x:?}"))),
-        OperationIr::Float(_, x) => format!("Float::{}", inner(format!("{x:?}"))),
-        OperationIr::Module(x) => format!("Module::{}", inner(format!("{x:?}"))),
-        OperationIr::Init(x) => format!("Init::{}", inner(format!("{x:?}"))),
-        OperationIr::Custom(_) => "Custom".to_string(),
-        OperationIr::Drop(_) => "Drop".to_string(),
-        OperationIr::Activation(x) => format!("Activation::{}", inner(format!("{x:?}"))),
-    }
-}
-
 fn format_tensors<'a, I: Iterator<Item = &'a TensorIr>>(tensors: I) -> String {
     let mut out = String::new();
     let mut first = true;
@@ -286,7 +256,7 @@ fn write_shape(out: &mut String, shape: &burn_backend::Shape) {
 mod tests {
     use super::*;
     use burn_backend::{DType, Shape};
-    use burn_ir::{BaseOperationIr, TensorId, TensorIr, TensorStatus, UnaryOpIr};
+    use burn_ir::{TensorId, TensorIr, TensorStatus, UnaryOpIr};
 
     fn tensor(id: u64, dims: &[usize]) -> TensorIr {
         TensorIr {
@@ -310,29 +280,6 @@ mod tests {
         let b = tensor(2, &[]);
         let out = format_tensors([&a, &b].into_iter());
         assert_eq!(out, "t1:f32[8], t2:f32[]");
-    }
-
-    #[test]
-    fn op_kind_includes_inner_variant() {
-        let input = tensor(1, &[4, 2]);
-        let out = tensor(2, &[2, 4]);
-        let op = OperationIr::BaseFloat(BaseOperationIr::Permute(burn_ir::PermuteOpIr {
-            input,
-            out,
-            axes: vec![1, 0],
-        }));
-        assert_eq!(op_kind(&op), "BaseFloat::Permute");
-    }
-
-    #[test]
-    fn op_kind_handles_unary_inside_float() {
-        let input = tensor(1, &[4]);
-        let out = tensor(2, &[4]);
-        let op = OperationIr::Float(
-            DType::F32,
-            burn_ir::FloatOperationIr::Exp(UnaryOpIr { input, out }),
-        );
-        assert_eq!(op_kind(&op), "Float::Exp");
     }
 
     #[test]
