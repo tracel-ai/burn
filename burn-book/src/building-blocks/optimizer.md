@@ -278,6 +278,6 @@ new state. `to_device` moves every tensor held by the state to the requested dev
 
 To use uniform or per-tensor storage in a custom optimizer, derive `RecordState` and `StateMappable`
 on its floating-point statistics, including nested structs. Implement `MappableOptimizer` and
-delegate `map_state` to `state.map_tensors(mapper)`. The wrapper invokes `step_in_dtype` with the
-prepared operands. Its default calls `Optimizer::step`. Override it when the ordinary step selects
-a different compute dtype internally, as Adafactor does for half-precision parameters.
+delegate `map_state` to `state.map_tensors(mapper)`. The wrapper calls `Optimizer::step` with the parameter,
+gradient and statistics in the selected compute dtype. An optimizer with a default promotion policy
+can disable it in `without_default_precision` when the wrapper is constructed.

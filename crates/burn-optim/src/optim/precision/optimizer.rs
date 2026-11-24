@@ -1,4 +1,4 @@
-use super::state::StoredState;
+use super::{ComputePrecision, state::StoredState};
 use crate::{LearningRate, Optimizer, OptimizerStateStorage};
 use burn_core::tensor::{Device, FloatDType, Tensor};
 
@@ -9,10 +9,10 @@ pub(super) struct PrecisionOptimizer<O, S> {
     storage: S,
 }
 
-impl<O, S> PrecisionOptimizer<O, S> {
+impl<O: Optimizer, S> PrecisionOptimizer<O, S> {
     pub(super) fn new(optimizer: O, compute: FloatDType, storage: S) -> Self {
         Self {
-            optimizer,
+            optimizer: optimizer.without_default_precision(),
             compute,
             storage,
         }
@@ -33,16 +33,13 @@ impl<O: Optimizer, S: OptimizerStateStorage<O>> Optimizer for PrecisionOptimizer
         grad: Tensor<D>,
         state: Option<Self::State<D>>,
     ) -> (Tensor<D>, Option<Self::State<D>>) {
-        let model_dtype = model.dtype();
         let statistics = state.map(|state| self.storage.restore::<D>(state.0, self.compute));
-        let (updated, statistics) = self.optimizer.step_in_dtype(
-            lr,
-            model.cast(self.compute),
-            grad.cast(self.compute),
-            statistics,
-        );
+        let (updated, statistics) =
+            ComputePrecision::Fixed(self.compute).apply(model, grad, |model, grad| {
+                self.optimizer.step(lr, model, grad, statistics)
+            });
         (
-            updated.cast(model_dtype),
+            updated,
             statistics.map(|s| StoredState(self.storage.store::<D>(s))),
         )
     }

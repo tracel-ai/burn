@@ -2,12 +2,12 @@ use burn_core as burn;
 
 use burn::{
     config::Config,
-    tensor::{DType, Device, FloatDType, Tensor},
+    tensor::{Device, Tensor},
 };
 
 use crate::{LearningRate, RecordState, grad_clipping::GradientClippingConfig};
 
-use super::{ModuleOptimizer, Optimizer};
+use super::{ModuleOptimizer, Optimizer, precision::ComputePrecision};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -58,6 +58,7 @@ pub struct AdafactorConfig {
 /// Configured by [`AdafactorConfig`].
 #[derive(Clone)]
 pub struct Adafactor {
+    compute: ComputePrecision,
     epsilon_1: f32,
     epsilon_2: f32,
     clip_threshold: f32,
@@ -114,6 +115,7 @@ impl AdafactorConfig {
         );
 
         Adafactor {
+            compute: ComputePrecision::PromoteHalf,
             epsilon_1: self.epsilon_1,
             epsilon_2: self.epsilon_2,
             clip_threshold: self.clip_threshold,
@@ -144,27 +146,30 @@ impl Optimizer for Adafactor {
         grad: Tensor<D>,
         state: Option<Self::State<D>>,
     ) -> (Tensor<D>, Option<Self::State<D>>) {
-        let dtype = tensor.dtype();
-        if !matches!(dtype, DType::F16 | DType::BF16) {
-            return self.step_in_dtype(lr, tensor, grad, state);
-        }
-        // Protect the default half-precision update from underflow.
-        let (tensor, state) = self.step_in_dtype(
-            lr,
-            tensor.cast(FloatDType::F32),
-            grad.cast(FloatDType::F32),
-            state,
-        );
-        (tensor.cast(dtype), state)
+        let (tensor, state) = self.compute.apply(tensor, grad, |tensor, grad| {
+            self.update(lr, tensor, grad, state)
+        });
+        (tensor, Some(state))
     }
 
-    fn step_in_dtype<const D: usize>(
+    fn without_default_precision(mut self) -> Self {
+        self.compute = ComputePrecision::Input;
+        self
+    }
+
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        super::precision::move_state(state, device)
+    }
+}
+
+impl Adafactor {
+    fn update<const D: usize>(
         &self,
         lr: LearningRate,
         tensor: Tensor<D>,
         grad: Tensor<D>,
-        state: Option<Self::State<D>>,
-    ) -> (Tensor<D>, Option<Self::State<D>>) {
+        state: Option<AdafactorState<D>>,
+    ) -> (Tensor<D>, AdafactorState<D>) {
         let squared_grad = grad.clone().square().add_scalar(self.epsilon_1);
         let (second_moment, column_second_moment) = if D >= 2 {
             (
@@ -233,12 +238,7 @@ impl Optimizer for Adafactor {
         } else {
             tensor.mul_scalar(1.0 - lr * self.weight_decay as f64)
         };
-        let tensor = tensor - update;
-        (tensor, Some(state))
-    }
-
-    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
-        super::precision::move_state(state, device)
+        (tensor - update, state)
     }
 }
 

@@ -1126,7 +1126,8 @@ For example, update custom progress logger implementations:
 
 - Use `OptimizerPrecision` to evaluate updates in a chosen dtype, optionally retain master weights,
   and choose checkpointable storage per statistic or parameter group. Adam and AdamW accept reusable
-  `StatisticCodec` implementations for individual moments through `AdamMomentStorage`.
+  `StatisticCodec` implementations for individual moments through `AdamMomentStorage`. An explicit
+  compute dtype overrides Adafactor’s default FP32 promotion for F16 and BF16 parameters.
 
 #### Optimizer-step metrics
 

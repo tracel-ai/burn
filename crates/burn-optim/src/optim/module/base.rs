@@ -38,16 +38,10 @@ pub trait Optimizer: Send + Sync + Clone + 'static {
         state: Option<Self::State<D>>,
     ) -> (Tensor<D>, Option<Self::State<D>>);
 
-    /// Apply the equation in the supplied tensors' dtype. Override when the ordinary
-    /// step selects a different dtype internally.
-    fn step_in_dtype<const D: usize>(
-        &self,
-        lr: LearningRate,
-        tensor: Tensor<D>,
-        grad: Tensor<D>,
-        state: Option<Self::State<D>>,
-    ) -> (Tensor<D>, Option<Self::State<D>>) {
-        self.step(lr, tensor, grad, state)
+    /// Give an explicit precision wrapper control of the operand dtypes.
+    /// Optimizers with a default promotion policy disable it here when wrapped.
+    fn without_default_precision(self) -> Self {
+        self
     }
 
     /// Change the device of the state.
