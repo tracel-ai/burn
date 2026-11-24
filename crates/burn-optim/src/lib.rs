@@ -28,6 +28,15 @@
 extern crate derive_new;
 
 extern crate alloc;
+extern crate self as burn_optim;
+
+/// Types referenced by optimizer record derives in downstream crates.
+#[doc(hidden)]
+pub mod __private {
+    pub use alloc::vec::Vec;
+    pub use burn_core::tensor::Device;
+    pub use burn_pack::Scalar;
+}
 
 /// Optimizer module.
 mod optim;

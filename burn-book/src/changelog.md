@@ -1122,6 +1122,11 @@ For example, update custom progress logger implementations:
   correct the AlexNet checkpoint. Use `try_init_pretrained` or `try_load_pretrained_weights` to
   handle loading failures without panicking. ([#6067](https://github.com/tracel-ai/burn/pull/6067))
 
+#### Optimizer precision
+
+- Use `OptimizerPrecision` to evaluate updates in a chosen dtype, optionally retain master weights,
+  and choose checkpointable storage per statistic or parameter group.
+
 #### Optimizer-step metrics
 
 **Breaking:** Replace `metric_train_numeric(LearningRateMetric::new())` with

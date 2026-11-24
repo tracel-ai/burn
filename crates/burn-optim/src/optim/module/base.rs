@@ -20,6 +20,12 @@ pub trait Optimizer: Send + Sync + Clone + 'static {
     /// decomposed into named tensors and scalars for the burnpack format.
     type State<const D: usize>: Clone + RecordState;
 
+    /// Prepare a gradient before module-level clipping. The default preserves it unchanged.
+    /// Implementations must preserve shape and device; precision wrappers select their compute dtype.
+    fn prepare_gradient<const D: usize>(&self, grad: Tensor<D>) -> Tensor<D> {
+        grad
+    }
+
     /// The optimizer step is performed for one tensor at a time with its gradient and state.
     ///
     /// Note that the state is passed as parameter, so implementations don't have to handle
@@ -31,6 +37,18 @@ pub trait Optimizer: Send + Sync + Clone + 'static {
         grad: Tensor<D>,
         state: Option<Self::State<D>>,
     ) -> (Tensor<D>, Option<Self::State<D>>);
+
+    /// Apply the equation in the supplied tensors' dtype. Override when the ordinary
+    /// step selects a different dtype internally.
+    fn step_in_dtype<const D: usize>(
+        &self,
+        lr: LearningRate,
+        tensor: Tensor<D>,
+        grad: Tensor<D>,
+        state: Option<Self::State<D>>,
+    ) -> (Tensor<D>, Option<Self::State<D>>) {
+        self.step(lr, tensor, grad, state)
+    }
 
     /// Change the device of the state.
     ///
@@ -131,6 +149,11 @@ macro_rules! dispatch_rank {
 /// Object-safe view over an [`Optimizer`], allowing [`ModuleOptimizer`](crate::optim::ModuleOptimizer)
 /// to stay non-generic. Rank-generic operations are dispatched on a runtime rank.
 pub trait DynOptimizer: Send + Sync {
+    /// Prepare a gradient before clipping, preserving its shape and device.
+    fn prepare_gradient_dyn(&self, _rank: usize, grad: BridgeTensor) -> BridgeTensor {
+        grad
+    }
+
     /// Perform an optimizer step for a single parameter of the given `rank`.
     fn step_dyn(
         &self,
@@ -162,6 +185,10 @@ pub trait DynOptimizer: Send + Sync {
 }
 
 impl<O: Optimizer> DynOptimizer for O {
+    fn prepare_gradient_dyn(&self, rank: usize, grad: BridgeTensor) -> BridgeTensor {
+        dispatch_rank!(rank, D => { self.prepare_gradient(Tensor::<D>::from_bridge(grad)).into_bridge() })
+    }
+
     fn step_dyn(
         &self,
         rank: usize,

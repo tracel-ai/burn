@@ -52,7 +52,7 @@ pub struct AdafactorConfig {
 ///
 /// Matrices store only row and column second moments. Higher-rank tensors factor their
 /// last two dimensions independently for each leading index; vectors store a full second
-/// moment. No first moment is stored. Half-precision parameters use `f32` updates and state.
+/// moment. No first moment is stored. By default, half-precision parameters use `f32` updates and state.
 ///
 /// See [Adafactor: Adaptive Learning Rates with Sublinear Memory Cost](https://arxiv.org/abs/1804.04235).
 /// Configured by [`AdafactorConfig`].
@@ -68,7 +68,7 @@ pub struct Adafactor {
 }
 
 /// Adafactor state for a single parameter tensor.
-#[derive(RecordState, Clone)]
+#[derive(RecordState, Clone, crate::StateMappable)]
 pub struct AdafactorState<const D: usize> {
     /// Number of updates applied to this parameter.
     pub time: usize,
@@ -145,13 +145,26 @@ impl Optimizer for Adafactor {
         state: Option<Self::State<D>>,
     ) -> (Tensor<D>, Option<Self::State<D>>) {
         let dtype = tensor.dtype();
-        // Squaring and adding epsilon in half precision can underflow, even for ordinary
-        // gradients. Keep the accumulated statistics and the whole update in f32.
-        let (tensor, grad) = match dtype {
-            DType::F16 | DType::BF16 => (tensor.cast(FloatDType::F32), grad.cast(FloatDType::F32)),
-            _ => (tensor, grad),
-        };
+        if !matches!(dtype, DType::F16 | DType::BF16) {
+            return self.step_in_dtype(lr, tensor, grad, state);
+        }
+        // Protect the default half-precision update from underflow.
+        let (tensor, state) = self.step_in_dtype(
+            lr,
+            tensor.cast(FloatDType::F32),
+            grad.cast(FloatDType::F32),
+            state,
+        );
+        (tensor.cast(dtype), state)
+    }
 
+    fn step_in_dtype<const D: usize>(
+        &self,
+        lr: LearningRate,
+        tensor: Tensor<D>,
+        grad: Tensor<D>,
+        state: Option<Self::State<D>>,
+    ) -> (Tensor<D>, Option<Self::State<D>>) {
         let squared_grad = grad.clone().square().add_scalar(self.epsilon_1);
         let (second_moment, column_second_moment) = if D >= 2 {
             (
@@ -221,20 +234,11 @@ impl Optimizer for Adafactor {
             tensor.mul_scalar(1.0 - lr * self.weight_decay as f64)
         };
         let tensor = tensor - update;
-        let tensor = match dtype {
-            DType::F16 | DType::BF16 => tensor.cast(FloatDType::from(dtype)),
-            _ => tensor,
-        };
-
         (tensor, Some(state))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.second_moment = state.second_moment.to_device(device);
-        state.column_second_moment = state
-            .column_second_moment
-            .map(|column| column.to_device(device));
-        state
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        super::precision::move_state(state, device)
     }
 }
 

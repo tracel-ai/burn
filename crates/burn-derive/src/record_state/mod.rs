@@ -1,3 +1,6 @@
+mod mapping;
+pub(crate) use mapping::derive_mapping;
+
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, GenericArgument, PathArguments, Type};
 
@@ -134,7 +137,7 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                     out.push_tensor(prefix, #leaf, self.#ident.clone().into_data());
                 });
                 unflatten.push(quote! {
-                    let #ident = <#ty>::from_data(src.take_tensor(prefix, #leaf)?, device);
+                    let #ident: #ty = src.read_tensor(prefix, #leaf, device)?;
                 });
             }
             FieldKind::OptionTensor(inner) => {
@@ -144,9 +147,7 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                     }
                 });
                 unflatten.push(quote! {
-                    let #ident = src
-                        .take_tensor(prefix, #leaf)
-                        .map(|data| <#inner>::from_data(data, device));
+                    let #ident: Option<#inner> = src.read_tensor(prefix, #leaf, device);
                 });
             }
             FieldKind::VecTensor(inner) => {
@@ -154,26 +155,23 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                     out.push_scalar(
                         prefix,
                         concat!(#leaf, ".len"),
-                        burn_pack::Scalar::from(self.#ident.len()),
+                        __optim::__private::Scalar::from(self.#ident.len()),
                     );
                     for (__index, __value) in self.#ident.iter().enumerate() {
-                        let __leaf = crate::join_index(#leaf, __index);
+                        let __leaf = __optim::join_index(#leaf, __index);
                         out.push_tensor(prefix, &__leaf, __value.clone().into_data());
                     }
                 });
                 unflatten.push(quote! {
                     let #ident = {
-                        let __len = <usize as ::core::convert::TryFrom<burn_pack::Scalar>>::try_from(
+                        let __len = <usize as ::core::convert::TryFrom<__optim::__private::Scalar>>::try_from(
                             src.take_scalar(prefix, concat!(#leaf, ".len"))?,
                         )
                         .ok()?;
-                        let mut __items = ::alloc::vec::Vec::with_capacity(__len);
+                        let mut __items = __optim::__private::Vec::<#inner>::with_capacity(__len);
                         for __index in 0..__len {
-                            let __leaf = crate::join_index(#leaf, __index);
-                            __items.push(<#inner>::from_data(
-                                src.take_tensor(prefix, &__leaf)?,
-                                device,
-                            ));
+                            let __leaf = __optim::join_index(#leaf, __index);
+                            __items.push(src.read_tensor(prefix, &__leaf, device)?);
                         }
                         __items
                     };
@@ -181,10 +179,10 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
             }
             FieldKind::Scalar => {
                 flatten.push(quote! {
-                    out.push_scalar(prefix, #leaf, burn_pack::Scalar::from(self.#ident));
+                    out.push_scalar(prefix, #leaf, __optim::__private::Scalar::from(self.#ident));
                 });
                 unflatten.push(quote! {
-                    let #ident = <#ty as ::core::convert::TryFrom<burn_pack::Scalar>>::try_from(
+                    let #ident = <#ty as ::core::convert::TryFrom<__optim::__private::Scalar>>::try_from(
                         src.take_scalar(prefix, #leaf)?,
                     )
                     .ok()?;
@@ -193,41 +191,42 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
             FieldKind::OptionScalar(inner) => {
                 flatten.push(quote! {
                     if let Some(value) = self.#ident {
-                        out.push_scalar(prefix, #leaf, burn_pack::Scalar::from(value));
+                        out.push_scalar(prefix, #leaf, __optim::__private::Scalar::from(value));
                     }
                 });
                 unflatten.push(quote! {
                     let #ident: Option<#inner> = src.take_scalar(prefix, #leaf).and_then(|__s| {
-                        <#inner as ::core::convert::TryFrom<burn_pack::Scalar>>::try_from(__s).ok()
+                        <#inner as ::core::convert::TryFrom<__optim::__private::Scalar>>::try_from(__s).ok()
                     });
                 });
             }
             FieldKind::Nested => {
                 flatten.push(quote! {
                     {
-                        let __path = crate::join_path(prefix, #leaf);
-                        crate::RecordState::state_flatten(&self.#ident, &__path, out);
+                        let __path = __optim::join_path(prefix, #leaf);
+                        __optim::RecordState::state_flatten(&self.#ident, &__path, out);
                     }
                 });
                 unflatten.push(quote! {
                     let #ident = {
-                        let __path = crate::join_path(prefix, #leaf);
-                        <#ty as crate::RecordState>::state_unflatten(&__path, src, device)?
+                        let __path = __optim::join_path(prefix, #leaf);
+                        <#ty as __optim::RecordState>::state_unflatten(&__path, src, device)?
                     };
                 });
             }
             FieldKind::OptionNested(inner) => {
                 flatten.push(quote! {
                     if let Some(value) = &self.#ident {
-                        let __path = crate::join_path(prefix, #leaf);
-                        crate::RecordState::state_flatten(value, &__path, out);
+                        out.push_scalar(prefix, #leaf, true.into());
+                        let __path = __optim::join_path(prefix, #leaf);
+                        __optim::RecordState::state_flatten(value, &__path, out);
                     }
                 });
                 unflatten.push(quote! {
                     let #ident = {
-                        let __path = crate::join_path(prefix, #leaf);
-                        if src.has_under(&__path) {
-                            <#inner as crate::RecordState>::state_unflatten(&__path, src, device)
+                        let __path = __optim::join_path(prefix, #leaf);
+                        if src.take_scalar(prefix, #leaf) == Some(__optim::__private::Scalar::Bool(true)) || src.has_under(&__path) {
+                            <#inner as __optim::RecordState>::state_unflatten(&__path, src, device)
                         } else {
                             None
                         }
@@ -237,21 +236,49 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
         }
     }
 
+    let root = optim_path()?;
     Ok(quote! {
-        impl #impl_generics crate::RecordState for #name #ty_generics #where_clause {
-            fn state_flatten(&self, prefix: &str, out: &mut crate::StateSink) {
-                #(#flatten)*
-            }
+        const _: () = {
+            use #root as __optim;
+            impl #impl_generics __optim::RecordState for #name #ty_generics #where_clause {
+                fn state_flatten(&self, prefix: &str, out: &mut __optim::StateSink) {
+                    #(#flatten)*
+                }
 
-            fn state_unflatten(
-                prefix: &str,
-                src: &mut crate::StateSource,
-                device: &burn::tensor::Device,
-            ) -> Option<Self> {
-                #(#unflatten)*
-                Some(Self { #(#ctor),* })
+                fn state_unflatten(
+                    prefix: &str,
+                    src: &mut __optim::StateSource,
+                    device: &__optim::__private::Device,
+                ) -> Option<Self> {
+                    #(#unflatten)*
+                    Some(Self { #(#ctor),* })
+                }
             }
-        }
+        };
     }
     .into())
+}
+
+// Resolve the public re-export for applications which depend only on burn, including renamed
+// dependencies. The absolute burn_optim path also works in its own integration tests.
+fn optim_path() -> syn::Result<proc_macro2::TokenStream> {
+    use proc_macro_crate::{FoundCrate, crate_name};
+    for package in ["burn-optim", "burn"] {
+        if let Ok(found) = crate_name(package) {
+            let name = match found {
+                FoundCrate::Itself => package.replace('-', "_"),
+                FoundCrate::Name(name) => name,
+            };
+            let ident = quote::format_ident!("{name}");
+            return Ok(if package == "burn" {
+                quote!(::#ident::optim)
+            } else {
+                quote!(::#ident)
+            });
+        }
+    }
+    Err(syn::Error::new(
+        proc_macro2::Span::call_site(),
+        "optimizer state derives require burn or burn-optim",
+    ))
 }

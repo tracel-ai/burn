@@ -77,6 +77,11 @@ where
 }
 
 impl ModuleOptimizer {
+    /// Discard statistics and master weights after replacing model parameters.
+    pub fn reset_state(&mut self) {
+        self.param_context.clear();
+    }
+
     /// Check if the optimizer has gradient clipping.
     /// If there are multiple optimizers, checks if any group has gradient clipping.
     pub fn has_gradient_clipping(&self) -> bool {
@@ -416,7 +421,7 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
 
     fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
         let (id, tensor, mapper) = param.consume();
-        let grad = self.grads.remove(id);
+        let grad = self.grads.remove::<D>(id);
 
         let tensor = if let Some((grad, device)) = grad {
             let context = ParameterContext::capture(&tensor);
@@ -449,6 +454,7 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
                 device,
                 "The gradient is on the provided device"
             );
+            let grad = Tensor::<D>::from_bridge(optim.prepare_gradient_dyn(D, grad.into_bridge()));
             let clipped_grad: Tensor<D> = if let Some(g_clipping) = grad_clipping.as_ref() {
                 g_clipping.clip_gradient(grad)
             } else {

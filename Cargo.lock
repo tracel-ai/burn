@@ -1190,6 +1190,7 @@ version = "0.23.0-pre.2"
 dependencies = [
  "burn-einsum",
  "derive-new",
+ "proc-macro-crate",
  "proc-macro2",
  "quote",
  "syn 3.0.9",

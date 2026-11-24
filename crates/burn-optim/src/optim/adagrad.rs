@@ -34,7 +34,7 @@ pub struct AdaGrad {
 }
 
 /// AdaGrad state.
-#[derive(RecordState, Clone, new)]
+#[derive(RecordState, Clone, new, crate::StateMappable)]
 pub struct AdaGradState<const D: usize> {
     lr_decay: LrDecayState<D>,
 }
@@ -66,9 +66,8 @@ impl Optimizer for AdaGrad {
         (tensor - grad, Some(state))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.lr_decay = state.lr_decay.to_device(device);
-        state
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        super::precision::move_state(state, device)
     }
 }
 
@@ -104,7 +103,7 @@ impl AdaGradConfig {
 }
 
 /// Learning rate decay state (also includes sum state).
-#[derive(RecordState, new, Clone)]
+#[derive(RecordState, new, Clone, crate::StateMappable)]
 pub struct LrDecayState<const D: usize> {
     time: usize,
     sum: Tensor<D>,
@@ -151,9 +150,8 @@ impl<const D: usize> LrDecayState<D> {
     /// # Returns
     ///
     /// Returns state moved to device.
-    pub fn to_device(mut self, device: &Device) -> Self {
-        self.sum = self.sum.to_device(device);
-        self
+    pub fn to_device(self, device: &Device) -> Self {
+        super::precision::move_state(self, device)
     }
 }
 

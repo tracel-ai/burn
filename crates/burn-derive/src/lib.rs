@@ -129,6 +129,15 @@ pub fn record_state_derive(input: TokenStream) -> TokenStream {
     record_state::derive_impl(&input)
 }
 
+/// Derive on optimizer statistics alongside `RecordState` to visit their floating-point tensors.
+#[proc_macro_derive(StateMappable)]
+pub fn state_mappable_derive(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    record_state::derive_mapping(&input)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
 /// Derive macro for the `AutodiffSignal` trait, for a struct passed between the layers of a split
 /// model that is trained as a pipeline.
 ///

@@ -32,7 +32,7 @@ pub struct Sgd {
 }
 
 /// State of [Sgd](Sgd).
-#[derive(RecordState, Clone, new)]
+#[derive(RecordState, Clone, new, crate::StateMappable)]
 pub struct SgdState<const D: usize> {
     /// The current state of the momentum (if any).
     pub momentum: Option<MomentumState<D>>,
@@ -94,9 +94,8 @@ impl Optimizer for Sgd {
         (tensor - delta, Some(state))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.momentum = state.momentum.map(|state| state.to_device(device));
-        state
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        super::precision::move_state(state, device)
     }
 }
 

@@ -57,7 +57,7 @@ pub struct AdamW {
 }
 
 /// AdamW state.
-#[derive(RecordState, Clone, new)]
+#[derive(RecordState, Clone, new, crate::StateMappable)]
 pub struct AdamWState<const D: usize> {
     /// Th current adaptive momentum state.
     pub momentum: AdaptiveMomentumState<D>,
@@ -106,9 +106,8 @@ impl Optimizer for AdamW {
         (tensor_updated, Some(state))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.momentum = state.momentum.to_device(device);
-        state
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        super::precision::move_state(state, device)
     }
 }
 

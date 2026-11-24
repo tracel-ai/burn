@@ -138,6 +138,81 @@ optimizer type.
 Learning-rate schedulers support the same grouping model, so optimizer choice and learning-rate
 policy can be assigned independently. See [Learner](./learner.md#parameter-groups).
 
+## Optimizer Precision
+
+For an F16 model, Adam's second moment and its epsilon can both round to zero. Choose the
+dtype of the optimizer equation when building the per-parameter optimizer. Statistics use the
+same dtype by default. For example, this group evaluates AdamW in F32 and retains its moments
+in BF16 between updates.
+
+```rust,ignore
+use burn::optim::{AdamWConfig, ModuleOptimizer, OptimizerPrecision};
+use burn::tensor::FloatDType;
+
+let precision = OptimizerPrecision::new(FloatDType::F32)
+    .with_state_storage(FloatDType::BF16);
+let adamw = AdamWConfig::new().with_epsilon(1e-8).build();
+let mut optimizer = ModuleOptimizer::from(precision.wrap_with_master_weights(adamw));
+```
+
+Choose how a parameter receives updates:
+
+- `wrap(adamw)` starts each step from the model's current value. Updates too small to change
+  that value after rounding are lost.
+- `wrap_with_master_weights(adamw)` keeps the unrounded result for the next step when the model
+  and compute dtypes differ. The model receives a copy cast to its own dtype. This costs one
+  additional compute-dtype tensor per such parameter. Reset optimizer state if you replace the
+  model weights outside the optimizer.
+
+Both modes accept floating-point model parameters. The optimizer restores statistics to the
+compute dtype before evaluating the equation and encodes them after calculating the new weight.
+Integer counters retain their types. Each dtype must be supported on the update device.
+
+To select precision per parameter group, pass the wrapped optimizer to `with_group`. Supply
+clipping with `ModuleOptimizer::with_grad_clipping` or the group's clipping argument.
+For `step_multi`, gradients are accumulated across devices first. Gradient preparation and the
+cast to compute dtype precede clipping.
+
+### Choosing storage per statistic
+
+A storage mapper receives the path and tensor of each statistic. For Adam and AdamW, this example
+rounds only the first moment. The second moment and optional AMSGrad maximum stay in compute
+precision. A mapper can also inspect the tensor shape to keep small statistics in full precision.
+
+```rust,ignore
+use burn::optim::{AdamWConfig, OptimizerPrecision, OptimizerStateMapper, StatePath};
+use burn::tensor::{FloatDType, Tensor};
+
+#[derive(Clone)]
+struct MomentStorage;
+
+impl OptimizerStateMapper for MomentStorage {
+    fn map<const D: usize>(&self, tensor: Tensor<D>, path: &StatePath<'_>) -> Tensor<D> {
+        if path.matches(&["momentum", "moment_1"]) {
+            tensor.cast(FloatDType::BF16)
+        } else {
+            tensor
+        }
+    }
+}
+
+let adamw = OptimizerPrecision::new(FloatDType::F32)
+    .with_state_storage(MomentStorage)
+    .wrap(AdamWConfig::new().build());
+```
+
+Use a mapper when casting each stored tensor recovers its numerical value. If an encoding needs
+additional tensors or a different decoder, implement `OptimizerStateStorage<MyOptimizer>`.
+Its `Stored<D>` is a regular `RecordState` and can own integer codes, block scales, and counters.
+Implement `store`, `restore`, and `to_device` for that representation. The parameter and its
+optional master stay outside this record.
+
+Resume from a matching model checkpoint with the same group definitions and storage policy.
+Checkpoints persist the stored tensors in their actual dtypes and include any master weights.
+The load device must support these representations. Float and native quantized tensor mappers
+preserve the original record names, so an ordinary checkpoint can seed their statistics and
+the model can supply the initial master. A custom record determines its own schema compatibility.
+
 ## Optimizer State and Records
 
 State belongs to the optimizer and is stored per parameter. Adam, for example, records first- and
@@ -206,3 +281,9 @@ pub struct MomentumState<const D: usize> {
 
 The `step` method receives the previous state, if any, and returns the updated tensor and optional
 new state. `to_device` moves every tensor held by the state to the requested device.
+
+To use uniform or per-tensor storage in a custom optimizer, derive `RecordState` and `StateMappable`
+on its floating-point statistics, including nested structs. Implement `MappableOptimizer` and
+delegate `map_state` to `state.map_tensors(mapper)`. The wrapper invokes `step_in_dtype` with the
+prepared operands. Its default calls `Optimizer::step`. Override it when the ordinary step selects
+a different compute dtype internally, as Adafactor does for half-precision parameters.

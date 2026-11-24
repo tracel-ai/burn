@@ -21,7 +21,7 @@ pub struct MomentumConfig {
 }
 
 /// State of [momentum](Momentum).
-#[derive(RecordState, Clone, new)]
+#[derive(RecordState, Clone, new, crate::StateMappable)]
 pub struct MomentumState<const D: usize> {
     velocity: Tensor<D>,
 }
@@ -87,8 +87,7 @@ impl<const D: usize> MomentumState<D> {
     /// # Returns
     ///
     /// * `self` - Moved state.
-    pub fn to_device(mut self, device: &Device) -> Self {
-        self.velocity = self.velocity.to_device(device);
-        self
+    pub fn to_device(self, device: &Device) -> Self {
+        super::precision::move_state(self, device)
     }
 }
