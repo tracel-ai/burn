@@ -34,7 +34,8 @@ use burn_fusion::observer::{BlockOperations, FusionObserver};
 use burn_ir::OperationIr;
 use burn_tensor::Device;
 use cubecl::logging::{
-    Execution, ExecutionKind, ExecutionObserver, ExecutionPlace, Measurement, Timed, TimingRequest,
+    Execution, ExecutionKind, ExecutionObserver, ExecutionPlace, Measurement, TimedExecutions,
+    TimingRequest,
 };
 use cubecl::profile::{ProfileDuration, TimingMethod};
 
@@ -242,7 +243,7 @@ impl ComponentObserver for RunRecorder {
 /// launches on the fusion worker, dozens of ops after the model thread
 /// registered its work.
 impl ExecutionObserver for RunRecorder {
-    fn issued(&self, execution: &Execution) {
+    fn observe(&self, execution: &Execution) {
         match execution.kind {
             ExecutionKind::Kernel { name, .. } => self.count_launch(name),
             _ => self.locked().collectives.issued(execution, &self.members),
@@ -257,12 +258,12 @@ impl ExecutionObserver for RunRecorder {
     /// each member; a device of one runs none.
     fn timing(&self) -> TimingRequest {
         match self.members.several() {
-            true => TimingRequest::Deferred(Timed::KernelsAndCommunications),
-            false => TimingRequest::Deferred(Timed::Kernels),
+            true => TimingRequest::Deferred(TimedExecutions::KernelsAndCommunications),
+            false => TimingRequest::Deferred(TimedExecutions::Kernels),
         }
     }
 
-    fn measured(&self, execution: &Execution, measurement: Measurement) {
+    fn observe_measurement(&self, execution: &Execution, measurement: Measurement) {
         match (&execution.kind, measurement) {
             (ExecutionKind::Kernel { place, name }, Measurement::Unread(profile)) => {
                 self.keep_unread(name, place, profile)
@@ -607,9 +608,12 @@ mod tests {
     fn communications_are_timed_over_several_members() {
         assert_eq!(
             sharded().timing(),
-            TimingRequest::Deferred(Timed::KernelsAndCommunications)
+            TimingRequest::Deferred(TimedExecutions::KernelsAndCommunications)
         );
-        assert_eq!(recorder().timing(), TimingRequest::Deferred(Timed::Kernels));
+        assert_eq!(
+            recorder().timing(),
+            TimingRequest::Deferred(TimedExecutions::Kernels)
+        );
     }
 
     /// The devices of the two members of [`sharded`].
@@ -639,7 +643,7 @@ mod tests {
 
     impl RunRecorder {
         fn issue(&self, id: ExecutionId, parent: Option<ExecutionId>, kind: ExecutionKind) {
-            self.issued(&Execution { id, parent, kind });
+            self.observe(&Execution { id, parent, kind });
         }
 
         fn measure(&self, id: ExecutionId, kind: ExecutionKind, micros: u64) {
@@ -648,7 +652,7 @@ mod tests {
                 parent: None,
                 kind,
             };
-            self.measured(&execution, Measurement::Unread(unread_timing(micros)));
+            self.observe_measurement(&execution, Measurement::Unread(unread_timing(micros)));
         }
 
         /// Issue a part or wait of `collective`, and hand its window of `micros` over.

@@ -31,21 +31,21 @@ impl From<cube::ExecutionStatistics> for ExecutionStatistics {
         let autotune = statistics.autotune;
         Self {
             compilation: CompilationStatistics {
-                registered: compilation.registered as u64,
-                compiled: compilation.compiled as u64,
-                loaded: compilation.loaded as u64,
-                failed: compilation.failed as u64,
-                abandoned: compilation.abandoned as u64,
-                refused: compilation.refused as u64,
-                stored: compilation.stored as u64,
+                registered: compilation.registered_count as u64,
+                compiled: compilation.compiled_count as u64,
+                loaded: compilation.loaded_count as u64,
+                failed: compilation.failed_count as u64,
+                abandoned: compilation.abandoned_count as u64,
+                refused: compilation.refused_count as u64,
+                stored: compilation.stored_count as u64,
             },
             autotune: AutotuneStatistics {
-                registered: autotune.registered as u64,
-                measured: autotune.measured as u64,
-                loaded: autotune.loaded as u64,
-                failed: autotune.failed as u64,
-                abandoned: autotune.abandoned as u64,
-                persisted: autotune.persisted as u64,
+                registered: autotune.registered_count as u64,
+                measured: autotune.measured_count as u64,
+                loaded: autotune.loaded_count as u64,
+                failed: autotune.failed_count as u64,
+                abandoned: autotune.abandoned_count as u64,
+                persisted: autotune.persisted_count as u64,
             },
         }
     }
