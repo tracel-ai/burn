@@ -1,13 +1,11 @@
+use super::ReadFuture;
 use alloc::vec::Vec;
 use burn_std::{
     BoolDType, FloatDType, IntDType, Shape, Slice,
     quantization::{QuantPropagation, QuantScheme},
 };
 
-use crate::{
-    Backend, ExecutionError, TensorData, TensorMetadata, TensorPrimitive,
-    get_or_init_device_settings,
-};
+use crate::{Backend, TensorData, TensorMetadata, TensorPrimitive, get_or_init_device_settings};
 use crate::{
     Scalar,
     quantization::{Calibration, QuantizationParametersPrimitive, compute_q_params, compute_range},
@@ -178,6 +176,9 @@ pub trait QTensorOps<B: Backend> {
 
     /// Converts the tensor to a data structure.
     ///
+    /// Reads the tensor's value as of this call. The caller may queue more work on the same
+    /// stream before awaiting the result.
+    ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
@@ -185,9 +186,7 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn q_into_data(
-        tensor: QuantizedTensor<B>,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
+    fn q_into_data(tensor: QuantizedTensor<B>) -> impl ReadFuture<TensorData>;
 
     /// Detaches a tensor from the computation graph.
     fn q_detach(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {

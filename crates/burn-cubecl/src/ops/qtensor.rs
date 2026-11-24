@@ -1,5 +1,6 @@
+use burn_backend::ops::ReadFuture;
 use burn_backend::{
-    Bytes, DType, ExecutionError, Shape, SplitPolicy, TensorData, TensorMetadata, TensorPrimitive,
+    Bytes, DType, Shape, SplitPolicy, TensorData, TensorMetadata, TensorPrimitive,
     get_or_init_device_settings,
     ops::QTensorOps,
     quantization::{
@@ -306,38 +307,44 @@ impl QTensorOps<Self> for CubeBackend {
         super::q_reshape(tensor, shape)
     }
 
-    async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
-        if tensor.qparams.is_none() {
-            return into_data(tensor).await;
-        }
-        // Storage tiles are a layout for one machine's kernels, laid out at load; what is saved
-        // is the rows every machine reads.
-        assert!(
-            !tensor.meta.is_tiled(),
-            "q_into_data: a storage-tiled quantized tensor is not saved; save the weight it was \
-             tiled from"
-        );
+    fn q_into_data(tensor: QuantizedTensor<Self>) -> impl ReadFuture<TensorData> {
+        let (values, rest) = if tensor.qparams.is_none() {
+            (into_data(tensor), None)
+        } else {
+            // Storage tiles are a layout for one machine's kernels, laid out at load; what is
+            // saved is the rows every machine reads.
+            assert!(
+                !tensor.meta.is_tiled(),
+                "q_into_data: a storage-tiled quantized tensor is not saved; save the weight it \
+                 was tiled from"
+            );
 
-        let (shape, dtype) = (tensor.shape(), tensor.dtype);
-        // Written as stored, packed axis innermost — the bytes `q_from_data` reads back.
-        let tensor = match outer_packed_axis(&tensor.scheme(), shape.rank()) {
-            Some(axis) => swap_dims(tensor, axis, shape.rank() - 1),
-            None => tensor,
+            let (shape, dtype) = (tensor.shape(), tensor.dtype);
+            // Written as stored, packed axis innermost — the bytes `q_from_data` reads back.
+            let tensor = match outer_packed_axis(&tensor.scheme(), shape.rank()) {
+                Some(axis) => swap_dims(tensor, axis, shape.rank() - 1),
+                None => tensor,
+            };
+            let global = tensor.global().map(into_data);
+            let (values, params) = tensor.quantized_handles().unwrap();
+            (
+                into_data(values),
+                Some((into_data(params), global, shape, dtype)),
+            )
         };
-        let global = tensor.global();
-        let (values, params) = tensor.quantized_handles().unwrap();
 
-        let mut bytes = into_data(values).await?.into_bytes();
-        let data_params = into_data(params).await?;
-
-        bytes.extend_from_byte_slice(data_params.as_bytes());
-
-        if let Some(global) = global {
-            let data_global = into_data(global).await?;
-            bytes.extend_from_byte_slice(data_global.as_bytes());
+        async move {
+            let values = values.await?;
+            let Some((params, global, shape, dtype)) = rest else {
+                return Ok(values);
+            };
+            let mut bytes = values.into_bytes();
+            bytes.extend_from_byte_slice(params.await?.as_bytes());
+            if let Some(global) = global {
+                bytes.extend_from_byte_slice(global.await?.as_bytes());
+            }
+            Ok(TensorData::from_bytes(bytes, shape, dtype))
         }
-
-        Ok(TensorData::from_bytes(bytes, shape, dtype))
     }
 
     fn q_swap_dims(

@@ -6,6 +6,7 @@ use crate::{
     unary_float_ops,
 };
 use burn_backend::RandomKey;
+use burn_backend::ops::ReadFuture;
 use burn_backend::{
     BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
     TensorData,
@@ -232,8 +233,8 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             dtype = ?tensor.dtype
         )
     ))]
-    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
-        tensor.into_data::<B>().await
+    fn float_into_data(tensor: FloatTensor<Self>) -> impl ReadFuture<TensorData> {
+        tensor.into_data::<B>()
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(

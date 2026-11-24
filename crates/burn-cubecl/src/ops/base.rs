@@ -2,8 +2,9 @@ use crate::{
     CubeBackend, CubeDevice, kernel, ops::numeric::empty_device_dtype, tensor::CubeTensor,
 };
 use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::ops::ReadFuture;
 use burn_backend::{
-    DType, ExecutionError, Shape, TensorData,
+    DType, Shape, TensorData,
     quantization::{QuantStore, params_shape},
 };
 use burn_backend::{TensorMetadata, ops::QTensorOps, ops::unfold::calculate_unfold_shape};
@@ -34,10 +35,11 @@ pub(crate) fn from_data(data: TensorData, device: &CubeDevice) -> CubeTensor {
     )
 }
 
-pub(crate) async fn into_data(tensor: CubeTensor) -> Result<TensorData, ExecutionError> {
+pub(crate) fn into_data(tensor: CubeTensor) -> impl ReadFuture<TensorData> {
     let tensor = kernel::into_contiguous_aligned(tensor);
 
     let elem_size = tensor.elem_size();
+    let dtype = tensor.dtype;
     let shape = tensor.meta.shape().clone();
     let strides = tensor.meta.strides().clone();
     // Under an async runtime (e.g. a remote server), a lazy read defers the device→host
@@ -47,21 +49,31 @@ pub(crate) async fn into_data(tensor: CubeTensor) -> Result<TensorData, Executio
     // handle until its bytes are read, so no in-place kernel writes the buffer first.
     let read = match burn_std::runtime_kind() {
         burn_std::RuntimeKind::Async => {
-            let binding = CopyDescriptor::new(tensor.handle.binding(), shape, strides, elem_size);
-            tensor.client.read_one_tensor_async(binding).await
+            let binding =
+                CopyDescriptor::new(tensor.handle.binding(), shape.clone(), strides, elem_size);
+            Read::Eager(tensor.client.read_one_tensor_async(binding))
         }
         _ => {
-            let source = CopyDescriptor::new(tensor.handle.clone(), shape, strides, elem_size);
-            tensor.client.read_lazy_async(source).await
+            let source =
+                CopyDescriptor::new(tensor.handle.clone(), shape.clone(), strides, elem_size);
+            Read::Lazy(tensor.client.read_lazy_async(source))
         }
     };
-    let bytes = read.map_err(crate::backend::server_err)?;
 
-    Ok(TensorData::from_bytes(
-        bytes,
-        tensor.meta.shape.clone(),
-        tensor.dtype,
-    ))
+    async move {
+        let bytes = match read {
+            Read::Eager(read) => read.await,
+            Read::Lazy(read) => read.await,
+        };
+        let bytes = bytes.map_err(crate::backend::server_err)?;
+        Ok(TensorData::from_bytes(bytes, shape, dtype))
+    }
+}
+
+/// Either kind of read, started at the call and awaited later, without boxing it.
+enum Read<E, L> {
+    Eager(E),
+    Lazy(L),
 }
 
 /// Read data from a `CubeTensor` synchronously

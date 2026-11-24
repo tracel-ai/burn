@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use burn_backend::RandomKey;
 use burn_backend::{
-    BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
+    BoolDType, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::{IntTensorOps, PadMode},
     tensor::{BoolTensor, FloatTensor, IndexingUpdateOp, IntTensor},
 };
@@ -23,8 +23,10 @@ impl IntTensorOps<Self> for Dispatch {
         B::int_empty(shape, device, dtype)
     }
 
-    async fn int_into_data(tensor: IntTensor<Self>) -> Result<TensorData, ExecutionError> {
-        B::int_into_data(tensor).await
+    // A concrete type, so that a build with no backend, whose body is never reached, still has one.
+    #[allow(refining_impl_trait)]
+    fn int_into_data(tensor: IntTensor<Self>) -> crate::backend::BoxedRead<TensorData> {
+        alloc::boxed::Box::pin(B::int_into_data(tensor))
     }
 
     fn int_from_data(data: TensorData, device: &DispatchDevice) -> IntTensor<Self> {
