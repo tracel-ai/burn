@@ -35,7 +35,7 @@ impl KernelSource for FusedMatmulAddRelu {
     }
 
     fn id(&self) -> KernelId {
-        KernelId::new::<Self>().info(self.cube_dim)
+        KernelId::new::<Self>().with_info(self.cube_dim)
     }
 
     // `kernel.wgsl` is WGSL, so this runs on a wgpu build that compiles to WGSL. A build whose
