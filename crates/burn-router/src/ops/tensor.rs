@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use burn_backend::RandomKey;
 use burn_backend::Scalar;
-use burn_backend::backend::ExecutionError;
+use burn_backend::ops::ReadFuture;
 use burn_std::{BoolDType, IntDType};
 
 use crate::{BackendRouter, RouterChannel, RouterClient, get_client};
@@ -107,8 +107,8 @@ impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
-        tensor.into_data().await
+    fn float_into_data(tensor: FloatTensor<Self>) -> impl ReadFuture<TensorData> {
+        tensor.into_data()
     }
 
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {

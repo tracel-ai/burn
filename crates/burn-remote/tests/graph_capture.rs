@@ -19,6 +19,8 @@ use burn_tensor::{
     remote::RemoteHost,
     server::{RemoteServer, WebSocketTransport},
 };
+use serial_test::serial;
+use std::task::{Context, Waker};
 
 /// The input of [`step`], and what it makes of it.
 const INPUT: [f32; 4] = [1.0, 2.0, 3.0, 4.0];
@@ -40,6 +42,7 @@ fn records_a_graph(device: &Device) -> bool {
 /// Safety of the `replay` calls: the closure owns a clone of `input`, which keeps every captured
 /// buffer alive as long as the graph, and the replays and reads run in turn on this thread.
 #[test]
+#[serial]
 fn a_remote_capture_replays_on_the_server_device() {
     let server_device = Device::default();
     let server_records = records_a_graph(&server_device);
@@ -82,6 +85,7 @@ fn a_remote_capture_replays_on_the_server_device() {
 /// Safety of the `replay` calls: the closure borrows `input`, which outlives the graph, and the
 /// refreshes, replays and reads run in turn on this thread.
 #[test]
+#[serial]
 fn a_remote_replay_sees_inputs_refreshed_in_place() {
     let server_device = Device::default();
     if !records_a_graph(&server_device) {
@@ -107,9 +111,61 @@ fn a_remote_replay_sees_inputs_refreshed_in_place() {
     rt.shutdown_background();
 }
 
+/// A read is ordered between the replays sent around it, however long they run: it returns what
+/// the replay before it wrote, not what that replay's predecessor left or its successor writes.
+///
+/// Safety of the `replay` calls: the closure borrows `input` and `identity`, which outlive the
+/// graph, and the refreshes, replays and reads run in turn on this thread.
+#[test]
+#[serial]
+fn a_remote_read_returns_what_the_replay_before_it_wrote() {
+    // Long enough on the GPU that a read the server does not order after the replay overtakes it.
+    const MATMULS: usize = 256;
+    let server_device = Device::default();
+    if !records_a_graph(&server_device) {
+        println!("the server's backend records no graph; a re-run closure is ordered anyway");
+        return;
+    }
+    let (rt, host) = serve(server_device);
+    let device = Device::remote_options(&host).init().unwrap();
+
+    let identity = Tensor::<2>::eye(1024, &device);
+    let input = std::cell::RefCell::new(Tensor::<2>::zeros([64, 1024], &device));
+    let mut graph = burn_tensor::capture(&device, || {
+        (0..MATMULS)
+            .fold(input.borrow().clone(), |x, _| x.matmul(identity.clone()))
+            .slice([0..1, 0..1])
+    });
+    assert!(graph.is_hardware(), "{:?}", graph.capture_error());
+
+    let mut reads = Vec::new();
+    let mut cx = Context::from_waker(Waker::noop());
+    for value in [1.0, 2.0, 3.0, 4.0] {
+        input
+            .borrow_mut()
+            .inplace(|tensor| tensor.mul_scalar(0.0).add_scalar(value));
+        let out = unsafe { graph.replay() }.clone();
+        let mut read = Box::pin(async move {
+            let data = out.into_data_async().await.unwrap();
+            assert_eq!(data.try_to_vec::<f32>().unwrap(), [value]);
+        });
+        // Submit the read before the next replay and keep it only if it still needs polling.
+        if read.as_mut().poll(&mut cx).is_pending() {
+            reads.push(read);
+        }
+    }
+    for read in reads {
+        burn_std::future::block_on(read);
+    }
+
+    drop(graph);
+    rt.shutdown_background();
+}
+
 /// A replay is not waited on, so one the server cannot run is the error of the next read on its
 /// stream, rather than that read returning what the step before it wrote.
 #[test]
+#[serial]
 fn a_failed_remote_replay_is_the_error_of_the_next_read() {
     let (rt, host) = serve(Device::default());
     let device = Device::remote_options(&host).init().unwrap();

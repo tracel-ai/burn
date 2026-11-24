@@ -7,7 +7,7 @@ use burn_ir::{
     NumericOperationIr, OperationIr, ReduceDimOpIr, ReduceOpIr, ScalarOpIr, TensorIr, UnaryOpIr,
 };
 
-use crate::{Linearity, OpInputs, OpKind, ReducedDims, ReductionKind};
+use crate::{Linearity, OpInputs, OpKind, OpOutputs, ReducedDims, ReductionKind};
 
 /// How the planner reads an op: by its kind and the tensors it reads, or not at all.
 #[derive(Debug, PartialEq)]
@@ -15,7 +15,8 @@ pub enum OpClass<'a> {
     Kind {
         kind: OpKind<'a>,
         inputs: OpInputs<&'a TensorIr>,
-        out: &'a TensorIr,
+        /// Values, then their indices if the op has them, all of one shape.
+        outputs: OpOutputs<&'a TensorIr>,
     },
     /// A custom op, which its rule classifies.
     Custom(&'a CustomOpIr),
@@ -70,7 +71,7 @@ impl<'a> OpClass<'a> {
             BaseOperationIr::Cat(desc) => Self::Kind {
                 kind: OpKind::Concat { dim: desc.dim },
                 inputs: desc.tensors.iter().collect(),
-                out: &desc.out,
+                outputs: [&desc.out].into_iter().collect(),
             },
             BaseOperationIr::Slice(desc) => Self::of_kind(
                 OpKind::Slice {
@@ -122,16 +123,38 @@ impl<'a> OpClass<'a> {
                 [&desc.tensor, &desc.indices],
                 &desc.out,
             ),
-            BaseOperationIr::Flip(_)
-            | BaseOperationIr::Unfold(_)
-            | BaseOperationIr::SelectAssign(_)
-            | BaseOperationIr::Gather(_)
-            | BaseOperationIr::Scatter(_)
-            | BaseOperationIr::ScatterNd(_)
-            | BaseOperationIr::GatherNd(_)
-            | BaseOperationIr::Empty(_)
-            | BaseOperationIr::Ones(_)
-            | BaseOperationIr::Zeros(_) => Self::Gathered,
+            BaseOperationIr::SelectAssign(desc) => Self::of_kind(
+                OpKind::SelectAssign { dim: desc.dim },
+                [&desc.tensor, &desc.indices, &desc.value],
+                &desc.out,
+            ),
+            BaseOperationIr::Gather(desc) => Self::of_kind(
+                OpKind::Index { dim: desc.dim },
+                [&desc.tensor, &desc.indices],
+                &desc.out,
+            ),
+            BaseOperationIr::Scatter(desc) => Self::of_kind(
+                OpKind::Index { dim: desc.dim },
+                [&desc.tensor, &desc.indices, &desc.value],
+                &desc.out,
+            ),
+            BaseOperationIr::GatherNd(desc) => {
+                Self::of_kind(OpKind::GatherNd, [&desc.data, &desc.indices], &desc.out)
+            }
+            BaseOperationIr::ScatterNd(desc) => Self::of_kind(
+                OpKind::ScatterNd,
+                [&desc.data, &desc.indices, &desc.values],
+                &desc.out,
+            ),
+            BaseOperationIr::Flip(desc) => {
+                Self::of_kind(OpKind::Flip { axes: &desc.axes }, [&desc.input], &desc.out)
+            }
+            BaseOperationIr::Unfold(desc) => {
+                Self::of_kind(OpKind::AlongDim { dim: desc.dim }, [&desc.input], &desc.out)
+            }
+            BaseOperationIr::Empty(desc)
+            | BaseOperationIr::Ones(desc)
+            | BaseOperationIr::Zeros(desc) => Self::of_kind(OpKind::Creation, [], &desc.out),
         }
     }
 
@@ -224,12 +247,33 @@ impl<'a> OpClass<'a> {
                 Self::of_kind(OpKind::AlongDim { dim: desc.dim }, [&desc.input], &desc.out)
             }
             NumericOperationIr::IntRandom(desc) => Self::of_kind(OpKind::Random, [], &desc.out),
-            NumericOperationIr::Full(_)
-            | NumericOperationIr::TopKWithIndices(_)
-            | NumericOperationIr::MaxDimWithIndices(_)
-            | NumericOperationIr::MinDimWithIndices(_)
-            | NumericOperationIr::SortWithIndices(_)
-            | NumericOperationIr::Pad(_) => Self::Gathered,
+            NumericOperationIr::Full(desc) => Self::of_kind(OpKind::Creation, [], &desc.out),
+            NumericOperationIr::TopKWithIndices(desc) => Self::with_indices(
+                OpKind::AlongDim { dim: desc.dim },
+                &desc.tensor,
+                [&desc.out, &desc.out_indices],
+            ),
+            NumericOperationIr::SortWithIndices(desc) => Self::with_indices(
+                OpKind::AlongDim { dim: desc.dim },
+                &desc.input,
+                [&desc.out, &desc.out_indices],
+            ),
+            NumericOperationIr::MaxDimWithIndices(desc)
+            | NumericOperationIr::MinDimWithIndices(desc) => Self::with_indices(
+                OpKind::Reduction {
+                    dims: ReducedDims::Dims(slice::from_ref(&desc.dim)),
+                    kind: ReductionKind::Nonlinear,
+                },
+                &desc.tensor,
+                [&desc.out, &desc.out_indices],
+            ),
+            NumericOperationIr::Pad(desc) => Self::of_kind(
+                OpKind::Pad {
+                    padding: &desc.padding,
+                },
+                [&desc.input],
+                &desc.out,
+            ),
         }
     }
 
@@ -275,9 +319,22 @@ impl<'a> OpClass<'a> {
                 [&desc.input],
                 &desc.out,
             ),
-            FloatOperationIr::Cross(_)
-            | FloatOperationIr::Quantize(_)
-            | FloatOperationIr::GridSample2d(_) => Self::Gathered,
+            FloatOperationIr::Cross(desc) => Self::of_kind(
+                OpKind::AlongDim { dim: desc.dim },
+                [&desc.lhs, &desc.rhs],
+                &desc.out,
+            ),
+            FloatOperationIr::GridSample2d(desc) => {
+                Self::of_kind(OpKind::GridSample, [&desc.tensor, &desc.grid], &desc.out)
+            }
+            FloatOperationIr::Quantize(desc) => Self::Kind {
+                kind: OpKind::Quantize,
+                inputs: [&desc.tensor, &desc.qparams.scales]
+                    .into_iter()
+                    .chain(desc.qparams.global.as_ref())
+                    .collect(),
+                outputs: [&desc.out].into_iter().collect(),
+            },
         }
     }
 
@@ -406,7 +463,7 @@ impl<'a> OpClass<'a> {
         Self::Kind {
             kind: OpKind::Attention,
             inputs,
-            out: &desc.out,
+            outputs: [&desc.out].into_iter().collect(),
         }
     }
 
@@ -418,7 +475,15 @@ impl<'a> OpClass<'a> {
         Self::Kind {
             kind,
             inputs: inputs.into_iter().collect(),
-            out,
+            outputs: [out].into_iter().collect(),
+        }
+    }
+
+    fn with_indices(kind: OpKind<'a>, input: &'a TensorIr, outputs: [&'a TensorIr; 2]) -> Self {
+        Self::Kind {
+            kind,
+            inputs: [input].into_iter().collect(),
+            outputs: outputs.into_iter().collect(),
         }
     }
 }

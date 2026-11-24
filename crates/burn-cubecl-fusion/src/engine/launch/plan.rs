@@ -2,7 +2,7 @@ use crate::{
     CubeFusionHandle,
     engine::{
         codegen::ir::{FuseArg, FuseOp, FuseType},
-        launch::vectorization::Vect,
+        launch::{layout::permuted_innermost_axis, vectorization::Vect},
         trace::{RuntimeLayout, block::FuseBlock},
     },
 };
@@ -50,6 +50,9 @@ pub struct BlockPlan<'a> {
     pub reads: BTreeMap<TensorId, Vec<FuseOp>>,
     /// Mapping of tensor IDs to the write operations performed on them.
     pub writes: BTreeMap<TensorId, Vec<FuseOp>>,
+    /// Axis along which the block steps its vectors, or `None` for the last logical axis.
+    /// The planner sizes accesses along this axis and the kernel uses it to step between lanes.
+    pub vector_axis: Option<usize>,
     /// The width for the operations in this block.
     pub width: VectorSize,
 }
@@ -113,6 +116,7 @@ impl LaunchPlan<'_> {
                 reference: ReferenceSelection::Searching,
                 reads: b.reads.clone(),
                 writes: b.writes.clone(),
+                vector_axis: None,
                 width: 0,
                 potential_inplaces: Vec::new(),
                 potential_reference_input: None,
@@ -268,5 +272,30 @@ impl ReferenceSelection {
             ReferenceSelection::Concrete { strides, .. } => &**strides == strides_inplace,
             _ => false,
         }
+    }
+}
+
+impl ReferenceSelection {
+    pub(super) fn permuted_axis(&self) -> Option<usize> {
+        match self {
+            Self::Concrete { shape, strides, .. } => permuted_innermost_axis(shape, strides),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ReferenceSelection;
+
+    #[test]
+    fn a_reshaped_reference_has_no_permuted_axis() {
+        let reference = ReferenceSelection::Reshaped { reshape_pos: 0 };
+        assert_eq!(reference.permuted_axis(), None);
+    }
+
+    #[test]
+    fn a_reference_still_being_selected_has_no_permuted_axis() {
+        assert_eq!(ReferenceSelection::Searching.permuted_axis(), None);
     }
 }

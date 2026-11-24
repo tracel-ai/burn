@@ -166,7 +166,7 @@ pub(super) fn reduce_dims_folded(
     config: ReduceOperation,
 ) -> Result<CubeTensor, ReduceError> {
     let rank = input.meta.num_dims();
-    let mut shape = input.meta.shape().clone();
+    let shape = input.meta.shape();
     let reduced: Vec<usize> = (0..rank).filter(|dim| dims.contains(dim)).collect();
 
     let empty: Vec<usize> = reduced
@@ -197,27 +197,12 @@ pub(super) fn reduce_dims_folded(
 
     for dim in empty {
         tensor = reduce_dim(tensor, output_dtype, dim, strategy.clone(), config)?;
-        shape[dim] = 1;
     }
 
     while !left.is_empty() {
         let run =
             largest_run_memory_holds_together(tensor.meta.shape(), tensor.meta.strides(), &left);
-        let rest = (0..rank).filter(|dim| !run.contains(dim));
-        let presented_dims: Vec<usize> = run.iter().copied().chain(rest).collect();
-
-        let mut presented = permute(tensor, &presented_dims);
-        fold_leading_dims(&mut presented, run.len());
-
-        tensor = reduce_dim(presented, output_dtype, 0, strategy.clone(), config)?;
-
-        // The reduction writes contiguously, the folded run first at length one
-        // and every other dimension after it in logical order — which is the
-        // logical shape again with the run's dimensions at length one.
-        for dim in &run {
-            shape[*dim] = 1;
-        }
-        *tensor.meta = Metadata::new(shape.clone(), burn_std::tensor::contiguous_strides(&shape));
+        tensor = reduce_folded_run(tensor, &run, output_dtype, strategy.clone(), config)?;
 
         left.retain(|dim| !run.contains(dim));
     }
@@ -225,7 +210,53 @@ pub(super) fn reduce_dims_folded(
     Ok(tensor)
 }
 
-#[cfg(feature = "autotune")]
+fn reduce_folded_run(
+    input: CubeTensor,
+    run: &[usize],
+    output_dtype: Option<DType>,
+    strategy: KernelReduceStrategy,
+    config: ReduceOperation,
+) -> Result<CubeTensor, ReduceError> {
+    let mut shape = input.meta.shape().clone();
+    let rest = (0..shape.num_dims()).filter(|dim| !run.contains(dim));
+    let order: Vec<_> = run.iter().copied().chain(rest).collect();
+    let mut presented = permute(input, &order);
+    fold_leading_dims(&mut presented, run.len());
+    let mut output = reduce_dim(presented, output_dtype, 0, strategy, config)?;
+
+    // The surviving axes were presented in logical order and the reduction writes contiguously.
+    for &dim in run {
+        shape[dim] = 1;
+    }
+    *output.meta = Metadata::new(shape.clone(), burn_std::tensor::contiguous_strides(&shape));
+    Ok(output)
+}
+
+/// Sums a nonempty tensor over nonempty `dims` without narrowing any intermediate sums.
+pub(crate) fn sum_dims_single_pass(
+    input: CubeTensor,
+    dims: &[usize],
+) -> Result<CubeTensor, ReduceError> {
+    let input = crate::kernel::untile(input);
+    let shape = input.meta.shape();
+    let run = largest_run_memory_holds_together(shape, input.meta.strides(), dims);
+    let active_dims = dims.iter().filter(|&&dim| shape[dim] > 1).count();
+
+    if run.len() < active_dims {
+        return reduce_dims_copy(input, dims, ReduceOperation::Sum);
+    }
+    if run.is_empty() {
+        return reduce_dim(
+            input,
+            None,
+            dims[0],
+            Default::default(),
+            ReduceOperation::Sum,
+        );
+    }
+    reduce_folded_run(input, &run, None, Default::default(), ReduceOperation::Sum)
+}
+
 /// Presents the input as `[kept_elements, reduced_elements]`, copying when required.
 /// Restores the input rank with reduced axes at size one after a single reduction.
 pub(super) fn reduce_dims_copy(
@@ -243,7 +274,7 @@ pub(super) fn reduce_dims_copy(
 
     let presented = permute(input, &order);
     let folded = crate::ops::reshape(presented, Shape::new([kept_len, reduced_len]));
-    let mut output = reduce_dim(folded, None, 1, KernelReduceStrategy::Autotune, config)?;
+    let mut output = reduce_dim(folded, None, 1, Default::default(), config)?;
 
     let mut output_shape = original_shape;
     for dim in reduced {

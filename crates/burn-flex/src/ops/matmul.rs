@@ -160,7 +160,7 @@ fn broadcast_batch_dims(
             lhs_batch,
             rhs_batch
         );
-        broadcast_shape.push(ld.max(rd));
+        broadcast_shape.push(if ld == 1 { rd } else { ld });
         // Stride is 0 if dimension is 1 (broadcast), otherwise actual stride
         lhs_strides.push(if ld == 1 { 0 } else { lhs_stride });
         rhs_strides.push(if rd == 1 { 0 } else { rhs_stride });

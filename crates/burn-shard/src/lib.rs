@@ -22,6 +22,7 @@ pub use kind::{Linearity, OpKind, ReducedDims, ReductionKind};
 
 use resharding::Resharding;
 use rules::{
-    AlongDimRule, AttentionRule, ElementwiseRule, LayoutRule, MatmulRule, ReduceRule, ReshapeRule,
+    AlongDimRule, AttentionRule, ElementwiseRule, GridSampleRule, IndexNdRule, IndexRule,
+    LayoutRule, MatmulRule, ReduceRule, ReshapeRule,
 };
 use sharding::{OpInputs, OpOutputs, OpSharding, ShardMember};

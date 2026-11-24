@@ -197,6 +197,11 @@ focus more on _what_ the model should do, rather than on _how_ to do it. We take
 of making your code run as fast as possible during training as well as inference. The same
 principles apply to broadcasting; all operations support broadcasting unless specified otherwise.
 
+`Tensor::matmul` and elementwise operations such as tensor addition and multiplication take two
+tensors of the same rank. For example, `matmul` broadcasts the batch dimensions of `[2, 1, M, K]`
+and `[1, 4, K, N]` to give a result of shape `[2, 4, M, N]`. To multiply a single `[M, K]` matrix
+by a `[B, K, N]` batch, use `matrix.unsqueeze::<3>()` to give the matrix shape `[1, M, K]`.
+
 Here, we provide a list of all supported operations along with their PyTorch equivalents. Note that
 for the sake of simplicity, we ignore type signatures. For more details, refer to the
 [full documentation](https://docs.rs/burn/latest/burn/tensor/struct.Tensor.html).
@@ -389,6 +394,10 @@ Those operations are only available for `Float` tensors.
 | `tensor.log()`                               | `tensor.log()`                             |
 | `tensor.log1p()`                             | `tensor.log1p()`                           |
 | `tensor.matmul(other)`                       | `tensor.matmul(other)`                     |
+| `tensor.nan_max()`                           | N/A                                        |
+| `tensor.nan_max_dim(dim)`                    | N/A                                        |
+| `tensor.nan_min()`                           | N/A                                        |
+| `tensor.nan_min_dim(dim)`                    | N/A                                        |
 | `tensor.rad2deg()`                           | `torch.rad2deg()`                          |
 | `tensor.random(shape, distribution, device)` | N/A                                        |
 | `tensor.random_like(distribution)`           | `torch.rand_like()` only uniform           |

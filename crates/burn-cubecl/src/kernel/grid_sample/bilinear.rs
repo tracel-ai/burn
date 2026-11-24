@@ -41,7 +41,7 @@ fn grid_sample_bilinear_kernel<F: Float>(
     // Read grid coordinates once per spatial position
     let grid_offset = n * grid.stride(0) + h_out * grid.stride(1) + w_out * grid.stride(2);
     let gx = grid[grid_offset]; // x coordinate in [-1, 1]
-    let gy = grid[grid_offset + 1]; // y coordinate in [-1, 1]
+    let gy = grid[grid_offset + grid.stride(3)]; // y coordinate in [-1, 1]
 
     // Convert normalized coordinates to pixel coordinates
     let (px, py) = if align_corners {

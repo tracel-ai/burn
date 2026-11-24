@@ -1,6 +1,7 @@
 use self::unary_basic_int::BasicIntUnaryKind;
 use burn_backend::RandomKey;
 use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::ops::ReadFuture;
 
 use super::{expand, numeric, permute, unfold};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
@@ -15,12 +16,12 @@ use crate::{
         matmul::{MatmulStrategy, matmul},
     },
 };
+use burn_backend::Scalar;
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_backend::{DType, IntDType, Slice, ops::IntTensorOps};
 use burn_backend::{
     Distribution, ElementConversion, Shape, TensorData, get_or_init_device_settings,
 };
-use burn_backend::{ExecutionError, Scalar};
 use burn_std::{BoolDType, FloatDType};
 use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
@@ -33,8 +34,8 @@ impl IntTensorOps<Self> for CubeBackend {
         super::empty(shape, device, dtype)
     }
 
-    async fn int_into_data(tensor: IntTensor<Self>) -> Result<TensorData, ExecutionError> {
-        super::into_data(tensor).await
+    fn int_into_data(tensor: IntTensor<Self>) -> impl ReadFuture<TensorData> {
+        super::into_data(tensor)
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {

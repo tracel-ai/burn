@@ -35,6 +35,30 @@ pub enum OpKind<'a> {
     /// The entries of its first input along `dim` at the indices of its second, which every
     /// member reads whole.
     Select { dim: usize },
+    /// Its first input with its third written along `dim` at the indices of its second, which
+    /// every member reads whole.
+    SelectAssign { dim: usize },
+    /// Its first input indexed along `dim` entry by entry by its second, then written with its
+    /// third if it has one, like gather and scatter. Every input has the same number of dims.
+    Index { dim: usize },
+    /// The entries of its first input at the index tuples along its second's last dim, each tuple
+    /// addressing its leading dims.
+    GatherNd,
+    /// Its first input with the entries of its third written at the index tuples along its
+    /// second's last dim.
+    ScatterNd,
+    /// Its input reversed along `axes`.
+    Flip { axes: &'a [usize] },
+    /// Its input with `padding` before and after each dim.
+    Pad { padding: &'a [(usize, usize)] },
+    /// Its first input, of batch, channels, height and width, sampled at the points its second
+    /// gives each batch entry.
+    GridSample,
+    /// Made from its output's shape alone, with no inputs, like zeros.
+    Creation,
+    /// Its first input quantized by the scales of its second, then by its third's per-tensor
+    /// scale if it has one. Block scales have the input's dims, one entry per block.
+    Quantize,
     /// Attention of a query, key and value, then an optional mask or bias, or both.
     Attention,
 }
