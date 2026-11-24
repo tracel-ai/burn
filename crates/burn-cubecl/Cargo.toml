@@ -27,6 +27,7 @@ default = [
 ]
 std = [
     "cubecl/std",
+    "cubek/std",
     "burn-backend/std",
     "burn-fusion?/std",
     "burn-cubecl-fusion?/std",

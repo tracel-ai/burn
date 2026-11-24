@@ -272,6 +272,9 @@ jobs:
     env:
       # Use a smaller tuning search for correctness tests on the virtual GPU.
       CUBECL_AUTOTUNE_LEVEL: minimal
+      CUBEK_ATTENTION_MAX_CANDIDATES: "4"
+      # Start cold on every attempt and share results across its Metal test binaries.
+      CUBECL_ENVIRONMENT: metal-${{ github.run_id }}-${{ github.run_attempt }}
     # On 2026-11-07 the job was still passing suites when it reached 60 minutes.
     timeout-minutes: 120
     steps:
