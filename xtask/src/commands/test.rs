@@ -120,7 +120,6 @@ pub(crate) fn handle_backend_tests(
             &extension_packages,
             &extension_fusion_features,
             args.release,
-            &[],
             "linalg and signal fusion backend tests",
         )?;
     }
@@ -179,7 +178,6 @@ pub(crate) fn handle_backend_tests(
             &packages,
             &features,
             args.release,
-            &[],
             &format!("{backend_name} backend and extension tests"),
         )?;
     } else {
@@ -252,7 +250,6 @@ pub(crate) fn handle_backend_tests(
             &extension_packages,
             &extension_features,
             args.release,
-            &[],
             "extension backend tests",
         )?;
     }
@@ -298,7 +295,7 @@ fn handle_macos_tests(release: bool, fusion: bool) -> anyhow::Result<()> {
     ];
 
     if !fusion {
-        return run_test_group(
+        return run_test_group_with_args(
             &packages,
             &features,
             release,
@@ -325,7 +322,7 @@ fn handle_macos_tests(release: bool, fusion: bool) -> anyhow::Result<()> {
         "burn-vision/default",
         "burn-vision/wgpu-msl",
     ]);
-    run_test_group(
+    run_test_group_with_args(
         &fusion_packages,
         &fusion_features,
         release,
@@ -335,6 +332,15 @@ fn handle_macos_tests(release: bool, fusion: bool) -> anyhow::Result<()> {
 }
 
 fn run_test_group(
+    packages: &[&str],
+    features: &[&str],
+    release: bool,
+    description: &str,
+) -> anyhow::Result<()> {
+    run_test_group_with_args(packages, features, release, &[], description)
+}
+
+fn run_test_group_with_args(
     packages: &[&str],
     features: &[&str],
     release: bool,
