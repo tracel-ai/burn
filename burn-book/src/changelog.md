@@ -337,7 +337,8 @@ Reports also include the measured cost of a kernel launch.
 
 - `capture` on a remote device records and replays the graph on the server's device. One session
   captures per server device at a time. A replay that fails is the error of the next read or sync
-  on its stream. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+  on its stream, and a read after a replay returns what that replay wrote.
+  ([#6308](https://github.com/tracel-ai/burn/pull/6308))
 
 - `capture` works on a sharded compute device: each member records its own graph, collectives
   included, and a replay launches every member's at once. ([#6429](https://github.com/tracel-ai/burn/pull/6429))
@@ -513,6 +514,16 @@ included.
 - Fix a router tensor read that could find its tensor already dropped when another thread gave up
   the tensor's last other handle at the same moment, failing a sharded compute device's read with
   `no entry found for key`. ([#6405](https://github.com/tracel-ai/burn/pull/6405))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- A remote server queues a read in order with the work before it and takes its next request
+  without waiting for the copy, so a replayed graph queued after a read starts while the read is in
+  flight. A read after a replay returns what that replay wrote.
+  ([#6598](https://github.com/tracel-ai/burn/pull/6598))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- A backend panic while a router or remote server submits a read fails that read instead of ending
+  the session. ([#6598](https://github.com/tracel-ai/burn/pull/6598))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Sharded compute devices

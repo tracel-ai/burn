@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::{
-    BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
+    BoolDType, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::BoolTensorOps,
     tensor::{BoolTensor, FloatTensor, IndexingUpdateOp, IntTensor},
 };
@@ -22,8 +22,10 @@ impl BoolTensorOps<Self> for Dispatch {
         B::bool_ones(shape, device, dtype)
     }
 
-    async fn bool_into_data(tensor: BoolTensor<Self>) -> Result<TensorData, ExecutionError> {
-        B::bool_into_data(tensor).await
+    // A concrete type, so that a build with no backend, whose body is never reached, still has one.
+    #[allow(refining_impl_trait)]
+    fn bool_into_data(tensor: BoolTensor<Self>) -> crate::backend::BoxedRead<TensorData> {
+        alloc::boxed::Box::pin(B::bool_into_data(tensor))
     }
 
     fn bool_from_data(data: TensorData, device: &DispatchDevice) -> BoolTensor<Self> {

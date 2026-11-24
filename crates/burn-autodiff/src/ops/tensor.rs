@@ -1,5 +1,6 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 use burn_backend::RandomKey;
+use burn_backend::ops::ReadFuture;
 use core::marker::PhantomData;
 
 #[cfg(not(feature = "std"))]
@@ -21,7 +22,7 @@ use crate::{
 };
 
 use burn_backend::{
-    Backend, ExecutionError, TensorData, TensorMetadata, get_or_init_device_settings,
+    Backend, TensorData, TensorMetadata, get_or_init_device_settings,
     ops::FloatTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
@@ -144,8 +145,8 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             dtype = ?tensor.dtype(),
         )
     ))]
-    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
-        B::float_into_data(tensor.primitive).await
+    fn float_into_data(tensor: FloatTensor<Self>) -> impl ReadFuture<TensorData> {
+        B::float_into_data(tensor.primitive)
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(

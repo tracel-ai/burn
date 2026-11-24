@@ -21,12 +21,16 @@ where
     wasm_bindgen_futures::spawn_local(future);
 }
 
-/// Detached tasks that each send one response. Each holds a response sender, and the response
-/// queue stays open until every sender drops, so a failed session has to be able to stop them.
+/// Detached tasks that each send one response or hand a read on. A response task holds a
+/// response sender, and the response queue stays open until every sender drops, so a failed
+/// session has to be able to stop them.
 #[derive(Debug, Default)]
 pub(crate) struct ResponseTasks {
     #[cfg(not(target_family = "wasm"))]
-    running: Vec<tokio::task::AbortHandle>,
+    running: Vec<tokio::task::JoinHandle<()>>,
+    /// The end of each task still running, whose sender drops when it ends.
+    #[cfg(target_family = "wasm")]
+    running: Vec<tokio::sync::oneshot::Receiver<()>>,
 }
 
 impl ResponseTasks {
@@ -36,7 +40,7 @@ impl ResponseTasks {
         F: Future<Output = ()> + Send + 'static,
     {
         self.running.retain(|task| !task.is_finished());
-        self.running.push(tokio::spawn(future).abort_handle());
+        self.running.push(tokio::spawn(future));
     }
 
     #[cfg(target_family = "wasm")]
@@ -44,7 +48,25 @@ impl ResponseTasks {
     where
         F: Future<Output = ()> + 'static,
     {
-        spawn_detached(future);
+        self.running.retain_mut(|task| {
+            matches!(
+                task.try_recv(),
+                Err(tokio::sync::oneshot::error::TryRecvError::Empty)
+            )
+        });
+        let (ended, end) = tokio::sync::oneshot::channel();
+        self.running.push(end);
+        spawn_detached(async move {
+            let _ended = ended;
+            future.await;
+        });
+    }
+
+    /// Wait for every task still running.
+    pub(crate) async fn settle(&mut self) {
+        for task in self.running.drain(..) {
+            let _ = task.await;
+        }
     }
 
     /// Cancel every task still running; each drops its sender when the runtime next runs it.
@@ -62,6 +84,10 @@ pub(crate) struct CatchPanic<T>(Pin<Box<dyn Future<Output = T> + Send>>);
 impl<T> CatchPanic<T> {
     pub(crate) fn new(future: impl Future<Output = T> + Send + 'static) -> Self {
         Self(Box::pin(future))
+    }
+
+    pub(crate) fn from_boxed(future: Pin<Box<dyn Future<Output = T> + Send>>) -> Self {
+        Self(future)
     }
 }
 
@@ -126,5 +152,22 @@ mod tests {
 
         let closed = timeout(Duration::from_secs(10), responses.recv()).await;
         assert_eq!(closed, Ok(None));
+    }
+
+    #[tokio::test]
+    async fn settling_waits_for_every_running_task() {
+        let (release, released) = tokio::sync::oneshot::channel::<()>();
+        let (sender, mut responses) = mpsc::channel::<()>(1);
+        let mut tasks = ResponseTasks::default();
+        tasks.spawn(async move {
+            let _ = released.await;
+            sender.send(()).await.unwrap();
+        });
+        tokio::spawn(async move { release.send(()) });
+
+        timeout(Duration::from_secs(10), tasks.settle())
+            .await
+            .unwrap();
+        assert_eq!(responses.try_recv(), Ok(()));
     }
 }
