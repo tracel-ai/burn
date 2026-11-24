@@ -208,6 +208,8 @@ pub enum FuseOp {
     },
     /// Floating-point power with an i32 exponent.
     Powi(BinaryFuseArgs),
+    IsNan(UnaryFuseArgs),
+    BoolOr(BinaryFuseArgs),
 }
 
 impl Display for FuseOp {
@@ -219,6 +221,8 @@ impl Display for FuseOp {
             FuseOp::Div(args) => write!(f, "{} = {} / {}", args.out, args.lhs, args.rhs),
             FuseOp::Powf(args) => write!(f, "{} = powf({}, {})", args.out, args.lhs, args.rhs),
             FuseOp::Powi(args) => write!(f, "{} = powi({}, {})", args.out, args.lhs, args.rhs),
+            FuseOp::IsNan(args) => write!(f, "{} = is_nan({})", args.out, args.input),
+            FuseOp::BoolOr(args) => write!(f, "{} = {} || {}", args.out, args.lhs, args.rhs),
             FuseOp::Abs(args) => write!(f, "{} = abs({})", args.out, args.input),
             FuseOp::Exp(args) => write!(f, "{} = exp({})", args.out, args.input),
             FuseOp::Log(args) => write!(f, "{} = log({})", args.out, args.input),
@@ -331,6 +335,8 @@ impl FuseOp {
             FuseOp::Div(op) => op.lhs.precision().into_elem(),
             FuseOp::Powf(op) => op.lhs.precision().into_elem(),
             FuseOp::Powi(op) => op.lhs.precision().into_elem(),
+            FuseOp::IsNan(op) => op.input.precision().into_elem(),
+            FuseOp::BoolOr(_) => ElemType::Bool,
             FuseOp::Abs(op) => op.out.precision().into_elem(),
             FuseOp::Exp(op) => op.out.precision().into_elem(),
             FuseOp::Log(op) => op.out.precision().into_elem(),
@@ -731,6 +737,7 @@ impl FuseOp {
             | FuseOp::Div(binary_fuse_args)
             | FuseOp::Powf(binary_fuse_args)
             | FuseOp::Powi(binary_fuse_args)
+            | FuseOp::BoolOr(binary_fuse_args)
             | FuseOp::Equal(binary_fuse_args)
             | FuseOp::Lower(binary_fuse_args)
             | FuseOp::Greater(binary_fuse_args)
@@ -748,6 +755,7 @@ impl FuseOp {
                 binary_fuse_args.out.multi_block_variable(registers);
             }
             FuseOp::Abs(unary_fuse_args)
+            | FuseOp::IsNan(unary_fuse_args)
             | FuseOp::Exp(unary_fuse_args)
             | FuseOp::Log(unary_fuse_args)
             | FuseOp::Log1p(unary_fuse_args)

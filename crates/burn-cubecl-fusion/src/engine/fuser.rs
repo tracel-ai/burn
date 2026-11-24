@@ -7,8 +7,8 @@ use crate::engine::{codegen::ir::QuantSchemeFuse, scoring::Scoring};
 use burn_backend::cubecl::dtype_to_elem_type;
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
 use burn_ir::{
-    BaseOperationIr, BinaryOpIr, FloatOperationIr, IntOperationIr, NumericOperationIr, OperationIr,
-    ScalarOpIr, TensorIr, UnaryOpIr,
+    BaseOperationIr, BinaryOpIr, BoolOperationIr, FloatOperationIr, IntOperationIr,
+    NumericOperationIr, OperationIr, ScalarOpIr, TensorIr, UnaryOpIr,
 };
 use burn_std::{
     DType, Shape,
@@ -135,6 +135,15 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
                 if !self.fuse_numeric(ops) {
                     self.status = FuserStatus::Closed;
                     self.log_closed(op, prev_num_ops, "numeric fuse rejected");
+                    return;
+                }
+            }
+            OperationIr::Bool(BoolOperationIr::Or(desc)) => {
+                if !self.fuse_binary_ops(desc, |lhs, rhs, out| {
+                    FuseOp::BoolOr(BinaryFuseArgs { lhs, rhs, out })
+                }) {
+                    self.status = FuserStatus::Closed;
+                    self.log_closed(op, prev_num_ops, "bool fuse rejected");
                     return;
                 }
             }
@@ -495,6 +504,9 @@ impl TraceOperationFuser {
 
     fn fuse_float(&mut self, ops: &FloatOperationIr) -> bool {
         match ops {
+            FloatOperationIr::IsNan(desc) => self.fuse_unary_ops(desc, |input, out| {
+                FuseOp::IsNan(UnaryFuseArgs { input, out })
+            }),
             FloatOperationIr::Exp(desc) => {
                 self.fuse_unary_ops(desc, |input, out| FuseOp::Exp(UnaryFuseArgs { input, out }))
             }
