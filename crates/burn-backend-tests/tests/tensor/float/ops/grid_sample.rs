@@ -32,6 +32,30 @@ fn should_grid_sample_2d_default() {
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
+/// Tests grid_sample_2d with a grid whose last dimension is not contiguous, as produced by
+/// permuting a `[N, 2, H, W]` flow field. Same coordinates as `should_grid_sample_2d_default`.
+#[test]
+fn should_grid_sample_2d_permuted_grid() {
+    let device = Default::default();
+    let tensor = TestTensor::<4>::from_data(
+        [[[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]]],
+        &device,
+    );
+    // [N, 2, H_out, W_out]: x coordinates, then y coordinates
+    let flow = TestTensor::<4>::from_data(
+        [[[[0.0, -1.0], [1.0, 0.2]], [[0.0, 0.25], [1.0, -0.8]]]],
+        &device,
+    );
+    let grid = flow.permute([0, 2, 3, 1]);
+
+    let output = tensor.grid_sample_2d(grid, GridSampleMode::Bilinear);
+
+    let expected = TensorData::from([[[[4.0, 2.0625], [2.0, 1.04]]]]);
+    output
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
 /// Tests grid_sample_2d with align_corners=true and border padding.
 ///
 /// This is the original Burn semantics before the API change.
