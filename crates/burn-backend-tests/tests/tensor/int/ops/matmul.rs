@@ -1,6 +1,16 @@
 use super::*;
 use burn_tensor::TensorData;
 
+#[cfg(feature = "flex-rayon")]
+fn with_four_rayon_threads<T: Send>(f: impl FnOnce() -> T + Send) -> T {
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(4)
+        .build()
+        .expect("Failed to create Rayon thread pool");
+
+    pool.install(f)
+}
+
 #[test]
 fn test_int_matmul_d2() {
     let device = Default::default();
@@ -250,4 +260,205 @@ fn test_int_matmul_large_matches_naive() {
     output
         .into_data()
         .assert_eq(&TensorData::new(expected_batched, [2, m, n]), false);
+}
+
+fn assert_batched_i32_matmul_matches_naive(
+    lhs: Vec<i32>,
+    rhs: Vec<i32>,
+    lhs_batches: usize,
+    rhs_batches: usize,
+    m: usize,
+    k: usize,
+    n: usize,
+) {
+    let batch_size = lhs_batches.max(rhs_batches);
+
+    // Independent scalar reference implementation.
+    let mut expected = vec![0i32; batch_size * m * n];
+
+    for b in 0..batch_size {
+        let lhs_batch = if lhs_batches == 1 { 0 } else { b };
+        let rhs_batch = if rhs_batches == 1 { 0 } else { b };
+
+        for i in 0..m {
+            for j in 0..n {
+                let mut sum = 0i32;
+
+                for p in 0..k {
+                    let a = lhs[lhs_batch * m * k + i * k + p];
+                    let b = rhs[rhs_batch * k * n + p * n + j];
+
+                    sum = sum.wrapping_add(a.wrapping_mul(b));
+                }
+
+                expected[b * m * n + i * n + j] = sum;
+            }
+        }
+    }
+
+    let device = Default::default();
+
+    let lhs_tensor =
+        TestTensorInt::<3>::from_data(TensorData::new(lhs, [lhs_batches, m, k]), &device);
+
+    let rhs_tensor =
+        TestTensorInt::<3>::from_data(TensorData::new(rhs, [rhs_batches, k, n]), &device);
+
+    let output = lhs_tensor.matmul(rhs_tensor);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::new(expected, [batch_size, m, n]), false);
+}
+
+#[test]
+fn test_int_matmul_parallel_correctness_cases() {
+    // 1. Basic batched matrix multiplication.
+    assert_batched_i32_matmul_matches_naive(
+        vec![1, 2, 3, 4, 5, 6],
+        vec![1, 2, 3, 4, 5, 6],
+        1,
+        1,
+        2,
+        3,
+        2,
+    );
+
+    // 2. Multiple batches.
+    assert_batched_i32_matmul_matches_naive(
+        (0..4 * 2 * 3).map(|i| (i % 17) as i32 - 8).collect(),
+        (0..4 * 3 * 2).map(|i| (i % 13) as i32 - 6).collect(),
+        4,
+        4,
+        2,
+        3,
+        2,
+    );
+
+    // 3. Single batch with many output rows.
+    // Exercises row-level parallelism when Rayon is enabled.
+    assert_batched_i32_matmul_matches_naive(
+        (0..200 * 203).map(|i| (i % 17) as i32 - 8).collect(),
+        (0..203 * 197).map(|i| (i % 13) as i32 - 6).collect(),
+        1,
+        1,
+        200,
+        203,
+        197,
+    );
+
+    // 4. Broadcast RHS batch dimension.
+    assert_batched_i32_matmul_matches_naive(
+        (0..4 * 2 * 3).map(|i| (i % 17) as i32 - 8).collect(),
+        (0..3 * 2).map(|i| (i % 13) as i32 - 6).collect(),
+        4,
+        1,
+        2,
+        3,
+        2,
+    );
+
+    // 5. Broadcast LHS batch dimension.
+    assert_batched_i32_matmul_matches_naive(
+        (0..2 * 3).map(|i| (i % 17) as i32 - 8).collect(),
+        (0..4 * 3 * 2).map(|i| (i % 13) as i32 - 6).collect(),
+        1,
+        4,
+        2,
+        3,
+        2,
+    );
+
+    // 6. Uneven row chunks.
+    // Five rows cannot be evenly divided into typical parallel chunks.
+    assert_batched_i32_matmul_matches_naive(
+        (0..3 * 5 * 7).map(|i| (i % 17) as i32 - 8).collect(),
+        (0..3 * 7 * 4).map(|i| (i % 13) as i32 - 6).collect(),
+        3,
+        3,
+        5,
+        7,
+        4,
+    );
+}
+
+fn test_int_matmul_large_broadcast_lhs_matches_naive_inner() {
+    let (m, k, n) = (201, 203, 197);
+
+    // Two distinct matrices on each side, so incorrect batch offsets
+    // cannot accidentally produce the expected result.
+    let lhs0: Vec<i32> = (0..m * k).map(|i| (i % 17) as i32 - 8).collect();
+    let lhs1: Vec<i32> = (0..m * k).map(|i| (i % 19) as i32 - 9).collect();
+
+    let rhs0: Vec<i32> = (0..k * n).map(|i| (i % 13) as i32 - 6).collect();
+    let rhs1: Vec<i32> = (0..k * n).map(|i| (i % 11) as i32 - 5).collect();
+
+    // Scalar reference using the same wrapping arithmetic as i32 matmul.
+    let naive = |lhs: &[i32], rhs: &[i32]| {
+        let mut out = vec![0i32; m * n];
+
+        for i in 0..m {
+            for j in 0..n {
+                let mut sum = 0i32;
+
+                for p in 0..k {
+                    sum = sum.wrapping_add(lhs[i * k + p].wrapping_mul(rhs[p * n + j]));
+                }
+
+                out[i * n + j] = sum;
+            }
+        }
+
+        out
+    };
+
+    let device = Default::default();
+
+    // Case 1: Broadcast LHS.
+    //
+    // [1, 201, 203] x [2, 203, 197]
+    //     -> [2, 201, 197]
+    //
+    // Both output batches must use the same LHS matrix.
+    let expected_lhs_broadcast = [naive(&lhs0, &rhs0), naive(&lhs0, &rhs1)].concat();
+
+    let output = TestTensorInt::<3>::from_data(TensorData::new(lhs0.clone(), [1, m, k]), &device)
+        .matmul(TestTensorInt::from_data(
+            TensorData::new([rhs0.clone(), rhs1.clone()].concat(), [2, k, n]),
+            &device,
+        ));
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::new(expected_lhs_broadcast, [2, m, n]), false);
+
+    // Case 2: Broadcast RHS.
+    //
+    // [2, 201, 203] x [1, 203, 197]
+    //     -> [2, 201, 197]
+    //
+    // Both output batches must use the same RHS matrix.
+    let expected_rhs_broadcast = [naive(&lhs0, &rhs0), naive(&lhs1, &rhs0)].concat();
+
+    let output =
+        TestTensorInt::<3>::from_data(TensorData::new([lhs0, lhs1].concat(), [2, m, k]), &device)
+            .matmul(TestTensorInt::from_data(
+                TensorData::new(rhs0, [1, k, n]),
+                &device,
+            ));
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::new(expected_rhs_broadcast, [2, m, n]), false);
+}
+
+#[test]
+fn test_int_matmul_large_broadcast_lhs_matches_naive() {
+    #[cfg(feature = "flex-rayon")]
+    return with_four_rayon_threads(|| {
+        test_int_matmul_large_broadcast_lhs_matches_naive_inner();
+    });
+
+    #[cfg(not(feature = "flex-rayon"))]
+    test_int_matmul_large_broadcast_lhs_matches_naive_inner();
 }

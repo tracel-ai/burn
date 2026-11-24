@@ -367,6 +367,66 @@ macro_rules! bench_int_backend {
                     bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
             }
+
+            // Row-parallel workloads: too few batches to saturate Rayon.
+            // These specifically exercise parallelism across output rows.
+            #[divan::bench_group(name = "int_row_parallel")]
+            mod row_parallel {
+                use super::*;
+
+                #[divan::bench]
+                fn batch1_256x256(bencher: Bencher) {
+                    let (Some(a), Some(b)) = (
+                        make_int_batch_matrix(1, 256, 256),
+                        make_int_batch_matrix(1, 256, 256),
+                    ) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
+                }
+
+                #[divan::bench]
+                fn batch1_512x512(bencher: Bencher) {
+                    let (Some(a), Some(b)) = (
+                        make_int_batch_matrix(1, 512, 512),
+                        make_int_batch_matrix(1, 512, 512),
+                    ) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
+                }
+
+                #[divan::bench]
+                fn batch1_rectangular_512x256_256x384(bencher: Bencher) {
+                    let (Some(a), Some(b)) = (
+                        make_int_batch_matrix(1, 512, 256),
+                        make_int_batch_matrix(1, 256, 384),
+                    ) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
+                }
+
+                // Two batches: still fewer batches than many Rayon configurations.
+                #[divan::bench]
+                fn batch2_512x512(bencher: Bencher) {
+                    let (Some(a), Some(b)) = (
+                        make_int_batch_matrix(2, 512, 512),
+                        make_int_batch_matrix(2, 512, 512),
+                    ) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
+                }
+            }
         }
     };
 }

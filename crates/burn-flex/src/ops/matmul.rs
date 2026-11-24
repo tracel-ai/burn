@@ -668,7 +668,8 @@ fn dot_i32_simd<S: macerator::Simd>(a: &[i32], b: &[i32]) -> i32 {
 
 /// Batched i32 matmul: [B..., M, K] x [B..., K, N] -> [B..., M, N]
 ///
-/// Uses naive triple-loop with SIMD dot product and batch-level parallelism.
+/// Uses SIMD dot products and parallelizes either across batches
+/// or across output rows, depending on the available parallelism.
 fn matmul_batched_i32(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
     let lhs_shape = lhs.layout().shape();
     let rhs_shape = rhs.layout().shape();
@@ -725,16 +726,66 @@ fn matmul_batched_i32(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
     };
 
     #[cfg(feature = "rayon")]
-    if batch_size * m * k * n >= BATCH_PARALLEL_THRESHOLD && batch_size > 1 && out_matrix_size > 0 {
+    {
         use rayon::prelude::*;
-        output
-            .par_chunks_mut(out_matrix_size)
-            .enumerate()
-            .for_each(|(b, out_slice)| run_one(b, out_slice));
-    } else {
-        for b in 0..batch_size {
-            let offset = b * out_matrix_size;
-            run_one(b, &mut output[offset..offset + out_matrix_size]);
+
+        let operations = (batch_size as u128) * (m as u128) * (k as u128) * (n as u128);
+
+        if operations >= BATCH_PARALLEL_THRESHOLD as u128
+            && out_matrix_size > 0
+            && batch_size > 0
+            && m > 0
+        {
+            let threads = rayon::current_num_threads();
+
+            if batch_size >= threads {
+                // Parallelize across batches.
+                output
+                    .par_chunks_mut(out_matrix_size)
+                    .enumerate()
+                    .for_each(|(b, out_slice)| {
+                        run_one(b, out_slice);
+                    });
+            } else {
+                // Parallelize across batches and rows without
+                // allowing row chunks to cross batch boundaries.
+                let rows_per_task = m.div_ceil(threads * 4).max(1);
+
+                output
+                    .par_chunks_mut(out_matrix_size)
+                    .enumerate()
+                    .for_each(|(b, out_batch)| {
+                        let lhs_batch_idx =
+                            batch_index_to_offset(b, &broadcast_shape, &lhs_strides);
+
+                        let rhs_batch_idx =
+                            batch_index_to_offset(b, &broadcast_shape, &rhs_strides);
+
+                        let lhs_batch_offset = lhs_batch_idx * lhs_matrix_size;
+                        let rhs_t_offset = rhs_batch_idx * n * k;
+
+                        let lhs_batch = &lhs_data[lhs_batch_offset..lhs_batch_offset + m * k];
+
+                        let rhs_t_slice = &rhs_transposed[rhs_t_offset..rhs_t_offset + n * k];
+
+                        out_batch
+                            .par_chunks_mut(rows_per_task * n)
+                            .enumerate()
+                            .for_each(|(chunk_idx, out_chunk)| {
+                                let row_start = chunk_idx * rows_per_task;
+                                let rows = out_chunk.len() / n;
+
+                                let lhs_chunk = &lhs_batch[row_start * k..(row_start + rows) * k];
+
+                                matmul_rows_i32(lhs_chunk, rhs_t_slice, out_chunk, rows, n, k);
+                            });
+                    });
+            }
+        } else {
+            for b in 0..batch_size {
+                let offset = b * out_matrix_size;
+                run_one(b, &mut output[offset..offset + out_matrix_size]);
+            }
         }
     }
 
