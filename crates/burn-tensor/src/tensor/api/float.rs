@@ -1389,6 +1389,8 @@ fn nan_reduce_dim<const D: usize>(
     identity: f64,
     reduce: fn(Tensor<D>, usize) -> Tensor<D>,
 ) -> Tensor<D> {
+    // Dequantize before the empty-tensor check so empty and nonempty outputs have the same dtype.
+    let tensor = tensor.dequantize();
     // Nothing to mask: a zero-sized tensor either has an empty output or an empty reduced axis,
     // which `reduce` already handles (and rejects) the same way as the NaN-propagating version.
     if tensor.shape().num_elements() == 0 {
