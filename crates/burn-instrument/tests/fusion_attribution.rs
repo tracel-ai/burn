@@ -21,7 +21,7 @@ use std::sync::Mutex;
 use burn_instrument::{Breakdown, Component, ComponentPath, Instrument, Kernel, Unplaced, compute};
 use burn_tensor::activation::{gelu, sigmoid};
 use burn_tensor::{Device, Distribution, Tensor};
-use cubecl::config::{TypeNameFormatLevel, type_name_format};
+use cubecl::config::TypeNameFormatLevel;
 
 /// What `#[compute]` expands to, as a crate depending on `burn` sees it.
 mod burn {
@@ -377,7 +377,7 @@ impl fmt::Display for CaseBreakdown {
             writeln!(
                 f,
                 "{indent}· {} ×{} fuses {:?}",
-                type_name_format(&kernel.name, TypeNameFormatLevel::Short),
+                TypeNameFormatLevel::Short.format(&kernel.name),
                 kernel.launches,
                 printed(&kernel.fuses)
             )
