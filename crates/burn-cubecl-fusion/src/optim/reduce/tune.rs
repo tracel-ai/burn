@@ -13,7 +13,7 @@ use cubecl::{
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
 use cubek::reduce::kernels::{
-    ReduceCandidate, ReduceElements, ReduceKey, ReduceRoutineProblem, ReduceWorkspaceBytes,
+    ReduceCandidate, ReduceElements, ReduceKey, ReducePartials, ReduceRoutineProblem,
 };
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
@@ -105,7 +105,7 @@ fn reduce_key(info: &ReduceOptimizationInfo, tensors: &HashMap<TensorId, TensorI
     // The unfused reduce and the fused launch both give cubek scratch, which its key tells apart
     // from a call given none.
     ReduceKey::from(&ReduceRoutineProblem {
-        workspace: ReduceWorkspaceBytes::UNBOUNDED,
+        partials: Some(ReducePartials::default()),
         ..problem
     })
 }
