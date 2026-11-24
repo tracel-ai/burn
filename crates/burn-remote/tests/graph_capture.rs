@@ -20,6 +20,7 @@ use burn_tensor::{
     server::{RemoteServer, WebSocketTransport},
 };
 use serial_test::serial;
+use std::task::{Context, Waker};
 
 /// The input of [`step`], and what it makes of it.
 const INPUT: [f32; 4] = [1.0, 2.0, 3.0, 4.0];
@@ -138,21 +139,23 @@ fn a_remote_read_returns_what_the_replay_before_it_wrote() {
     assert!(graph.is_hardware(), "{:?}", graph.capture_error());
 
     let mut reads = Vec::new();
+    let mut cx = Context::from_waker(Waker::noop());
     for value in [1.0, 2.0, 3.0, 4.0] {
         input
             .borrow_mut()
             .inplace(|tensor| tensor.mul_scalar(0.0).add_scalar(value));
         let out = unsafe { graph.replay() }.clone();
-        let mut read = Box::pin(out.into_data_async());
-        // The first poll sends the read, so the next replay is queued before this one is awaited.
-        let _ = read
-            .as_mut()
-            .poll(&mut std::task::Context::from_waker(std::task::Waker::noop()));
-        reads.push((value, read));
+        let mut read = Box::pin(async move {
+            let data = out.into_data_async().await.unwrap();
+            assert_eq!(data.try_to_vec::<f32>().unwrap(), [value]);
+        });
+        // Submit the read before the next replay and keep it only if it still needs polling.
+        if read.as_mut().poll(&mut cx).is_pending() {
+            reads.push(read);
+        }
     }
-    for (value, read) in reads {
-        let data = burn_std::future::block_on(read).unwrap();
-        assert_eq!(data.to_vec::<f32>().unwrap(), [value]);
+    for read in reads {
+        burn_std::future::block_on(read);
     }
 
     drop(graph);

@@ -55,7 +55,8 @@ pub trait BoolTensorOps<B: Backend> {
 
     /// Converts the tensor to a data structure.
     ///
-    /// The returned future borrows nothing, so it can be awaited after more work is queued.
+    /// Reads the tensor's value as of this call. The caller may queue more work on the same
+    /// stream before awaiting the result.
     ///
     /// # Arguments
     ///

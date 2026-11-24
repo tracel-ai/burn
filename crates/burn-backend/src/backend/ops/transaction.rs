@@ -55,7 +55,8 @@ pub trait TransactionOps<B: Backend> {
     /// Executes a [transaction](TransactionPrimitive) and return its
     /// [data](TransactionPrimitiveData).
     ///
-    /// The returned future borrows nothing, as `float_into_data`'s does not.
+    /// Reads the tensors as of this call. The caller may queue more work on the same stream
+    /// before awaiting the result.
     fn tr_execute(
         transaction: TransactionPrimitive<B>,
     ) -> impl ReadFuture<TransactionPrimitiveData> {
