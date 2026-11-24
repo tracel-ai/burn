@@ -251,6 +251,8 @@ fn fuse(
             FuseOp::Powi(op) => powi::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Erf(op) => erf::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Sqrt(op) => sqrt::<E, N>(inputs, outputs, locals, pos, op, config),
+            FuseOp::IsNan(op) => is_nan::<E, N>(inputs, outputs, locals, pos, op, config),
+            FuseOp::BoolOr(op) => bool_or::<N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Abs(op) => abs::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Log(op) => log::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Log1p(op) => log1p::<E, N>(inputs, outputs, locals, pos, op, config),
@@ -447,9 +449,31 @@ macro_rules! unary_func {
             let input = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.input, config);
             let result = $func(input);
 
-            write::<C, N>(inputs, outputs, locals, write_pos, result, op.out, config);
+            write::<_, N>(inputs, outputs, locals, write_pos, result, op.out, config);
         }
     };
+}
+
+#[cube]
+fn bool_or<N: Size>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    write_pos: usize,
+    #[comptime] op: BinaryFuseArgs,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    let lhs = read::<bool, N>(inputs, &*outputs, &*locals, write_pos, op.lhs, config);
+    let rhs = read::<bool, N>(inputs, &*outputs, &*locals, write_pos, op.rhs, config);
+    write::<bool, N>(
+        inputs,
+        outputs,
+        locals,
+        write_pos,
+        lhs.or(rhs),
+        op.out,
+        config,
+    );
 }
 
 #[cube]
@@ -1145,6 +1169,7 @@ fn fmod_vector<F: Float, N: Size>(lhs: Vector<F, N>, rhs: Vector<F, N>) -> Vecto
     select_many(Vector::is_inf(rhs), inf_divisor, lhs % rhs)
 }
 
+unary_func!(is_nan, Vector::<C, N>::is_nan, Float);
 unary_func!(exp, Vector::<C, N>::exp, Float);
 unary_func!(log, Vector::<C, N>::ln, Float);
 unary_func!(log1p, Vector::<C, N>::log1p, Float);
