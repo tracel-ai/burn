@@ -117,25 +117,7 @@ fn run_as((lhs, rhs, out): Inputs) -> Inputs {
         let rank = tensor.meta.num_dims();
         swap_dims(tensor, rank - 2, rank - 1)
     };
-    (
-        transposed(rhs),
-        transposed(lhs),
-        dense_row_step(transposed(out)),
-    )
-}
-
-/// `out`, transposed to a single row per batch, with the stride a dense layout gives that row.
-///
-/// Swapped, the row keeps the column's stride of 1. It addresses nothing in a dim of extent 1, but
-/// a routine that merges the batch dims into rows takes it as the step between them, and writes
-/// every batch over the next.
-fn dense_row_step(mut out: CubeTensor) -> CubeTensor {
-    let rank = out.meta.num_dims();
-    if !out.meta.is_tiled() {
-        let step = out.meta.strides()[rank - 1] * out.meta.shape()[rank - 1];
-        out.meta.strides_mut()[rank - 2] = step;
-    }
-    out
+    (transposed(rhs), transposed(lhs), transposed(out))
 }
 
 /// `tensor`, the input stated over `dimensions`, as cubek's plan reads it: as stored, and
