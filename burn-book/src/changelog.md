@@ -616,6 +616,11 @@ whose tensors are split over `devices` (crate `burn-shard`).
   [#6062](https://github.com/tracel-ai/burn/pull/6062),
   [#6069](https://github.com/tracel-ai/burn/pull/6069))
 
+#### Grid sampling
+
+- Fix bilinear `grid_sample_2d` on CubeCL backends reading the wrong y coordinates when the grid's
+  last dimension is not contiguous, such as a `[N, 2, H, W]` flow field permuted to `[N, H, W, 2]`.
+
 #### Integer arithmetic overflow
 
 - Wrap integer arithmetic on overflow on Flex, as release builds and CubeCL backends already did.
