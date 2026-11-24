@@ -199,6 +199,8 @@ pub enum FuseOp {
         inputs: Vec<FuseArg>,
         output: FuseArg,
         dim: usize,
+        /// Slot in the global concat arguments.
+        concat_pos: usize,
     },
     Dequantize {
         values: FuseArg,
@@ -293,6 +295,7 @@ impl Display for FuseOp {
                 inputs,
                 output,
                 dim,
+                ..
             } => {
                 write!(f, "{output} = cat(inputs=[")?;
                 for (i, input) in inputs.iter().enumerate() {
@@ -388,6 +391,8 @@ pub struct GlobalArgs {
     /// When there are no metadata as a reference layout, we provide runtime shape/strides in this
     /// sequence instead.
     pub runtime_layouts: Sequence<usize>,
+    /// Segment boundaries and read layouts for the concatenations in this trace.
+    pub concats: Sequence<ConcatArgs>,
     /// Variables shared between blocks.
     pub variables: MultiBlockVariables,
 }
@@ -482,6 +487,7 @@ impl Default for GlobalArgsLaunch {
             reshapes: Default::default(),
             variables: Default::default(),
             runtime_layouts: Default::default(),
+            concats: Default::default(),
         }
     }
 }
@@ -680,6 +686,20 @@ pub enum FuseType {
     U8,
 }
 
+/// Runtime segment boundaries and compile-time layout decisions for one concat.
+#[derive(CubeType, CubeLaunch, Clone)]
+#[expand(derive(Clone))]
+pub struct ConcatArgs {
+    /// Exclusive ends of all but the last input along the concat axis.
+    pub boundaries: Sequence<usize>,
+    /// Each output vector lies wholly inside a segment.
+    #[cube(comptime)]
+    pub whole_vectors: bool,
+    /// Inputs and reference both follow contiguous logical dimension order.
+    #[cube(comptime)]
+    pub contiguous: bool,
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 /// Configuration that encapsulates all comptime information necessary for element wise fusion.
 pub struct FuseBlockConfig {
@@ -812,11 +832,7 @@ impl FuseOp {
                 indices.multi_block_variable(registers);
                 output.multi_block_variable(registers);
             }
-            FuseOp::Cat {
-                inputs,
-                output,
-                dim: _,
-            } => {
+            FuseOp::Cat { inputs, output, .. } => {
                 for input in inputs {
                     input.multi_block_variable(registers);
                 }

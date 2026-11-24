@@ -447,11 +447,7 @@ impl TraceOperationFuser {
 
                     let output = build.output(&desc.out)?;
 
-                    build.fuse_operation(FuseOp::Cat {
-                        inputs: tensors,
-                        output,
-                        dim: desc.dim,
-                    });
+                    build.fuse_cat(tensors, output, desc.dim);
 
                     Some(())
                 })

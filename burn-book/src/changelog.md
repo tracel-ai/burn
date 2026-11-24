@@ -300,6 +300,10 @@ Reports also include the measured cost of a kernel launch.
 
 #### Fusion
 
+- Speed up fused concatenation on CubeCL backends by selecting inputs from precomputed segment
+  boundaries and reading aligned output vectors from a single input.
+  ([#6337](https://github.com/tracel-ai/burn/pull/6337)) [@EthanAlmloff](https://github.com/EthanAlmloff)
+
 - Reduce fusion's CPU overhead by skipping unnecessary reduction-fuser resets.
   ([#6036](https://github.com/tracel-ai/burn/pull/6036)) [@louisfd](https://github.com/louisfd)
 
