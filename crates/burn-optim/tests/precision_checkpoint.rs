@@ -3,7 +3,9 @@ use burn_core::{
     module::Param,
     tensor::{DType, Device, FloatDType, Tensor},
 };
-use burn_optim::{AdamWConfig, GradientsParams, ModuleOptimizer, OptimizerPrecision};
+use burn_optim::{
+    AdamMomentStorage, AdamWConfig, GradientsParams, ModuleOptimizer, OptimizerPrecision,
+};
 use burn_pack::Reader;
 
 fn step(optimizer: &mut ModuleOptimizer, param: Param<Tensor<1>>, grad: f32) -> Param<Tensor<1>> {
@@ -22,7 +24,8 @@ fn checkpoint_preserves_master_and_moments_on_f16_default_device() {
     let param = Param::from_tensor(Tensor::<1>::from_data([1.0], &device.clone().autodiff()));
     let adamw = AdamWConfig::new().with_amsgrad(true).with_weight_decay(0.0);
     let create = || {
-        let policy = OptimizerPrecision::new(FloatDType::F32).with_state_storage(FloatDType::BF16);
+        let policy = OptimizerPrecision::new(FloatDType::F32)
+            .with_state_storage(AdamMomentStorage::new(FloatDType::BF16, FloatDType::BF16));
         ModuleOptimizer::from(policy.wrap_with_master_weights(adamw.build()))
     };
 
@@ -35,7 +38,17 @@ fn checkpoint_preserves_master_and_moments_on_f16_default_device() {
 
     // Bare and wrapped AdamW read the same named statistics with different dtype policies.
     let bare = adamw.init().from_bytes(bytes).unwrap();
-    let bare = Reader::from_bytes(bare.into_bytes().unwrap())
+    let bare_bytes = bare.into_bytes().unwrap();
+    // The ordinary record stores the optional AMSGrad maximum as a plain tensor leaf.
+    let imported = create().from_bytes(bare_bytes.clone()).unwrap();
+    let imported = Reader::from_bytes(imported.into_bytes().unwrap()).unwrap();
+    assert!(
+        imported
+            .tensor_names()
+            .iter()
+            .any(|name| name.ends_with(".max_moment_2"))
+    );
+    let bare = Reader::from_bytes(bare_bytes)
         .unwrap()
         .into_tensors()
         .unwrap();

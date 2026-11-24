@@ -217,15 +217,14 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
             FieldKind::OptionNested(inner) => {
                 flatten.push(quote! {
                     if let Some(value) = &self.#ident {
-                        out.push_scalar(prefix, #leaf, true.into());
                         let __path = __optim::join_path(prefix, #leaf);
-                        __optim::RecordState::state_flatten(value, &__path, out);
+                        out.push_present(&__path, value);
                     }
                 });
                 unflatten.push(quote! {
                     let #ident = {
                         let __path = __optim::join_path(prefix, #leaf);
-                        if src.take_scalar(prefix, #leaf) == Some(__optim::__private::Scalar::Bool(true)) || src.has_under(&__path) {
+                        if src.has_record(&__path) {
                             <#inner as __optim::RecordState>::state_unflatten(&__path, src, device)
                         } else {
                             None

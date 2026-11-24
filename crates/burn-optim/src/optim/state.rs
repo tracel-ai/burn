@@ -50,6 +50,15 @@ pub struct StateSink {
 }
 
 impl StateSink {
+    /// Record a present optional component, marking its presence if it emits no leaves.
+    pub fn push_present<T: RecordState>(&mut self, path: &str, value: &T) {
+        let leaves = self.tensors.len() + self.scalars.len();
+        value.state_flatten(path, self);
+        if self.tensors.len() + self.scalars.len() == leaves {
+            self.push_scalar("", path, true.into());
+        }
+    }
+
     /// Record a tensor leaf named `{prefix}.{leaf}`.
     pub fn push_tensor(&mut self, prefix: &str, leaf: &str, data: TensorData) {
         self.tensors.push((join_path(prefix, leaf), data));
@@ -85,6 +94,11 @@ impl StateSource {
     /// Register a tensor under its full `name`.
     pub fn insert_tensor(&mut self, name: String, data: TensorData) {
         self.tensors.insert(name, data);
+    }
+
+    /// Whether a component has a leaf or a presence marker at or below its path.
+    pub fn has_record(&self, path: &str) -> bool {
+        self.tensors.contains_key(path) || self.scalars.contains_key(path) || self.has_under(path)
     }
 
     /// Take the tensor named `{prefix}.{leaf}`, if present.
@@ -146,13 +160,24 @@ pub trait RecordState: Sized + Send + Sync + 'static {
 
     /// Rebuild a value from `src`, reading leaves named under `prefix`.
     ///
-    /// Returns `None` when a required leaf is absent. The derive uses [`StateSource::has_under`] to
+    /// Returns `None` when a required leaf is absent. The derive uses [`StateSource::has_record`] to
     /// restore optional nested states in older records. An explicit presence marker preserves
     /// present nested states whose leaves are all absent.
     ///
     /// A scalar leaf that is present but holds an incompatible [`Scalar`] variant (e.g. a
     /// hand-edited or forward-version file) is treated the same as absent.
     fn state_unflatten(prefix: &str, src: &mut StateSource, device: &Device) -> Option<Self>;
+}
+
+/// A single tensor occupies the component's own record path.
+impl<const D: usize, K: Basic + 'static> RecordState for Tensor<D, K> {
+    fn state_flatten(&self, prefix: &str, out: &mut StateSink) {
+        out.push_tensor("", prefix, self.to_data());
+    }
+
+    fn state_unflatten(prefix: &str, src: &mut StateSource, device: &Device) -> Option<Self> {
+        src.read_tensor("", prefix, device)
+    }
 }
 
 /// The empty state — for stateless values (e.g. a constant learning rate scheduler).

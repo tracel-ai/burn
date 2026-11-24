@@ -1,3 +1,4 @@
+mod adam;
 mod config;
 mod device_mapper;
 mod mappable;
@@ -6,7 +7,10 @@ mod master;
 mod optimizer;
 mod path;
 mod state;
+mod statistic;
 mod storage;
+pub use adam::AdamMomentStorage;
+pub use statistic::StatisticCodec;
 pub use storage::*;
 
 pub use config::*;

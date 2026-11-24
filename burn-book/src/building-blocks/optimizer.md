@@ -175,37 +175,31 @@ cast to compute dtype precede clipping.
 
 ### Choosing storage per statistic
 
-A storage mapper receives the path and tensor of each statistic. For Adam and AdamW, this example
-rounds only the first moment. The second moment and optional AMSGrad maximum stay in compute
-precision. A mapper can also inspect the tensor shape to keep small statistics in full precision.
+Adam and AdamW share `AdamMomentStorage`. Give it the codecs for the first and second moments.
+The AMSGrad maximum uses the second codec by default. Use `with_maximum` when it needs its own
+representation. This policy rounds only the first moment to BF16.
 
 ```rust,ignore
-use burn::optim::{AdamWConfig, OptimizerPrecision, OptimizerStateMapper, StatePath};
-use burn::tensor::{FloatDType, Tensor};
+use burn::optim::{AdamConfig, AdamMomentStorage, AdamWConfig, OptimizerPrecision};
+use burn::tensor::FloatDType;
 
-#[derive(Clone)]
-struct MomentStorage;
-
-impl OptimizerStateMapper for MomentStorage {
-    fn map<const D: usize>(&self, tensor: Tensor<D>, path: &StatePath<'_>) -> Tensor<D> {
-        if path.matches(&["momentum", "moment_1"]) {
-            tensor.cast(FloatDType::BF16)
-        } else {
-            tensor
-        }
-    }
-}
-
-let adamw = OptimizerPrecision::new(FloatDType::F32)
-    .with_state_storage(MomentStorage)
-    .wrap(AdamWConfig::new().build());
+let moments = AdamMomentStorage::new(FloatDType::BF16, FloatDType::F32);
+let precision = OptimizerPrecision::new(FloatDType::F32).with_state_storage(moments);
+let adam = precision.wrap(AdamConfig::new().build());
+let adamw = precision.wrap_with_master_weights(AdamWConfig::new().build());
 ```
 
-Use a mapper when casting each stored tensor recovers its numerical value. If an encoding needs
-additional tensors or a different decoder, implement `OptimizerStateStorage<MyOptimizer>`.
-Its `Stored<D>` is a regular `RecordState` and can own integer codes, block scales, and counters.
-Implement `store`, `restore`, and `to_device` for that representation. The parameter and its
-optional master stay outside this record.
+To supply your own format, implement `StatisticCodec` for a type in your crate. Its
+`encode` method takes one floating-point tensor. Its `Encoded<D>` can be a tensor or a struct
+deriving `RecordState`, such as integer codes and a scale per block. Implement `decode` to recover
+the original shape in the requested compute dtype, and `to_device` to move all encoded leaves.
+Pass your codec directly to `AdamMomentStorage::new(my_codec, FloatDType::F32)`. Burn handles the
+step counter, optional maximum and checkpoint paths. Adam and AdamW use the same row-wise encoder
+in the [downstream codec example](https://github.com/tracel-ai/burn/blob/main/crates/burn-optim/tests/state_storage.rs).
+
+For other state layouts, an `OptimizerStateMapper` can select self-describing tensor formats by
+record path. Implement `OptimizerStateStorage<MyOptimizer>` to define a whole-record policy
+that delegates individual tensors to the same `StatisticCodec` implementations.
 
 Resume from a matching model checkpoint with the same group definitions and storage policy.
 Checkpoints persist the stored tensors in their actual dtypes and include any master weights.

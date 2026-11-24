@@ -1125,7 +1125,8 @@ For example, update custom progress logger implementations:
 #### Optimizer precision
 
 - Use `OptimizerPrecision` to evaluate updates in a chosen dtype, optionally retain master weights,
-  and choose checkpointable storage per statistic or parameter group.
+  and choose checkpointable storage per statistic or parameter group. Adam and AdamW accept reusable
+  `StatisticCodec` implementations for individual moments through `AdamMomentStorage`.
 
 #### Optimizer-step metrics
 
