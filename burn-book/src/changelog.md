@@ -627,6 +627,7 @@ whose tensors are split over `devices` (crate `burn-shard`).
   vector-matrix products. It now multiplies in f32 and rounds once, as bf16 already did. Large f16
   products take up to about 1.25 times as long, and vector-matrix products about 6 times. The f16
   and bf16 conversions are split across threads with the `rayon` feature.
+  ([#6608](https://github.com/tracel-ai/burn/pull/6608))
 
 #### Integer arithmetic overflow
 
