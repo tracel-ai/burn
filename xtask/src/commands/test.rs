@@ -37,6 +37,8 @@ pub enum CiTestType {
     // Other runners
     GithubRunner,
     GithubMacRunner,
+    GithubMacRunnerFused,
+    GithubMacRunnerUnfused,
     GcpCudaRunner,
     GcpVulkanRunner,
     GcpWgpuRunner,
@@ -274,14 +276,14 @@ fn run_crate_unit_tests(packages: &[&str], args: &TestCmdArgs) -> anyhow::Result
 ///
 /// The suites run on wgpu's Metal path: cubecl's own Metal runtime needs Metal 3, which the
 /// GitHub macOS runners' paravirtual device lacks.
-fn handle_macos_tests(release: bool) -> anyhow::Result<()> {
+fn handle_macos_tests(release: bool, fusion: bool) -> anyhow::Result<()> {
     set_burn_device("wgpu-msl");
 
     let packages = ["burn-backend-tests", "burn-linalg", "burn-signal"];
     let features = [
         "burn-backend-tests/wgpu-msl",
         "burn-backend-tests/std",
-        // Keep autotune results across test binaries in both Metal configurations.
+        // Reuse autotune results across test binaries in this configuration.
         "burn-backend-tests/persistence",
         "burn-linalg/wgpu-msl",
         "burn-linalg/std",
@@ -291,6 +293,10 @@ fn handle_macos_tests(release: bool) -> anyhow::Result<()> {
         "burn-signal/autodiff",
         "burn-signal/autotune",
     ];
+
+    if !fusion {
+        return run_test_group(&packages, &features, release, "Metal without fusion");
+    }
 
     let mut fusion_packages = packages.to_vec();
     fusion_packages.extend(["burn-wgpu", "burn-core", "burn-vision"]);
@@ -315,8 +321,7 @@ fn handle_macos_tests(release: bool) -> anyhow::Result<()> {
         &fusion_features,
         release,
         "Metal with fusion",
-    )?;
-    run_test_group(&packages, &features, release, "Metal without fusion")
+    )
 }
 
 fn run_test_group(
@@ -609,8 +614,11 @@ pub(crate) fn handle_command(
                     )?;
                 }
                 CiTestType::GithubMacRunner => {
-                    handle_macos_tests(args.release)?;
+                    handle_macos_tests(args.release, true)?;
+                    handle_macos_tests(args.release, false)?;
                 }
+                CiTestType::GithubMacRunnerFused => handle_macos_tests(args.release, true)?,
+                CiTestType::GithubMacRunnerUnfused => handle_macos_tests(args.release, false)?,
                 CiTestType::GcpCudaRunner => {
                     handle_backend_tests(
                         args.clone().try_into().unwrap(),

@@ -269,6 +269,10 @@ jobs:
   macos-std-tests:
     runs-on: blaze/macos-15
     needs: [prepare-checks, code-quality]
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [fused, unfused]
     env:
       # Use a smaller tuning search for correctness tests on the virtual GPU.
       CUBECL_AUTOTUNE_LEVEL: minimal
@@ -285,11 +289,11 @@ jobs:
         uses: tracel-ai/github-actions/install-rust@v12
         with:
           rust-toolchain: stable
-          cache-key: stable-macos
+          cache-key: stable-macos-${{ matrix.mode }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Device check
         run: system_profiler SPHardwareDataType
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask test --release --ci github-mac-runner
+        run: cargo xtask test --release --ci github-mac-runner-${{ matrix.mode }}
