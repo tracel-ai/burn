@@ -120,6 +120,7 @@ pub(crate) fn handle_backend_tests(
             &extension_packages,
             &extension_fusion_features,
             args.release,
+            &[],
             "linalg and signal fusion backend tests",
         )?;
     }
@@ -178,6 +179,7 @@ pub(crate) fn handle_backend_tests(
             &packages,
             &features,
             args.release,
+            &[],
             &format!("{backend_name} backend and extension tests"),
         )?;
     } else {
@@ -250,6 +252,7 @@ pub(crate) fn handle_backend_tests(
             &extension_packages,
             &extension_features,
             args.release,
+            &[],
             "extension backend tests",
         )?;
     }
@@ -295,7 +298,13 @@ fn handle_macos_tests(release: bool, fusion: bool) -> anyhow::Result<()> {
     ];
 
     if !fusion {
-        return run_test_group(&packages, &features, release, "Metal without fusion");
+        return run_test_group(
+            &packages,
+            &features,
+            release,
+            &["--no-fail-fast"],
+            "Metal without fusion",
+        );
     }
 
     let mut fusion_packages = packages.to_vec();
@@ -320,6 +329,7 @@ fn handle_macos_tests(release: bool, fusion: bool) -> anyhow::Result<()> {
         &fusion_packages,
         &fusion_features,
         release,
+        &["--no-fail-fast"],
         "Metal with fusion",
     )
 }
@@ -328,6 +338,7 @@ fn run_test_group(
     packages: &[&str],
     features: &[&str],
     release: bool,
+    extra_args: &[&str],
     description: &str,
 ) -> anyhow::Result<()> {
     // An empty discovered group must not turn into an implicit workspace test.
@@ -336,6 +347,7 @@ fn run_test_group(
     }
     let features = features.join(",");
     let mut args = vec!["test", "--color", "always", "--no-default-features"];
+    args.extend_from_slice(extra_args);
     for package in packages {
         args.extend(["-p", package]);
     }

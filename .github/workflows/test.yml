@@ -290,8 +290,30 @@ jobs:
         with:
           rust-toolchain: stable
           cache-key: stable-macos-${{ matrix.mode }}
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          enable-cache: "false"
       # --------------------------------------------------------------------------------
+      # Temporary until the fix in tracel-ai/cubecl#2288 reaches our CubeCL pin.
+      - name: Apply the upstream Metal correctness fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=066ee5677716903ebb8a13f684a082deef87a729
+          fix=14de238a289fc1ca1722d06a3379845154230020
+          cubecl="$RUNNER_TEMP/cubecl"
+          git init -q "$cubecl"
+          git -C "$cubecl" fetch -q --depth=2 https://github.com/tracel-ai/cubecl "$base" "$fix"
+          git -C "$cubecl" checkout -q --detach "$base"
+          git -C "$cubecl" diff "$fix^" "$fix" | git -C "$cubecl" apply --index
+
+          # Keep all CubeCL crates on the same patched source for this job.
+          echo '[patch."https://github.com/tracel-ai/cubecl"]' >> .cargo/config.toml
+          for manifest in "$cubecl"/crates/cubecl*/Cargo.toml; do
+            crate_dir=${manifest%/Cargo.toml}
+            crate=${crate_dir##*/}
+            if grep -Fxq "name = \"$crate\"" Cargo.lock; then
+              printf '%s = { path = "%s" }\n' "$crate" "$crate_dir" >> .cargo/config.toml
+            fi
+          done
       - name: Device check
         run: system_profiler SPHardwareDataType
       # --------------------------------------------------------------------------------
