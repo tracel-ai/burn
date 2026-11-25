@@ -6,7 +6,7 @@ mod tune;
 pub mod utils;
 
 pub use base::*;
-pub use tune::MatmulAutotuneGroups;
 #[cfg(any(feature = "fusion", test))]
 pub(crate) use tune::fastest_routine;
+pub use tune::{MatmulAutotuneGroups, m_grouped, routed};
 pub use utils::*;

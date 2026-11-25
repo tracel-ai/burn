@@ -57,7 +57,6 @@ autotune-checks = [
     "dep:bytemuck",
     "dep:half",
     "cubecl/autotune-checks",
-    "cubek/autotune-checks",
     "burn-cubecl-fusion?/autotune-checks",
 ]
 
