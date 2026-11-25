@@ -93,9 +93,13 @@ fn launch_tuned(
 /// The routine, at its setting, `autotune` settled as the fastest for `call`, its groups at
 /// `groups`: `None` until the tuner has settled one for the call's key, and where the winner is no
 /// routine. What a caller that launches the routine itself, into a sink of its own, asks: the
-/// fused matmul.
+/// fused matmul, or a custom operation that writes the product with an epilogue of its own.
+///
+/// # Guarantees
+///
+/// Reads the tuner and never races: a key no launch has settled yet answers `None`.
 #[cfg(any(feature = "fusion", test))]
-pub(crate) fn fastest_routine(
+pub fn fastest_routine(
     autotune: MatmulAutotune,
     call: &MatmulCall,
     groups: MatmulAutotuneGroups,
