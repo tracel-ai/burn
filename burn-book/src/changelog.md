@@ -140,9 +140,11 @@ and saved on any device that reaches its storage, a remote server's included.
   `AutotuneAnswer` trimmed to its pick, and `ComputeEnvironment::merge_answers` brings them into
   another environment, whose work then loads them instead of measuring. Answers of another CubeCL
   version's tables are left out, and one picking past the end of its candidates is tuned again.
-  **Breaking:** `Pruned` gains `answers`, `EnvironmentOrigin` gains `Answers`, and `ReadBundle`
-  requires `used_answers`. Remote clients and servers must be upgraded together (protocol version
-  17).
+  `Device::hardware_identities` names the hardware answers hold for, every member's on a sharded
+  compute device and the server's on a remote one.
+  **Breaking:** `CubeCapabilities` gains `hardware`, `Pruned` gains `answers`, `EnvironmentOrigin`
+  gains `Answers`, and `ReadBundle` requires `used_answers`. Remote clients and servers must be
+  upgraded together (protocol version 17).
 
 #### CubeK tile kernels
 

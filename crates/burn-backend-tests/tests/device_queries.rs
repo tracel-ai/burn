@@ -103,6 +103,22 @@ fn a_cubecl_device_states_its_capabilities() {
     }
 }
 
+/// A cubecl device names the one hardware its measurements hold for, as its own client does. A
+/// remote device names its server's.
+#[cfg(feature = "cube")]
+#[test]
+fn a_cubecl_device_names_its_hardware() {
+    let device = Device::default();
+
+    let hardware = device.hardware_identities();
+
+    assert_eq!(hardware.len(), 1, "{hardware:?}");
+    assert!(!hardware[0].is_empty());
+    if let burn_dispatch::DispatchDevice::Cube(local) = device.as_dispatch() {
+        assert_eq!(hardware[0], local.client().hardware_identity().to_string());
+    }
+}
+
 /// Every key is answered, in order: a peak, or why there is none — a matrix tile no hardware
 /// implements is unsupported rather than a failure of the others.
 #[test]

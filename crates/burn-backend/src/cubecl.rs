@@ -8,6 +8,7 @@
 //! `burn-backend` (with the `cubecl` feature) and call these functions
 //! explicitly.
 
+use alloc::string::String;
 use burn_std::{
     BoolStore, DType, QuantScheme, QuantStore, QuantValue, distributed::ReduceOperation,
 };
@@ -35,14 +36,18 @@ pub use cubecl::std::throughput::{
 };
 
 /// What a cubecl device can do, as its runtime states it once the device is
-/// open: the features, limits and memory it reports, its identity, and the
-/// target its kernels compile for. What a kernel written in cubecl selects its
-/// routines by, so a device whose work runs elsewhere — a remote device's
-/// server — answers it from there.
+/// open: the features, limits and memory it reports, its identity, the
+/// hardware it is, and the target its kernels compile for. What a kernel
+/// written in cubecl selects its routines by, so a device whose work runs
+/// elsewhere, as a remote device's does on its server, answers it from there.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CubeCapabilities {
     /// The features, limits, memory and identity the runtime reports.
     pub properties: cubecl::ir::DeviceProperties,
+    /// The hardware the device is, as the client's `hardware_identity` writes
+    /// it: what is measured on one device holds for every device of the same
+    /// hardware, and autotune answers are kept under it.
+    pub hardware: String,
     /// The target the runtime compiles kernels for.
     pub target: cubecl::ir::TargetProperties,
 }

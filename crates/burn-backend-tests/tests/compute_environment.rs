@@ -272,7 +272,7 @@ fn a_prune_keeping_the_records_removes_none() {
 
 /// The answers a saved environment's work used, brought into another
 /// environment, are the ones the work there runs by: it measures none, and they
-/// come back as used.
+/// come back as used. Each is held in a table of the hardware it was measured on.
 #[test]
 #[serial]
 #[cfg(feature = "persistence")]
@@ -284,6 +284,12 @@ fn answers_brought_into_an_environment_are_loaded_and_given_back() {
     let (measured, _) = built(&device, "answers-measured", shape);
     let answers = measured.save().unwrap().used_answers().unwrap();
     assert!(!answers.is_empty());
+    #[cfg(feature = "cube")]
+    for hardware in device.hardware_identities() {
+        for answer in &answers {
+            assert!(answer.table.contains(&hardware), "{hardware}: {answer:?}");
+        }
+    }
 
     let brought = ComputeEnvironment::new(&device, "answers-brought").unwrap();
     brought.merge_answers(answers.clone()).unwrap();
