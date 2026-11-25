@@ -20,6 +20,21 @@ macro_rules! backend_matrix {
     };
 }
 
+// Expose the binding's configuration to burn-tensor, where dispatch's build cfg is unavailable.
+#[cfg(external_backend)]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! with_external_backend {
+    ($($items:tt)*) => { $($items)* };
+}
+
+#[cfg(all(feature = "external", not(external_backend)))]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! with_external_backend {
+    ($($items:tt)*) => {};
+}
+
 #[cfg(feature = "autodiff")]
 /// Helper to map the runtime strategy to the compile-time Autodiff generic.
 macro_rules! with_autodiff_backend {

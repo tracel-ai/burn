@@ -272,8 +272,8 @@ Reports also include the measured cost of a kernel launch.
 #### External backends
 
 - Enable `external` and patch `burn-external` in the application workspace to compile a third-party
-  backend into Burn's runtime dispatch. Tensors and `#[backend_extension(External)]` dispatch
-  directly to the selected backend.
+  backend into Burn's runtime dispatch. Wrap native devices with `Device::external`. Tensors and
+  `#[backend_extension(External)]` dispatch directly to the selected backend.
 
 #### Flex SIMD operations
 

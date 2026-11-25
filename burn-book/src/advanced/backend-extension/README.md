@@ -130,7 +130,7 @@ Use the native device from the vendor crate to create a Burn device.
 
 ```rust,ignore
 use burn::{
-    backend::{Dispatch, DispatchDevice, External, backend_extension, tensor::FloatTensor},
+    backend::{Dispatch, External, backend_extension, tensor::FloatTensor},
     tensor::{Device, Tensor},
 };
 
@@ -144,7 +144,7 @@ pub trait Square: burn::backend::Backend {
 impl Square for External {}
 
 let native_device = Default::default();
-let device = Device::new(DispatchDevice::External(native_device));
+let device = Device::external(native_device);
 let x = Tensor::<1>::from_floats([2.0, 3.0], &device);
 let squared = Tensor::<1>::from_dispatch(Dispatch::square(x.into_dispatch()));
 ```

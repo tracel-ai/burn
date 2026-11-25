@@ -95,7 +95,8 @@ use alloc::vec::Vec;
 /// `Device::cpu`, `Device::cuda` / `Device::rocm`
 /// (take an integer index or a [`DeviceIndex`]), `Device::metal`, `Device::wgpu` /
 /// `Device::vulkan` / `Device::wgpu_msl` / `Device::webgpu` (take a
-/// [`DeviceKind`]), `Device::flex`, `Device::capture`.
+/// [`DeviceKind`]), `Device::flex`, `Device::capture`, and `Device::external` with a configured
+/// external backend.
 ///
 /// # Autodiff
 ///
@@ -384,6 +385,16 @@ impl Device {
     #[cfg(feature = "flex")]
     pub fn flex() -> Self {
         Self::new(burn_dispatch::devices::FlexDevice)
+    }
+
+    #[cfg(feature = "external")]
+    burn_dispatch::with_external_backend! {
+        /// Wraps a native device from the configured external backend.
+        ///
+        /// Available when the application enables `external` and supplies a `burn-external` binding.
+        pub fn external(device: burn_dispatch::devices::ExternalDevice) -> Self {
+            Self::new(DispatchDevice::External(device))
+        }
     }
 
     /// WGPU device, selected via [`DeviceKind`].

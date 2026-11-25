@@ -88,7 +88,7 @@
 //! | WebGPU                  | `webgpu` | `Device::webgpu(Default::default())` |
 //! | CubeCL CPU              | `cpu`    | `Device::cpu()`                      |
 //! | Flex (pure Rust CPU)    | `flex`   | `Device::flex()`                     |
-//! | External                | `external` | `Device::new(DispatchDevice::External(native_device))` |
+//! | External                | `external` | `Device::external(native_device)` |
 //!
 //! Autodiff and kernel fusion are decorators over these backends: `device.autodiff()` enables
 //! gradients for tensors created on a device, and the CubeCL backends fuse operations by default.
