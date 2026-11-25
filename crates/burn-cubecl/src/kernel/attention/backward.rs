@@ -74,8 +74,8 @@ pub fn attention_with_logsumexp(
         None,
         scoring(&options, head_dim),
     )
-    .unwrap_or_else(|why| panic!("no tile-DSL attention routine serves these operands: {why:?}"))
-    .with_logsumexp();
+    .and_then(AttentionTuneInputs::with_logsumexp)
+    .unwrap_or_else(|why| panic!("no tile-DSL attention routine serves these operands: {why:?}"));
     let logsumexp = inputs.logsumexp().expect("`with_logsumexp` binds one");
     let out = launch_tuned(
         QueryPositions::of(seq_q),

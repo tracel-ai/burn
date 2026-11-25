@@ -187,7 +187,11 @@ pub fn attention_autotune(
     let inputs = match mask {
         Some(mask) => {
             let scores = Shape::new([batch, heads, seq_q, seq_kv]);
-            inputs.with_mask(expand(mask, scores).plain())
+            inputs
+                .with_mask(expand(mask, scores).plain())
+                .unwrap_or_else(|why| {
+                    panic!("no tile-DSL attention routine serves this mask: {why:?}")
+                })
         }
         None => inputs,
     };
