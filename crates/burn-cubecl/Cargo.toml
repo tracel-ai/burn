@@ -91,7 +91,9 @@ cubek = { workspace = true, features = [
     "reduce",
     "random",
     "quantization",
+    "rms-norm",
     "stdlib",
+    "swiglu",
 ] }
 
 derive-new = { workspace = true }
