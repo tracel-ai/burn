@@ -45,6 +45,17 @@ fn main() {
         hw.properties.hardware.max_units_per_cube,
         hw.properties.hardware.max_cube_count
     );
+    for units in [32, 64, 128, 256, 512, 1024] {
+        let rate = cubecl::std::throughput::measure_cube_rate(&client, units);
+        eprintln!(
+            "cube rate: {units:>4} units -> {:.1} Mcubes/s ({:.1} ns/cube)",
+            rate / 1e6,
+            1e9 / rate
+        );
+    }
+    if std::env::var("PROBE_RATES_ONLY").is_ok() {
+        return;
+    }
     println!(
         "elem,dim,rows,setting,priority,dup_of,cube_dim,cube_count,us,rank,best_ratio,autotune_ms"
     );
@@ -126,6 +137,7 @@ fn main() {
                                 vector: ThroughputKey::compute(None, f32, f32),
                                 matrix: None,
                             },
+                            estimate.cube.units,
                         );
                         let prio = peaks.priority_of(&estimate, demand, &hw).get();
                         let pred = peaks

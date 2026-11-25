@@ -13,12 +13,16 @@
 //! - the operations, and the plane-wide drain atomics, run at the rate of the instruction the
 //!   work names, as far as the resident units fill the device's lanes;
 //! - traffic and arithmetic overlap where a worker holds more than one cube or a cube more than
-//!   one stage, and add up where neither does.
+//!   one stage, and add up where neither does;
+//! - the cubes take no less than the device needs to start and retire as many cubes of their
+//!   size, however little each moves or computes.
 
 use super::{CandidatePriority, WorkerLimits};
 use core::time::Duration;
 use cubecl::client::Client;
-use cubecl::std::throughput::{compute_bound, measure_launch_overhead, memory_bound};
+use cubecl::std::throughput::{
+    compute_bound, measure_cube_rate, measure_launch_overhead, memory_bound,
+};
 use cubecl::throughput::{MemoryAccess, ResourceBound, ThroughputKey};
 use cubecl::tune::Work;
 use cubek::std::Hardware;
@@ -44,17 +48,26 @@ pub struct Peaks {
     pub vector_ops_per_s: f64,
     /// Operations a second the family's matrix instruction sustains, where it has one.
     pub matrix_ops_per_s: Option<f64>,
+    /// Cubes of the kernel's size a second the device starts and retires, `NaN` where it was
+    /// not measured.
+    pub cubes_per_s: f64,
     /// What one launch costs on top of its kernel.
     pub launch_overhead: Duration,
 }
 
 impl Peaks {
-    /// The peaks `client`'s device sustains for a problem of `demand`, computing on
-    /// `arithmetic`.
+    /// The peaks `client`'s device sustains for a problem of `demand` run by cubes of
+    /// `units_per_cube` units, computing on `arithmetic`.
     ///
-    /// The first call for a footprint or an instruction runs cubecl's probe of it; later calls
-    /// read its cache. A peak the device cannot measure is zero, which predicts nothing.
-    pub fn measured(client: &Client, demand: Work, arithmetic: Arithmetic) -> Self {
+    /// The first call for a footprint, an instruction or a cube size runs cubecl's probe of
+    /// it; later calls read its cache. A peak the device cannot measure is zero, which predicts
+    /// nothing, and an unmeasured cube rate bounds nothing.
+    pub fn measured(
+        client: &Client,
+        demand: Work,
+        arithmetic: Arithmetic,
+        units_per_cube: u32,
+    ) -> Self {
         // A threshold of one is the peak itself: only the rate is read.
         let rate = |key| compute_bound(client, key, demand, 1.0).resource.peak_per_s;
         Self {
@@ -63,6 +76,7 @@ impl Peaks {
                 .peak_per_s,
             vector_ops_per_s: rate(arithmetic.vector),
             matrix_ops_per_s: arithmetic.matrix.map(rate),
+            cubes_per_s: measure_cube_rate(client, units_per_cube),
             launch_overhead: measure_launch_overhead(client),
         }
     }
@@ -139,7 +153,8 @@ impl Peaks {
             .mul_f64(residency.last_wave_stretch(cubes));
 
         let busy = residency.overlap(staging.stages_in_flight, memory, compute);
-        Some(busy + self.launch_overhead)
+        let started = time_at(cubes as f64, self.cubes_per_s).unwrap_or_default();
+        Some(busy.max(started) + self.launch_overhead)
     }
 
     /// The rate the estimate's work computes at: its matrix instruction's, where it names one,
@@ -297,6 +312,7 @@ mod tests {
         memory_bytes_per_s: 1e9,
         vector_ops_per_s: 1e9,
         matrix_ops_per_s: None,
+        cubes_per_s: f64::NAN,
         launch_overhead: Duration::ZERO,
     };
 
@@ -500,6 +516,20 @@ mod tests {
         assert_close(time(&atomics), time(&plain));
     }
 
+    /// Cubes that each move little take as long as the device needs to start them all.
+    #[test]
+    fn many_small_cubes_take_as_long_as_starting_them() {
+        let hw = devices::strix_halo();
+        let started = Peaks {
+            // A cube a microsecond.
+            cubes_per_s: 1e6,
+            ..PEAKS
+        };
+        let cubes = 8 * 40 * 4;
+        let predicted = started.predict(&computing(cubes, 0.0), &hw, Some(LIMITS));
+        assert_close(predicted.unwrap(), Duration::from_micros(cubes));
+    }
+
     /// Work on a matrix instruction the peaks hold no rate for predicts nothing.
     #[test]
     fn a_matrix_instruction_without_its_peak_predicts_nothing() {
@@ -516,6 +546,7 @@ mod tests {
             memory_bytes_per_s: 0.0,
             vector_ops_per_s: 0.0,
             matrix_ops_per_s: None,
+            cubes_per_s: f64::NAN,
             launch_overhead: Duration::ZERO,
         };
         let demand = Work {

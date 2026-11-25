@@ -247,7 +247,8 @@ where
             vector: ThroughputKey::compute(None, f32, f32),
             matrix: None,
         };
-        Peaks::measured(&self.client, demand, arithmetic).priority_of(&estimate, demand, &self.hw)
+        Peaks::measured(&self.client, demand, arithmetic, estimate.cube.units)
+            .priority_of(&estimate, demand, &self.hw)
     }
 
     fn blueprint(&self, key: &SwigluKey) -> Option<SwigluRoutinePrepared<M>> {
