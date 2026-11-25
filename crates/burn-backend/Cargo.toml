@@ -19,8 +19,6 @@ default = ["std"]
 doc = ["default"]
 std = ["rand/std", "num-traits/std", "burn-std/std", "cubecl?/std", "dep:oneshot", "dep:log"]
 
-tracing = ["burn-std/tracing", "cubecl?/tracing"]
-
 # For DTypeUsage de/serialization
 serde = ["enumset/serde"]
 

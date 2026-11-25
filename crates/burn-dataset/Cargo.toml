@@ -19,9 +19,6 @@ workspace = true
 # built on CSV or in-memory sources has no use for.
 default = []
 doc = ["default", "sqlite"]
-tracing = [
-    "burn-std?/tracing",
-]
 
 audio = ["hound", "sqlite"]
 builtin-sources = ["vision", "dep:tar", "nlp"]
@@ -82,7 +79,6 @@ tar = { workspace = true, optional = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 turso = { workspace = true, optional = true }
-
 
 [[example]]
 name = "hf_dataset"

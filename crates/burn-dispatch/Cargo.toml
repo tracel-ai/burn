@@ -31,11 +31,6 @@ std = [
     "burn-cubecl?/std",
     "burn-flex?/std",
 ]
-tracing = [
-    "burn-autodiff?/tracing",
-    "burn-cubecl?/tracing",
-    "burn-flex?/tracing",
-]
 
 # Enables cubecl-facing APIs (e.g. throughput measurement) on cubecl-backed devices.
 cubecl = ["burn-backend/cubecl"]
@@ -79,7 +74,6 @@ rayon = ["burn-flex?/rayon"]
 # Opt-in gemm codegen paths (burn-flex).
 x86-v4 = ["burn-flex?/x86-v4"]
 apple-amx = ["burn-flex?/apple-amx"]
-
 
 template = ["burn-cubecl?/template"]
 

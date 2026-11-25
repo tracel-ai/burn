@@ -109,11 +109,6 @@ fn prod_backward<B: Backend>(
 }
 
 impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> {
-    #[cfg_attr(feature = "tracing", tracing::instrument(
-        level="trace",
-        skip(data),
-        fields(shape = ?data.shape(), dtype = ?data.dtype())
-    ))]
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         AutodiffTensor::new(B::float_from_data(data, device))
     }
@@ -136,28 +131,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         AutodiffTensor::new(B::float_ones(shape, device, dtype))
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(
-        level="trace",
-        skip(tensor),
-        fields(
-            from = ?tensor.node,
-            shape = ?tensor.shape(),
-            dtype = ?tensor.dtype(),
-        )
-    ))]
     fn float_into_data(tensor: FloatTensor<Self>) -> impl ReadFuture<TensorData> {
         B::float_into_data(tensor.primitive)
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(
-        level="trace",
-        skip(tensor),
-        fields(
-            from = ?tensor.node,
-            shape = ?tensor.shape(),
-            dtype = ?tensor.dtype(),
-        )
-    ))]
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct ToDevice;

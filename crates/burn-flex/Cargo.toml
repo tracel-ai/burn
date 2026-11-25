@@ -34,7 +34,6 @@ rayon = ["dep:rayon", "gemm/rayon"]
 x86-v4 = ["gemm/x86-v4"]
 # Apple AMX matrix coprocessor (M-series). Experimental upstream; requires std.
 apple-amx = ["std", "gemm/experimental-apple-amx"]
-tracing = ["burn-std/tracing", "burn-backend/tracing", "burn-ir/tracing"]
 critical-section = [
     "dep:once_cell",
     "once_cell/critical-section",

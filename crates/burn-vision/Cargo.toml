@@ -17,7 +17,6 @@ version.workspace = true
 [lints]
 workspace = true
 
-
 [features]
 default = [
     "burn-core/default",
@@ -33,12 +32,6 @@ std = [
     "burn-fusion?/std",
     "burn-nn?/std",
     "burn-store?/std",
-]
-tracing = [
-    "burn-cubecl?/tracing",
-    "burn-fusion?/tracing",
-    "burn-core/tracing",
-    "cubecl?/tracing",
 ]
 
 # The cubecl vision ops. Implied by every runtime feature below and not selectable on its own:

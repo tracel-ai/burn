@@ -20,7 +20,6 @@ Applications do not use this crate directly.
 
 - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
 - `fusion`: fuse routed operations before they are sent.
-- `tracing`: instrument operations with the `tracing` crate.
 
 <!-- burn-crate-footer -->
 

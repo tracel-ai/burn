@@ -22,7 +22,6 @@
 //! # Feature flags
 //!
 //! - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
-//! - `tracing`: instrument operations with the `tracing` crate.
 //! - `linalg`: enables orthogonal initialization, the cosine similarity and pairwise distance
 //!   modules, and the cosine embedding and triplet margin losses. Requires `burn-linalg`.
 

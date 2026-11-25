@@ -40,15 +40,6 @@ doc = [
 # Arms the `#[compute]` annotations, so `instrument::Instrument` can measure a model built from
 # them. Off, they compile away.
 instrument = ["std", "burn-instrument/instrument"]
-tracing = [
-    "burn-std/tracing",
-    "burn-tensor/tracing",
-    "burn-dataset?/tracing",
-    "burn-cpu?/tracing",
-    "burn-cuda?/tracing",
-    "burn-rocm?/tracing",
-    "burn-wgpu?/tracing",
-]
 
 dataset = ["burn-dataset"]
 

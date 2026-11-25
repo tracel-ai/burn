@@ -24,7 +24,6 @@ std = ["burn-backend/std", "burn-std/std", "burn-ir/std"]
 # std (the fusion engine uses threads).
 fusion = ["std", "dep:burn-fusion", "dep:serde"]
 doc = ["default", "fusion"]
-tracing = ["burn-backend/tracing", "burn-ir/tracing", "burn-std/tracing"]
 
 [dependencies]
 burn-ir = { workspace = true }

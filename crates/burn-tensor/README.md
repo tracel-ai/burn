@@ -42,7 +42,6 @@ See the [tensor chapter](https://burn.dev/books/burn/building-blocks/tensor.html
 - `remote`, `remote-server`, `remote-websocket`: devices hosted by another machine.
 - `capture`: record operation graphs instead of executing them.
 - `extension`: access to backend primitives for backend extensions.
-- `tracing`: instrument operations with the `tracing` crate.
 
 <!-- burn-crate-footer -->
 
