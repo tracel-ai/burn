@@ -60,12 +60,12 @@ fn tunables(id: &CubeTuneId, client: &Client) -> ReduceTunables {
 
 /// One routine at one of its settings, as the autotune races it, on the device it was listed for.
 #[derive(Debug, Clone)]
-struct ReduceRaced {
+struct ReduceTuneCandidate {
     candidate: ReduceCandidate,
     hw: Hardware,
 }
 
-impl TuneCandidate for ReduceRaced {
+impl TuneCandidate for ReduceTuneCandidate {
     type Strategy = String;
     type Key = ReduceKey;
     type Blueprint = ReducePrepared;
@@ -96,7 +96,7 @@ fn candidates(hw: Hardware) -> TunableSet<ReduceKey, ReduceTensors, (), ReduceId
     let tile = autotune.group("tile", GroupPriority::DEFAULT);
     let raced = ReduceCandidate::list(&hw)
         .into_iter()
-        .map(|candidate| ReduceRaced {
+        .map(|candidate| ReduceTuneCandidate {
             candidate,
             hw: hw.clone(),
         })
@@ -105,7 +105,7 @@ fn candidates(hw: Hardware) -> TunableSet<ReduceKey, ReduceTensors, (), ReduceId
         .identified(
             &tile,
             raced,
-            |raced: &ReduceRaced| ReduceIdentity::Routine(raced.candidate.clone()),
+            |raced: &ReduceTuneCandidate| ReduceIdentity::Routine(raced.candidate.clone()),
             |raced, tensors: ReduceTensors| {
                 raced
                     .candidate
