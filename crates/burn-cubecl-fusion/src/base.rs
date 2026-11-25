@@ -49,7 +49,7 @@ pub struct CubeFusionHandle {
 pub struct Tiles {
     /// The buffer's own dims, the fragments of the logical ones.
     pub shape: Shape,
-    /// How many fragments each logical dim is stored as.
+    /// The fragments each logical dim is stored as.
     pub tiling: Tiling,
 }
 
@@ -144,7 +144,7 @@ impl CubeFusionHandle {
         }
     }
 
-    /// How many fragments each logical dim is stored as; untiled for rows.
+    /// The fragments each logical dim is stored as; untiled for rows.
     pub fn tiling(&self) -> Tiling {
         self.tiles
             .as_ref()
