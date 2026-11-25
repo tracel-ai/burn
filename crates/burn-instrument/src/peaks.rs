@@ -183,7 +183,20 @@ impl Peaks {
     /// them, so measure before the run, not between its parts. The runtime keeps each value for
     /// the process, so a second call is free. A device with no probes (one whose backend runs
     /// none, or a runtime without timing) reports `None` for each.
+    ///
+    /// A sharded compute device of several members is probed on its lead, its first member, which
+    /// stands for every member.
+    ///
+    /// # Assumptions
+    ///
+    /// The members of a sharded compute device are one hardware, so the lead's peaks are each
+    /// member's. An uneven split hands the lead its largest shard, so no member has more to do.
     pub fn new(device: &burn_tensor::Device, dtype: FloatDType) -> Self {
+        let lead = device
+            .shard_members()
+            .filter(|members| members.len() > 1)
+            .and_then(|members| members.into_iter().next());
+        let device = lead.as_ref().unwrap_or(device);
         let memory = |access| measured(device, PeakKey::Memory(access));
         Self {
             copy_bytes_per_s: memory(MemoryAccess::Copy),

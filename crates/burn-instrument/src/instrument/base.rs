@@ -229,7 +229,7 @@ impl Instrument {
     /// the sync, and say the floor each entry declared.
     fn price<T>(&self, model: &mut impl FnMut() -> T) -> Floors {
         self.devices.seed(Self::SEED);
-        let pricing = Pricing::default();
+        let pricing = Pricing::new(self.devices.sharded());
         let observation = ComponentObservation::new(Box::new(pricing.clone()));
         let output = model();
         drop(observation);

@@ -42,7 +42,7 @@ use super::collective_ledger::CollectiveLedger;
 use super::component_tree::ComponentTree;
 use super::cursor::{Attribution, LaunchCursor};
 use super::devices::DeviceList;
-use super::members::MemberList;
+use super::members::{Member, MemberList};
 #[cfg(feature = "fusion")]
 use super::origins::{BlockOrigin, OperationId, OperationOrigins};
 use super::pricing::Floors;
@@ -217,7 +217,8 @@ impl ComponentObserver for RunRecorder {
             let mut state = self.locked();
             let floor = state.floors.next();
             state.tree.enter(Declaration {
-                bounds: declared.bounds.or(floor),
+                bounds: declared.bounds.or(floor.bounds),
+                lead_bounds: declared.lead_bounds.or(floor.lead_bounds),
                 ..declared
             })
         };
@@ -267,8 +268,8 @@ impl ExecutionObserver for RunRecorder {
             (ExecutionKind::Kernel { place, name }, Measurement::Unread(profile)) => {
                 self.keep_unread(name, place, profile)
             }
-            (ExecutionKind::Kernel { name, .. }, Measurement::Read { duration, method }) => {
-                self.credit_read(name, duration, method)
+            (ExecutionKind::Kernel { place, name }, Measurement::Read { duration, method }) => {
+                self.credit_read(name, place, duration, method)
             }
             (_, Measurement::Unread(profile)) => {
                 self.locked().collectives.measured(execution, profile)
@@ -301,11 +302,18 @@ impl RunRecorder {
     /// reads each at its launch and hands the observer the duration. A kernel
     /// read as it launched ran alone, so the run is marked
     /// [`timed_alone`](Breakdown::timed_alone).
-    fn credit_read(&self, kernel: &'static str, duration: Duration, method: TimingMethod) {
+    fn credit_read(
+        &self,
+        kernel: &'static str,
+        place: &ExecutionPlace,
+        duration: Duration,
+        method: TimingMethod,
+    ) {
         let attribution = LaunchCursor::current();
+        let member = self.members.ran_on(place).member();
         let mut state = self.locked();
         state.timings.read_at_launch(method);
-        state.credit(attribution, kernel, duration);
+        state.credit(attribution, kernel, duration, member);
     }
 }
 
@@ -354,9 +362,14 @@ impl State {
     ) {
         let mut timeline = Timeline::new(epoch, members.clone());
         for timed in read {
-            match timed.ticks {
+            // Over members at once an empty window is a lost timing: merged by name with the
+            // kernel's other launches, it would leave a member's part short without a trace.
+            let ticks =
+                (timed.ticks).filter(|ticks| !members.at_once() || !ticks.duration().is_zero());
+            match ticks {
                 Some(ticks) => {
-                    self.credit(timed.attribution, timed.kernel, ticks.duration());
+                    let member = timed.ran_on.member();
+                    self.credit(timed.attribution, timed.kernel, ticks.duration(), member);
                     timeline.push(timed.attribution, timed.ran_on, &ticks);
                 }
                 None => self.timings.unplace(Duration::ZERO),
@@ -374,8 +387,14 @@ impl State {
 
     /// Add `duration` to the component that counted `kernel`'s launch under
     /// `attribution`.
-    fn credit(&mut self, attribution: Attribution, kernel: &str, duration: Duration) {
-        if !self.tree.credit(attribution, kernel, duration) {
+    fn credit(
+        &mut self,
+        attribution: Attribution,
+        kernel: &str,
+        duration: Duration,
+        member: Option<Member>,
+    ) {
+        if !self.tree.credit(attribution, kernel, duration, member) {
             // No launch of it was counted there, so there is no honest component
             // for it. Say how much rather than let `Breakdown::total_time` quietly
             // shrink.
@@ -483,6 +502,7 @@ mod tests {
         recorder.count_launch("MatmulEntry");
         recorder.credit_read(
             "MatmulEntry",
+            &place(0),
             Duration::from_micros(13),
             TimingMethod::Device,
         );
@@ -491,6 +511,27 @@ mod tests {
         let breakdown = recorder.breakdown();
         assert_eq!(breakdown.tree[0].own_time(), Duration::from_micros(13));
         assert!(breakdown.timed_alone);
+    }
+
+    /// A duration read as its kernel launched is kept on the member its place names, as one
+    /// read after the run is.
+    #[test]
+    fn a_duration_read_at_launch_keeps_its_member() {
+        let recorder = sharded();
+        recorder.enter(declared("query"));
+        recorder.count_launch("MatmulEntry");
+        recorder.credit_read(
+            "MatmulEntry",
+            &place(MEMBERS[1].index_id),
+            Duration::from_micros(13),
+            TimingMethod::Device,
+        );
+        recorder.exit();
+
+        assert_eq!(
+            recorder.breakdown().tree[0].kernels[0].members,
+            [Duration::ZERO, Duration::from_micros(13)]
+        );
     }
 
     /// Finishing leaves the calling thread attributing nothing, so a launch
@@ -581,7 +622,8 @@ mod tests {
     }
 
     /// A kernel is on the member whose device its place names, whichever thread launched it,
-    /// and one on a device that is no member's is on none.
+    /// and one on a device that is no member's is on none: in each member's totals, and in the
+    /// part of the kernel's own time each member ran.
     #[test]
     fn a_kernel_is_placed_on_the_member_its_device_is() {
         let recorder = sharded();
@@ -599,10 +641,91 @@ mod tests {
         recorder.measure(elsewhere, kernel(DeviceId::new(0, 9)), 4);
 
         recorder.end_run();
-        let per_member = recorder.breakdown().per_member.expect("two members");
+        let breakdown = recorder.breakdown();
+        let per_member = breakdown.per_member.expect("two members");
         assert_eq!(per_member.members[0], MemberTime::default());
         assert_eq!(per_member.members[1].on_device, Duration::from_micros(9));
         assert_eq!(per_member.off_members, Duration::from_micros(4));
+        let matmul = &breakdown.untagged[0];
+        assert_eq!(matmul.total, Duration::from_micros(13));
+        assert_eq!(matmul.members, [Duration::ZERO, Duration::from_micros(9)]);
+    }
+
+    #[test]
+    fn a_kernels_launches_are_counted_on_the_member_that_ran_each() {
+        let recorder = sharded();
+        let kernel = |member: usize| ExecutionKind::Kernel {
+            place: ExecutionPlace {
+                service: service(MEMBERS[member]),
+                stream: StreamRole::Compute(StreamId { value: 0 }),
+            },
+            name: "Matmul",
+        };
+        for (id, member) in minted::<3>().into_iter().zip([0, 1, 0]) {
+            recorder.issue(id, None, kernel(member));
+            recorder.measure(id, kernel(member), 10);
+        }
+
+        recorder.end_run();
+
+        assert_eq!(recorder.breakdown().untagged[0].member_launches, [2, 1]);
+    }
+
+    /// Codex's case: 100 µs on each member, then a launch on the lead whose window is empty.
+    #[test]
+    fn an_empty_window_over_several_members_is_a_lost_timing() {
+        let recorder = sharded();
+        let kernel = |member: usize| ExecutionKind::Kernel {
+            place: ExecutionPlace {
+                service: service(MEMBERS[member]),
+                stream: StreamRole::Compute(StreamId { value: 0 }),
+            },
+            name: "Matmul",
+        };
+        let [first, second, empty] = minted();
+        for (id, member, micros) in [(first, 0, 100), (second, 1, 100), (empty, 0, 0)] {
+            recorder.issue(id, None, kernel(member));
+            recorder.measure(id, kernel(member), micros);
+        }
+
+        recorder.end_run();
+        let breakdown = recorder.breakdown();
+        assert_eq!(breakdown.unplaced.timings, 1);
+        assert_eq!(
+            breakdown.untagged[0].members,
+            [Duration::from_micros(100); 2]
+        );
+    }
+
+    /// Codex's case: taking turns, an empty window at 150 µs between kernels ending at 100 µs and
+    /// starting at 200 µs ends the wait before it, as any window does.
+    #[test]
+    fn an_empty_window_in_turn_ends_the_wait_before_it() {
+        let recorder = in_turn();
+        let kernel = |member: usize| ExecutionKind::Kernel {
+            place: ExecutionPlace {
+                service: service(MEMBERS[member]),
+                stream: StreamRole::Compute(StreamId { value: 0 }),
+            },
+            name: "Matmul",
+        };
+        let epoch = Instant::now();
+        let at = |micros| epoch + Duration::from_micros(micros);
+        let launches = [("a", 0, 0, 100), ("b", 1, 150, 150), ("c", 0, 200, 300)];
+        for (id, (label, member, start, end)) in minted::<3>().into_iter().zip(launches) {
+            recorder.enter(declared(label));
+            recorder.issue(id, None, kernel(member));
+            recorder.hand_over(id, kernel(member), unread_window(at(start), at(end)));
+            recorder.exit();
+        }
+
+        recorder.end_run();
+        let breakdown = recorder.breakdown();
+        assert_eq!(breakdown.unplaced.timings, 0);
+        let waits: Vec<_> = (breakdown.tree.iter())
+            .map(|component| component.own_wait)
+            .collect();
+        assert_eq!(waits, [0, 50, 50].map(Duration::from_micros));
     }
 
     /// Communications are timed only where there are several members to time apart.
@@ -634,6 +757,15 @@ mod tests {
         RunRecorder::new(&DeviceList::new(&[Device::flex()]), Floors::default())
     }
 
+    /// A recorder for a run taking turns on the two [`MEMBERS`], as a model split by layers.
+    fn in_turn() -> RunRecorder {
+        RunRecorder::with_members(
+            &DeviceList::new(&[Device::flex()]),
+            MemberList::over(MEMBERS.map(service).to_vec(), MemberSchedule::Sequential),
+            Floors::default(),
+        )
+    }
+
     /// A recorder for a sharded compute device of the two [`MEMBERS`].
     fn sharded() -> RunRecorder {
         RunRecorder::with_members(
@@ -649,12 +781,16 @@ mod tests {
         }
 
         fn measure(&self, id: ExecutionId, kind: ExecutionKind, micros: u64) {
+            self.hand_over(id, kind, unread_timing(micros));
+        }
+
+        fn hand_over(&self, id: ExecutionId, kind: ExecutionKind, timing: ProfileDuration) {
             let execution = Execution {
                 id,
                 parent: None,
                 kind,
             };
-            self.observe_measurement(&execution, Measurement::Unread(unread_timing(micros)));
+            self.observe_measurement(&execution, Measurement::Unread(timing));
         }
 
         /// Issue a part or wait of `collective`, and hand its window of `micros` over.
@@ -730,7 +866,10 @@ mod tests {
     /// A device timing of `micros`, as the runtime hands one over: unread.
     fn unread_timing(micros: u64) -> ProfileDuration {
         let start = Instant::now();
-        let end = start + Duration::from_micros(micros);
+        unread_window(start, start + Duration::from_micros(micros))
+    }
+
+    fn unread_window(start: Instant, end: Instant) -> ProfileDuration {
         ProfileDuration::new_device_time(async move {
             cubecl::profile::ProfileTicks::from_start_end(start, end)
         })
@@ -741,6 +880,7 @@ mod tests {
             label,
             variant: None,
             site: "test::forward",
+            lead_bounds: None,
             bounds: None,
         }
     }

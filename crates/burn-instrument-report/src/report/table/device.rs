@@ -5,6 +5,7 @@ use std::fmt::{self, Display};
 use burn_instrument::PeakFinding;
 
 use crate::Report;
+use crate::reading::HeldBounds;
 
 /// The page's first lines: the device, its peaks, and what a reader must be told about them
 /// before any percentage below is read.
@@ -59,6 +60,20 @@ impl Display for DeviceHeader<'_, '_> {
                 "         one launch takes {:.2} µs back to back; no floor below charges it",
                 launch * 1e6,
             )?;
+        }
+        match (
+            self.report.roofline().held_bounds(),
+            measurement.peaks.is_some(),
+        ) {
+            (HeldBounds::Lead, true) => writeln!(
+                f,
+                "         probed on the lead, the first member, which stands for every member"
+            )?,
+            (HeldBounds::Neither, true) => writeln!(
+                f,
+                "         probed on the lead, but the members were not read apart: no component is scored"
+            )?,
+            (HeldBounds::Lead | HeldBounds::Neither, false) | (HeldBounds::Device, _) => {}
         }
         if measurement.peaks.is_none() {
             writeln!(

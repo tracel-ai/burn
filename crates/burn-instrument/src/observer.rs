@@ -24,6 +24,12 @@ pub trait ComponentObserver {
     fn prices(&self) -> bool {
         true
     }
+    /// Whether the components entered also evaluate their lead's bounds, which an observer asks
+    /// for only of a run on a sharded compute device of several members, whose first member those
+    /// bounds price.
+    fn prices_lead(&self) -> bool {
+        false
+    }
 }
 
 /// An observer shared with whoever reads it once the run is over, installed as the observer
@@ -38,6 +44,9 @@ impl<O: ComponentObserver + ?Sized> ComponentObserver for std::sync::Arc<O> {
     }
     fn prices(&self) -> bool {
         (**self).prices()
+    }
+    fn prices_lead(&self) -> bool {
+        (**self).prices_lead()
     }
 }
 
@@ -68,6 +77,9 @@ pub struct Declaration<'a> {
     /// The floor for running this entry alone, where the component declares one. `None` is a
     /// component that is timed and not scored.
     pub bounds: Option<Bounds>,
+    /// The floor of the lead, the first member of a sharded compute device, for its share of this
+    /// entry. `None` is a component that is timed and not scored on a sharded compute device.
+    pub lead_bounds: Option<Bounds>,
 }
 
 #[cfg(feature = "instrument")]
@@ -170,6 +182,15 @@ impl Observing {
         prices
     }
 
+    /// Whether the component being entered should evaluate its lead's bounds too. See
+    /// [`ComponentObserver::prices_lead`].
+    #[inline]
+    pub fn prices_lead(self) -> bool {
+        let mut prices = false;
+        Self::with_observer(|observer| prices = observer.prices_lead());
+        prices
+    }
+
     /// Suspend observation while a bounds expression runs, so its annotated helpers
     /// do not become entries of the model. Dropping the guard restores observation.
     #[doc(hidden)]
@@ -238,6 +259,7 @@ mod tests {
                     label: "after panic",
                     variant: None,
                     site: "test::forward",
+                    lead_bounds: None,
                     bounds: None,
                 }),
         );
@@ -256,6 +278,7 @@ mod tests {
                 label: "attention",
                 variant: Some("flash"),
                 site: "test::attend",
+                lead_bounds: None,
                 bounds: Some(Bounds {
                     read: 6,
                     write: 2,
@@ -266,6 +289,7 @@ mod tests {
                 label: "qkv",
                 variant: None,
                 site: "test::project",
+                lead_bounds: None,
                 bounds: None,
             });
         }
@@ -299,6 +323,7 @@ mod tests {
             label,
             variant: None,
             site: "test::forward",
+            lead_bounds: None,
             bounds: None,
         };
         let (outer, _observation) = installed();
@@ -349,6 +374,7 @@ mod tests {
             label: "attention",
             variant: None,
             site: "test::attend",
+            lead_bounds: None,
             bounds: None,
         }));
         assert_eq!(mine.events(), ["+attention:-:-", "-"]);

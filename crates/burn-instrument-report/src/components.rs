@@ -55,6 +55,8 @@ pub struct KernelReading<'a> {
     pub name: String,
     /// Its time, read as its component's is.
     pub time: Duration,
+    /// Its launches, counted where its time is.
+    pub launches: usize,
     /// Its device time of the whole run's; `None` where the run timed nothing.
     pub share: Option<WorkShare>,
 }
@@ -110,7 +112,9 @@ impl<'a> ComponentReading<'a> {
         Self {
             component,
             time: own.then(|| report.reading().apportioned(component)),
-            share: report.share(component.total_time()).filter(|_| own),
+            share: report
+                .share(report.reading().component_time(component))
+                .filter(|_| own),
             host: report
                 .host_split()
                 .share(component.total_wait())
@@ -174,8 +178,11 @@ impl<'a> KernelReading<'a> {
             .map(|kernel| Self {
                 kernel,
                 name: level.format(&kernel.name),
-                time: report.reading().apportion(kernel.total),
-                share: report.share(kernel.total),
+                time: report
+                    .reading()
+                    .apportion(report.reading().kernel_time(kernel)),
+                launches: report.reading().kernel_launches(kernel),
+                share: report.share(report.reading().kernel_time(kernel)),
             })
             .collect()
     }

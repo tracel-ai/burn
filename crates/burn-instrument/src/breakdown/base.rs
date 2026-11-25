@@ -88,8 +88,8 @@ pub struct Breakdown {
     /// What each member of a sharded compute device did over the run, and what its collectives
     /// cost each member; or, for an `Instrument::for_devices` run, each distinct device it was
     /// given, in the order each first appears.
-    /// `None` for a device of one, whose figures are the rest of the breakdown's, and for a
-    /// sharded compute device whose members are one device.
+    /// `None` for a device of one, whose figures are the rest of the breakdown's. A sharded
+    /// compute device whose members are one device has one lane.
     ///
     /// A sharded compute device's members run at once, so the components' times sum every
     /// member's kernels and are no one device's time: the slowest member's is what the run's wall
@@ -159,48 +159,14 @@ impl Breakdown {
     /// its zero is its time; and a component whose own kernels lost their timings
     /// also reads zero, though it ran them.
     pub fn fused_elsewhere(&self) -> FusedElsewhere<'_> {
-        /// Whether `kernel` carried out work at `path` or below it.
-        fn names(kernel: &Kernel, path: &ComponentPath) -> bool {
-            kernel.fuses.iter().any(|fused| fused.starts_with(path))
-        }
-        let components = self.components();
-        let by_path: HashMap<&ComponentPath, &Component> = components
-            .iter()
-            .map(|(path, component)| (path, *component))
-            .collect();
-        components
-            .iter()
-            .filter_map(|(path, component)| {
-                let ran_nothing = component
-                    .walk()
-                    .iter()
-                    .all(|(_, component)| component.kernels.is_empty());
-                // An ancestor's kernels name `component` by the labels between the
-                // two: a bare label would also match a same-named component under
-                // another branch of the same ancestor, and a mixed stack's dense and
-                // sparse `down` are both `down`.
-                let labels: Vec<&str> = path.labels().collect();
-                let named_above = (1..labels.len()).any(|depth| {
-                    let ancestor = by_path
-                        .get(&ComponentPath::new(labels[..depth].iter().copied()))
-                        .expect("every prefix of a component's path is a component");
-                    let below = ComponentPath::new(labels[depth..].iter().copied());
-                    ancestor.kernels.iter().any(|kernel| names(kernel, &below))
-                });
-                // Outside every component, a kernel names a component by its path
-                // from the root.
-                let named_outside = self
-                    .untagged
-                    .iter()
-                    .chain(&self.end_of_run)
-                    .any(|kernel| names(kernel, path));
-                let share = match ran_nothing {
-                    true => FusedShare::All,
-                    false => FusedShare::Part,
-                };
-                (named_above || named_outside).then_some((*component, share))
-            })
-            .collect()
+        self.fused_where(|_| true)
+    }
+
+    /// [`fused_elsewhere`](Self::fused_elsewhere) as the lead of a sharded compute device ran it,
+    /// counting only the kernels with time on its lane: another member can fuse work the lead runs
+    /// on its own, as where only the first member adds a bias.
+    pub fn fused_elsewhere_on_lead(&self) -> FusedElsewhere<'_> {
+        self.fused_where(|kernel| kernel.members.first().is_some_and(|lead| !lead.is_zero()))
     }
 
     /// Every component of the run, depth-first, each with its path from the root: what
@@ -217,6 +183,54 @@ impl Breakdown {
     }
 }
 
+impl Breakdown {
+    /// See [`fused_elsewhere`](Self::fused_elsewhere), counting only the kernels that `ran`.
+    fn fused_where(&self, ran: impl Fn(&Kernel) -> bool) -> FusedElsewhere<'_> {
+        /// Whether `kernel` carried out work at `path` or below it.
+        fn names(kernel: &Kernel, path: &ComponentPath) -> bool {
+            kernel.fuses.iter().any(|fused| fused.starts_with(path))
+        }
+        let components = self.components();
+        let by_path: HashMap<&ComponentPath, &Component> = components
+            .iter()
+            .map(|(path, component)| (path, *component))
+            .collect();
+        components
+            .iter()
+            .filter_map(|(path, component)| {
+                let ran_nothing = component
+                    .walk()
+                    .iter()
+                    .all(|(_, component)| !component.kernels.iter().any(&ran));
+                // An ancestor's kernels name `component` by the labels between the
+                // two: a bare label would also match a same-named component under
+                // another branch of the same ancestor, and a mixed stack's dense and
+                // sparse `down` are both `down`.
+                let labels: Vec<&str> = path.labels().collect();
+                let named_above = (1..labels.len()).any(|depth| {
+                    let ancestor = by_path
+                        .get(&ComponentPath::new(labels[..depth].iter().copied()))
+                        .expect("every prefix of a component's path is a component");
+                    let below = ComponentPath::new(labels[depth..].iter().copied());
+                    (ancestor.kernels.iter()).any(|kernel| ran(kernel) && names(kernel, &below))
+                });
+                // Outside every component, a kernel names a component by its path
+                // from the root.
+                let named_outside = self
+                    .untagged
+                    .iter()
+                    .chain(&self.end_of_run)
+                    .any(|kernel| ran(kernel) && names(kernel, path));
+                let share = match ran_nothing {
+                    true => FusedShare::All,
+                    false => FusedShare::Part,
+                };
+                (named_above || named_outside).then_some((*component, share))
+            })
+            .collect()
+    }
+}
+
 /// One kernel a component launched: what it is called, how many times it ran,
 /// and what the device spent on it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -230,6 +244,13 @@ pub struct Kernel {
     /// Device time across those launches.
     #[serde(with = "super::nanoseconds")]
     pub total: Duration,
+    /// The part of [`total`](Self::total) that ran on each timing lane of a sharded compute
+    /// device, indexed as [`PerMember::members`], up to the last lane it ran on. Empty on a device
+    /// of one.
+    #[serde(with = "super::nanoseconds::each")]
+    pub members: Vec<Duration>,
+    /// The launches whose timing each lane holds, indexed as [`members`](Self::members).
+    pub member_launches: Vec<usize>,
     /// The components below the component it is recorded on whose work it carried
     /// out, in first-seen order, each by its path from that component — or from the
     /// root, for a kernel outside every component.
@@ -292,6 +313,11 @@ pub struct Component {
     /// and a padded tail, and both are real work the component has to account for.
     #[serde(deserialize_with = "Option::deserialize")]
     pub bounds: Option<Bounds>,
+    /// The sum of what every entry declared the lead of a sharded compute device should cost at
+    /// best, summed as [`bounds`](Self::bounds) is. `None` when the component declares none, which
+    /// on a sharded compute device leaves it unscored.
+    #[serde(deserialize_with = "Option::deserialize")]
+    pub lead_bounds: Option<Bounds>,
     /// How many times the run entered it.
     pub entries: usize,
     /// The components it entered, in first-seen order.
@@ -388,12 +414,13 @@ impl Component {
     /// fuser would delete — the rung of the ladder that no faster kernel can
     /// recover.
     pub fn parts_bounds(&self) -> Option<Bounds> {
-        let parts: Vec<Bounds> = self
-            .children
-            .iter()
-            .filter_map(|child| child.bounds)
-            .collect();
-        (!parts.is_empty()).then(|| parts.into_iter().sum())
+        summed(self.children.iter().filter_map(|child| child.bounds))
+    }
+
+    /// The sum of this component's children's lead bounds, as
+    /// [`parts_bounds`](Self::parts_bounds) sums their bounds.
+    pub fn lead_parts_bounds(&self) -> Option<Bounds> {
+        summed(self.children.iter().filter_map(|child| child.lead_bounds))
     }
 
     /// Every component under and including this one, depth-first, with its depth.
@@ -414,13 +441,22 @@ impl Component {
     }
 }
 
+/// The sum of `parts`, or `None` when there are none.
+fn summed(parts: impl Iterator<Item = Bounds>) -> Option<Bounds> {
+    parts.reduce(|sum, part| sum + part)
+}
+
 /// What each member of a sharded compute device, or each device a run is timed across, did over
 /// an instrumented run.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PerMember {
-    /// Each member, in member order.
+    /// Each timing lane, in the order of the first member on it. Members sharing a device share
+    /// its lane, so the first lane is always the lead's.
     pub members: Vec<MemberTime>,
+    /// How many members there are: more than there are lanes where two share a device, whose
+    /// lane then holds both.
+    pub member_count: usize,
     /// Whether the members worked at once or in turn.
     pub schedule: MemberSchedule,
     /// The device time of kernels that ran on no member's device: credited to their components,
@@ -469,7 +505,7 @@ pub struct CollectiveTime {
     pub bytes: u64,
     /// How many ran.
     pub count: usize,
-    /// What they cost each member, in member order.
+    /// What they cost each timing lane, indexed as [`PerMember::members`].
     ///
     /// Only a native collective has parts, so an emulated or skipped one reads zero here: an
     /// emulated one's transfers and kernels are timed as kernels, and a skipped one ran nothing.
@@ -537,6 +573,7 @@ mod tests {
                 write: 25,
                 flops: 60,
             }),
+            lead_bounds: None,
             entries: 1,
             children: vec![
                 Component {
@@ -548,6 +585,7 @@ mod tests {
                         write: 20,
                         flops: 40,
                     }),
+                    lead_bounds: None,
                     entries: 1,
                     children: Vec::new(),
                     kernels: Vec::new(),
@@ -562,6 +600,7 @@ mod tests {
                         write: 15,
                         flops: 20,
                     }),
+                    lead_bounds: None,
                     entries: 1,
                     children: Vec::new(),
                     kernels: Vec::new(),
@@ -594,12 +633,15 @@ mod tests {
                 .map(|label| ComponentPath::new([*label]))
                 .collect(),
             fuses_own: false,
+            members: Vec::new(),
+            member_launches: Vec::new(),
         };
         let leaf = |label: &str, kernels: Vec<Kernel>| Component {
             label: label.to_string(),
             variants: Vec::new(),
             sites: Vec::new(),
             bounds: None,
+            lead_bounds: None,
             entries: 1,
             children: Vec::new(),
             kernels,
@@ -652,6 +694,7 @@ mod tests {
             variants: Vec::new(),
             sites: Vec::new(),
             bounds: None,
+            lead_bounds: None,
             entries: 1,
             children: Vec::new(),
             kernels: Vec::new(),
@@ -674,6 +717,8 @@ mod tests {
                     ComponentPath::new(["attention", "query"]),
                 ],
                 fuses_own: false,
+                members: Vec::new(),
+                member_launches: Vec::new(),
             }],
             ..leaf("block")
         };
@@ -697,5 +742,58 @@ mod tests {
             .map(|(_, component)| component.label.as_str())
             .collect();
         assert_eq!(fused, ["norm", "attention", "query"]);
+    }
+
+    /// The lead runs `norm` on its own and only the second member fuses it into the block's
+    /// kernel, so on the lead `norm` is fused nowhere.
+    #[test]
+    fn work_another_member_fused_is_not_fused_on_the_lead() {
+        let kernel = |name: &str, members: Vec<u64>, fuses: Vec<ComponentPath>| Kernel {
+            name: name.to_string(),
+            launches: members.len(),
+            total: Duration::from_nanos(members.iter().sum()),
+            fuses,
+            fuses_own: false,
+            member_launches: vec![1; members.len()],
+            members: members.into_iter().map(Duration::from_nanos).collect(),
+        };
+        let leaf = |label: &str, kernels: Vec<Kernel>| Component {
+            label: label.to_string(),
+            variants: Vec::new(),
+            sites: Vec::new(),
+            bounds: None,
+            lead_bounds: None,
+            entries: 1,
+            children: Vec::new(),
+            kernels,
+            own_wait: Duration::ZERO,
+        };
+        let block = Component {
+            children: vec![leaf("norm", vec![kernel("Norm", vec![100], Vec::new())])],
+            kernels: vec![kernel(
+                "ElemwiseMatmul",
+                vec![0, 80],
+                vec![ComponentPath::new(["norm"])],
+            )],
+            ..leaf("block", Vec::new())
+        };
+        let breakdown = Breakdown {
+            tree: vec![block],
+            untagged: Vec::new(),
+            end_of_run: Vec::new(),
+            outside_wait: Duration::ZERO,
+            host_timed: false,
+            timed_alone: false,
+            unplaced: Unplaced::default(),
+            unfused: false,
+            per_member: None,
+        };
+        let norm = &breakdown.tree[0].children[0];
+
+        assert_eq!(
+            breakdown.fused_elsewhere().share(norm),
+            Some(FusedShare::Part)
+        );
+        assert_eq!(breakdown.fused_elsewhere_on_lead().share(norm), None);
     }
 }

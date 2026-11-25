@@ -22,6 +22,16 @@ pub enum RanOn {
     OffMembers,
 }
 
+impl RanOn {
+    /// The member it ran on, if any.
+    pub fn member(self) -> Option<Member> {
+        match self {
+            Self::Member(member) => Some(member),
+            Self::Device | Self::OffMembers => None,
+        }
+    }
+}
+
 /// The cubecl devices a run is timed on one by one, in member order: what places an execution on
 /// a member. Empty for a device of one.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -29,6 +39,8 @@ pub struct MemberList {
     /// Each member's device with the runtime serving it, as an execution's place names it.
     services: Vec<ServiceId>,
     schedule: MemberSchedule,
+    /// How many members were named, a device named twice counted twice.
+    named: usize,
 }
 
 impl MemberList {
@@ -61,6 +73,7 @@ impl MemberList {
     /// A device named twice is kept once: its executions name one place, so they cannot be told
     /// apart by member, and the device is timed as one.
     pub fn over(services: Vec<ServiceId>, schedule: MemberSchedule) -> Self {
+        let named = services.len();
         let mut kept: Vec<ServiceId> = Vec::with_capacity(services.len());
         for service in services {
             if !kept.contains(&service) {
@@ -70,12 +83,18 @@ impl MemberList {
         Self {
             services: kept,
             schedule,
+            named,
         }
     }
 
-    /// How many members there are to time apart, one for a device of one.
+    /// How many devices the members are on, each timed apart: one for a device of one.
     pub fn count(&self) -> usize {
         self.services.len().max(1)
+    }
+
+    /// How many members there are, more than [`count`](Self::count) where two share a device.
+    pub fn named(&self) -> usize {
+        self.named
     }
 
     /// Whether the members worked at once or in turn.
@@ -83,14 +102,24 @@ impl MemberList {
         self.schedule
     }
 
-    /// Whether the device has more than one member, so each is timed apart.
+    /// Whether the members are on more than one device, so each device is timed apart.
     pub fn several(&self) -> bool {
         self.services.len() > 1
     }
 
+    /// Whether several members worked at once, a device named twice counted twice.
+    pub fn at_once(&self) -> bool {
+        self.schedule == MemberSchedule::Concurrent && self.named > 1
+    }
+
+    /// Whether what ran is kept per member: members taking turns on one device are that device.
+    pub fn timed_apart(&self) -> bool {
+        self.several() || self.at_once()
+    }
+
     /// Where an execution placed at `place` ran.
     pub fn ran_on(&self, place: &ExecutionPlace) -> RanOn {
-        if !self.several() {
+        if !self.timed_apart() {
             return RanOn::Device;
         }
         self.services
@@ -128,16 +157,34 @@ mod tests {
         assert_eq!(members.ran_on(&place(service::<u8>(1))), RanOn::OffMembers);
     }
 
-    /// A sharded compute device whose members are one device is timed as one.
+    /// A sharded compute device whose members are one device is timed on one lane, which still
+    /// holds what ran there and nothing else.
     #[test]
-    fn a_device_named_twice_is_one_member() {
+    fn a_device_named_twice_is_one_lane() {
         let members = MemberList::over(
             vec![service::<u8>(3), service::<u8>(3)],
             MemberSchedule::Concurrent,
         );
 
         assert!(!members.several());
-        assert_eq!(members.ran_on(&place(service::<u8>(4))), RanOn::Device);
+        assert_eq!(members.named(), 2);
+        assert_eq!(
+            members.ran_on(&place(service::<u8>(3))),
+            RanOn::Member(Member(0))
+        );
+        assert_eq!(members.ran_on(&place(service::<u8>(4))), RanOn::OffMembers);
+    }
+
+    /// Codex's case: `[GPU 3, GPU 3]` taking turns is that device's run.
+    #[test]
+    fn a_device_named_twice_in_turn_is_the_device() {
+        let members = MemberList::over(
+            vec![service::<u8>(3), service::<u8>(3)],
+            MemberSchedule::Sequential,
+        );
+
+        assert!(!members.timed_apart());
+        assert_eq!(members.ran_on(&place(service::<u8>(3))), RanOn::Device);
     }
 
     /// The device `index_id` served by a runtime named `S`.

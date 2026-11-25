@@ -38,3 +38,29 @@ pub mod optional {
             .map(|nanoseconds| nanoseconds.map(Duration::from_nanos))
     }
 }
+
+/// A list of [`Duration`]s, as nanoseconds.
+pub mod each {
+    use std::time::Duration;
+
+    use serde::ser::SerializeSeq;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(
+        durations: &[Duration],
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        let mut seq = serializer.serialize_seq(Some(durations.len()))?;
+        for duration in durations {
+            seq.serialize_element(&u64::try_from(duration.as_nanos()).unwrap_or(u64::MAX))?;
+        }
+        seq.end()
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Vec<Duration>, D::Error> {
+        Vec::<u64>::deserialize(deserializer)
+            .map(|nanoseconds| nanoseconds.into_iter().map(Duration::from_nanos).collect())
+    }
+}

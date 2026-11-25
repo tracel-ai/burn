@@ -183,8 +183,9 @@ impl Timeline {
         self.windows
             .sort_by_key(|window| (window.ran_on, window.start));
         let mut idle = Vec::with_capacity(self.windows.len());
-        let mut per_member = self.members.several().then(|| PerMember {
+        let mut per_member = self.members.timed_apart().then(|| PerMember {
             members: vec![MemberTime::default(); self.members.count()],
+            member_count: self.members.named(),
             schedule: self.members.schedule(),
             off_members: Duration::ZERO,
             collectives: Vec::new(),
@@ -263,6 +264,7 @@ mod tests {
                 label,
                 variant: None,
                 site: "test::forward",
+                lead_bounds: None,
                 bounds: None,
             });
             tree.exit();
@@ -330,11 +332,58 @@ mod tests {
                         idle: micros(5),
                     },
                 ],
+                member_count: 2,
                 schedule: MemberSchedule::Concurrent,
                 off_members: micros(16),
                 collectives: Vec::new(),
             })
         );
+    }
+
+    #[test]
+    fn two_members_on_one_device_share_its_lane_and_are_both_counted() {
+        let [first, second] =
+            [1, 2].map(|index_id| ServiceId::of::<()>(DeviceId::new(0, index_id)));
+        let timeline = Timeline::new(
+            Instant::now(),
+            MemberList::over(vec![first, first, second], MemberSchedule::Concurrent),
+        );
+
+        let per_member = timeline.settle().per_member.expect("two lanes");
+        assert_eq!(per_member.members.len(), 2);
+        assert_eq!(per_member.member_count, 3);
+    }
+
+    /// `[GPU 0, GPU 0]`: one lane, and still two members working at once.
+    #[test]
+    fn two_members_on_one_device_keep_their_schedule_and_count() {
+        let epoch = Instant::now();
+        let device = ServiceId::of::<()>(DeviceId::new(0, 1));
+        let mut timeline = Timeline::new(
+            epoch,
+            MemberList::over(vec![device, device], MemberSchedule::Concurrent),
+        );
+        let micros = Duration::from_micros;
+        let ticks = ProfileTicks::from_start_end(epoch, epoch + micros(100));
+        timeline.push(Attribution::Untagged, RanOn::Member(Member(0)), &ticks);
+
+        let per_member = timeline.settle().per_member.expect("two members");
+        assert_eq!(per_member.schedule, MemberSchedule::Concurrent);
+        assert_eq!(per_member.member_count, 2);
+        assert_eq!(per_member.members.len(), 1);
+        assert_eq!(per_member.members[0].on_device, micros(100));
+    }
+
+    /// Codex's case: `[GPU 0, GPU 0]` taking turns has no members to time apart.
+    #[test]
+    fn one_device_named_twice_in_turn_has_no_members() {
+        let device = ServiceId::of::<()>(DeviceId::new(0, 1));
+        let timeline = Timeline::new(
+            Instant::now(),
+            MemberList::over(vec![device, device], MemberSchedule::Sequential),
+        );
+
+        assert_eq!(timeline.settle().per_member, None);
     }
 
     #[test]

@@ -345,6 +345,7 @@ mod tests {
                 label: labels[at],
                 variant: None,
                 site: "test::forward",
+                lead_bounds: None,
                 bounds: None,
             });
             tree.exit();

@@ -260,6 +260,7 @@ mod tests {
             label,
             variant: None,
             site: "test::forward",
+            lead_bounds: None,
             bounds: None,
         }
     }

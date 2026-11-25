@@ -1,6 +1,8 @@
+use alloc::vec::Vec;
+
 use burn_tensor::kind::Basic;
-use burn_tensor::quantization::scale_size;
-use burn_tensor::{DType, Tensor};
+use burn_tensor::quantization::quantized_data_len;
+use burn_tensor::{DType, Shape, Tensor};
 
 /// What one component must move and compute to run **alone**, at best: with nothing of its own
 /// reaching global memory twice.
@@ -87,23 +89,50 @@ impl core::iter::Sum for Bounds {
 /// Why [`Bounds`] are declared by the component rather than computed for it: the component holds
 /// the tensor and so knows its scheme, and no caller has to restate it.
 pub fn tensor_bytes<const D: usize, K: Basic>(tensor: &Tensor<D, K>) -> u64 {
-    let elements: u64 = tensor.dims().iter().map(|dim| *dim as u64).product();
-    match tensor.dtype() {
-        DType::QFloat(scheme) => {
-            let values = elements * scheme.size_bits_value() as u64 / 8;
-            let scales = scheme.levels().map(|level| {
-                let grid = level.size.num_blocks(&tensor.dims());
-                grid.iter().product::<usize>() as u64 * scale_size(level.dtype) as u64
-            });
-            values + scales.sum::<u64>()
-        }
-        dtype => elements * dtype.size() as u64,
+    stored_bytes(&tensor.dims(), tensor.dtype())
+}
+
+/// The bytes each member's shard of `tensor` occupies as stored: [`tensor_bytes`] of what each
+/// member holds, for pricing a member's part of a component.
+///
+/// # Guarantees
+///
+/// One entry per member, in member order, as [`Tensor::shard_dims`] gives their shapes; `None`
+/// exactly where `tensor` is not on a sharded compute device.
+pub fn member_tensor_bytes<const D: usize, K: Basic>(tensor: &Tensor<D, K>) -> Option<Vec<u64>> {
+    let dtype = tensor.dtype();
+    let shards = tensor.shard_dims()?;
+    Some(
+        shards
+            .iter()
+            .map(|dims| stored_bytes(dims, dtype))
+            .collect(),
+    )
+}
+
+/// The bytes a tensor of `dims` occupies when stored as `dtype`, a quantized one laid out as
+/// its packed words and scales are. See [`tensor_bytes`].
+fn stored_bytes(dims: &[usize], dtype: DType) -> u64 {
+    match dtype {
+        DType::QFloat(scheme) => quantized_data_len(&scheme, &Shape::from(dims.to_vec())) as u64,
+        dtype => dims.iter().map(|dim| *dim as u64).product::<u64>() * dtype.size() as u64,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use burn_tensor::quantization::{QuantScheme, QuantStore, QuantValue};
+
+    /// Each row of a `[3, 3]` 4-bit tensor packs into a word of its own, and its scale follows.
+    #[test]
+    fn a_packed_tensor_occupies_its_padded_words_and_its_scale() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q4S)
+            .with_store(QuantStore::PackedU32(0));
+
+        assert_eq!(stored_bytes(&[3, 3], DType::QFloat(scheme)), 3 * 4 + 4);
+    }
 
     /// An index or mask tensor is priced as stored too: its elements at their width.
     #[test]

@@ -24,6 +24,7 @@ use proc_macro::TokenStream;
 /// #[compute(bounds = self.bounds(&x))]                          // priced by an expression
 /// #[compute(label = self.role, bounds = Self::bounds)]          // a role named by the parent
 /// #[compute(label = "attention core", variant = self.kernel().name())]
+/// #[compute(bounds = Self::bounds, lead_bounds = Self::lead_bounds)] // the lead's share too
 /// ```
 ///
 /// * `label`: an expression evaluated in the method's scope naming this component.
@@ -42,6 +43,11 @@ use proc_macro::TokenStream;
 ///   instrument prices in a run it does not time, so the expression may read values back.
 ///   Observation is suspended while evaluating it, so annotated helpers do not become model
 ///   entries. The expression must preserve model state and randomness needed by the forward pass.
+/// * `lead_bounds`: the floor of the lead, the first member of a sharded compute device, written
+///   as `bounds` is and evaluated only when that device has several members: what the lead must
+///   move and compute given how the operands are split, which the first entries of
+///   `Tensor::shard_dims` and `burn::instrument::member_tensor_bytes` read. Omitted, the component
+///   is timed and not scored on a sharded compute device, whatever its `bounds`.
 ///
 /// The method must take `self` (the type names the component), and with a bare-path `bounds` bind each
 /// parameter to a plain name (the path is handed them by name). It may be an inherent method, a
