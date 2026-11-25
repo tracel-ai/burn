@@ -27,6 +27,7 @@
 //! |------------|------------|-------------|
 //! | `Cube`     | `cpu`, `cuda`, `metal`, `rocm`, `vulkan`, `webgpu`, `wgpu` | Every cubecl runtime. One backend: the features decide which runtimes are compiled in, and a tensor's device says which one it runs on |
 //! | `Flex`     | `flex`     | Pure Rust CPU backend using `burn-flex` |
+//! | `External` | `external` | Application-selected backend supplied through `burn-external` |
 //! | `Remote`   | `remote`   | Devices hosted by another process or machine, through `burn-remote` |
 //! | `Capture`  | `capture`  | Records operation graphs instead of executing them, through `burn-capture` |
 //! | `ShardedCompute` | `shard` | Experimental: tensors split over several Cube or Flex devices, through `burn-shard` |
@@ -96,6 +97,9 @@ pub mod backends {
     #[cfg(feature = "flex")]
     pub use burn_flex::Flex;
 
+    #[cfg(external_backend)]
+    pub use burn_external::External;
+
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteBackend as Remote;
     /// What `#[backend_extension]` builds the client of the remote backend and of sharded compute
@@ -163,6 +167,10 @@ pub mod devices {
     pub use burn_cubecl::cubecl::RuntimeId;
     #[cfg(feature = "flex")]
     pub use burn_flex::FlexDevice;
+
+    /// The device type supplied by the application's external backend.
+    #[cfg(external_backend)]
+    pub type ExternalDevice = <crate::backends::External as burn_backend::BackendTypes>::Device;
 
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteDevice;

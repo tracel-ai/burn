@@ -33,6 +33,13 @@ pub const BACKENDS: &[BackendSpec] = &[
         unidirectional_transfer: false,
     },
     BackendSpec {
+        name: "External",
+        cfg: "external_backend",
+        distributed: false,
+        router: false,
+        unidirectional_transfer: false,
+    },
+    BackendSpec {
         name: "Remote",
         cfg: "feature = \"remote\"",
         distributed: true,

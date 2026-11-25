@@ -38,6 +38,7 @@ cubecl = ["burn-backend/cubecl"]
 # Backends
 cuda = ["cubecl", "burn-cubecl/cuda"]
 flex = ["dep:burn-flex"]
+external = ["dep:burn-external"]
 rocm = ["cubecl", "burn-cubecl/hip"]
 vulkan = ["wgpu", "burn-cubecl/vulkan"]
 webgpu = ["wgpu", "burn-cubecl/webgpu"]
@@ -85,6 +86,7 @@ burn-backend-extension = { workspace = true }
 burn-autodiff = { workspace = true, optional = true }
 # The one backend shared by every CubeCL runtime.
 burn-cubecl = { workspace = true, optional = true }
+burn-external = { workspace = true, optional = true }
 burn-flex = { workspace = true, optional = true }
 
 burn-remote = { workspace = true, optional = true, features = ["client"] }

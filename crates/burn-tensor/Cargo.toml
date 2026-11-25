@@ -64,6 +64,7 @@ remote-server = ["remote", "burn-dispatch/remote-server"]
 # Add the WebSocket transport, for clients and servers.
 remote-websocket = ["remote", "burn-dispatch/remote-websocket"]
 capture = ["burn-dispatch/capture", "dep:burn-capture"]
+external = ["burn-dispatch/external"]
 # Experimental: tensors split over a group of devices.
 shard = ["burn-dispatch/shard"]
 

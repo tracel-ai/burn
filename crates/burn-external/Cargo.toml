@@ -1,0 +1,11 @@
+[package]
+name = "burn-external"
+description = "Application-selected backend binding for Burn"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+repository = "https://github.com/tracel-ai/burn"
+links = "burn_external_backend"
+
+[lints]
+workspace = true

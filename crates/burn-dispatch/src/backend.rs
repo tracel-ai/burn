@@ -38,6 +38,10 @@ pub enum DispatchGraph {
     #[cfg(feature = "flex")]
     Flex(BackendGraph<Flex>),
 
+    /// A graph captured by the application's external backend.
+    #[cfg(external_backend)]
+    External(BackendGraph<External>),
+
     /// A graph captured on the [Remote backend](Remote).
     #[cfg(feature = "remote")]
     Remote(BackendGraph<Remote>),
@@ -340,6 +344,8 @@ impl Backend for Dispatch {
             DispatchDeviceId::Cube => Cube::device_count(backend_type_id),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
+            #[cfg(external_backend)]
+            DispatchDeviceId::External => External::device_count(backend_type_id),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Remote::device_count(backend_type_id),
             #[cfg(feature = "shard")]
@@ -463,6 +469,8 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Cube(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
+                #[cfg(external_backend)]
+                DispatchTensorKind::External(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "shard")]
@@ -495,6 +503,11 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Flex(crate::BackendTensor::Float(t))),
+                #[cfg(external_backend)]
+                DispatchTensorKind::External(tensor) => tensor
+                    .as_autodiff()
+                    .grad(grads)
+                    .map(|t| DispatchTensorKind::External(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor
                     .as_autodiff()
@@ -537,6 +550,11 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Flex(crate::BackendTensor::Float(t))),
+                #[cfg(external_backend)]
+                DispatchTensorKind::External(tensor) => tensor
+                    .as_autodiff()
+                    .grad_remove(grads)
+                    .map(|t| DispatchTensorKind::External(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor
                     .as_autodiff()
@@ -585,6 +603,10 @@ impl AutodiffBackend for Dispatch {
                 (DispatchTensorKind::Flex(tensor), DispatchTensorKind::Flex(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
+                #[cfg(external_backend)]
+                (DispatchTensorKind::External(tensor), DispatchTensorKind::External(grad)) => {
+                    tensor.as_autodiff().grad_replace(grads, grad.float())
+                }
                 #[cfg(feature = "remote")]
                 (DispatchTensorKind::Remote(tensor), DispatchTensorKind::Remote(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
@@ -623,6 +645,10 @@ impl AutodiffBackend for Dispatch {
                 ),
                 #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => DispatchTensorKind::Flex(
+                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
+                ),
+                #[cfg(external_backend)]
+                DispatchTensorKind::External(tensor) => DispatchTensorKind::External(
                     crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
                 #[cfg(feature = "remote")]
@@ -685,6 +711,12 @@ impl AutodiffBackend for Dispatch {
                     crate::BackendTensor::Autodiff(Autodiff::<Flex>::from_inner(tensor.float())),
                 )))
             }
+            #[cfg(external_backend)]
+            DispatchTensorKind::External(tensor) => DispatchTensorKind::Autodiff(Box::new(
+                DispatchTensorKind::External(crate::BackendTensor::Autodiff(
+                    Autodiff::<External>::from_inner(tensor.float()),
+                )),
+            )),
             #[cfg(feature = "remote")]
             DispatchTensorKind::Remote(tensor) => {
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Remote(
@@ -1269,6 +1301,9 @@ impl Dispatch {
                 .collect(),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => vec![FlexDevice.into()],
+            #[cfg(external_backend)]
+            // The application supplies devices through the vendor's own API.
+            DispatchDeviceId::External => Vec::new(),
             #[cfg(feature = "remote")]
             // A remote device needs its server's address, which a type id cannot carry.
             DispatchDeviceId::Remote => Vec::new(),

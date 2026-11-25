@@ -39,6 +39,10 @@ macro_rules! with_backend {
             Some(DispatchDevice::Remote(_)) => Err(ServeError::UnsupportedDevice {
                 reason: "a remote device cannot host a remote server".into(),
             }),
+            #[cfg(external_backend)]
+            Some(DispatchDevice::External(_)) => Err(ServeError::UnsupportedDevice {
+                reason: "the dispatch remote server does not host external devices".into(),
+            }),
             #[cfg(feature = "capture")]
             Some(DispatchDevice::Capture(_)) => Err(ServeError::UnsupportedDevice {
                 reason: "a capture device cannot host a remote server".into(),

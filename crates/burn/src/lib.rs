@@ -88,6 +88,7 @@
 //! | WebGPU                  | `webgpu` | `Device::webgpu(Default::default())` |
 //! | CubeCL CPU              | `cpu`    | `Device::cpu()`                      |
 //! | Flex (pure Rust CPU)    | `flex`   | `Device::flex()`                     |
+//! | External                | `external` | `Device::new(DispatchDevice::External(native_device))` |
 //!
 //! Autodiff and kernel fusion are decorators over these backends: `device.autodiff()` enables
 //! gradients for tensors created on a device, and the CubeCL backends fuse operations by default.
@@ -131,6 +132,7 @@
 //!   - `rocm`: Makes available the ROCm backend
 //!   - `cpu`: Makes available the CubeCL CPU backend
 //!   - `flex`: Makes available the Flex backend (pure-Rust CPU, std/no_std/WASM)
+//!   - `external`: Enables the [application-selected backend slot](https://burn.dev/books/burn/advanced/backend-extension/index.html#using-an-external-backend) when `burn-external` is patched
 //! - Backend specifications
 //!   - `simd`: Enable SIMD kernels in the Flex backend
 //!   - `rayon`: Enable multi-threaded execution in the Flex backend

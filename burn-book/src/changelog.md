@@ -269,6 +269,12 @@ Reports also include the measured cost of a kernel launch.
   ([#6527](https://github.com/tracel-ai/burn/pull/6527))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+#### External backends
+
+- Enable `external` and patch `burn-external` in the application workspace to compile a third-party
+  backend into Burn's runtime dispatch. Tensors and `#[backend_extension(External)]` dispatch
+  directly to the selected backend.
+
 #### Flex SIMD operations
 
 - Speed up Flex CPU F32 `exp`, `sigmoid`, and `softmax` with a SIMD `exp` within 2 ulp of libm, and

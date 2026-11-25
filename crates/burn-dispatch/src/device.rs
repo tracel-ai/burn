@@ -33,7 +33,7 @@ pub use burn_backend::cubecl::CubeCapabilities;
 /// #[cfg(feature = "flex")]
 /// let flex_device = DispatchDevice::Flex(Default::default());
 /// ```
-#[derive(Clone, Eq)]
+#[derive(Clone)]
 pub enum DispatchDevice {
     #[cfg(not(backend_enabled))]
     #[doc(hidden)]
@@ -46,6 +46,12 @@ pub enum DispatchDevice {
     /// The [Flex backend](crate::backends::Flex) device (CPU-only).
     #[cfg(feature = "flex")]
     Flex(FlexDevice),
+
+    /// A device supplied by the application's external backend.
+    ///
+    /// The native device's type ID must fit in eight bits.
+    #[cfg(external_backend)]
+    External(ExternalDevice),
 
     /// The [remote backend](crate::backends::Remote) device, identified by a network address.
     #[cfg(feature = "remote")]
@@ -181,6 +187,8 @@ impl core::fmt::Debug for DispatchDevice {
             Self::Cube(device) => f.debug_tuple("Cube").field(device).finish(),
             #[cfg(feature = "flex")]
             Self::Flex(device) => f.debug_tuple("Flex").field(device).finish(),
+            #[cfg(external_backend)]
+            Self::External(device) => f.debug_tuple("External").field(device).finish(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => f.debug_tuple("Remote").field(device).finish(),
             #[cfg(feature = "shard")]
@@ -200,7 +208,7 @@ impl core::fmt::Debug for DispatchDevice {
 
 impl Default for DispatchDevice {
     /// Select an enabled backend in this order: CUDA, Metal, ROCm, Vulkan, WebGPU,
-    /// wgpu, CPU, Flex, Remote. `BURN_DEVICE` overrides this in
+    /// wgpu, CPU, Flex, Remote, External. `BURN_DEVICE` overrides this in
     /// std builds. Capture devices must be constructed explicitly.
     ///
     /// The `metal`, `vulkan`, and `webgpu` overrides require their matching Cargo features
@@ -293,6 +301,14 @@ impl Default for DispatchDevice {
                             "BURN_DEVICE=flex requested, but the 'flex' feature is not enabled."
                         );
                     }
+                    "external" => {
+                        #[cfg(external_backend)]
+                        return Self::External(ExternalDevice::default());
+                        panic!(
+                            "BURN_DEVICE=external requested, but no external backend is configured. \
+                             Enable Burn's 'external' feature and patch 'burn-external'."
+                        );
+                    }
                     _ => panic!("Unknown BURN_DEVICE override: '{}'.", device_str),
                 }
             }
@@ -333,6 +349,9 @@ impl Default for DispatchDevice {
         #[cfg(feature = "remote")]
         return Self::Remote(RemoteDevice::default());
 
+        #[cfg(external_backend)]
+        return Self::External(ExternalDevice::default());
+
         panic!(
             "No execution backend is enabled. Enable a Burn backend feature such as `flex`, \
              `wgpu`, or `cuda`. To record a graph without executing it, enable `capture` \
@@ -362,6 +381,10 @@ impl PartialEq for DispatchDevice {
             (Self::Cube(a), Self::Cube(b)) => a == b,
             #[cfg(feature = "flex")]
             (Self::Flex(a), Self::Flex(b)) => a == b,
+            #[cfg(external_backend)]
+            (Self::External(a), Self::External(b)) => {
+                burn_backend::Device::to_id(a) == burn_backend::Device::to_id(b)
+            }
             #[cfg(feature = "remote")]
             (Self::Remote(a), Self::Remote(b)) => a == b,
             #[cfg(feature = "shard")]
@@ -373,6 +396,8 @@ impl PartialEq for DispatchDevice {
         }
     }
 }
+
+impl Eq for DispatchDevice {}
 
 const INTERNAL_ID_MASK: u16 = 0x00FF;
 const BACKEND_SHIFT: u32 = 8;
@@ -560,6 +585,8 @@ impl DispatchDevice {
             Self::Cube(_) => DispatchDeviceId::Cube,
             #[cfg(feature = "flex")]
             Self::Flex(_) => DispatchDeviceId::Flex,
+            #[cfg(external_backend)]
+            Self::External(_) => DispatchDeviceId::External,
             #[cfg(feature = "remote")]
             Self::Remote(_) => DispatchDeviceId::Remote,
             #[cfg(feature = "shard")]
@@ -603,6 +630,9 @@ pub enum DispatchDeviceId {
     Remote = 10,
     Capture = 11,
     ShardedCompute = 12,
+    /// The configured external backend.
+    #[cfg(external_backend)]
+    External = 13,
 }
 
 impl From<DispatchDeviceId> for u16 {
@@ -626,6 +656,8 @@ impl TryFrom<u16> for DispatchDeviceId {
             12 => Ok(Self::ShardedCompute),
             #[cfg(feature = "capture")]
             11 => Ok(Self::Capture),
+            #[cfg(external_backend)]
+            13 => Ok(Self::External),
             _ => Err(()),
         }
     }
@@ -640,6 +672,8 @@ impl DeviceOps for DispatchDevice {
             Self::Cube(device) => device.defaults(),
             #[cfg(feature = "flex")]
             Self::Flex(device) => device.defaults(),
+            #[cfg(external_backend)]
+            Self::External(device) => device.defaults(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => device.defaults(),
             #[cfg(feature = "shard")]
@@ -663,6 +697,8 @@ impl burn_backend::Device for DispatchDevice {
             DispatchDeviceId::Cube => Self::Cube(burn_backend::Device::from_id(device_id)),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => Self::Flex(FlexDevice::from_id(device_id)),
+            #[cfg(external_backend)]
+            DispatchDeviceId::External => Self::External(burn_backend::Device::from_id(device_id)),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Self::Remote(RemoteDevice::from_id(device_id)),
             #[cfg(feature = "shard")]
@@ -683,6 +719,16 @@ impl burn_backend::Device for DispatchDevice {
             Self::Cube(device) => device.to_id(),
             #[cfg(feature = "flex")]
             Self::Flex(device) => device.to_id(),
+            #[cfg(external_backend)]
+            Self::External(device) => {
+                let id = burn_backend::Device::to_id(device);
+                assert!(
+                    id.type_id <= INTERNAL_ID_MASK,
+                    "The external device type ID must fit in eight bits, got {}",
+                    id.type_id
+                );
+                id
+            }
             #[cfg(feature = "remote")]
             Self::Remote(device) => device.to_id(),
             #[cfg(feature = "shard")]

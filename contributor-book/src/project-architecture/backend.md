@@ -36,8 +36,9 @@ facade names such as `Cuda` and `Wgpu` are aliases of `Cube`, not distinct exten
 
 Runtime dispatch uses a fixed backend catalog defined in
 `crates/burn-backend-extension/src/catalog.rs`, shared by generated and handwritten routing.
-`#[backend_extension]` extends the operations available on supported backends; it does not provide a
-mechanism for registering additional backends.
+The `External` entry takes its concrete backend type from the application's `burn-external` Cargo
+patch. It uses the same device, tensor, transfer, and operation dispatch machinery as the built-in
+entries. `#[backend_extension(External)]` adds custom operations to that configured backend.
 
 ## Kernels and fusion
 

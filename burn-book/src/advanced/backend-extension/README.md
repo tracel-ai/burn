@@ -60,7 +60,7 @@ compose existing differentiable operations, as above. To optimize the forward or
 override that body on the concrete backend or `Autodiff<B, C>` respectively. These are alternative
 implementations; do not add overlapping implementations of the same trait.
 
-Execution backend selectors include `Cube`, `Flex`, and `Remote`, plus the
+Execution backend selectors include `Cube`, `Flex`, `External`, and `Remote`, plus the
 `Autodiff` routing option. `Cube` covers the CubeCL runtimes; `Wgpu` and `Cuda` are backend aliases,
 not accepted selectors. A selector may have a condition such as
 `Cube: cfg(feature = "wgpu")`. Conditions refer to features of the crate containing the macro;
@@ -75,6 +75,87 @@ Autodiff contexts from tensor-bearing inputs are merged. Plain inputs act as con
 inputs must use the same checkpointing strategy. Inputs still need compatible devices and dtypes
 for the operation. Add shape and dtype validation in your public wrapper or kernel implementation;
 the macro does not infer your operation's mathematical constraints.
+
+## Using an external backend
+
+An application can compile one third-party backend into Burn's `External` dispatch slot. The
+backend crate implements `burn_backend::Backend` and uses the same Burn version and source as
+the application. The backend crate depends on the lower-level backend crates, since
+`burn-dispatch` will depend on it through the binding.
+
+Enable Burn's `external` feature and patch `burn-external` in the root application manifest.
+The feature also enables `extension`, which exposes the dispatch types and extension macro.
+
+```toml
+[dependencies]
+burn = { version = "0.23.0-pre.2", features = ["external"] }
+
+[patch.crates-io]
+burn-external = { path = "burn-external-binding" }
+```
+
+For a Git dependency on Burn, put the patch under
+`[patch."https://github.com/tracel-ai/burn"]` instead. For a local Burn checkout used as a path
+dependency, put the binding directly in that checkout's `crates/burn-external`.
+
+Use the same `burn-external` version as the Burn release in the binding's manifest.
+
+```toml
+[package]
+name = "burn-external"
+version = "0.23.0-pre.2"
+edition = "2024"
+links = "burn_external_backend"
+
+[dependencies]
+vendor-backend = { path = "../vendor-backend" }
+```
+
+In the binding's `build.rs`, advertise that the slot has a backend.
+
+```rust,ignore
+fn main() {
+    println!("cargo::rerun-if-changed=build.rs");
+    println!("cargo::metadata=configured=1");
+}
+```
+
+In its `src/lib.rs`, export the type.
+
+```rust,ignore
+pub use vendor_backend::VendorBackend as External;
+```
+
+Use the native device from the vendor crate to create a Burn device.
+
+```rust,ignore
+use burn::{
+    backend::{Dispatch, DispatchDevice, External, backend_extension, tensor::FloatTensor},
+    tensor::{Device, Tensor},
+};
+
+#[backend_extension(External)]
+pub trait Square: burn::backend::Backend {
+    fn square(x: FloatTensor<Self>) -> FloatTensor<Self> {
+        Self::float_mul(x.clone(), x)
+    }
+}
+
+impl Square for External {}
+
+let native_device = Default::default();
+let device = Device::new(DispatchDevice::External(native_device));
+let x = Tensor::<1>::from_floats([2.0, 3.0], &device);
+let squared = Tensor::<1>::from_dispatch(Dispatch::square(x.into_dispatch()));
+```
+
+The external backend must be a distinct type from any other backend enabled in the same build.
+Its native device IDs must uniquely identify the devices, and their type IDs must fit in eight
+bits. Use the vendor API to discover devices. Burn uses the external backend's default device
+when it is the only execution backend, or when `BURN_DEVICE=external` is set in a standard-library
+build. If a library exposes the operation in both configured and unconfigured builds, gate the
+selector with that library's feature, for example
+`#[backend_extension(External: cfg(feature = "external"))]`, and forward the feature to Burn.
 
 ## Fusion
 

@@ -23,6 +23,7 @@ enable the matching dispatch features, and a `Device` constructor picks the back
 | ---------- | ---------------------------------------------------------- | ------------------------------------------------------------- |
 | `Cube`     | `cpu`, `cuda`, `metal`, `rocm`, `vulkan`, `webgpu`, `wgpu` | [burn-cubecl](https://github.com/tracel-ai/burn/tree/main/crates/burn-cubecl), every CubeCL runtime           |
 | `Flex`     | `flex`                                                     | [burn-flex](https://github.com/tracel-ai/burn/tree/main/crates/burn-flex), pure Rust CPU                      |
+| `External` | `external`                                                 | Application-selected `Backend` supplied by a patch to `burn-external` |
 | `Remote`   | `remote`                                                   | [burn-remote](https://github.com/tracel-ai/burn/tree/main/crates/burn-remote), devices on another server      |
 | `Capture`  | `capture`                                                  | [burn-capture](https://github.com/tracel-ai/burn/tree/main/crates/burn-capture), records instead of executing |
 | `ShardedCompute` | `shard`                                                 | [burn-shard](https://github.com/tracel-ai/burn/tree/main/crates/burn-shard), experimental: tensors split over several devices |

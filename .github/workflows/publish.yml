@@ -450,6 +450,14 @@ jobs:
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
+  publish-burn-external:
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v12
+    with:
+      crate: burn-external
+      dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
   publish-burn-dispatch:
     needs:
       - publish-burn-std
@@ -461,6 +469,7 @@ jobs:
       - publish-burn-rocm
       - publish-burn-wgpu
       - publish-burn-flex
+      - publish-burn-external
       - publish-burn-remote
       - publish-burn-capture
       - publish-burn-shard

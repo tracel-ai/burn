@@ -1,5 +1,6 @@
 fn main() {
     println!("cargo::rustc-check-cfg=cfg(cube_backend)");
+    println!("cargo::rustc-check-cfg=cfg(external_backend)");
     println!("cargo::rustc-check-cfg=cfg(executing_backend)");
     println!("cargo::rustc-check-cfg=cfg(backend_enabled)");
 
@@ -20,7 +21,10 @@ fn main() {
     let shard = cfg!(feature = "shard");
 
     let cube = cuda || rocm || cpu || metal || wgpu_msl || vulkan || webgpu || wgpu;
-    let local = cube || flex;
+    // The default binding keeps all-features builds usable without an application patch.
+    let external = cfg!(feature = "external")
+        && std::env::var("DEP_BURN_EXTERNAL_BACKEND_CONFIGURED").as_deref() == Ok("1");
+    let local = cube || flex || external;
     let executing = local || remote;
 
     // Backend-free builds expose tensor/model APIs without installing an execution backend.
@@ -32,6 +36,10 @@ fn main() {
     // runtime, so they share one variant under one cfg rather than a seven-way list at each use.
     if cube {
         println!("cargo::rustc-cfg=cube_backend");
+    }
+
+    if external {
+        println!("cargo::rustc-cfg=external_backend");
     }
 
     // Capture records operations but never executes them.

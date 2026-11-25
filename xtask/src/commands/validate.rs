@@ -106,6 +106,7 @@ pub(crate) fn check_backend_features() -> anyhow::Result<()> {
                 "burn-cubecl",
                 "burn-remote",
                 "burn-capture",
+                "burn-external",
                 "burn-shard",
             ][..],
         ),

@@ -269,6 +269,10 @@ pub enum DispatchTensorKind {
     #[cfg(feature = "flex")]
     Flex(BackendTensor<Flex>),
 
+    /// The application's external backend tensor.
+    #[cfg(external_backend)]
+    External(BackendTensor<External>),
+
     /// The [Remote backend](Remote) tensor (lives on a remote server).
     #[cfg(feature = "remote")]
     Remote(BackendTensor<Remote>),
@@ -295,6 +299,8 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Cube(tensor) => tensor.dtype(),
             #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.dtype(),
+            #[cfg(external_backend)]
+            Self::External(tensor) => tensor.dtype(),
             #[cfg(feature = "remote")]
             Self::Remote(tensor) => tensor.dtype(),
             #[cfg(feature = "shard")]
@@ -314,6 +320,8 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Cube(tensor) => tensor.shape(),
             #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.shape(),
+            #[cfg(external_backend)]
+            Self::External(tensor) => tensor.shape(),
             #[cfg(feature = "remote")]
             Self::Remote(tensor) => tensor.shape(),
             #[cfg(feature = "shard")]
@@ -333,6 +341,8 @@ impl TensorMetadata for DispatchTensorKind {
             DispatchTensorKind::Cube(tensor) => DispatchDevice::Cube(tensor.device()),
             #[cfg(feature = "flex")]
             DispatchTensorKind::Flex(tensor) => DispatchDevice::Flex(tensor.device()),
+            #[cfg(external_backend)]
+            DispatchTensorKind::External(tensor) => DispatchDevice::External(tensor.device()),
             #[cfg(feature = "remote")]
             DispatchTensorKind::Remote(tensor) => DispatchDevice::Remote(tensor.device()),
             #[cfg(feature = "shard")]
@@ -354,6 +364,8 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Cube(tensor) => tensor.can_mut(),
             #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.can_mut(),
+            #[cfg(external_backend)]
+            Self::External(tensor) => tensor.can_mut(),
             #[cfg(feature = "remote")]
             Self::Remote(tensor) => tensor.can_mut(),
             #[cfg(feature = "shard")]
@@ -423,6 +435,8 @@ impl DispatchTensorKind {
             DispatchTensorKind::Cube(_) => "Cube",
             #[cfg(feature = "flex")]
             DispatchTensorKind::Flex(_) => "Flex",
+            #[cfg(external_backend)]
+            DispatchTensorKind::External(_) => "External",
             #[cfg(feature = "remote")]
             DispatchTensorKind::Remote(_) => "Remote",
             #[cfg(feature = "shard")]
@@ -585,6 +599,7 @@ macro_rules! impl_dispatch_conversion {
 // backend, so they share the one impl rather than getting seven identical ones.
 impl_dispatch_conversion!(Cube, cube_backend);
 impl_dispatch_conversion!(Flex, feature = "flex");
+impl_dispatch_conversion!(External, external_backend);
 impl_dispatch_conversion!(Remote, feature = "remote");
 impl_dispatch_conversion!(ShardedCompute, feature = "shard");
 impl_dispatch_conversion!(Capture, feature = "capture");

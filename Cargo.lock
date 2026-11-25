@@ -1202,6 +1202,7 @@ dependencies = [
  "burn-backend-extension",
  "burn-capture",
  "burn-cubecl",
+ "burn-external",
  "burn-flex",
  "burn-ir",
  "burn-remote",
@@ -1214,6 +1215,10 @@ dependencies = [
 
 [[package]]
 name = "burn-einsum"
+version = "0.23.0-pre.2"
+
+[[package]]
+name = "burn-external"
 version = "0.23.0-pre.2"
 
 [[package]]
