@@ -390,14 +390,8 @@ struct GroupLayout {
 }
 
 impl GroupLayout {
-    /// When a round stops measuring a group: after [`min_measured`](Patience::min_measured)
-    /// candidates in priority order, once [`max_misses`](Patience::max_misses) in a row fail to
-    /// beat the leader. The minimum also holds the roofline's early stop back, so a family of
-    /// that many candidates or fewer is always raced whole.
-    const PATIENCE: Patience = Patience {
-        min_measured: 10,
-        max_misses: 5,
-    };
+    /// When a round stops measuring a group: the patience every table shares.
+    const PATIENCE: Patience = burn_backend::cubecl::autotune::PATIENCE;
 
     /// A group at a fixed priority, whatever the key. Ordered: its candidates'
     /// priorities say what to try first, and [`PATIENCE`](Self::PATIENCE) how far down that

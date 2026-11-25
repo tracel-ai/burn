@@ -1,12 +1,39 @@
-//! Roofline bounds for autotune tables, shared by every cubecl-backed table so the fraction of
-//! peak a level settles for is decided in one place.
+//! What every cubecl-backed autotune table shares, decided in one place: the roofline bounds a
+//! level settles for, and how far down its candidates a round goes ([`PATIENCE`]).
 
 use alloc::{sync::Arc, vec::Vec};
 use core::time::Duration;
 use cubecl::{
     config::{CubeClRuntimeConfig, RuntimeConfig, autotune::AutotuneLevel},
-    tune::{AutotuneKey, Bounds, BoundsGenerator, Thresholds, TunableSet, TuneInputs},
+    tune::{
+        AutotuneKey, Bounds, BoundsGenerator, OrderedSettings, Patience, Thresholds, TunableSet,
+        TuneGroup, TuneInputs,
+    },
 };
+
+/// When a round stops measuring a group: after [`min_measured`](Patience::min_measured)
+/// candidates in priority order, once [`max_misses`](Patience::max_misses) in a row fail to beat
+/// the leader. The minimum also holds the roofline's early stop back, so a table of that many
+/// candidates or fewer is always raced whole.
+pub const PATIENCE: Patience = Patience {
+    min_measured: 10,
+    max_misses: 5,
+};
+
+/// The priority the candidates of a [`raced_group`] sit at: one level, so a round over them is
+/// their order of registration.
+pub const RACED_PRIORITY: i8 = 0;
+
+/// The group a table built on a [`TunableSet`] directly races its candidates in: one group at
+/// one priority, its members measured in the order they are added, with the [`PATIENCE`] every
+/// table shares. A member joins it at [`RACED_PRIORITY`].
+pub fn raced_group<K: AutotuneKey>(name: &str) -> TuneGroup<K> {
+    TuneGroup::ordered(
+        name,
+        |_key| RACED_PRIORITY,
+        OrderedSettings::default().with_patience(PATIENCE),
+    )
+}
 
 /// Registers `bounds`, which states a problem's roofline, on `set`, so a round ends at the first
 /// candidate that runs close enough to peak, unless autotune is configured for

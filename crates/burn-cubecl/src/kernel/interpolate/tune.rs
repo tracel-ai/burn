@@ -4,6 +4,7 @@ use crate::{
     ops::permute_nchw_to_nhwc_shape,
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::autotune::{RACED_PRIORITY, raced_group};
 use burn_backend::cubecl::{autotune::with_roofline_bounds, dtype_to_elem_type};
 use burn_backend::ops::InterpolateOptions;
 use cubecl::{
@@ -50,12 +51,16 @@ pub fn interpolate_autotune(
 
     let tune_id = CubeTuneId::new(&client, &input.device);
     let tunables = TUNER.init(&tune_id, move || {
+        let raced = raced_group("kernels");
         let mut set = with_bounds(TunableSet::new(create_key, input_gen));
 
         for (name, strategy) in STRATEGIES {
-            set = set.with(Tunable::new(name, move |(input, output_size, options)| {
-                execute_interpolate(input, output_size, options, strategy)
-            }));
+            set = set.with(
+                Tunable::new(name, move |(input, output_size, options)| {
+                    execute_interpolate(input, output_size, options, strategy)
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            );
         }
 
         set
