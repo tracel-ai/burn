@@ -278,6 +278,17 @@ Reports also include the measured cost of a kernel launch.
   ([#6632](https://github.com/tracel-ai/burn/pull/6632))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- A sharded compute device is measured at its lead, its first member, on the assumption that its
+  members are one hardware: `Peaks::new` probes the lead, `Kernel::members` and
+  `Kernel::member_launches` keep each member's part of a kernel's time and launches, and
+  `#[compute(lead_bounds = ...)]` prices the lead's share, read with
+  `Tensor::shard_dims` and `member_tensor_bytes`. A report times each component on the lead and
+  holds it to its lead bounds; one without them is left unscored. `tensor_bytes` counts a
+  quantized tensor as its layout stores it, padded words and every scale included. Measurement
+  files are version 8, and one of version 7 is refused: measure it again.
+  ([#6651](https://github.com/tracel-ai/burn/pull/6651))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 #### Flex SIMD operations
 
 - Speed up Flex CPU F32 `exp`, `sigmoid`, and `softmax` with a SIMD `exp` within 2 ulp of libm, and
