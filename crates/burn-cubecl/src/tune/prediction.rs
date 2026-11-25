@@ -24,15 +24,15 @@
 use super::{CandidatePriority, WorkerLimits};
 use core::time::Duration;
 use cubecl::client::Client;
+use cubecl::ir::{ElemType, FloatKind};
 use cubecl::std::throughput::{
     compute_bound, measure_cache_read, measure_cube_rate, measure_launch_overhead,
     measure_shared_read, memory_bound,
 };
-use cubecl::throughput::{MemoryAccess, ResourceBound, ThroughputKey};
+use cubecl::throughput::{CmmaDims, MemoryAccess, ResourceBound, ThroughputKey};
 use cubecl::tune::Work;
-use cubek::std::Hardware;
 use cubek::std::microkernel::{ArithmeticInstruction, GlobalStream, KernelEstimate};
-use cubek::std::routine::Routine;
+use cubek::std::{Hardware, Instructions};
 
 /// The instructions a family's kernels compute on: what their arithmetic is measured against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,6 +41,41 @@ pub struct Arithmetic {
     pub vector: ThroughputKey,
     /// The matrix instruction a plane issues together, where the family has one.
     pub matrix: Option<ThroughputKey>,
+}
+
+impl Arithmetic {
+    /// Plain arithmetic in `element`, with no matrix instruction.
+    pub fn plain(element: ElemType) -> Self {
+        Self {
+            vector: ThroughputKey::compute(None, element, element),
+            matrix: None,
+        }
+    }
+
+    /// The arithmetic of a product of `element`s accumulated in `f32` on `hw`: plain arithmetic
+    /// in `f32`, and the largest matrix instruction the device offers for it, where it offers
+    /// one.
+    pub fn product(hw: &Hardware, element: ElemType) -> Self {
+        let accumulate = ElemType::Float(FloatKind::F32);
+        let matrix = hw
+            .properties
+            .features
+            .matmul
+            .cmma
+            .iter()
+            .copied()
+            .for_triple(element, element, accumulate)
+            .largest()
+            .map(|instruction| CmmaDims {
+                m: instruction.m as usize,
+                n: instruction.n as usize,
+                k: instruction.k as usize,
+            });
+        Self {
+            vector: ThroughputKey::compute(None, element, accumulate),
+            matrix: matrix.map(|dims| ThroughputKey::compute(Some(dims), element, accumulate)),
+        }
+    }
 }
 
 /// What a device sustains, as its probes measured it: what a prediction divides a kernel's
@@ -361,19 +396,6 @@ impl Residency {
         let cubes = cubes.max(wave);
         (cubes.div_ceil(wave) * wave) as f64 / cubes as f64
     }
-}
-
-/// The estimate of `R` at `settings` for `problem` on `hw`: its grid, then every part its owners
-/// set. `None` where the routine declines the problem.
-pub(crate) fn routine_estimate<R: Routine>(
-    hw: &Hardware,
-    problem: &R::Problem,
-    settings: &R::Settings,
-) -> Option<KernelEstimate> {
-    let (blueprint, grid) = R::prepare(hw, problem, settings).ok()?;
-    let mut estimate = KernelEstimate::from(&grid);
-    R::estimate(problem, &blueprint, &grid, &mut estimate);
-    Some(estimate)
 }
 
 /// The share of the bandwidth reads `in_flight` bytes at once reach: the bytes in flight over

@@ -2,18 +2,18 @@
 //! candidates every autotune holds, and what a race runs on.
 
 use super::MatmulAutotuneGroups;
-use super::candidate::{MaskedCells, MatmulTuneCandidate, shape_priority};
+use super::candidate::MatmulTuneCandidate;
 use super::packed_candidate::MatmulPackedTuneCandidate;
 use super::{block_scaled, few_rows, many_rows};
-use crate::tune::{CandidatePriority, TuneCandidate};
+use crate::tune::{CandidatePriority, Predictor, TuneCandidate};
 use cubecl::features::MmaConfig;
 use cubecl::ir::{ElemType, FloatKind};
 use cubecl::quant::scheme::{QuantScheme, QuantStore, QuantValue, ScaleDtype};
 use cubecl::tile::Dimension;
 use cubek::matmul::kernels::select::problem::OperandKind;
 use cubek::matmul::kernels::{
-    CubeBlock, CubeShuffleMatmulRoutine, CubeStagedMatmulRoutine, MatmulBatching, MatmulTuneKey,
-    OperandKey, PackedContraction, PlaneShuffleMatmulRoutine,
+    CubeShuffleMatmulRoutine, CubeStagedMatmulRoutine, MatmulBatching, MatmulTuneKey, OperandKey,
+    PackedContraction, PlaneShuffleMatmulRoutine,
 };
 use cubek::std::matmul_dimensions::{K, N};
 use cubek::std::{Hardware, devices};
@@ -57,9 +57,10 @@ fn a_declined_setting_is_tried_last_and_claims_no_launch() {
     let mut hw = offering(devices::strix_halo());
     devices::features(&mut hw).types.shared_atomic.clear();
     let key = key(1, 2048, 2048, 2048);
-    let split = MatmulTuneCandidate::list(CubeStagedMatmulRoutine, &hw)
-        .into_iter()
-        .filter(|candidate| candidate.strategy().microkernel.planes_along_k.get() > 1);
+    let split =
+        MatmulTuneCandidate::list(CubeStagedMatmulRoutine, &Predictor::described(hw.clone()))
+            .into_iter()
+            .filter(|candidate| candidate.strategy().microkernel.planes_along_k.get() > 1);
     for candidate in split {
         let settings = candidate.strategy();
         assert_eq!(
@@ -71,46 +72,18 @@ fn a_declined_setting_is_tried_last_and_claims_no_launch() {
     }
 }
 
-/// The priority is the autotune's one rule over the cube's output block: first where the block
-/// tiles the product, last where one cube covers all of it.
+/// A grid that leaves the device idle is predicted further above its roofline than one that
+/// fills it: the lead setting on a product a single cube covers, against one that spreads over
+/// every worker.
 #[test]
-fn the_priority_reads_the_block_one_cube_covers() {
-    let hw = offering(devices::strix_halo());
-    let lead = MatmulTuneCandidate::list(CubeStagedMatmulRoutine, &hw).swap_remove(0);
-    assert_eq!(
-        lead.priority(&key(1, 2048, 2048, 2048)),
-        CandidatePriority::FIRST
-    );
-    assert_eq!(
-        lead.priority(&key(1, 16, 16, 2048)),
-        CandidatePriority::LAST
-    );
-}
-
-/// A grid masking rows costs the arithmetic it spends on them alone, so it is lowered where
-/// that arithmetic is the units' own, and goes first beside the tiled grids where a tensor core
-/// spends it: a decode's eight rows on the cube routine, whose block holds a tile's sixteen.
-#[test]
-fn masked_cells_cost_only_off_a_tensor_core() {
-    let decode = key(1, 8, 4096, 4096);
-    let masking = CubeBlock {
-        m: 64,
-        n: 64,
-        k: 4096,
-    };
-    assert_eq!(
-        shape_priority(&decode.shape(), masking, MaskedCells::Free),
-        CandidatePriority::FIRST
-    );
-    assert!(shape_priority(&decode.shape(), masking, MaskedCells::Cost) < CandidatePriority::FIRST);
-
-    let hw = offering(devices::strix_halo());
-    let lead = MatmulTuneCandidate::list(CubeStagedMatmulRoutine, &hw).swap_remove(0);
-    assert_eq!(lead.priority(&decode), CandidatePriority::FIRST);
+fn a_grid_that_leaves_the_device_idle_is_tried_later() {
+    let predictor = Predictor::on_device(&crate::CubeDevice::default().client());
+    let lead = MatmulTuneCandidate::list(CubeStagedMatmulRoutine, &predictor).swap_remove(0);
+    assert!(lead.priority(&key(1, 16, 16, 2048)) < lead.priority(&key(1, 2048, 2048, 2048)));
 }
 
 /// On devices a dev machine cannot show: a routine that declines a device is tried last and
-/// claims no launch, and one that prepares is placed by its block.
+/// claims no launch, and one that prepares is first, there being no device to time it on.
 #[test]
 fn a_decline_claims_nothing_on_every_device() {
     let key = key(1, 2048, 2048, 2048);
@@ -124,7 +97,9 @@ fn a_decline_claims_nothing_on_every_device() {
             true => assert_eq!(candidate_priority, CandidatePriority::FIRST),
             false => assert_eq!(candidate_priority, CandidatePriority::LAST),
         };
-        for cube in MatmulTuneCandidate::list(CubeStagedMatmulRoutine, &hw) {
+        for cube in
+            MatmulTuneCandidate::list(CubeStagedMatmulRoutine, &Predictor::described(hw.clone()))
+        {
             placed(cube.priority(&key), cube.blueprint(&key).is_some());
         }
     }
@@ -182,12 +157,18 @@ mod few_rows_candidates {
             (devices::wgpu_no_subgroups(), key(1, 1, 2048, 2048, Some(K))),
         ];
         for (hw, key) in cases {
-            for plane in MatmulTuneCandidate::list(PlaneShuffleMatmulRoutine, &hw) {
+            for plane in MatmulTuneCandidate::list(
+                PlaneShuffleMatmulRoutine,
+                &Predictor::described(hw.clone()),
+            ) {
                 let settings = plane.strategy();
                 assert_eq!(plane.priority(&key), CandidatePriority::LAST, "{settings}");
                 assert_eq!(plane.blueprint(&key), None, "{settings}");
             }
-            for cube in MatmulTuneCandidate::list(CubeShuffleMatmulRoutine, &hw) {
+            for cube in MatmulTuneCandidate::list(
+                CubeShuffleMatmulRoutine,
+                &Predictor::described(hw.clone()),
+            ) {
                 let settings = cube.strategy();
                 assert_eq!(cube.priority(&key), CandidatePriority::LAST, "{settings}");
                 assert_eq!(cube.blueprint(&key), None, "{settings}");
@@ -195,14 +176,18 @@ mod few_rows_candidates {
         }
     }
 
-    /// A candidate is placed by the one rule: a cube's run of columns tiles a decode
-    /// projection, so both routines are tried first.
+    /// Both shuffle routines prepare a decode projection, so with no device to time them on
+    /// both are tried first.
     #[test]
-    fn the_priority_reads_the_block_one_cube_covers() {
+    fn a_routine_that_prepares_is_first_without_a_device() {
         let hw = devices::strix_halo();
         let key = key(1, 1, 2048, 2048, Some(K));
-        let plane = MatmulTuneCandidate::list(PlaneShuffleMatmulRoutine, &hw).swap_remove(0);
-        let cube = MatmulTuneCandidate::list(CubeShuffleMatmulRoutine, &hw).swap_remove(0);
+        let plane =
+            MatmulTuneCandidate::list(PlaneShuffleMatmulRoutine, &Predictor::described(hw.clone()))
+                .swap_remove(0);
+        let cube =
+            MatmulTuneCandidate::list(CubeShuffleMatmulRoutine, &Predictor::described(hw.clone()))
+                .swap_remove(0);
         assert_eq!(plane.priority(&key), CandidatePriority::FIRST);
         assert_eq!(cube.priority(&key), CandidatePriority::FIRST);
     }
@@ -302,9 +287,18 @@ fn render_all() -> String {
     for (device, hw) in devices_listed() {
         out.push_str(&format!("# {device}\n"));
         for (autotune, built) in [
-            ("few-rows", few_rows::candidates(hw.clone(), groups)),
-            ("many-rows", many_rows::candidates(hw.clone(), groups)),
-            ("block-scaled", block_scaled::candidates(hw.clone(), groups)),
+            (
+                "few-rows",
+                few_rows::candidates(Predictor::described(hw.clone()), groups),
+            ),
+            (
+                "many-rows",
+                many_rows::candidates(Predictor::described(hw.clone()), groups),
+            ),
+            (
+                "block-scaled",
+                block_scaled::candidates(Predictor::described(hw.clone()), groups),
+            ),
         ] {
             out.push_str(&format!(
                 "{autotune}: {} candidates, checksum {}\n",
@@ -356,7 +350,10 @@ fn a_race_runs_on_the_calls_buffers() {
     let destination = call.destination.clone().expect("a destination allocated");
     assert_eq!(destination.shape().as_slice(), [3, 4]);
 
-    let tunables = few_rows::candidates(call.hw.clone(), MatmulAutotuneGroups::default());
+    let tunables = few_rows::candidates(
+        Predictor::on_device(&call.client),
+        MatmulAutotuneGroups::default(),
+    );
     let raced = tunables.generate_inputs(&call.key(), &call);
     let memory = |input: &MatmulCallInput| match &input.tensor {
         StoredTensor::Plain(tensor) => tensor.binding.handle.memory.id(),

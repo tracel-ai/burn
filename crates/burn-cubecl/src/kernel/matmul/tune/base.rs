@@ -1,5 +1,5 @@
 use super::{block_scaled, few_rows, many_rows};
-use crate::tune::{Autotune, CandidateIdentity, GroupPriority};
+use crate::tune::{Autotune, CandidateIdentity, GroupPriority, Predictor};
 use cubecl::CubeTuneId;
 use cubecl::client::Client;
 use cubecl::std::tensor::TensorHandle;
@@ -7,7 +7,6 @@ use cubecl::tune::{AutotuneOutput, LocalTuner, TunableSet, local_tuner};
 use cubek::matmul::kernels::plan::{MatmulCall, MatmulPlan};
 use cubek::matmul::kernels::select::MatmulAutotune;
 use cubek::matmul::kernels::{MatmulRoutineSettings, MatmulTuneKey};
-use cubek::std::Hardware;
 use cubek::std::plan::Fastest;
 use std::sync::Arc;
 
@@ -119,14 +118,14 @@ fn tunables(
     &'static LocalTuner<MatmulTuneKey, CubeTuneId>,
     Arc<MatmulTunables>,
 ) {
-    let hw = call.hw.clone();
-    let (tuner, candidates): (_, fn(Hardware, MatmulAutotuneGroups) -> MatmulTunables) =
+    let predictor = Predictor::on_device(&call.client);
+    let (tuner, candidates): (_, fn(Predictor, MatmulAutotuneGroups) -> MatmulTunables) =
         match autotune {
             MatmulAutotune::FewRows => (&FEW_ROWS_TUNER, few_rows::candidates),
             MatmulAutotune::ManyRows => (&MANY_ROWS_TUNER, many_rows::candidates),
             MatmulAutotune::BlockScaled => (&BLOCK_SCALED_TUNER, block_scaled::candidates),
         };
-    let tunables = tuner.init(&call.tune_id, move || candidates(hw.clone(), groups));
+    let tunables = tuner.init(&call.tune_id, move || candidates(predictor.clone(), groups));
     (tuner, tunables)
 }
 

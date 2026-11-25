@@ -4,19 +4,17 @@
 //! meets it warm, and a round read cold would time a kernel nobody runs.
 
 use crate::tune::{
-    Arithmetic, Autotune, CandidateIdentity, CandidatePriority, GroupPriority, Identity, Peaks,
-    TuneCandidate, routine_estimate,
+    Arithmetic, Autotune, CandidateIdentity, CandidatePriority, GroupPriority, Identity, Predictor,
+    TuneCandidate,
 };
 use cubecl::client::Client;
 use cubecl::ir::{ElemType, FloatKind};
 use cubecl::std::tensor::TensorHandle;
-use cubecl::throughput::ThroughputKey;
 use cubecl::tile::launch::Decline;
 use cubecl::tune::{AutotuneOutput, LocalTuner, TunableSet, local_tuner};
 use cubecl::{CubeTuneId, Device};
 use cubek::matmul::kernels::tensor::LhsOutput;
 use cubek::std::Hardware;
-use cubek::std::routine::EstimatedProblem;
 use cubek::std::routine::Routine;
 use cubek::swiglu::kernels::{
     CubeSwigluRoutine, SwigluBlueprint, SwigluCall, SwigluKey, SwigluRoutine,
@@ -132,26 +130,25 @@ fn fastest_swiglu_routine(
 /// priority `tile`. The one place it is built: a tuner caches a set per initializer *type*, so a
 /// second `init` site would build a second set.
 fn tunables(id: &CubeTuneId, client: &Client, tile: GroupPriority) -> SwigluTunables {
-    let hw = Hardware::from_client(client);
-    let client = client.clone();
-    TUNER.init(id, move || candidates(hw.clone(), client.clone(), tile))
+    let predictor = Predictor::on_device(client);
+    TUNER.init(id, move || candidates(predictor.clone(), tile))
 }
 
-/// The routine's candidates on `hw`, identified by their setting, over its default as the floor.
+/// The routine's candidates on `predictor`'s device, identified by their setting, over its
+/// default as the floor.
 fn candidates(
-    hw: Hardware,
-    client: Client,
+    predictor: Predictor,
     priority: GroupPriority,
 ) -> TunableSet<SwigluKey, SwigluRace, SwigluOutput, SwigluIdentity> {
     let mut autotune = Autotune::<SwigluKey, SwigluRace, SwigluOutput, SwigluIdentity>::new(
         |race: &SwigluRace| SwigluKey::from(&race.call.both),
     );
     let tile = autotune.group("tile", priority);
-    let floor = SwigluTuneCandidate::floor(&hw, &client);
+    let floor = SwigluTuneCandidate::floor(&predictor);
     autotune
         .identified(
             &tile,
-            SwigluTuneCandidate::list(CubeSwigluRoutine, &hw, &client),
+            SwigluTuneCandidate::list(CubeSwigluRoutine, &predictor),
             |raced| SwigluIdentity::Routine(raced.candidate.clone()),
             SwigluTuneCandidate::run,
         )
@@ -167,35 +164,31 @@ fn candidates(
 /// One setting of a SwiGLU routine, as the autotune races it, on the device it was listed for.
 ///
 /// Its priority is how far its routine's estimate, timed at the device's peaks, sits above the
-/// gate's own roofline ([`Peaks::priority_of`]).
+/// gate's own roofline ([`Predictor::predict_priority`]).
 #[derive(Clone)]
 struct SwigluTuneCandidate<R: Routine> {
     candidate: SwigluRoutineCandidate<R>,
-    hw: Hardware,
-    /// The device the peaks are probed on.
-    client: Client,
+    predictor: Predictor,
 }
 
 impl SwigluTuneCandidate<CubeSwigluRoutine> {
     /// The cube routine at its default: the autotune's floor.
-    fn floor(hw: &Hardware, client: &Client) -> Self {
+    fn floor(predictor: &Predictor) -> Self {
         Self {
-            candidate: SwigluRoutineCandidate::floor(hw),
-            hw: hw.clone(),
-            client: client.clone(),
+            candidate: SwigluRoutineCandidate::floor(predictor.hardware()),
+            predictor: predictor.clone(),
         }
     }
 }
 
 impl<R: Routine + Copy> SwigluTuneCandidate<R> {
-    /// Every setting `routine` lists on `hw`, its default first.
-    fn list(routine: R, hw: &Hardware, client: &Client) -> Vec<Self> {
-        SwigluRoutineCandidate::list(routine, hw)
+    /// Every setting `routine` lists on `predictor`'s device, its default first.
+    fn list(routine: R, predictor: &Predictor) -> Vec<Self> {
+        SwigluRoutineCandidate::list(routine, predictor.hardware())
             .into_iter()
             .map(|candidate| Self {
                 candidate,
-                hw: hw.clone(),
-                client: client.clone(),
+                predictor: predictor.clone(),
             })
             .collect()
     }
@@ -231,24 +224,14 @@ where
         self.candidate.settings()
     }
 
-    /// How far the routine's estimate at this setting, timed at the device's peaks, sits above
-    /// the gate's roofline, the arithmetic counted in `f32`, which the gate computes in; last
-    /// where the routine declines the problem, which it then does at launch before compiling
-    /// anything.
+    /// The routine's estimate at this setting, timed at the device's peaks, against the gate's
+    /// roofline, the arithmetic counted in `f32`, which the gate computes in.
     fn priority(&self, key: &SwigluKey) -> CandidatePriority {
-        let problem = SwigluRoutineProblem::from(key);
-        let Some(estimate) = routine_estimate::<R>(&self.hw, &problem, self.candidate.settings())
-        else {
-            return CandidatePriority::LAST;
-        };
-        let f32 = ElemType::Float(FloatKind::F32);
-        let demand = problem.demand();
-        let arithmetic = Arithmetic {
-            vector: ThroughputKey::compute(None, f32, f32),
-            matrix: None,
-        };
-        Peaks::measured(&self.client, &self.hw, &estimate, demand, arithmetic)
-            .priority_of(&estimate, demand, &self.hw)
+        self.predictor.predict_priority::<R>(
+            &SwigluRoutineProblem::from(key),
+            self.candidate.settings(),
+            Arithmetic::plain(ElemType::Float(FloatKind::F32)),
+        )
     }
 
     fn blueprint(&self, key: &SwigluKey) -> Option<SwigluRoutinePrepared<M>> {
@@ -292,8 +275,7 @@ mod tests {
     fn a_race_runs_on_the_calls_rows() {
         let race = race_of_three_rows();
         let tunables = candidates(
-            Hardware::from_client(&race.call.client),
-            race.call.client.clone(),
+            Predictor::on_device(&race.call.client),
             GroupPriority::DEFAULT,
         );
         let raced = tunables.generate_inputs(&SwigluKey::from(&race.call.both), &race);
@@ -307,8 +289,8 @@ mod tests {
     #[test]
     fn every_candidate_writes_the_races_output() {
         let race = race_of_three_rows();
-        let hw = Hardware::from_client(&race.call.client);
-        let outputs = SwigluTuneCandidate::list(CubeSwigluRoutine, &hw, &race.call.client)
+        let predictor = Predictor::on_device(&race.call.client);
+        let outputs = SwigluTuneCandidate::list(CubeSwigluRoutine, &predictor)
             .iter()
             .filter_map(|candidate| candidate.run(race.clone()).ok())
             .map(|output| output_memory(&output.handle))
@@ -323,9 +305,8 @@ mod tests {
     /// predicted further above its roofline than a prompt's rows, which fill it.
     #[test]
     fn a_grid_that_leaves_the_device_idle_is_tried_later() {
-        let client = CubeDevice::default().client();
-        let hw = Hardware::from_client(&client);
-        let lead = SwigluTuneCandidate::list(CubeSwigluRoutine, &hw, &client).swap_remove(0);
+        let predictor = Predictor::on_device(&CubeDevice::default().client());
+        let lead = SwigluTuneCandidate::list(CubeSwigluRoutine, &predictor).swap_remove(0);
         assert!(
             lead.priority(&SwigluKey::new(F16, 2816, 1))
                 < lead.priority(&SwigluKey::new(F16, 2816, 512 * 4))

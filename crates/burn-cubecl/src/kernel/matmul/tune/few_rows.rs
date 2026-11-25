@@ -2,11 +2,11 @@ use super::base::{MatmulAutotuneGroups, MatmulTunables, RoutineIdentity, candida
 use super::candidate::MatmulTuneCandidate;
 use super::packed_candidate::MatmulPackedTuneCandidate;
 use super::{floor, roofline};
+use crate::tune::Predictor;
 use cubek::matmul::kernels::{
     CubeShuffleMatmulRoutine, CubeStagedMatmulRoutine, PlaneShuffleMatmulRoutine,
     UnitWholeKMatmulRoutine,
 };
-use cubek::std::Hardware;
 
 /// The few-rows autotune's candidates on `hw`. Against float inputs the plane and cube shuffles and
 /// the unit whole-K routine at their own settings; against a packed input the shuffles at the
@@ -17,26 +17,27 @@ use cubek::std::Hardware;
 /// Keyed by the power of two at or above the call's rows, as the many-rows autotune is: a routine
 /// that does not stage holds that many rows whatever the call's count inside it, so it serves or
 /// declines every count of a key alike, and the one kernel it compiles serves them all.
-pub(super) fn candidates(hw: Hardware, groups: MatmulAutotuneGroups) -> MatmulTunables {
+pub(super) fn candidates(predictor: Predictor, groups: MatmulAutotuneGroups) -> MatmulTunables {
+    let hw = predictor.hardware().clone();
     let mut autotune = candidate_list();
     let microkernel = autotune.group("microkernel", groups.few_rows);
     autotune
         .bounded(roofline::few_rows)
         .identified(
             &microkernel,
-            MatmulTuneCandidate::list(PlaneShuffleMatmulRoutine, &hw),
+            MatmulTuneCandidate::list(PlaneShuffleMatmulRoutine, &predictor),
             RoutineIdentity::new,
             MatmulTuneCandidate::launch,
         )
         .identified(
             &microkernel,
-            MatmulTuneCandidate::list(CubeShuffleMatmulRoutine, &hw),
+            MatmulTuneCandidate::list(CubeShuffleMatmulRoutine, &predictor),
             RoutineIdentity::new,
             MatmulTuneCandidate::launch,
         )
         .identified(
             &microkernel,
-            MatmulTuneCandidate::list(UnitWholeKMatmulRoutine, &hw),
+            MatmulTuneCandidate::list(UnitWholeKMatmulRoutine, &predictor),
             RoutineIdentity::new,
             MatmulTuneCandidate::launch,
         )
