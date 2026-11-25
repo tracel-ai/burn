@@ -188,9 +188,9 @@ fn an_environment_merged_into_itself_is_unchanged() {
 
 /// A prune removes the build records and, where the runtime keeps compiled
 /// kernels, those only the tune's race loaded, keeping those its work loaded;
-/// the save shrinks by what went. The autotune answers stay: the work run
-/// again from what is left computes the same without tuning again, so the
-/// environment does not grow.
+/// the save shrinks by what went. The autotune answers the work used stay: the
+/// work run again from what is left computes the same without tuning again, so
+/// the environment does not grow.
 #[test]
 #[serial]
 fn a_pruned_environment_still_computes_its_work() {
@@ -370,6 +370,37 @@ fn answers_brought_before_a_bundle_win_over_its_own() {
     environment.merge_bundle(bundle).unwrap();
 
     assert_eq!(environment.save().unwrap().used_answers().unwrap(), shared);
+}
+
+/// A prune removes the answers the work did not use, and keeps those it did.
+#[test]
+#[serial]
+#[cfg(feature = "persistence")]
+fn a_prune_removes_the_answers_the_work_did_not_use() {
+    use burn_tensor::ReadBundle;
+
+    let device = device();
+    let shape = [73, 13, 43];
+    let (measured, _) = built(&device, "answers-used", shape);
+    let used = measured.save().unwrap().used_answers().unwrap();
+    let (other, _) = built(&device, "answers-unused", [257, 129, 513]);
+    let unused = other.save().unwrap().used_answers().unwrap();
+    assert_ne!(used, unused);
+
+    let pruned = ComputeEnvironment::new(&device, "answers-pruned").unwrap();
+    pruned.merge_answers(used.clone()).unwrap();
+    pruned.merge_answers(unused).unwrap();
+    let held = pruned.summary().unwrap().autotune_answers;
+    let previous = pruned.activate(&device).unwrap();
+    product_of_ones(&device, shape).into_data();
+    let answers = pruned.prune(PruneOptions::default()).unwrap().answers;
+    previous.activate(&device).unwrap();
+
+    let kept = used.len() as u64;
+    assert_eq!(answers.kept, kept, "{answers:?}");
+    assert_eq!(answers.removed, held - kept, "{answers:?}");
+    assert!(answers.removed > 0, "{answers:?}");
+    assert_eq!(pruned.save().unwrap().used_answers().unwrap(), used);
 }
 
 /// An environment is counted as it stands, without saving it: empty when
