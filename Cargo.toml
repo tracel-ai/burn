@@ -78,6 +78,7 @@ polars = { version = "0.55.2", features = ["lazy", "strings"] }
 # Dataset adapters only need the DataFrame types, not the query or file-format engines.
 polars-core = { version = "0.55.2", default-features = false }
 pretty_assertions = "1.4.1"
+proc-macro-crate = "3.5"
 proc-macro2 = "1.0.107"
 quote = "1.0.47"
 r2d2 = "0.8.10"

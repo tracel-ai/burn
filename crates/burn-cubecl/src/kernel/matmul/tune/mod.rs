@@ -37,4 +37,4 @@ mod tests;
 
 pub use base::MatmulAutotuneGroups;
 #[cfg(any(feature = "fusion", test))]
-pub(crate) use base::fastest_routine;
+pub use base::fastest_routine;

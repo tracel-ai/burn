@@ -86,12 +86,15 @@ configuration; separate files and embedded sections are not merged.
 
 #### Persistent caches
 
-The `persistence` Cargo feature enables persistent caches for selected CubeCL backends. It forwards
-to `cubecl/persistence`:
+The `persistence` Cargo feature forwards to `cubecl/persistence` so selected CubeCL backends can
+cache results across runs. With default features disabled, this example enables `autotune` to
+benchmark kernels and `fusion` to keep kernel fusion enabled.
 
 ```toml
-[dependencies]
-burn = { version = "0.22", default-features = false, features = ["std", "cuda", "persistence"] }
+[dependencies.burn]
+version = "0.22"
+default-features = false
+features = ["std", "cuda", "fusion", "autotune", "persistence"]
 ```
 
 Runtime configuration controls which caches are used. Persistent autotune results are enabled by
