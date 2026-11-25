@@ -4,9 +4,6 @@ logger = { file = "/tmp/fusion.log", level = "full" }
 [cubecl.environment]
 path = "target"
 
-[cubecl.profiling]
-logger = { log = "info", level = "disabled" }
-
 [cubecl.autotune]
 level = "balanced"
 logger = { log = "info", level = "full" }

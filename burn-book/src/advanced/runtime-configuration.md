@@ -1,7 +1,8 @@
 # Runtime Configuration
 
-Burn provides runtime configuration for matmul precision, autotuning, profiling, logging, operation
-fusion, and remote-backend batching.
+Burn provides runtime configuration for matmul precision, autotuning, logging, operation fusion, and
+remote-backend batching.
+To time a model, see [Profiling](../performance/profiling.md).
 
 ## Overview
 
@@ -30,9 +31,6 @@ allow_tf32 = true
 [cubecl.autotune]
 level = "balanced"
 
-[cubecl.profiling]
-logger = { level = "basic", stdout = true }
-
 [fusion]
 logger = { level = "basic", stderr = true }
 
@@ -46,7 +44,7 @@ flush_bytes_threshold = 1048576
 
 Each section configures a different aspect of Burn:
 
-- **cubecl**: Configures autotuning, profiling, compilation, and memory for CubeCL backends.
+- **cubecl**: Configures autotuning, compilation, and memory for CubeCL backends.
 - **cubek**: Configures CubeK kernels used by CubeCL backends, including matmul precision.
 - **fusion**: Controls operation fusion and its logging.
 - **autodiff**: Controls automatic differentiation logging.
