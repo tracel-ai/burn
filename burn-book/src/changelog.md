@@ -627,6 +627,8 @@ whose tensors are split over `devices` (crate `burn-shard`).
   [#6062](https://github.com/tracel-ai/burn/pull/6062),
   [#6069](https://github.com/tracel-ai/burn/pull/6069))
 
+- Fix a panic when sorting Flex32 tensors on backends that sort on the host.
+
 #### Grid sampling
 
 - Fix bilinear `grid_sample_2d` on CubeCL backends reading the wrong y coordinates when the grid's

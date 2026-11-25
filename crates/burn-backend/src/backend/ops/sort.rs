@@ -7,7 +7,7 @@ use crate::{
 };
 use alloc::{vec, vec::Vec};
 use burn_std::{Element, IntDType};
-use burn_std::{bf16, f16};
+use burn_std::{bf16, f16, flex32};
 
 /// Macro used to dispatch sort operations based on dtype.
 macro_rules! sort_dispatch_dtype {
@@ -17,9 +17,8 @@ macro_rules! sort_dispatch_dtype {
             ($index_ty:ty) => {
                 match $data.dtype() {
                     DType::F64 => $fn::<f64, $index_ty>($data, $($args),*),
-                    DType::F32 | DType::Flex32 => {
-                        $fn::<f32, $index_ty>($data, $($args),*)
-                    }
+                    DType::F32 => $fn::<f32, $index_ty>($data, $($args),*),
+                    DType::Flex32 => $fn::<flex32, $index_ty>($data, $($args),*),
                     DType::F16 => $fn::<f16, $index_ty>($data, $($args),*),
                     DType::BF16 => $fn::<bf16, $index_ty>($data, $($args),*),
                     DType::I64 => $fn::<i64, $index_ty>($data, $($args),*),
@@ -53,7 +52,8 @@ macro_rules! sort_dispatch_dtype {
     ($fn:ident, $data:ident, $($args:expr),*) => {
         match $data.dtype() {
             DType::F64 => $fn::<f64>($data, $($args),*),
-            DType::F32 | DType::Flex32 => $fn::<f32>($data, $($args),*),
+            DType::F32 => $fn::<f32>($data, $($args),*),
+            DType::Flex32 => $fn::<flex32>($data, $($args),*),
             DType::F16 => $fn::<f16>($data, $($args),*),
             DType::BF16 => $fn::<bf16>($data, $($args),*),
             DType::I64 => $fn::<i64>($data, $($args),*),
