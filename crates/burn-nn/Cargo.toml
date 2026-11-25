@@ -24,8 +24,6 @@ doc = [
 ]
 std = ["burn-core/std", "burn-linalg?/std", "num-traits/std"]
 
-tracing = ["burn-core/tracing", "burn-linalg?/tracing"]
-
 # Orthogonal initialization, cosine similarity and pairwise distance modules, and cosine embedding
 # and triplet margin losses.
 linalg = ["dep:burn-linalg"]

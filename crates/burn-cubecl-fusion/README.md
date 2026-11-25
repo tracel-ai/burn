@@ -22,7 +22,6 @@ Applications do not use this crate directly.
 - `std` (default): standard library support.
 - `autotune` (default): benchmark fused kernel variants at runtime and keep the fastest.
 - `autotune-checks`: check autotuned variants against each other for correctness.
-- `tracing`: instrument operations with the `tracing` crate.
 
 <!-- burn-crate-footer -->
 

@@ -67,7 +67,6 @@ Default: `std`, `simd`, `rayon`.
 | `rayon`             | Yes     | Parallel execution for large tensors (forwards `gemm/rayon`)        |
 | `x86-v4`            | No      | AVX-512 kernels in gemm for x86_64 (Sapphire Rapids, Zen 4/5)       |
 | `apple-amx`         | No      | Apple Silicon AMX matrix coprocessor in gemm (experimental)         |
-| `tracing`           | No      | Propagate `tracing` instrumentation                                 |
 | `critical-section`  | No      | Support for no_std targets without atomic CAS                       |
 
 Enable opt-in paths by passing them to Cargo, either directly on `burn-flex` or through the

@@ -1,6 +1,6 @@
 #![allow(missing_docs)]
 
-use super::base::{reduce_dims_copy, reduce_dims_folded};
+use crate::kernel::reduce::{reduce_dims_copy, reduce_dims_folded};
 use crate::{CubeTuneId, tensor::CubeTensor};
 use burn_backend::DType;
 use cubecl::{
@@ -45,7 +45,7 @@ impl ReduceDimsPlanAutotuneKey {
 }
 
 /// Selects a sum or mean plan. The output preserves rank and sets reduced axes to one.
-pub(super) fn autotune_reduce_dims_plan(
+pub(crate) fn autotune_reduce_dims_plan(
     input: CubeTensor,
     dims: &[usize],
     config: ReduceOperation,

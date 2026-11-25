@@ -264,9 +264,18 @@ Reports also include the measured cost of a kernel launch.
 - `PerMember::collectives` counts the collectives a sharded compute device ran, by operation, path
   and size, with each member's part time and exposed time (`CollectiveTime`). Kernels are placed on
   the member whose device ran them, so a sharded compute device whose members do not fuse is timed
-  per member too; `DispatchDevice::shard_member_ids` names the members' devices. Measurement files
+  per member too; `DispatchDevice::member_ids` names the members' devices. Measurement files
   are version 6.
   ([#6527](https://github.com/tracel-ai/burn/pull/6527))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- `Instrument::for_devices` times work that runs on several devices in turn, such as a model split
+  by layers, with each device a member of `Breakdown::per_member`. `PerMember::schedule` says
+  whether members worked at once or in turn, and the report sums members in turn.
+  `DispatchDevice::shard_member_ids` is replaced by `member_ids`, which also yields a cubecl
+  device's own id. Measurement files are version 7, and one of version 6 is refused: measure it
+  again.
+  ([#6632](https://github.com/tracel-ai/burn/pull/6632))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Flex SIMD operations
@@ -299,6 +308,11 @@ Reports also include the measured cost of a kernel launch.
   ([#6384](https://github.com/tracel-ai/burn/pull/6384))
 
 #### Fusion
+
+- Speed up fused concatenation on CubeCL backends by selecting inputs from precomputed segment
+  boundaries and reading aligned output vectors from a single input.
+  ([#6618](https://github.com/tracel-ai/burn/pull/6618)) [@laggui](https://github.com/laggui),
+  [@EthanAlmloff](https://github.com/EthanAlmloff).
 
 - Reduce fusion's CPU overhead by skipping unnecessary reduction-fuser resets.
   ([#6036](https://github.com/tracel-ai/burn/pull/6036)) [@louisfd](https://github.com/louisfd)
@@ -1141,6 +1155,9 @@ Use `OnOptimizerStep::with(...)` to register standard metrics for optimizer upda
 See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics).
 
 #### Optimizers
+
+- Custom optimizer and scheduler states can now derive `burn::optim::RecordState` in crates
+  that depend only on `burn` with the `optim` feature enabled.
 
 - Build `burn-optim` without the `std` feature again. `ModuleOptimizer` no longer depends on the
   standard-library-only learning-rate scheduler module, so fixed learning rates work in `no_std`.

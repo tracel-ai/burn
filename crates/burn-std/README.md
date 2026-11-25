@@ -22,7 +22,6 @@ environments and must compile with `cargo build --no-default-features` as well.
 
 - `std` (default): standard library support.
 - `network`: file downloads.
-- `tracing`: instrument operations with the `tracing` crate.
 
 <!-- burn-crate-footer -->
 

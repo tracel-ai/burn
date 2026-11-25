@@ -1,6 +1,8 @@
 mod mapping;
 pub(crate) use mapping::derive_mapping;
 
+use proc_macro_crate::{FoundCrate, crate_name};
+use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, GenericArgument, PathArguments, Type};
 
@@ -156,7 +158,7 @@ fn try_derive_impl(
                     out.push_scalar(
                         prefix,
                         concat!(#leaf, ".len"),
-                        self.#ident.len().into(),
+                        ::core::convert::Into::into(self.#ident.len()),
                     );
                     for (__index, __value) in self.#ident.iter().enumerate() {
                         let __leaf = __optim::join_index(#leaf, __index);
@@ -180,7 +182,7 @@ fn try_derive_impl(
             }
             FieldKind::Scalar => {
                 flatten.push(quote! {
-                    out.push_scalar(prefix, #leaf, self.#ident.into());
+                    out.push_scalar(prefix, #leaf, ::core::convert::Into::into(self.#ident));
                 });
                 unflatten.push(quote! {
                     let #ident = <#ty as ::core::convert::TryFrom<_>>::try_from(
@@ -192,7 +194,7 @@ fn try_derive_impl(
             FieldKind::OptionScalar(inner) => {
                 flatten.push(quote! {
                     if let Some(value) = self.#ident {
-                        out.push_scalar(prefix, #leaf, value.into());
+                        out.push_scalar(prefix, #leaf, ::core::convert::Into::into(value));
                     }
                 });
                 unflatten.push(quote! {
@@ -262,7 +264,6 @@ fn try_derive_impl(
 // Resolve renames for the crate exporting the derive. A second package name supports
 // existing direct burn-derive users who only depend on the burn facade.
 fn optim_path(packages: &[&str]) -> syn::Result<proc_macro2::TokenStream> {
-    use proc_macro_crate::{FoundCrate, crate_name};
     for &package in packages {
         if let Ok(found) = crate_name(package) {
             // Both packages can name burn_optim, including in examples and doctests
@@ -270,7 +271,7 @@ fn optim_path(packages: &[&str]) -> syn::Result<proc_macro2::TokenStream> {
             let FoundCrate::Name(name) = found else {
                 return Ok(quote!(::burn_optim));
             };
-            let ident = quote::format_ident!("{name}");
+            let ident = Ident::new_raw(&name, Span::call_site());
             return Ok(if package == "burn" {
                 quote!(::#ident::optim)
             } else {
@@ -279,7 +280,7 @@ fn optim_path(packages: &[&str]) -> syn::Result<proc_macro2::TokenStream> {
         }
     }
     Err(syn::Error::new(
-        proc_macro2::Span::call_site(),
+        Span::call_site(),
         "optimizer state derives require burn or burn-optim",
     ))
 }

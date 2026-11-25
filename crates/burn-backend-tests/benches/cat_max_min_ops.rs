@@ -99,6 +99,29 @@ macro_rules! bench_cat {
             mod cat {
                 use super::*;
 
+                #[cfg(feature = "fusion")]
+                const CASES: [(usize, usize, bool); 6] = [
+                    (2, 0, false),
+                    (2, 1, false),
+                    (27, 0, false),
+                    (27, 1, false),
+                    (27, 0, true),
+                    (27, 1, true),
+                ];
+
+                #[cfg(feature = "fusion")]
+                #[divan::bench(args = CASES)]
+                fn cat_then_add(bencher: Bencher, (count, axis, uneven): (usize, usize, bool)) {
+                    let tensors = (0..count)
+                        .map(|i| {
+                            let mut shape = [256, 256];
+                            shape[axis] += usize::from(uneven && i % 2 == 1);
+                            make_f32_2d(shape[0], shape[1])
+                        })
+                        .collect::<Vec<_>>();
+                    bencher.bench_synced(|| Tensor::cat(tensors.clone(), axis).add_scalar(1.0));
+                }
+
                 // Cat along dim 0 (fast path: contiguous memcpy)
                 #[divan::bench]
                 fn dim0_4x_256x256(bencher: Bencher) {

@@ -21,7 +21,6 @@ register their own fused operations through the `custom` module.
 
 - `std` (default): standard library support.
 - `memory-checks`: check the fusion runtime for leaked tensors (for tests).
-- `tracing`: instrument operations with the `tracing` crate.
 
 <!-- burn-crate-footer -->
 

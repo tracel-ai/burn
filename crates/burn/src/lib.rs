@@ -143,7 +143,6 @@
 //!   - `apple-amx`: Enable the experimental Apple AMX matmul kernels in the Flex backend.
 //!   - `template`: Enable hand-written, non-JIT custom kernels in the CubeCL backends.
 //!   - `fusion`: Enable operation fusion in backends that support it.
-//!   - `tracing`: Enable diagnostic tracing in the selected backends (disabled by default).
 //!   - `instrument`: Arm the `#[compute]` annotations of the layers and of your own components,
 //!     for `burn::instrument::Instrument` to measure (disabled by default; without it the
 //!     annotations compile away).
@@ -171,17 +170,6 @@
 //!   - `network`: Enables network utilities (currently, only a file downloader with progress bar)
 //!
 //! You can also check the details in sub-crates [`burn-core`](https://docs.rs/burn-core) and [`burn-train`](https://docs.rs/burn-train).
-//!
-//! ### Backend tracing
-//!
-//! Add `"tracing"` to the features of your `burn` dependency to compile backend instrumentation,
-//! including autodiff and fusion spans. When depending directly on `burn-autodiff` or
-//! `burn-fusion`, enable their `tracing` feature instead. These spans are opt-in: configuring a
-//! tracing subscriber alone does not enable them. Configure your subscriber to include the
-//! `trace` level to observe tensor operation spans.
-//!
-//! The feature propagates to enabled backends without selecting an additional backend. Normal
-//! training logs remain available without this feature.
 
 pub use burn_core::*;
 

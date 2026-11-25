@@ -21,7 +21,6 @@
 //!
 //! - `std` (default): standard library support.
 //! - `network`: file downloads.
-//! - `tracing`: instrument operations with the `tracing` crate.
 
 #[macro_use]
 extern crate derive_new;

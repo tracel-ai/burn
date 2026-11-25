@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 struct Recorded(Mutex<Vec<Execution>>);
 
 impl ExecutionObserver for Recorded {
-    fn issued(&self, execution: &Execution) {
+    fn observe(&self, execution: &Execution) {
         self.0.lock().unwrap().push(execution.clone());
     }
 }

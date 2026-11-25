@@ -49,6 +49,10 @@ pub mod prng;
 pub mod quantization;
 /// Reduction algorithms
 pub mod reduce;
+/// RMS-norm kernels
+pub mod rms_norm;
+/// SwiGLU kernels
+pub mod swiglu;
 
 pub(crate) use clamp::*;
 pub(crate) use comparison::*;

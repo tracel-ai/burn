@@ -23,7 +23,6 @@
 //! - `sys-metrics` (default): CPU, memory and GPU usage metrics.
 //! - `vision`: image quality metrics.
 //! - `rl`: reinforcement learning training through `burn-rl`.
-//! - `tracing`: instrument operations with the `tracing` crate.
 
 #[macro_use]
 extern crate derive_new;

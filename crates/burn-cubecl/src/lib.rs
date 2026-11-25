@@ -22,7 +22,6 @@
 //! - `autotune`: benchmark kernel variants at runtime and keep the fastest.
 //! - `fft`: FFT kernels.
 //! - `template`: launch hand-written, non-JIT kernels.
-//! - `tracing`: instrument operations with the `tracing` crate.
 
 #[macro_use]
 extern crate derive_new;
@@ -49,6 +48,7 @@ pub use backend::*;
 // Re-export cubecl.
 pub use cubecl;
 
+pub mod tune;
 mod tune_key;
 pub use tune_key::CubeAutotuneKey;
 

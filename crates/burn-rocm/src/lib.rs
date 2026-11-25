@@ -15,7 +15,6 @@
 //! - `fusion` (default): kernel fusion.
 //! - `autotune`: benchmark kernel variants at runtime and keep the fastest.
 //! - `std`: standard library support.
-//! - `tracing`: instrument operations with the `tracing` crate.
 extern crate alloc;
 
 pub use cubecl::hip::AmdDevice as RocmDevice;

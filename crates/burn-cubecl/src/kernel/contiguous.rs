@@ -69,10 +69,6 @@ pub fn copy_contiguous(tensor: CubeTensor) -> CubeTensor {
 
 /// Make a jit tensor contiguous with an aligned last stride. Tensor is considered already contiguous
 /// if runtime can read it as is. This is equivalent in practice.
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(level = "trace", skip(tensor))
-)]
 pub fn into_contiguous_aligned(tensor: CubeTensor) -> CubeTensor {
     let tensor = untile(tensor);
     if tensor
@@ -103,10 +99,6 @@ pub fn into_contiguous_aligned(tensor: CubeTensor) -> CubeTensor {
     )
 }
 
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(level = "trace", skip(tensor))
-)]
 fn into_contiguous_quantized(tensor: CubeTensor, strategy: MemoryLayoutStrategy) -> CubeTensor {
     let scheme = tensor.scheme();
     let output = empty_qtensor(tensor.shape(), tensor.scheme(), &tensor.device, strategy);

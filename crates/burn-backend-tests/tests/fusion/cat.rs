@@ -455,3 +455,87 @@ fn cat_outputs_of_different_shapes_read_their_own_inputs() {
         );
     });
 }
+
+/// Five inputs exercise an uneven tree while fitting devices with seven storage bindings.
+#[test]
+fn cat_equal_noncontiguous_inputs_preserves_order() {
+    const INPUTS: usize = 5;
+    let stream = test_stream();
+    stream.executes(|| {
+        let device: Device = Default::default();
+        let inputs = (0..INPUTS)
+            .map(|input| {
+                let values = (0..24).map(|index| (input * 32 + index) as f32).collect();
+                TestTensor::<3>::from_data(TensorData::new(values, [2, 3, 4]), &device)
+                    .swap_dims(1, 2)
+            })
+            .collect::<Vec<_>>();
+        let mut expected = Vec::new();
+        for input in 0..INPUTS {
+            for batch in 0..2 {
+                for column in 0..4 {
+                    for row in 0..3 {
+                        expected.push((input * 32 + batch * 12 + row * 4 + column + 1) as f32);
+                    }
+                }
+            }
+        }
+        device.sync().unwrap();
+
+        #[cfg(feature = "cube")]
+        let inspector = device.capabilities().and_then(|caps| {
+            (caps.properties.hardware.max_bindings >= INPUTS as u32 + 2)
+                .then(|| FusionInspector::install(stream))
+        });
+        let output = TestTensor::cat(inputs, 0).add_scalar(1.0);
+        output
+            .into_data()
+            .assert_eq(&TensorData::new(expected, [INPUTS * 2, 4, 3]), false);
+        device.sync().unwrap();
+
+        #[cfg(feature = "cube")]
+        if let Some(inspector) = inspector {
+            let reports = inspector.drain();
+            assert!(
+                reports
+                    .iter()
+                    .flat_map(|r| r.fused_blocks())
+                    .any(|block| block.operations.iter().any(matchers::is_cat())),
+                "{reports:#?}"
+            );
+        }
+    });
+}
+
+#[test]
+#[cfg(feature = "cube")]
+fn two_concats_in_one_block_use_their_own_boundaries() {
+    let stream = test_stream();
+    stream.executes(|| {
+        let device: Device = Default::default();
+        let a = TestTensor::<1>::from_data([1., 2., 3.], &device);
+        let b = TestTensor::<1>::from_data([4., 5., 6., 7., 8.], &device);
+        device.sync().unwrap();
+
+        let inspector = FusionInspector::install(stream);
+        let left = TestTensor::cat(vec![a.clone(), b.clone()], 0);
+        let right = TestTensor::cat(vec![b, a], 0);
+        (left - right).into_data().assert_eq(
+            &TensorData::from([-3., -3., -3., -3., -3., 5., 5., 5.]),
+            false,
+        );
+        let reports = inspector.drain();
+        assert!(
+            reports
+                .iter()
+                .flat_map(|r| r.fused_blocks())
+                .any(|block| block
+                    .operations
+                    .iter()
+                    .filter(|op| matchers::is_cat()(op))
+                    .count()
+                    == 2),
+            "{reports:#?}"
+        );
+    });
+}

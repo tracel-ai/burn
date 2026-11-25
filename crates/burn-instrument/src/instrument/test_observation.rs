@@ -43,7 +43,7 @@ pub fn minted<const N: usize>() -> [ExecutionId; N] {
 struct Minted(Mutex<Vec<ExecutionId>>);
 
 impl ExecutionObserver for Minted {
-    fn issued(&self, execution: &Execution) {
+    fn observe(&self, execution: &Execution) {
         if let ExecutionKind::Communication(_) = execution.kind {
             self.0
                 .lock()

@@ -123,6 +123,8 @@ pub fn config_derive(input: TokenStream) -> TokenStream {
 /// `RecordState`, and `Option<Nested>`. Scalar fields must use a concrete primitive type, not a
 /// type alias (e.g. `f64`, not `LearningRate`): classification is syntactic, so an alias is treated
 /// as a nested state.
+///
+/// Use `burn` with the `optim` feature or depend directly on `burn-optim`.
 #[proc_macro_derive(RecordState)]
 pub fn record_state_derive(input: TokenStream) -> TokenStream {
     record_state::derive_impl(&syn::parse_macro_input!(input), &["burn-optim", "burn"])

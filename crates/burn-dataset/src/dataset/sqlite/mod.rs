@@ -648,8 +648,8 @@ impl WriteState {
     /// Failure arrives as a result row rather than an error: column 0 is non-zero when the
     /// checkpoint did not complete. Turso funnels every cause into that one flag - a reader
     /// holding an open transaction, a full disk, an IO error, a corrupt header - and keeps the
-    /// real reason to a `tracing::debug!` of its own, which burn-dataset's `tracing` feature
-    /// surfaces. Taking the pragma's `Ok` at face value would publish a truncated dataset.
+    /// real reason to a `tracing::debug!` of its own, which a `tracing` subscriber at debug level
+    /// shows. Taking the pragma's `Ok` at face value would publish a truncated dataset.
     ///
     /// The remaining columns carry nothing to check: a TRUNCATE checkpoint zeroes them on the way
     /// out, so it reports `(0, 0, 0)` however many frames it folded in.
@@ -673,8 +673,8 @@ impl WriteState {
         if failed {
             return Err(SqliteDatasetError::Other(
                 "Could not checkpoint the write-ahead log, so the database was left unpublished \
-                 rather than published incomplete. Turso does not report why; enable the \
-                 `tracing` feature and log at debug level to see the underlying cause",
+                 rather than published incomplete. Turso does not report why; install a \
+                 `tracing` subscriber at debug level to see the underlying cause",
             ));
         }
 

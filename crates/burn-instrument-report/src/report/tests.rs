@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use burn_instrument::{
     Bounds, Breakdown, Component, ComponentPath, ComputePeak, FusedShare, Kernel, Measurement,
-    MemberTime, Peaks, PerMember, Unplaced, Variant,
+    MemberSchedule, MemberTime, Peaks, PerMember, Unplaced, Variant,
 };
 use burn_tensor::FloatDType;
 
@@ -243,7 +243,7 @@ fn a_run_without_a_clean_run_splits_nothing_and_says_so() {
         ..measurement()
     };
     let report = Report::new(&measurement);
-    assert_eq!(report.host_split().host(), None);
+    assert_eq!(report.host_split().idle(), None);
     assert_eq!(
         report.wall(),
         measurement.breakdown.total_time(),
@@ -713,7 +713,7 @@ fn a_run_timed_in_place_splits_the_clean_run_into_device_and_host() {
     let mut measurement = measurement();
     measurement.breakdown.timed_alone = false;
     assert_eq!(
-        Report::new(&measurement).host_split().host(),
+        Report::new(&measurement).host_split().idle(),
         Some(Duration::from_micros(710))
     );
 
@@ -755,6 +755,7 @@ fn a_run_on_several_members_reads_each_member_apart() {
                 idle: micros(1_500),
             },
         ],
+        schedule: MemberSchedule::Concurrent,
         off_members: micros(300),
         collectives: Vec::new(),
     });
@@ -791,6 +792,50 @@ fn a_run_on_several_members_reads_each_member_apart() {
         table.lines().any(
             |line| line.trim_start().starts_with("members") && line.contains("not timed apart")
         ),
+        "{table}"
+    );
+}
+
+/// What members in turn leave of the run holds the hops between them, so none of it is read as
+/// the host's, and what is not computing is the wall outside every member's kernels.
+#[test]
+fn a_run_on_members_in_turn_reads_their_sum() {
+    let mut measurement = measurement();
+    measurement.breakdown.timed_alone = false;
+    let micros = Duration::from_micros;
+    let member = |on_device| MemberTime {
+        on_device: micros(on_device),
+        idle: Duration::ZERO,
+    };
+    measurement.breakdown.per_member = Some(PerMember {
+        members: vec![member(600), member(500)],
+        schedule: MemberSchedule::Sequential,
+        off_members: Duration::ZERO,
+        collectives: Vec::new(),
+    });
+
+    let rendered = Report::new(&measurement);
+
+    assert!(
+        matches!(rendered.host_split(), HostSplit::MembersInTurn { .. }),
+        "{:?}",
+        rendered.host_split()
+    );
+    assert_eq!(rendered.host_split().share(micros(1)), None);
+    assert_eq!(rendered.ladder().host, micros(710));
+    assert_eq!(
+        rendered.host_split().never_idle(),
+        ["the members never waiting", "host, hops"],
+        "fewer launches alone do not recover the hops"
+    );
+    let table = rendered.to_string();
+    let not_computing = table
+        .lines()
+        .find(|line| line.trim_start().starts_with("not computing"))
+        .expect("the not computing line");
+    assert!(not_computing.contains("0.9 ms"), "{table}");
+    assert!(
+        table.contains("not separable: the members ran in turn"),
         "{table}"
     );
 }
@@ -847,7 +892,7 @@ fn the_host_time_is_split_by_where_the_device_waited() {
 #[test]
 fn a_run_timed_alone_does_not_split_off_the_host() {
     let measurement = measurement();
-    assert_eq!(Report::new(&measurement).host_split().host(), None);
+    assert_eq!(Report::new(&measurement).host_split().idle(), None);
     assert_eq!(Report::new(&measurement).ladder().host, Duration::ZERO);
 
     let table = Report::new(&measurement).to_string();
@@ -869,7 +914,7 @@ fn a_run_with_no_device_time_splits_nothing() {
         clear(component);
     }
     measurement.breakdown.untagged.clear();
-    assert_eq!(Report::new(&measurement).host_split().host(), None);
+    assert_eq!(Report::new(&measurement).host_split().idle(), None);
 
     fn clear(component: &mut Component) {
         component.kernels.clear();
