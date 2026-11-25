@@ -7,7 +7,7 @@ use cubecl::profile::{ProfileDuration, ProfileTicks, TimingMethod};
 
 use super::cursor::Attribution;
 use super::members::{MemberList, RanOn};
-use crate::breakdown::{MemberTime, PerMember, Unplaced};
+use crate::breakdown::{MemberSchedule, MemberTime, PerMember, Unplaced};
 
 /// The timings a run kept, and how far they are to be trusted.
 #[derive(Default)]
@@ -185,6 +185,7 @@ impl Timeline {
         let mut idle = Vec::with_capacity(self.windows.len());
         let mut per_member = self.members.several().then(|| PerMember {
             members: vec![MemberTime::default(); self.members.count()],
+            schedule: self.members.schedule(),
             off_members: Duration::ZERO,
             collectives: Vec::new(),
         });
@@ -215,7 +216,30 @@ impl Timeline {
                 }
             }
         }
+        let idle = match self.members.schedule() {
+            MemberSchedule::Concurrent => idle,
+            MemberSchedule::Sequential => self.turn_gaps(),
+        };
         Settled { idle, per_member }
+    }
+
+    /// The stretches members taking turns left the run waiting, on one timeline, each beside the
+    /// component whose kernel ended it: a member waiting for another's turn is no wait on the
+    /// host. A kernel on no member's device fills none of them.
+    fn turn_gaps(&self) -> Vec<(Attribution, Duration)> {
+        let mut turns: Vec<&Window> = (self.windows.iter())
+            .filter(|window| window.ran_on != RanOn::OffMembers)
+            .collect();
+        turns.sort_by_key(|window| window.start);
+        let mut busy_until: Option<Duration> = None;
+        turns
+            .into_iter()
+            .filter_map(|window| {
+                let gap = busy_until.map(|busy| window.start.saturating_sub(busy));
+                busy_until = Some(busy_until.map_or(window.end, |busy| busy.max(window.end)));
+                gap.map(|gap| (window.attribution, gap))
+            })
+            .collect()
     }
 }
 
@@ -275,7 +299,10 @@ mod tests {
     fn each_member_is_idle_on_its_own() {
         let epoch = Instant::now();
         let members = [1, 2].map(|index_id| ServiceId::of::<()>(DeviceId::new(0, index_id)));
-        let mut timeline = Timeline::new(epoch, MemberList::over(members.to_vec()));
+        let mut timeline = Timeline::new(
+            epoch,
+            MemberList::over(members.to_vec(), MemberSchedule::Concurrent),
+        );
         let micros = Duration::from_micros;
         let window = |start: u64, end: u64| {
             ProfileTicks::from_start_end(epoch + micros(start), epoch + micros(end))
@@ -303,9 +330,51 @@ mod tests {
                         idle: micros(5),
                     },
                 ],
+                schedule: MemberSchedule::Concurrent,
                 off_members: micros(16),
                 collectives: Vec::new(),
             })
+        );
+    }
+
+    #[test]
+    fn members_in_turn_wait_on_one_timeline() {
+        let epoch = Instant::now();
+        let members = [1, 2].map(|index_id| ServiceId::of::<()>(DeviceId::new(0, index_id)));
+        let mut timeline = Timeline::new(
+            epoch,
+            MemberList::over(members.to_vec(), MemberSchedule::Sequential),
+        );
+        let micros = Duration::from_micros;
+        let window = |start: u64, end: u64| {
+            ProfileTicks::from_start_end(epoch + micros(start), epoch + micros(end))
+        };
+        let at = Attribution::Untagged;
+        let (first, second) = (RanOn::Member(Member(0)), RanOn::Member(Member(1)));
+        timeline.push(at, first, &window(0, 10));
+        timeline.push(at, RanOn::OffMembers, &window(30, 40));
+        timeline.push(at, second, &window(90, 100));
+        timeline.push(at, first, &window(120, 130));
+
+        let settled = timeline.settle();
+        assert_eq!(
+            settled.idle,
+            [(at, micros(80)), (at, micros(20))],
+            "the run waits between turns, a kernel on no member filling none of it"
+        );
+        assert_eq!(
+            settled.per_member.map(|per_member| per_member.members),
+            Some(vec![
+                MemberTime {
+                    on_device: micros(20),
+                    idle: micros(110),
+                },
+                MemberTime {
+                    on_device: micros(10),
+                    idle: Duration::ZERO,
+                },
+            ]),
+            "each member is idle between its own kernels"
         );
     }
 }
