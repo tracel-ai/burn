@@ -1,6 +1,3 @@
-[profiling]
-logger = { file = "target/profiling.log", level = "disabled" }
-
 [autotune]
 logger = { file = "target/autotune.log", level = "disabled" }
 
