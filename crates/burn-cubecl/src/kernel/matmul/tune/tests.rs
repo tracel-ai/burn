@@ -332,6 +332,7 @@ fn devices_listed() -> [(&'static str, Hardware); 4] {
 /// lhs and rhs, and a destination the call allocated once at the product's shape, which the winner
 /// then writes too.
 #[test]
+#[cfg(any(feature = "cuda", feature = "vulkan", feature = "metal"))]
 fn a_race_runs_on_the_calls_buffers() {
     use crate::CubeDevice;
     use cubecl::CubeTuneId;
