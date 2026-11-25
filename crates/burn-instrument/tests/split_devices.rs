@@ -15,8 +15,13 @@ const SIDE: usize = 256;
 struct Stage;
 
 impl Stage {
-    #[compute(bounds = Bounds::default())]
-    fn forward(&self, input: Tensor<2>, weight: Tensor<2>) -> Tensor<2> {
+    #[compute(label = "first card", bounds = Bounds::default())]
+    fn first(&self, input: Tensor<2>, weight: Tensor<2>) -> Tensor<2> {
+        input.matmul(weight).exp()
+    }
+
+    #[compute(label = "second card", bounds = Bounds::default())]
+    fn second(&self, input: Tensor<2>, weight: Tensor<2>) -> Tensor<2> {
         input.matmul(weight).exp()
     }
 }
@@ -38,8 +43,8 @@ fn each_card_of_a_run_split_across_two_is_timed_as_a_member() {
     let random = |device| Tensor::<2>::random([SIDE, SIDE], Distribution::Default, device);
     let (input, first_weight, second_weight) = (random(first), random(first), random(second));
     let run = || {
-        let hidden = Stage.forward(input.clone(), first_weight.clone());
-        Stage.forward(hidden.to_device(second), second_weight.clone())
+        let hidden = Stage.first(input.clone(), first_weight.clone());
+        Stage.second(hidden.to_device(second), second_weight.clone())
     };
     // Once before the run, so the kernels are compiled.
     drop(run());
@@ -49,15 +54,14 @@ fn each_card_of_a_run_split_across_two_is_timed_as_a_member() {
 
     let breakdown = Instrument::for_devices(&cards).breakdown(run);
 
-    assert!(
-        !breakdown.tree.is_empty()
-            && breakdown
-                .tree
-                .iter()
-                .all(|stage| !stage.total_time().is_zero()),
-        "each stage's kernels land under its component: {:?}",
-        breakdown.tree
-    );
+    for label in ["first card", "second card"] {
+        let stage = (breakdown.tree.iter()).find(|component| component.label == label);
+        assert!(
+            stage.is_some_and(|stage| !stage.total_time().is_zero()),
+            "{label}'s kernels land under its component: {:?}",
+            breakdown.tree
+        );
+    }
     let per_member = breakdown.per_member.expect("each card is timed apart");
     assert_eq!(per_member.members.len(), 2);
     assert_eq!(per_member.schedule, MemberSchedule::Sequential);

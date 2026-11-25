@@ -503,14 +503,12 @@ impl DispatchDevice {
     ///
     /// A sharded compute device's members come in member order.
     pub fn member_ids(&self) -> impl Iterator<Item = DeviceId> + use<> {
-        // Autodiff never wraps autodiff, so one step reaches the device that runs the kernels.
+        #[allow(unused_mut)]
+        let mut device = self;
         #[cfg(feature = "autodiff")]
-        let device = match self {
-            DispatchDevice::Autodiff(device) => device.inner.as_ref(),
-            device => device,
-        };
-        #[cfg(not(feature = "autodiff"))]
-        let device = self;
+        while let DispatchDevice::Autodiff(wrapped) = device {
+            device = wrapped.inner.as_ref();
+        }
         #[cfg(cube_backend)]
         let ids = {
             let (own, members): (Option<DeviceId>, Vec<CubeDevice>) = match device {
