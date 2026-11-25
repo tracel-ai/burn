@@ -1,8 +1,10 @@
 //! Matmul over cubek's tile-DSL routines ([`cubek::matmul::kernels`]). cubek's selection plans the
-//! product: under autotune, the few-rows or the many-rows autotune its rows go to; by rule otherwise.
+//! product: under autotune, this crate's few-rows or many-rows autotune, the race its rows go to
+//! ([`MatmulAutotuneGroups`]); by rule otherwise.
 //! A quantized input is read as stored by the routines listed for it or decoded first, and a scheme
 //! none reads is dequantized here first.
 
+use super::MatmulAutotuneGroups;
 use crate::{
     CubeTuneId,
     kernel::{quantization::dequantize, untile},
@@ -24,7 +26,6 @@ use cubek::matmul::{
             selector::select,
         },
         tensor::StoredTensor,
-        tune::MatmulAutotuneGroups,
     },
 };
 use cubek::std::{
@@ -64,7 +65,8 @@ pub(crate) fn launch(
         (&lhs.meta, lhs.tensor.kind()),
         (&rhs.meta, rhs.tensor.kind()),
     )?;
-    let plan = select(strategy, &problem, &hw, MatmulAutotuneGroups::default()).map_err(invalid)?;
+    let measured = |autotune| MatmulAutotuneGroups::default().fastest(autotune);
+    let plan = select(strategy, &problem, &hw, &measured).map_err(invalid)?;
     let call = MatmulCall {
         hw,
         client,
@@ -171,7 +173,7 @@ fn handle_of(tensor: CubeTensor) -> TensorHandle {
 mod tests {
     use super::*;
     use cubecl::zspace::Tiling;
-    use cubek::matmul::kernels::tune::MatmulAutotune;
+    use cubek::matmul::kernels::select::MatmulAutotune;
 
     /// Both autotunes compute a decode product alike, so only its routing shows the weight's
     /// logical shape reached cubek.

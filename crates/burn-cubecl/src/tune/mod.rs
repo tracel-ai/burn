@@ -7,6 +7,8 @@
 //! launches, and measures nothing.
 
 mod base;
+#[cfg(feature = "autotune-checks")]
+mod checks;
 mod group;
 mod kernel;
 mod priority;
@@ -15,6 +17,8 @@ mod roofline;
 mod tests;
 
 pub use base::*;
+#[cfg(feature = "autotune-checks")]
+pub(crate) use checks::assert_equivalent;
 pub use group::*;
 pub use priority::*;
 pub use roofline::*;

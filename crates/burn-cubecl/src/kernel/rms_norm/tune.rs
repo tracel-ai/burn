@@ -42,11 +42,7 @@ struct RmsNormOutput {
 impl AutotuneOutput for RmsNormOutput {
     #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) {
-        cubek::matmul::kernels::tune::assert_equivalent(
-            &self.client,
-            self.handle.clone(),
-            other.handle,
-        );
+        crate::tune::assert_equivalent(&self.client, self.handle.clone(), other.handle);
     }
 }
 
