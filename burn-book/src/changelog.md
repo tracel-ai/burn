@@ -356,7 +356,7 @@ Reports also include the measured cost of a kernel launch.
 
 - Fix CubeCL matrix multiplication of one matrix by a batch of single columns, `[1, m, k] @
   [b, k, 1]`, writing the batches over each other. The right-hand side's gradient of such a product
-  had the same problem.
+  had the same problem. ([#6607](https://github.com/tracel-ai/burn/pull/6607))
 
 - Enable CUDA tensor-core acceleration on Blackwell and Blackwell Ultra GPUs, including B300.
   ([#6161](https://github.com/tracel-ai/burn/pull/6161))
