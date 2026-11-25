@@ -113,7 +113,6 @@ tokio-util = "0.7"
 tracing = { version = "0.1.44", default-features = false }
 tracing-appender = "0.2.5"
 tracing-core = { version = "0.1.36", default-features = false }
-tracing-opentelemetry = "0.34.0"
 tracing-subscriber = "0.3.23"
 turso = { version = "0.8.2", default-features = false }
 # Turso's branches 0.4 dependency uses a removed intrinsic on nightly without std.

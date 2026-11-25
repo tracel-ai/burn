@@ -26,7 +26,6 @@ features match those of `burn`. Others:
 - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
 - `dataset`: the dataset library in `data`; `vision`, `audio` and `sqlite` add sources.
 - `network`: file downloads with a progress bar.
-- `tracing`: instrument operations with the `tracing` crate.
 
 <!-- burn-crate-footer -->
 

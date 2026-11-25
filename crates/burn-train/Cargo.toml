@@ -18,8 +18,6 @@ workspace = true
 default = ["sys-metrics", "tui"]
 doc = ["default", "rl"]
 vision = ["burn-nn", "burn-linalg", "burn-store/pytorch", "burn-std/network", "dirs"]
-tracing = ["burn-core/tracing", "burn-optim/tracing"]
-
 
 sys-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui", "unicode-width"]

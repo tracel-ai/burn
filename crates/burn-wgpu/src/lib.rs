@@ -22,7 +22,6 @@
 //! - `template`: launch hand-written kernels.
 //! - `exclusive-memory-only`: never share a memory page between allocations (always the case on
 //!   wasm).
-//! - `tracing`: instrument operations with the `tracing` crate.
 
 extern crate alloc;
 

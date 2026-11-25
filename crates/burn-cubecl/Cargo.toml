@@ -49,15 +49,6 @@ metal = ["cubecl/metal", "burn-backend/cubecl-metal"]
 vulkan = ["wgpu", "cubecl/vulkan", "burn-backend/cubecl-vulkan"]
 webgpu = ["wgpu", "cubecl/webgpu", "burn-backend/cubecl-webgpu"]
 
-tracing = [
-    "dep:tracing",
-    "cubecl/tracing",
-    "burn-std/tracing",
-    "burn-backend/tracing",
-    "burn-fusion?/tracing",
-    "burn-cubecl-fusion?/tracing",
-]
-
 # Compile persistent caches; runtime configuration controls which caches are used.
 persistence = ["cubecl/persistence", "burn-std/persistence"]
 autotune = ["burn-cubecl-fusion?/autotune"]
@@ -68,12 +59,10 @@ autotune-checks = [
     "burn-cubecl-fusion?/autotune-checks",
 ]
 
-
 fusion = ["burn-fusion", "burn-cubecl-fusion"]
 fusion-experimental = ["fusion"]
 
 template = []
-
 
 [dependencies]
 branches = { workspace = true, optional = true }
@@ -102,7 +91,6 @@ cubek = { workspace = true, features = [
     "quantization",
     "stdlib",
 ] }
-tracing = { workspace = true, features = ["attributes"], optional = true }
 
 derive-new = { workspace = true }
 log = { workspace = true }

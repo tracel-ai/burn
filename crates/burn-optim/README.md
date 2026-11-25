@@ -30,7 +30,6 @@ of the Burn Book.
 ## Feature Flags
 
 - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
-- `tracing`: instrument operations with the `tracing` crate.
 
 <!-- burn-crate-footer -->
 

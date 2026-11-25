@@ -20,7 +20,6 @@
 //! # Feature flags
 //!
 //! - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
-//! - `tracing`: instrument operations with the `tracing` crate.
 
 extern crate alloc;
 

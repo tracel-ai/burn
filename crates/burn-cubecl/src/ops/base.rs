@@ -82,10 +82,6 @@ pub fn into_data_sync(tensor: CubeTensor) -> TensorData {
     burn_std::future::block_on(into_data(tensor)).unwrap()
 }
 
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(level = "trace", skip(tensor, device))
-)]
 pub(crate) fn to_device(tensor: CubeTensor, device: &CubeDevice) -> CubeTensor {
     if &tensor.device == device {
         return tensor;

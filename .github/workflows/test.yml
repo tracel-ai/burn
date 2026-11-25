@@ -86,8 +86,7 @@ jobs:
         run: cargo xtask check format
       # --------------------------------------------------------------------------------
       - name: Lint
-        # Cover opt-in backend instrumentation; regular tests exercise tracing-disabled builds.
-        run: cargo xtask check --features burn/tracing lint
+        run: cargo xtask check lint
       # --------------------------------------------------------------------------------
       - name: Typos
         uses: tracel-ai/github-actions/check-typos@v12

@@ -32,7 +32,6 @@ See the [learner](https://burn.dev/books/burn/building-blocks/learner.html) and
 - `sys-metrics` (default): CPU, memory and GPU usage metrics.
 - `vision`: image quality metrics.
 - `rl`: reinforcement learning training through [burn-rl](https://github.com/tracel-ai/burn/tree/main/crates/burn-rl).
-- `tracing`: instrument operations with the `tracing` crate.
 
 <!-- burn-crate-footer -->
 

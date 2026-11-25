@@ -25,7 +25,6 @@
 //! - `dataframe`: datasets backed by a Polars `DataFrame`.
 //! - `network`: file downloads.
 //! - `fake`: generated datasets for tests.
-//! - `tracing`: instrument operations with the `tracing` crate.
 
 #[macro_use]
 extern crate derive_new;

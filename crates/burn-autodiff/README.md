@@ -40,7 +40,6 @@ backward pass needs.
 ## Feature Flags
 
 - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
-- `tracing`: instrument operations with the `tracing` crate.
 
 See the [autodiff chapter](https://burn.dev/books/burn/building-blocks/autodiff.html) of the Burn
 Book for how autodiff works at the tensor level.
