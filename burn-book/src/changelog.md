@@ -1147,6 +1147,9 @@ See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics)
 
 #### Optimizers
 
+- Custom optimizer and scheduler states can now derive `burn::optim::RecordState` in crates
+  that depend only on `burn` with the `optim` feature enabled.
+
 - Build `burn-optim` without the `std` feature again. `ModuleOptimizer` no longer depends on the
   standard-library-only learning-rate scheduler module, so fixed learning rates work in `no_std`.
   ([#6475](https://github.com/tracel-ai/burn/issues/6475))
