@@ -279,56 +279,57 @@ fn run_crate_unit_tests(packages: &[&str], args: &TestCmdArgs) -> anyhow::Result
 fn handle_macos_tests(release: bool, fusion: bool) -> anyhow::Result<()> {
     set_burn_device("wgpu-msl");
 
-    let packages = ["burn-backend-tests", "burn-linalg", "burn-signal"];
-    let features = [
+    // LU changes matrix dimensions at every pivot. Test the heuristic kernels here
+    // and keep autotuning in the backend suite, in a separate Cargo feature graph.
+    let mut linalg_features = vec!["burn-linalg/wgpu-msl", "burn-linalg/std"];
+    if fusion {
+        linalg_features.push("burn-linalg/fusion");
+    }
+    let linalg = run_test_group_with_args(
+        &["burn-linalg"],
+        &linalg_features,
+        release,
+        &["--no-fail-fast"],
+        "Metal linear algebra",
+    );
+
+    let mut packages = vec!["burn-backend-tests", "burn-signal"];
+    let mut features = vec![
         "burn-backend-tests/wgpu-msl",
         "burn-backend-tests/std",
         // Reuse autotune results across test binaries in this configuration.
         "burn-backend-tests/persistence",
-        "burn-linalg/wgpu-msl",
-        "burn-linalg/std",
-        "burn-linalg/autotune",
         "burn-signal/wgpu-msl",
         "burn-signal/std",
         "burn-signal/autodiff",
         "burn-signal/autotune",
     ];
 
-    if !fusion {
-        return run_test_group_with_args(
-            &packages,
-            &features,
-            release,
-            &["--no-fail-fast"],
-            "Metal without fusion",
-        );
-    }
-
-    let mut fusion_packages = packages.to_vec();
-    fusion_packages.extend(["burn-wgpu", "burn-core", "burn-vision"]);
-    let mut fusion_features = features.to_vec();
-    fusion_features.extend([
-        "burn-backend-tests/fusion",
-        "burn-linalg/fusion",
-        "burn-signal/fusion",
-        // Extension tests share this Metal/Fusion build and use BURN_DEVICE=wgpu-msl.
-        "burn-core/extension-tests",
-        // Preserve the default-feature coverage of the former standalone crate tests.
-        // Qualify every feature so adding a package cannot enable its namesake feature.
-        "burn-wgpu/default",
-        "burn-wgpu/wgpu-msl",
-        "burn-core/default",
-        "burn-core/wgpu-msl",
-        "burn-vision/default",
-        "burn-vision/wgpu-msl",
-    ]);
-    run_test_group_with_args(
-        &fusion_packages,
-        &fusion_features,
+    let description = if fusion {
+        packages.extend(["burn-wgpu", "burn-core", "burn-vision"]);
+        features.extend([
+            "burn-backend-tests/fusion",
+            "burn-signal/fusion",
+            "burn-core/extension-tests",
+            "burn-wgpu/default",
+            "burn-wgpu/wgpu-msl",
+            "burn-core/default",
+            "burn-core/wgpu-msl",
+            "burn-vision/default",
+            "burn-vision/wgpu-msl",
+        ]);
+        "Metal with fusion"
+    } else {
+        "Metal without fusion"
+    };
+    let backend = run_test_group_with_args(
+        &packages,
+        &features,
         release,
         &["--no-fail-fast"],
-        "Metal with fusion",
-    )
+        description,
+    );
+    linalg.and(backend)
 }
 
 fn run_test_group(
