@@ -4,7 +4,9 @@
 //! Every part of a [`KernelEstimate`] enters the prediction:
 //!
 //! - the cubes and their units, registers and shared memory decide how many cubes are resident
-//!   at once ([`WorkerLimits`]), and so how many waves the grid takes and how full the last is;
+//!   at once ([`WorkerLimits`]), and so how many waves the grid's arithmetic takes and how full
+//!   the last is — its traffic takes none, since the cubes of a short last wave share the whole
+//!   bandwidth between them;
 //! - the resident cubes' reads in flight — a stage's bytes times the stages a cube holds — decide
 //!   how much of the memory latency is hidden, and so what fraction of the bandwidth is reached;
 //! - every stream is moved in whole transactions, a run shorter than one paying for it;
@@ -133,10 +135,11 @@ impl Peaks {
         let plane = f64::from(hw.properties.hardware.plane_size_max.max(1));
         let operations = cubes as f64 * (staging.operations + staging.drain_atomics as f64 * plane);
         let lanes_filled = residency.lanes_filled(active, estimate.cube.units);
-        let compute = time_at(operations / lanes_filled, self.rate_of(estimate)?)?;
+        let compute = time_at(operations / lanes_filled, self.rate_of(estimate)?)?
+            .mul_f64(residency.last_wave_stretch(cubes));
 
         let busy = residency.overlap(staging.stages_in_flight, memory, compute);
-        Some(busy.mul_f64(residency.last_wave_stretch(cubes)) + self.launch_overhead)
+        Some(busy + self.launch_overhead)
     }
 
     /// The rate the estimate's work computes at: its matrix instruction's, where it names one,
@@ -438,15 +441,33 @@ mod tests {
         assert_close(time(&short), time(&whole) * 4);
     }
 
-    /// A grid one cube past a whole wave of resident cubes takes a second wave.
+    /// `cubes` computing `operations` each and reading nothing.
+    fn computing(cubes: u64, operations: f64) -> KernelEstimate {
+        let mut kernel = reading(cubes, 0);
+        kernel.staging.as_mut().unwrap().operations = operations;
+        kernel
+    }
+
+    /// Arithmetic one cube past a whole wave of resident cubes takes a second wave.
     #[test]
-    fn a_grid_past_a_wave_takes_the_next_one() {
+    fn arithmetic_past_a_wave_takes_the_next_one() {
+        let wave = 8 * 40;
+        assert_close(
+            time(&computing(wave + 1, 4096.0)),
+            time(&computing(2 * wave, 4096.0)),
+        );
+    }
+
+    /// Traffic one cube past a whole wave costs that cube's bytes alone: the short last wave
+    /// shares the whole bandwidth.
+    #[test]
+    fn traffic_past_a_wave_costs_its_own_bytes() {
         let hw = devices::strix_halo();
         let bytes = hiding_bytes(&hw);
         let wave = 8 * 40;
         assert_close(
             time(&reading(wave + 1, bytes)),
-            time(&reading(2 * wave, bytes)),
+            Duration::from_nanos((wave + 1) * bytes),
         );
     }
 
