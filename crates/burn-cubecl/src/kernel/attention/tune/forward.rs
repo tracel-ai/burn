@@ -315,15 +315,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::CubeDevice;
     use cubecl::features::MmaConfig;
     use cubecl::ir::{ElemType, FloatKind};
-    use cubecl::server::Overlap;
-    use cubecl::zspace::striding::row_major_contiguous_strides;
     use cubek::attention::kernels::{
-        AttentionKeyElements, AttentionScoring, AttentionVisibility, QueryPlacement, ScoreScale,
+        AttentionKeyElements, AttentionVisibility, QueryPlacement, ScoreScale,
     };
-    use cubek::matmul::kernels::tensor::PlainTensor;
     use cubek::std::devices;
 
     const F16: ElemType = ElemType::Float(FloatKind::F16);
@@ -413,7 +409,13 @@ mod tests {
     /// candidates the call's own operands, and the output every candidate and the winner write is
     /// the call's.
     #[test]
+    #[cfg(any(feature = "cuda", feature = "vulkan", feature = "metal"))]
     fn a_race_runs_on_the_calls_buffers() {
+        use crate::CubeDevice;
+        use cubecl::server::Overlap;
+        use cubecl::zspace::striding::row_major_contiguous_strides;
+        use cubek::attention::kernels::AttentionScoring;
+        use cubek::matmul::kernels::tensor::PlainTensor;
         let client = CubeDevice::default().client();
         let (heads, kv_heads, head_dim) = (8, 2, 64);
         let zeros = |shape: [usize; 4]| {

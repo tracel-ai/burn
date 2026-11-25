@@ -13,7 +13,7 @@ mod group;
 mod kernel;
 mod priority;
 mod roofline;
-#[cfg(test)]
+#[cfg(all(test, any(feature = "cuda", feature = "vulkan", feature = "metal")))]
 mod tests;
 
 pub use base::*;
