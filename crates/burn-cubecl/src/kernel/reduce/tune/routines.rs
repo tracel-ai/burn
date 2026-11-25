@@ -38,8 +38,9 @@ pub(crate) fn launch_tuned(tensors: ReduceTensors, device: &Device) {
 }
 
 /// The candidate the tuner on `client`'s `device` found fastest for `key`, or `None` where no
-/// round in this process has settled the key, or the floor named apart won it: what a fused reduce
-/// runs, so it inherits the kernel the unfused round chose.
+/// reduction in this process has settled the key, by a round or from the winner one left on disk,
+/// or the floor named apart won it: what a fused reduce runs, so it inherits the kernel the unfused
+/// round chose.
 #[cfg(feature = "fusion")]
 pub(crate) fn fastest_tuned(
     client: &Client,
@@ -127,4 +128,92 @@ fn candidates(hw: Hardware) -> TunableSet<ReduceKey, ReduceTensors, (), ReduceId
             },
         ))
         .finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cubecl::ir::{ElemType, FloatKind};
+    use cubecl::tile::Geometry;
+    use cubek::reduce::ReduceOperation;
+    use cubek::reduce::kernels::{ReduceElements, ReduceRoutineProblem};
+    use cubek::std::devices;
+
+    const F32: ElemType = ElemType::Float(FloatKind::F32);
+    const ROW_LEN: usize = 16;
+
+    /// The key of sums of `rows` rows of [`ROW_LEN`] values, in `elements`.
+    fn key_of_rows_in(rows: usize, elements: ReduceElements) -> ReduceKey {
+        ReduceKey::from(&ReduceRoutineProblem::stated(
+            &Geometry::row_major(&[rows, ROW_LEN]),
+            &Geometry::row_major(&[rows, 1]),
+            1,
+            ReduceOperation::Sum,
+            elements,
+        ))
+    }
+
+    /// The key of sums of `rows` rows of [`ROW_LEN`] values, in f32.
+    fn key_of_rows(rows: usize) -> ReduceKey {
+        key_of_rows_in(
+            rows,
+            ReduceElements::for_operation(ReduceOperation::Sum, F32, None),
+        )
+    }
+
+    /// The first candidate on `hw` whose name starts with `routine`, raced on `hw`.
+    fn raced(routine: &str, hw: Hardware) -> ReduceTuneCandidate {
+        let candidate = ReduceCandidate::list(&hw)
+            .into_iter()
+            .find(|candidate| candidate.name().starts_with(routine))
+            .expect("the routine lists a setting on every device");
+        ReduceTuneCandidate { candidate, hw }
+    }
+
+    /// The unit routine's first candidate on an M2 Pro.
+    fn unit() -> ReduceTuneCandidate {
+        raced("unit-direct-reduce", devices::m2_pro())
+    }
+
+    #[test]
+    fn a_candidate_that_fills_the_device_comes_first() {
+        assert_eq!(
+            unit().priority(&key_of_rows(1 << 18)),
+            CandidatePriority::FIRST
+        );
+    }
+
+    /// Eight rows take one cube of 128 units, where an M2 Pro takes 76.
+    #[test]
+    fn a_candidate_that_leaves_the_device_idle_is_lowered_a_level_a_halving() {
+        assert_eq!(
+            unit().priority(&key_of_rows(8)),
+            CandidatePriority::FIRST.lowered(76u32.ilog2())
+        );
+    }
+
+    #[test]
+    fn a_candidate_that_declines_the_key_comes_last() {
+        let declining = raced(
+            "cube-staged-reduce",
+            devices::lacking_every_feature(devices::m2_pro()),
+        );
+        assert_eq!(declining.priority(&key_of_rows(8)), CandidatePriority::LAST);
+    }
+
+    /// A sum no caller asks for: it accumulates in less than it reads.
+    #[cfg(feature = "fusion")]
+    #[test]
+    fn a_key_no_reduction_settled_has_no_fastest_candidate() {
+        let device = cubecl::test_device();
+        let key = key_of_rows_in(
+            4,
+            ReduceElements {
+                input: ElemType::Float(FloatKind::F64),
+                accumulator: ElemType::Float(FloatKind::F16),
+                out: F32,
+            },
+        );
+        assert!(fastest_tuned(&device.client(), &device, &key).is_none());
+    }
 }

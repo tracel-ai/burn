@@ -1,10 +1,12 @@
-//! What each member of a sharded compute device did, beneath the totals, where the run had
-//! several: the components sum every member's kernels, so no line above is one device's time.
+//! What each member did, beneath the totals, where the run had several: the components sum
+//! every member's kernels, which is the run's device time only for members that took turns.
 //!
 //! Idle time is the instrumented run's, whose host pays a round trip per launch, so it runs
 //! past the clean run's wall; what the wall holds beyond the slowest member is the clean run's.
 
 use std::fmt::{self, Display};
+
+use burn_instrument::{MemberSchedule, PerMember};
 
 use crate::Report;
 use crate::millis::Millis;
@@ -55,27 +57,37 @@ impl Display for Members<'_, '_> {
                 Millis(per_member.off_members),
             )?;
         }
-        let slowest = per_member
-            .members
-            .iter()
-            .map(|member| member.on_device)
-            .max()
-            .unwrap_or_default();
+        let (computing, outside) = computing(per_member);
         match measurement.clean_wall {
-            Some(wall) if wall >= slowest => writeln!(
+            Some(wall) if wall >= computing => writeln!(
                 f,
-                "  {:<width$} {:>8} ms   of the clean run outside the slowest member's kernels: \
-                 collectives, the host, and imbalance between members, at most",
+                "  {:<width$} {:>8} ms   of the clean run outside {outside}, at most",
                 "not computing",
-                Millis(wall - slowest),
+                Millis(wall - computing),
             ),
             Some(_) => writeln!(
                 f,
-                "  {:<width$} {:>8}      the slowest member's kernels measured more than the run \
-                 took, so the two clocks disagree",
+                "  {:<width$} {:>8}      the members' kernels measured more than the run took, \
+                 so the two clocks disagree",
                 "not computing", "—"
             ),
             None => Ok(()),
         }
+    }
+}
+
+/// How long the run computed, and what the clean run outside it went to: the slowest member's
+/// kernels where the members worked at once, all of theirs where they took turns.
+fn computing(per_member: &PerMember) -> (std::time::Duration, &'static str) {
+    let times = per_member.members.iter().map(|member| member.on_device);
+    match per_member.schedule {
+        MemberSchedule::Concurrent => (
+            times.max().unwrap_or_default(),
+            "the slowest member's kernels: collectives, the host, and imbalance between members",
+        ),
+        MemberSchedule::Sequential => (
+            times.sum(),
+            "every member's kernels: the host, and the hops between members",
+        ),
     }
 }

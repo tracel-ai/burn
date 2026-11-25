@@ -86,11 +86,14 @@ pub struct Breakdown {
     /// fused reads zero, and the kernel that did it is listed elsewhere.
     pub unfused: bool,
     /// What each member of a sharded compute device did over the run, and what its collectives
-    /// cost each member. `None` for a device of one, whose figures are the rest of the
-    /// breakdown's, and for a sharded compute device whose members are one device.
+    /// cost each member; or, for an `Instrument::for_devices` run, each distinct device it was
+    /// given, in the order each first appears.
+    /// `None` for a device of one, whose figures are the rest of the breakdown's, and for a
+    /// sharded compute device whose members are one device.
     ///
-    /// Its members run at once, so the components' times sum every member's kernels and are no
-    /// one device's time: the slowest member's is what the run's wall holds.
+    /// A sharded compute device's members run at once, so the components' times sum every
+    /// member's kernels and are no one device's time: the slowest member's is what the run's wall
+    /// holds. Devices that run in turn, as a model split by layers runs them, add up instead.
     ///
     /// Partial where [`timed_alone`](Self::timed_alone) is set: launches ran one at a time.
     pub per_member: Option<PerMember>,
@@ -411,12 +414,15 @@ impl Component {
     }
 }
 
-/// What each member of a sharded compute device did over an instrumented run.
+/// What each member of a sharded compute device, or each device a run is timed across, did over
+/// an instrumented run.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PerMember {
     /// Each member, in member order.
     pub members: Vec<MemberTime>,
+    /// Whether the members worked at once or in turn.
+    pub schedule: MemberSchedule,
     /// The device time of kernels that ran on no member's device: credited to their components,
     /// on no member.
     #[serde(with = "super::nanoseconds")]
@@ -426,7 +432,19 @@ pub struct PerMember {
     pub collectives: Vec<CollectiveTime>,
 }
 
-/// What one member of a sharded compute device did over an instrumented run.
+/// How the members of a run shared its work, which decides what a component's time is.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MemberSchedule {
+    /// All at once, as a sharded compute device's do: the run took its busiest member's time.
+    #[default]
+    Concurrent,
+    /// One after another, as a model split by layers across devices: the run took the sum of its
+    /// members' times.
+    Sequential,
+}
+
+/// What one member of a sharded compute device, or one device a run is timed across, did over an
+/// instrumented run.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MemberTime {

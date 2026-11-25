@@ -211,11 +211,11 @@ fn one_query(
 /// The one-position roofline: the bus, in the direction the traffic goes. One query against the
 /// whole cache reuses nothing — every key and value byte is read once and the write is a single
 /// row — so the ceiling is the **read** bandwidth.
-fn one_query_roofline(key: &AttentionKey, inputs: &AttentionTuneInputs) -> Roofline {
+fn one_query_roofline(_key: &AttentionKey, inputs: &AttentionTuneInputs) -> Roofline {
     Roofline {
         client: inputs.client().clone(),
         ceiling: Ceiling::Memory(MemoryAccess::Read),
-        work: inputs.one_query_work(key),
+        work: inputs.one_query_work(),
     }
 }
 
