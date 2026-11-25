@@ -271,27 +271,41 @@ mod storage_tiled {
         assert_eq!(values(back), values(rows));
     }
 
-    /// A transpose moves each dim with its pieces, whichever physical dims they are.
     #[test]
     fn a_transpose_keeps_a_tensor_core_layout() {
         let device = CubeDevice::default();
         let rows = tensor(&[48, 80], &device, 3);
         let transposed = swap_dims(for_tensor_core(&rows), 0, 1);
         assert!(transposed.meta.is_tiled());
+    }
+
+    /// A transpose moves each dim with its pieces, whichever physical dims they are.
+    #[test]
+    fn a_transpose_of_a_tensor_core_layout_reads_the_transposed_values() {
+        let device = CubeDevice::default();
+        let rows = tensor(&[48, 80], &device, 3);
+        let transposed = swap_dims(for_tensor_core(&rows), 0, 1);
         assert_eq!(
             values(transposed),
             values(into_contiguous(swap_dims(rows, 0, 1)))
         );
     }
 
-    /// Rows are restated over the pieces as a tensor core lists them.
     #[test]
     fn an_elementwise_op_keeps_a_tensor_core_layout() {
         let device = CubeDevice::default();
         let (lhs, rhs) = (tensor(&[48, 80], &device, 3), tensor(&[48, 80], &device, 4));
         let stored = for_tensor_core(&lhs);
-        let out = CubeBackend::float_add(stored.clone(), rhs.clone());
+        let out = CubeBackend::float_add(stored.clone(), rhs);
         assert_eq!(out.meta.tiling, stored.meta.tiling);
+    }
+
+    /// Rows are restated over the pieces as a tensor core lists them.
+    #[test]
+    fn an_elementwise_op_on_a_tensor_core_layout_reads_the_values_of_rows() {
+        let device = CubeDevice::default();
+        let (lhs, rhs) = (tensor(&[48, 80], &device, 3), tensor(&[48, 80], &device, 4));
+        let out = CubeBackend::float_add(for_tensor_core(&lhs), rhs.clone());
         assert_close(
             &values(out),
             &values(CubeBackend::float_add(lhs, rhs)),
