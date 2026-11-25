@@ -37,8 +37,8 @@ fn should_quantize_dequantize_symmetric_arange<S: Into<Shape>>(
         .assert_approx_eq::<FloatElem>(&output_ref.to_data(), Tolerance::default());
 }
 
-#[test]
-fn should_quantize_dequantize_under_a_scale_per_row() {
+/// A `[3, 40]` range quantized under a scale per row, packed, and its reference stored natively.
+fn quantize_under_a_scale_per_row() -> (TestTensor<2>, TestTensor<2>) {
     let device = Default::default();
     let ref_device = ReferenceDevice::new();
     let row = BlockSize::with_rest(&[BlockExtent::WholeAxis], BlockExtent::VALUE);
@@ -52,10 +52,23 @@ fn should_quantize_dequantize_under_a_scale_per_row() {
         .reshape([3, 40]);
     let input_ref = TestTensor::<2>::from_data(input.to_data(), &ref_device);
 
-    let output = input.quantize_dynamic(&scheme);
-    let output_ref = input_ref.quantize_dynamic(&scheme.with_store(QuantStore::Native));
+    (
+        input.quantize_dynamic(&scheme),
+        input_ref.quantize_dynamic(&scheme.with_store(QuantStore::Native)),
+    )
+}
+
+#[test]
+fn should_quantize_under_a_scale_per_row() {
+    let (output, output_ref) = quantize_under_a_scale_per_row();
 
     output.to_data().assert_eq(&output_ref.to_data(), false);
+}
+
+#[test]
+fn should_dequantize_under_a_scale_per_row() {
+    let (output, output_ref) = quantize_under_a_scale_per_row();
+
     output
         .dequantize()
         .into_data()
