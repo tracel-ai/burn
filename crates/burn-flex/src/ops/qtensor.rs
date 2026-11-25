@@ -69,49 +69,16 @@ impl QTensorOps<Flex> for Flex {
         let range = max - min;
 
         let (quantized, scales, global) = match (scheme.finest().size, global_scale_dtype(scheme)) {
-            (BlockSize::TENSOR, _) => {
-                let scale = validated_scale(
-                    block_max_abs_scale(&float_data, range),
-                    scheme.finest().dtype,
-                );
-                let quantized = scheme.value.encode_all(&float_data, move |_| scale);
-
-                (quantized, alloc::vec![scale], None)
-            }
-            (block, Some(global_dtype)) => {
-                let blocks = block_layout(&shape, &block);
-                let raw: Vec<f32> = block_max_abs(&float_data, &blocks)
-                    .into_iter()
-                    .map(|alpha| 2.0 * alpha / range)
-                    .collect();
-                let peak = raw.iter().copied().fold(0.0f32, f32::max);
-
-                let global = validated_scale(
-                    peak / scheme.finest().dtype.max_representable(),
-                    global_dtype,
-                );
-
-                let scales: Vec<f32> = raw
-                    .iter()
-                    .map(|&raw| validated_scale(raw / global, scheme.finest().dtype))
-                    .collect();
-                let quantized = scheme
-                    .value
-                    .encode_all(&float_data, |index| global * scales[blocks.block_of(index)]);
-
-                (quantized, scales, Some(global))
-            }
+            (BlockSize::TENSOR, _) => quantize_per_tensor(&float_data, scheme, range),
+            (block, Some(global_dtype)) => quantize_two_level(
+                &float_data,
+                &block_layout(&shape, &block),
+                scheme,
+                range,
+                global_dtype,
+            ),
             (block, None) => {
-                let blocks = block_layout(&shape, &block);
-                let scales: Vec<f32> = block_max_abs(&float_data, &blocks)
-                    .into_iter()
-                    .map(|alpha| validated_scale(2.0 * alpha / range, scheme.finest().dtype))
-                    .collect();
-                let quantized = scheme
-                    .value
-                    .encode_all(&float_data, |index| scales[blocks.block_of(index)]);
-
-                (quantized, scales, None)
+                quantize_per_block(&float_data, &block_layout(&shape, &block), scheme, range)
             }
         };
 
@@ -341,6 +308,67 @@ impl QTensorOps<Flex> for Flex {
             }
         }
     }
+}
+
+/// `values` encoded under one scale over the whole tensor, with that scale.
+fn quantize_per_tensor(
+    values: &[f32],
+    scheme: &QuantScheme,
+    range: f32,
+) -> (Vec<i8>, Vec<f32>, Option<f32>) {
+    let scale = validated_scale(block_max_abs_scale(values, range), scheme.finest().dtype);
+    let quantized = scheme.value.encode_all(values, move |_| scale);
+
+    (quantized, alloc::vec![scale], None)
+}
+
+/// `values` encoded under one scale per block of `blocks`, each stored as its share of one
+/// global scale in `global_dtype`, with the block scales and the global scale.
+fn quantize_two_level(
+    values: &[f32],
+    blocks: &BlockLayout,
+    scheme: &QuantScheme,
+    range: f32,
+    global_dtype: ScaleDtype,
+) -> (Vec<i8>, Vec<f32>, Option<f32>) {
+    let raw: Vec<f32> = block_max_abs(values, blocks)
+        .into_iter()
+        .map(|alpha| 2.0 * alpha / range)
+        .collect();
+    let peak = raw.iter().copied().fold(0.0f32, f32::max);
+
+    let global = validated_scale(
+        peak / scheme.finest().dtype.max_representable(),
+        global_dtype,
+    );
+
+    let scales: Vec<f32> = raw
+        .iter()
+        .map(|&raw| validated_scale(raw / global, scheme.finest().dtype))
+        .collect();
+    let quantized = scheme
+        .value
+        .encode_all(values, |index| global * scales[blocks.block_of(index)]);
+
+    (quantized, scales, Some(global))
+}
+
+/// `values` encoded under one scale per block of `blocks`, with those scales.
+fn quantize_per_block(
+    values: &[f32],
+    blocks: &BlockLayout,
+    scheme: &QuantScheme,
+    range: f32,
+) -> (Vec<i8>, Vec<f32>, Option<f32>) {
+    let scales: Vec<f32> = block_max_abs(values, blocks)
+        .into_iter()
+        .map(|alpha| validated_scale(2.0 * alpha / range, scheme.finest().dtype))
+        .collect();
+    let quantized = scheme
+        .value
+        .encode_all(values, |index| scales[blocks.block_of(index)]);
+
+    (quantized, scales, None)
 }
 
 /// Apply a layout operation to a quantized tensor, which takes `scheme`, already rewritten by the
