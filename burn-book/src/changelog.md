@@ -353,6 +353,8 @@ Reports also include the measured cost of a kernel launch.
 
 #### Matrix multiplication
 
+- Fix incorrect CubeCL matrix-vector products when one matrix is broadcast across a batch of vectors.
+
 - Flex matrix multiplication now preserves empty batch dimensions when broadcasting against a batch
   of size one.
 
