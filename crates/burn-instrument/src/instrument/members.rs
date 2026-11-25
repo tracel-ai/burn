@@ -90,16 +90,6 @@ impl MemberList {
         self.schedule
     }
 
-    /// The timeline a window that ran on `ran_on` waits on: its member's own where the members
-    /// work at once, one for them all where they take turns, so a member waiting for another's
-    /// turn is not read as waiting on the host.
-    pub fn lane(&self, ran_on: RanOn) -> RanOn {
-        match self.schedule {
-            MemberSchedule::AtOnce => ran_on,
-            MemberSchedule::InTurn => RanOn::Device,
-        }
-    }
-
     /// Whether the device has more than one member, so each is timed apart.
     pub fn several(&self) -> bool {
         self.services.len() > 1

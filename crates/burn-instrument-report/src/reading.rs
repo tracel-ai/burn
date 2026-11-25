@@ -148,10 +148,7 @@ pub(crate) enum HostSplit {
     },
     /// The members ran in turn, so what their kernels leave of the clean run holds the hops
     /// between them as well as the host, and no timing tells the two apart.
-    MembersInTurn {
-        /// The clean run less every member's kernels.
-        idle: Duration,
-    },
+    MembersInTurn,
     /// No clean run was measured to split.
     NoCleanRun,
     /// The run was on several members at once, whose kernels sum past any one device's time.
@@ -181,9 +178,7 @@ impl HostSplit {
         } else if device > wall {
             Self::ClocksDisagree
         } else if schedule(measurement) == Some(MemberSchedule::InTurn) {
-            Self::MembersInTurn {
-                idle: wall - device,
-            }
+            Self::MembersInTurn
         } else {
             Self::Measured {
                 host: wall - device,
@@ -192,11 +187,12 @@ impl HostSplit {
         }
     }
 
-    /// Of the clean run, the time the device spent on no kernel: the host's, and where members
-    /// ran in turn the hops between them too. `None` where the run does not split.
-    pub(crate) fn idle(self) -> Option<Duration> {
+    /// Of the clean run, the time the device spent waiting on the host — the
+    /// launches, the op recording, everything between kernels — where the run splits.
+    pub(crate) fn host(self) -> Option<Duration> {
         match self {
-            Self::Measured { host: idle, .. } | Self::MembersInTurn { idle } => Some(idle),
+            Self::Measured { host, .. } => Some(host),
+            Self::MembersInTurn => None,
             Self::NoCleanRun
             | Self::SeveralMembers
             | Self::TimedAlone
@@ -209,7 +205,7 @@ impl HostSplit {
     pub(crate) fn why_not_separable(self) -> &'static [&'static str] {
         match self {
             Self::Measured { .. } => &[],
-            Self::MembersInTurn { .. } => &[
+            Self::MembersInTurn => &[
                 "the members ran in turn, so the time",
                 "between their kernels holds the hops between them too",
             ],

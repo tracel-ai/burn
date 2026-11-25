@@ -72,7 +72,9 @@ impl Instrument {
     ///
     /// # Assumptions
     ///
-    /// `devices` holds at least one device, and none of several is a sharded compute device.
+    /// `devices` holds at least one device, and each of several is one cubecl device, so every
+    /// stage of the run is timed. No other instrument exists in the process, and where a device
+    /// fuses, this crate is built with its `fusion` feature.
     ///
     /// # Guarantees
     ///
@@ -83,7 +85,7 @@ impl Instrument {
     ///
     /// # Panics
     ///
-    /// If `devices` is empty or holds a sharded compute device among several, and as
+    /// If `devices` is empty or one of several is not one cubecl device, and as
     /// [`new`](Self::new) panics, for each device.
     pub fn for_devices(devices: &[Device]) -> Self {
         let first = devices.first().expect("an instrument watches a device");
@@ -91,8 +93,8 @@ impl Instrument {
             devices.len() == 1
                 || devices
                     .iter()
-                    .all(|device| device.as_dispatch().member_ids().count() < 2),
-            "devices taking turns are timed one member each, so none is a sharded compute device"
+                    .all(|device| device.as_dispatch().member_ids().count() == 1),
+            "devices taking turns are timed one member each, so each is one cubecl device"
         );
         #[cfg(not(feature = "fusion"))]
         assert!(

@@ -86,8 +86,8 @@ pub struct Breakdown {
     /// fused reads zero, and the kernel that did it is listed elsewhere.
     pub unfused: bool,
     /// What each member of a sharded compute device did over the run, and what its collectives
-    /// cost each member; or each device of an
-    /// `Instrument::for_devices` run.
+    /// cost each member; or, for an `Instrument::for_devices` run, each distinct device it was
+    /// given, in the order each first appears.
     /// `None` for a device of one, whose figures are the rest of the breakdown's, and for a
     /// sharded compute device whose members are one device.
     ///

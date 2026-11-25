@@ -7,7 +7,7 @@ use cubecl::profile::{ProfileDuration, ProfileTicks, TimingMethod};
 
 use super::cursor::Attribution;
 use super::members::{MemberList, RanOn};
-use crate::breakdown::{MemberTime, PerMember, Unplaced};
+use crate::breakdown::{MemberSchedule, MemberTime, PerMember, Unplaced};
 
 /// The timings a run kept, and how far they are to be trusted.
 #[derive(Default)]
@@ -180,9 +180,8 @@ impl Timeline {
     /// device was not idle for it at all. Each member's device is idle on its own: another
     /// member's kernel running meanwhile does not fill the gap.
     pub fn settle(mut self) -> Settled {
-        let members = &self.members;
         self.windows
-            .sort_by_key(|window| (members.lane(window.ran_on), window.start));
+            .sort_by_key(|window| (window.ran_on, window.start));
         let mut idle = Vec::with_capacity(self.windows.len());
         let mut per_member = self.members.several().then(|| PerMember {
             members: vec![MemberTime::default(); self.members.count()],
@@ -193,16 +192,15 @@ impl Timeline {
         let mut busy_until: Option<(RanOn, Duration)> = None;
         for window in &self.windows {
             let length = window.end.saturating_sub(window.start);
-            let lane = self.members.lane(window.ran_on);
             let gap = match busy_until {
-                Some((busy_lane, busy)) if busy_lane == lane => {
+                Some((ran_on, busy)) if ran_on == window.ran_on => {
                     Some(window.start.saturating_sub(busy))
                 }
                 _ => None,
             };
             busy_until = Some(match busy_until {
-                Some((busy_lane, busy)) if busy_lane == lane => (lane, busy.max(window.end)),
-                _ => (lane, window.end),
+                Some((ran_on, busy)) if ran_on == window.ran_on => (ran_on, busy.max(window.end)),
+                _ => (window.ran_on, window.end),
             });
             match (window.ran_on, per_member.as_mut()) {
                 (RanOn::OffMembers, Some(per_member)) => per_member.off_members += length,
@@ -218,7 +216,30 @@ impl Timeline {
                 }
             }
         }
+        let idle = match self.members.schedule() {
+            MemberSchedule::AtOnce => idle,
+            MemberSchedule::InTurn => self.turn_gaps(),
+        };
         Settled { idle, per_member }
+    }
+
+    /// The stretches members taking turns left the run waiting, on one timeline, each beside the
+    /// component whose kernel ended it: a member waiting for another's turn is no wait on the
+    /// host. A kernel on no member's device fills none of them.
+    fn turn_gaps(&self) -> Vec<(Attribution, Duration)> {
+        let mut turns: Vec<&Window> = (self.windows.iter())
+            .filter(|window| window.ran_on != RanOn::OffMembers)
+            .collect();
+        turns.sort_by_key(|window| window.start);
+        let mut busy_until: Option<Duration> = None;
+        turns
+            .into_iter()
+            .filter_map(|window| {
+                let gap = busy_until.map(|busy| window.start.saturating_sub(busy));
+                busy_until = Some(busy_until.map_or(window.end, |busy| busy.max(window.end)));
+                gap.map(|gap| (window.attribution, gap))
+            })
+            .collect()
     }
 }
 
@@ -228,7 +249,6 @@ mod tests {
 
     use super::super::members::Member;
     use super::*;
-    use crate::breakdown::MemberSchedule;
 
     /// The device's idle stretches are charged to the kernel that ended each:
     /// that launch is what it was waiting for. A kernel that starts before
@@ -332,25 +352,29 @@ mod tests {
         let at = Attribution::Untagged;
         let (first, second) = (RanOn::Member(Member(0)), RanOn::Member(Member(1)));
         timeline.push(at, first, &window(0, 10));
+        timeline.push(at, RanOn::OffMembers, &window(30, 40));
         timeline.push(at, second, &window(90, 100));
         timeline.push(at, first, &window(120, 130));
 
         let settled = timeline.settle();
-        assert_eq!(settled.idle, [(at, micros(80)), (at, micros(20))]);
+        assert_eq!(
+            settled.idle,
+            [(at, micros(80)), (at, micros(20))],
+            "the run waits between turns, a kernel on no member filling none of it"
+        );
         assert_eq!(
             settled.per_member.map(|per_member| per_member.members),
             Some(vec![
                 MemberTime {
                     on_device: micros(20),
-                    idle: micros(20),
+                    idle: micros(110),
                 },
                 MemberTime {
                     on_device: micros(10),
-                    idle: micros(80),
+                    idle: Duration::ZERO,
                 },
             ]),
-            "each gap is the run's, on the member whose kernel ended it, not the wait for \
-             another member's turn"
+            "each member is idle between its own kernels"
         );
     }
 }
