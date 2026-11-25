@@ -1,10 +1,11 @@
 pub use burn_backend::{
-    BuildStamp, EnvironmentBundle, EnvironmentError, EnvironmentSummary, PruneOptions, PruneTally,
-    Pruned, RecordPruning,
+    AutotuneAnswer, BuildStamp, EnvironmentBundle, EnvironmentError, EnvironmentSummary,
+    PruneOptions, PruneTally, Pruned, RecordPruning,
 };
 
 use crate::Device;
 use alloc::string::String;
+use alloc::vec::Vec;
 use burn_backend::{Backend, EnvironmentId, EnvironmentOrigin, SaveOptions};
 use burn_dispatch::Dispatch;
 
@@ -39,7 +40,10 @@ use burn_dispatch::Dispatch;
 /// }
 ///
 /// // Or run in what it kept beside what the application already holds.
-/// ComputeEnvironment::active(&device)?.merge_bundle(bundle)?;
+/// ComputeEnvironment::active(&device)?.merge_bundle(bundle.clone())?;
+///
+/// // Or, in any executable, tune only what its answers leave: no kernel comes with them.
+/// ComputeEnvironment::new(&device, "tuned")?.merge_answers(bundle.used_answers()?)?;
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct ComputeEnvironment {
@@ -187,6 +191,24 @@ impl ComputeEnvironment {
     /// could not be reached.
     pub fn merge_bundle(&self, bundle: EnvironmentBundle) -> Result<(), EnvironmentError> {
         self.merge_from(EnvironmentOrigin::Bundle(bundle))
+    }
+
+    /// Bring `answers` into this environment, as [`merge`](Self::merge) brings
+    /// another environment's entries: the work runs by them instead of
+    /// measuring its candidates again. They are what another environment's
+    /// work used, as its saved bundle gives them back
+    /// (`ReadBundle::used_answers`, with the `persistence` feature). An answer
+    /// this version's tuners do not read is left out, and the first of two to
+    /// one key is held.
+    ///
+    /// Brought into a [new](Self::new) environment before a
+    /// [bundle](Self::merge_bundle), they win over the bundle's own.
+    ///
+    /// # Errors
+    ///
+    /// The storage refused the write, or the device could not be reached.
+    pub fn merge_answers(&self, answers: Vec<AutotuneAnswer>) -> Result<(), EnvironmentError> {
+        self.merge_from(EnvironmentOrigin::Answers(answers))
     }
 
     /// Remove the compiled kernels the work never loaded, after every

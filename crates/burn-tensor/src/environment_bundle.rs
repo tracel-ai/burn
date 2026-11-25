@@ -1,5 +1,6 @@
-use crate::{BuildStamp, EnvironmentBundle, EnvironmentError, EnvironmentSummary};
+use crate::{AutotuneAnswer, BuildStamp, EnvironmentBundle, EnvironmentError, EnvironmentSummary};
 use alloc::string::String;
+use alloc::vec::Vec;
 use std::path::Path;
 use std::time::SystemTime;
 
@@ -9,7 +10,8 @@ pub use burn_std::environment::BundleDescription;
 /// it, under the error every other compute environment call answers with.
 ///
 /// [`describe`](Self::describe) reads every answer in one opening of the
-/// bundle; each other reader is a view of it, for a caller that wants one.
+/// bundle; each other reader but [`used_answers`](Self::used_answers) is a view
+/// of it, for a caller that wants one.
 ///
 /// ```rust,ignore
 /// use burn::tensor::{BuildStamp, EnvironmentBundle, ReadBundle};
@@ -37,6 +39,18 @@ pub trait ReadBundle: Sized {
     /// [`Storage`](EnvironmentError::Storage): the bytes do not read, they
     /// are not a bundle, or its entries cannot be counted.
     fn describe(&self) -> Result<BundleDescription, EnvironmentError>;
+
+    /// The autotune answers the work of the executable that
+    /// [saved](Self::saved_by) the bundle used, loaded or measured, each
+    /// trimmed to its pick, for
+    /// [`merge_answers`](crate::ComputeEnvironment::merge_answers) to bring into
+    /// another environment. An answer the bundle holds that its work never
+    /// used is not one of them.
+    ///
+    /// # Errors
+    ///
+    /// As [`describe`](Self::describe).
+    fn used_answers(&self) -> Result<Vec<AutotuneAnswer>, EnvironmentError>;
 
     /// The name the bundle's manifest gives it, as
     /// [`save_named`](crate::ComputeEnvironment::save_named) set it.
@@ -85,5 +99,9 @@ impl ReadBundle for EnvironmentBundle {
 
     fn describe(&self) -> Result<BundleDescription, EnvironmentError> {
         Ok(self.read_description()?)
+    }
+
+    fn used_answers(&self) -> Result<Vec<AutotuneAnswer>, EnvironmentError> {
+        Ok(self.read_used_answers()?)
     }
 }

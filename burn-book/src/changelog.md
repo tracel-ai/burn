@@ -136,6 +136,12 @@ and saved on any device that reaches its storage, a remote server's included.
   servers must be upgraded together (protocol version 14).
   ([#6485](https://github.com/tracel-ai/burn/pull/6485),
   [CubeCL #2144](https://github.com/tracel-ai/cubecl/pull/2144))
+- `ReadBundle::used_answers` reads the autotune answers a saved environment's work used, each an
+  `AutotuneAnswer` trimmed to its pick, and `ComputeEnvironment::merge_answers` brings them into
+  another environment, whose work then loads them instead of measuring. Answers of another CubeCL
+  version's tables are left out, and one picking past the end of its candidates is tuned again.
+  **Breaking:** `EnvironmentOrigin` gains `Answers`, and `ReadBundle` requires `used_answers`.
+  Remote clients and servers must be upgraded together (protocol version 17).
 
 #### CubeK tile kernels
 

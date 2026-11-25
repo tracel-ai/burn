@@ -120,8 +120,9 @@ macro_rules! native_persistence {
 /// Compute environment values, kept by the cubecl runtimes and carried by every backend.
 pub mod environment {
     pub use cubecl_environment::environment::{
-        BuildStamp, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
-        EnvironmentSummary, PruneOptions, PruneTally, Pruned, RecordPruning, SaveOptions,
+        AutotuneAnswer, BuildStamp, EnvironmentBundle, EnvironmentError, EnvironmentId,
+        EnvironmentOrigin, EnvironmentSummary, PruneOptions, PruneTally, Pruned, RecordPruning,
+        SaveOptions,
     };
 
     native_persistence! {

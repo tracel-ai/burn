@@ -3,8 +3,8 @@
 mod common;
 
 use burn_backend::{
-    Backend, EnvironmentError, EnvironmentId, PruneOptions, distributed::ReduceOperation,
-    ops::CollectiveOps,
+    AutotuneAnswer, Backend, EnvironmentError, EnvironmentId, EnvironmentOrigin, PruneOptions,
+    distributed::ReduceOperation, ops::CollectiveOps,
 };
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_flex::Flex;
@@ -16,7 +16,7 @@ use burn_remote::{
     },
     telemetry::{OpClass, TelemetryEvent, TelemetryProbe, TelemetrySubscription},
 };
-use burn_std::id::ParamId;
+use burn_std::{Bytes, id::ParamId};
 use burn_tensor::{
     Bool, DType, Device, DeviceType, Distribution, Int, Tensor, TensorData, Tolerance, Transaction,
     distributed::{DistributedConfig, DistributedContext},
@@ -1318,6 +1318,38 @@ fn a_prune_is_answered_by_the_servers_backend() {
     // The server's backend's answer, not the client's own default.
     let backends_own =
         <Flex as Backend>::environment_prune(&Default::default(), id, PruneOptions::default());
+    assert_eq!(format!("{answer:?}"), format!("{backends_own:?}"));
+    assert!(
+        matches!(answer, Err(EnvironmentError::Unsupported { .. })),
+        "{answer:?}"
+    );
+    rt.shutdown_background();
+}
+
+/// Autotune answers cross to the server, whose backend answers for them, as a prune is.
+#[test]
+fn a_merge_of_answers_is_answered_by_the_servers_backend() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
+    let id = EnvironmentId {
+        storage: 0,
+        name: "merged".into(),
+        location: String::new(),
+    };
+    let answers = EnvironmentOrigin::Answers(vec![AutotuneAnswer {
+        table: "table".into(),
+        key: Bytes::from_bytes_vec(b"key".to_vec()),
+        fastest_index: 0,
+    }]);
+
+    let answer = Dispatch::environment_merge(device.as_dispatch(), id.clone(), answers.clone());
+
+    // The server's backend's answer, not the client's own default.
+    let backends_own = <Flex as Backend>::environment_merge(&Default::default(), id, answers);
     assert_eq!(format!("{answer:?}"), format!("{backends_own:?}"));
     assert!(
         matches!(answer, Err(EnvironmentError::Unsupported { .. })),

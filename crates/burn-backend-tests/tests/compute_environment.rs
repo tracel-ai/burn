@@ -21,8 +21,8 @@ mod backend;
 
 use backend::*;
 use burn_tensor::{
-    Bytes, ComputeEnvironment, Device, EnvironmentBundle, EnvironmentError, EnvironmentSummary,
-    PruneOptions, RecordPruning, TensorData,
+    AutotuneAnswer, Bytes, ComputeEnvironment, Device, EnvironmentBundle, EnvironmentError,
+    EnvironmentSummary, PruneOptions, RecordPruning, TensorData,
 };
 use serial_test::serial;
 
@@ -268,6 +268,108 @@ fn a_prune_keeping_the_records_removes_none() {
 
     assert_eq!(pruned.records.removed, 0, "{pruned:?}");
     assert!(pruned.records.kept > 0, "{pruned:?}");
+}
+
+/// The answers a saved environment's work used, brought into another
+/// environment, are the ones the work there runs by: it measures none, and they
+/// come back as used.
+#[test]
+#[serial]
+#[cfg(feature = "persistence")]
+fn answers_brought_into_an_environment_are_loaded_and_given_back() {
+    use burn_tensor::{ProcessMode, ReadBundle};
+
+    let device = device();
+    let shape = [61, 19, 37];
+    let (measured, _) = built(&device, "answers-measured", shape);
+    let answers = measured.save().unwrap().used_answers().unwrap();
+    assert!(!answers.is_empty());
+
+    let brought = ComputeEnvironment::new(&device, "answers-brought").unwrap();
+    brought.merge_answers(answers.clone()).unwrap();
+    let unused = brought.save().unwrap().used_answers().unwrap();
+    let previous = brought.activate(&device).unwrap();
+    let counted = device.mode(ProcessMode::Execute).unwrap();
+    let product = product_of_ones(&device, shape).into_data();
+    let autotune = counted.close().unwrap().autotune;
+    previous.activate(&device).unwrap();
+
+    assert_eq!(unused, [], "held, and not used yet");
+    assert_eq!(autotune.measured, 0, "{autotune:?}");
+    assert_eq!(autotune.loaded, answers.len() as u64, "{autotune:?}");
+    assert_product_of_ones(product, shape, &device);
+    assert_eq!(brought.save().unwrap().used_answers().unwrap(), answers);
+}
+
+/// An answer picking past the end of its candidates is tuned again.
+#[test]
+#[serial]
+#[cfg(feature = "persistence")]
+fn an_answer_past_the_end_of_its_candidates_is_measured() {
+    use burn_tensor::{ProcessMode, ReadBundle};
+
+    let device = device();
+    let shape = [67, 23, 29];
+    let (measured, _) = built(&device, "answers-valid", shape);
+    let mut answers = measured.save().unwrap().used_answers().unwrap();
+    for answer in &mut answers {
+        answer.fastest_index = usize::MAX;
+    }
+
+    let stale = ComputeEnvironment::new(&device, "answers-stale").unwrap();
+    stale.merge_answers(answers.clone()).unwrap();
+    let previous = stale.activate(&device).unwrap();
+    let counted = device.mode(ProcessMode::Execute).unwrap();
+    let product = product_of_ones(&device, shape).into_data();
+    let autotune = counted.close().unwrap().autotune;
+    previous.activate(&device).unwrap();
+
+    assert_eq!(autotune.loaded, 0, "{autotune:?}");
+    assert_eq!(autotune.measured, answers.len() as u64, "{autotune:?}");
+    assert_product_of_ones(product, shape, &device);
+}
+
+/// An answer whose table this version does not read is left out.
+#[test]
+#[serial]
+fn an_answer_of_another_versions_table_is_left_out() {
+    let device = device();
+    let environment = ComputeEnvironment::new(&device, "answers-foreign").unwrap();
+
+    environment
+        .merge_answers(vec![AutotuneAnswer {
+            table: "autotune/0.0.0/layout-v1/hardware/tuner".into(),
+            key: Bytes::from_bytes_vec(b"key".to_vec()),
+            fastest_index: 0,
+        }])
+        .unwrap();
+
+    assert_eq!(
+        environment.summary().unwrap(),
+        EnvironmentSummary::default()
+    );
+}
+
+/// Answers brought before a bundle win over the bundle's own.
+#[test]
+#[serial]
+#[cfg(feature = "persistence")]
+fn answers_brought_before_a_bundle_win_over_its_own() {
+    use burn_tensor::ReadBundle;
+
+    let device = device();
+    let (measured, _) = built(&device, "answers-own", [71, 17, 41]);
+    let bundle = measured.save().unwrap();
+    let mut shared = bundle.used_answers().unwrap();
+    for answer in &mut shared {
+        answer.fastest_index += 1;
+    }
+
+    let environment = ComputeEnvironment::new(&device, "answers-shared").unwrap();
+    environment.merge_answers(shared.clone()).unwrap();
+    environment.merge_bundle(bundle).unwrap();
+
+    assert_eq!(environment.save().unwrap().used_answers().unwrap(), shared);
 }
 
 /// An environment is counted as it stands, without saving it: empty when
