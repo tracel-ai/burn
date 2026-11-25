@@ -1,11 +1,19 @@
 //! Probe of the SwiGLU autotune on this machine: per key, the cold autotune (compile + race),
 //! then every setting timed on device, beside the priority the autotune gives it.
-use burn_cubecl::{CubeDevice, cubecl, kernel::swiglu::launch_tuned, tune::GroupPriority};
+use burn_cubecl::{
+    CubeDevice, cubecl,
+    kernel::swiglu::launch_tuned,
+    tune::{GroupPriority, Peaks},
+};
 use cubecl::ir::{ElemType, FloatKind};
+use cubecl::throughput::ThroughputKey;
 use cubek::matmul::kernels::tensor::PlainTensor;
 use cubek::std::Hardware;
+use cubek::std::microkernel::KernelEstimate;
+use cubek::std::routine::{EstimatedProblem, Routine};
 use cubek::swiglu::kernels::{
-    CubeSwigluRoutine, SwigluCall, SwigluKey, SwigluRoutineCandidate, SwigluTensors,
+    CubeSwigluRoutine, SwigluCall, SwigluKey, SwigluRoutineCandidate, SwigluRoutineProblem,
+    SwigluTensors,
 };
 use std::time::Instant;
 
@@ -64,7 +72,9 @@ fn main() {
             let out = SwigluTensors::allocate_out(&client, &call.both);
             for candidate in &candidates {
                 for _ in 0..3 {
-                    candidate.launch_contiguous(&call, out.clone()).expect("launch");
+                    candidate
+                        .launch_contiguous(&call, out.clone())
+                        .expect("launch");
                 }
             }
             cubecl::future::block_on(client.sync()).unwrap();
@@ -77,7 +87,9 @@ fn main() {
                         .profile(
                             || {
                                 for _ in 0..iters {
-                                    candidate.launch_contiguous(&call, out.clone()).expect("launch");
+                                    candidate
+                                        .launch_contiguous(&call, out.clone())
+                                        .expect("launch");
                                 }
                             },
                             "probe",
@@ -97,15 +109,43 @@ fn main() {
                             .position(|e| e.as_ref() == Some(p))
                             .map(|j| j.to_string())
                             .unwrap_or_default();
-                        let prio = 64i32 - hw.halvings_short_of_filling(p.launch()) as i32;
+                        // The autotune's own priority: the routine's estimate timed at the
+                        // device's peaks, against the gate's roofline.
+                        let problem = SwigluRoutineProblem::from(&key);
+                        let (blueprint, grid) =
+                            CubeSwigluRoutine::prepare(&hw, &problem, candidate.settings())
+                                .expect("prepared above");
+                        let mut estimate = KernelEstimate::from(&grid);
+                        CubeSwigluRoutine::estimate(&problem, &blueprint, &grid, &mut estimate);
+                        let f32 = ElemType::Float(FloatKind::F32);
+                        let demand = problem.demand();
+                        let peaks = Peaks::measured(
+                            &client,
+                            demand,
+                            ThroughputKey::compute(None, f32, f32),
+                        );
+                        let prio = peaks.priority_of(&estimate, demand, &hw).get();
+                        let pred = peaks
+                            .time_of(&estimate, &hw)
+                            .map(|t| t.as_secs_f64() * 1e6)
+                            .unwrap_or(f64::NAN);
+                        let floor = peaks
+                            .floor_of(demand)
+                            .map(|t| t.as_secs_f64() * 1e6)
+                            .unwrap_or(f64::NAN);
                         (
-                            prio.max(0).to_string(),
+                            format!("{prio}|{pred:.2}|{floor:.2}"),
                             dup,
                             format!("{:?}", p.launch().cube_dim).replace(',', ";"),
                             format!("{:?}", p.launch().cube_count).replace(',', ";"),
                         )
                     }
-                    None => ("0(declines)".into(), String::new(), String::new(), String::new()),
+                    None => (
+                        "0(declines)".into(),
+                        String::new(),
+                        String::new(),
+                        String::new(),
+                    ),
                 };
                 let us = fastest[i];
                 rows_out.push((

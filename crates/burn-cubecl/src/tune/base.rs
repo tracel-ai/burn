@@ -56,8 +56,7 @@ use super::{CandidatePriority, GroupPriority, Roofline, TuneCandidate, priority_
 use core::fmt::Display;
 use cubecl::tune::{
     AutotuneKey, CloneInputGenerator, InputGenerator, KeyGenerator, OrderedSettings, Patience,
-    Tunable,
-    TunableSet, TuneGroup, TuneInputs,
+    Tunable, TunableSet, TuneGroup, TuneInputs,
 };
 use std::sync::Arc;
 
