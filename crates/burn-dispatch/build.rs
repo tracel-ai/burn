@@ -21,9 +21,9 @@ fn main() {
     let shard = cfg!(feature = "shard");
 
     let cube = cuda || rocm || cpu || metal || wgpu_msl || vulkan || webgpu || wgpu;
-    // The default binding keeps all-features builds usable without an application patch.
+    // Only the default binding signals that it has no backend.
     let external = cfg!(feature = "external")
-        && std::env::var("DEP_BURN_EXTERNAL_BACKEND_CONFIGURED").as_deref() == Ok("1");
+        && std::env::var_os("DEP_BURN_EXTERNAL_BACKEND_PLACEHOLDER").is_none();
     let local = cube || flex || external;
     let executing = local || remote;
 

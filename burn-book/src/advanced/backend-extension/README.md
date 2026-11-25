@@ -105,19 +105,9 @@ Use the same `burn-external` version as the Burn release in the binding's manife
 name = "burn-external"
 version = "0.23.0-pre.2"
 edition = "2024"
-links = "burn_external_backend"
 
 [dependencies]
 vendor-backend = { path = "../vendor-backend" }
-```
-
-In the binding's `build.rs`, advertise that the slot has a backend.
-
-```rust,ignore
-fn main() {
-    println!("cargo::rerun-if-changed=build.rs");
-    println!("cargo::metadata=configured=1");
-}
 ```
 
 In its `src/lib.rs`, export the type.
