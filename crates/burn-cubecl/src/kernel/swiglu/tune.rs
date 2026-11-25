@@ -241,14 +241,14 @@ where
 mod tests {
     use super::*;
     use cubecl::ir::{ElemType, FloatKind};
-    #[cfg(any(feature = "cuda", feature = "vulkan", feature = "metal"))]
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     use cubek::matmul::kernels::tensor::PlainTensor;
     use cubek::std::devices;
 
     const F16: ElemType = ElemType::Float(FloatKind::F16);
 
     /// The memory `output`'s buffer lies in.
-    #[cfg(any(feature = "cuda", feature = "vulkan", feature = "metal"))]
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn output_memory(output: &TensorHandle) -> impl PartialEq + core::fmt::Debug + use<> {
         PlainTensor::of_handle(output.clone())
             .binding
@@ -258,7 +258,7 @@ mod tests {
     }
 
     /// A race of three fused rows of 128, its output allocated once.
-    #[cfg(any(feature = "cuda", feature = "vulkan", feature = "metal"))]
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn race_of_three_rows() -> SwigluRace {
         let client = crate::CubeDevice::default().client();
         let f32 = ElemType::Float(FloatKind::F32);
@@ -273,7 +273,7 @@ mod tests {
     /// **A race runs on the call's buffers.** The autotune hands its candidates the call's own
     /// fused rows and output, whatever bucket the rows' count is keyed in.
     #[test]
-    #[cfg(any(feature = "cuda", feature = "vulkan", feature = "metal"))]
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn a_race_runs_on_the_calls_rows() {
         let race = race_of_three_rows();
         let tunables = candidates(
@@ -289,7 +289,7 @@ mod tests {
     /// **A race allocates no output.** Every candidate that runs writes the gate into the race's
     /// one output.
     #[test]
-    #[cfg(any(feature = "cuda", feature = "vulkan", feature = "metal"))]
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn every_candidate_writes_the_races_output() {
         let race = race_of_three_rows();
         let hw = Hardware::from_client(&race.call.client);

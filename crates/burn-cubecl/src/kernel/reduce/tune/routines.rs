@@ -204,7 +204,7 @@ mod tests {
     /// A sum no caller asks for: it accumulates in less than it reads.
     #[cfg(all(
         feature = "fusion",
-        any(feature = "cuda", feature = "vulkan", feature = "metal")
+        any(feature = "cuda", feature = "wgpu", feature = "metal")
     ))]
     #[test]
     fn a_key_no_reduction_settled_has_no_fastest_candidate() {
