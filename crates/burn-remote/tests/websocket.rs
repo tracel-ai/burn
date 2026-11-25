@@ -948,7 +948,7 @@ fn ddp_releases_no_device_until_every_backward_ended() {
     let _context = DistributedContext::init(devices.clone(), config);
     let param = ParamId::new();
 
-    let gradients = with_deadlock_watchdog(HANG_LIMIT, move || {
+    let gradients = with_deadlock_watchdog(CONCURRENT_LIMIT, move || {
         std::thread::scope(|scope| {
             let peers: Vec<_> = devices
                 .iter()

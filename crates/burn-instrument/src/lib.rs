@@ -46,8 +46,8 @@
 //! measurement.write(std::fs::File::create("model.json")?)?;
 //! ```
 //!
-//! [`Instrument::measure`] warms the model up, measures the device's [`Peaks`] before anything
-//! is timed (the probes are saturating kernels), times clean runs for the clean wall, and
+//! [`Instrument::measure`] warms the model up, measures the device's [`Peaks`] (a single
+//! device's only) before anything is timed (the probes are saturating kernels), times clean runs for the clean wall, and
 //! instruments one more run. [`Instrument::breakdown`] instruments a run alone, for a caller
 //! that warms the model up itself. Either prices the model first, in a run it does not time:
 //! the [`Bounds`] are evaluated there, where reading values back costs the measurement nothing,
@@ -108,8 +108,8 @@ pub use observer::*;
 #[cfg(feature = "std")]
 pub use breakdown::{
     Breakdown, CollectiveMemberTime, CollectivePath, CollectiveTime, Component, FusedElsewhere,
-    FusedShare, Kernel, MEASUREMENT_FILE_VERSION, Measurement, MeasurementFileError, MemberTime,
-    PerMember, Unplaced, Variant,
+    FusedShare, Kernel, MEASUREMENT_FILE_VERSION, Measurement, MeasurementFileError,
+    MemberSchedule, MemberTime, PerMember, Unplaced, Variant,
 };
 #[cfg(feature = "std")]
 pub use component_path::ComponentPath;

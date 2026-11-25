@@ -32,7 +32,6 @@ use std::time::{Duration, Instant};
 use burn_fusion::observer::{BlockOperations, FusionObserver};
 #[cfg(feature = "fusion")]
 use burn_ir::OperationIr;
-use burn_tensor::Device;
 use cubecl::logging::{
     Execution, ExecutionKind, ExecutionObserver, ExecutionPlace, Measurement, TimedExecutions,
     TimingRequest,
@@ -42,6 +41,7 @@ use cubecl::profile::{ProfileDuration, TimingMethod};
 use super::collective_ledger::CollectiveLedger;
 use super::component_tree::ComponentTree;
 use super::cursor::{Attribution, LaunchCursor};
+use super::devices::DeviceList;
 use super::members::MemberList;
 #[cfg(feature = "fusion")]
 use super::origins::{BlockOrigin, OperationId, OperationOrigins};
@@ -71,7 +71,7 @@ use crate::{ComponentObserver, Declaration};
 /// that holds all it did; outside a block, a launch falls back to the
 /// component whose operation sealed the segment.
 pub struct RunRecorder {
-    device: Device,
+    devices: DeviceList,
     /// Before the run, so every timing's window can be placed after it
     /// on one clock and the gaps between them read off.
     epoch: Instant,
@@ -103,22 +103,22 @@ struct State {
 }
 
 impl RunRecorder {
-    /// A recorder for work running on `device`, its entries scored against
+    /// A recorder for work running on `devices`, its entries scored against
     /// `floors`.
     ///
     /// Points every launching thread at no component first: the cursor is a
     /// thread-local, so a worker still pointing into a previous recorder's
     /// arena would record this one's first kernels at an index that means
     /// something else here.
-    pub fn new(device: &Device, floors: Floors) -> Self {
-        Self::with_members(device, MemberList::of(device), floors)
+    pub fn new(devices: &DeviceList, floors: Floors) -> Self {
+        Self::with_members(devices, MemberList::of(devices), floors)
     }
 
-    fn with_members(device: &Device, members: MemberList, floors: Floors) -> Self {
-        let cursor = LaunchCursor::new(device);
+    fn with_members(devices: &DeviceList, members: MemberList, floors: Floors) -> Self {
+        let cursor = LaunchCursor::new(devices);
         cursor.point_at(Attribution::Untagged);
         Self {
-            device: device.clone(),
+            devices: devices.clone(),
             epoch: Instant::now(),
             cursor,
             members,
@@ -164,9 +164,8 @@ impl RunRecorder {
     /// If the device stops answering.
     fn end_run(&self) {
         self.cursor.point_at(Attribution::EndOfRun);
-        self.device
-            .sync()
-            .expect("the device answers at the end of the run");
+        self.devices
+            .sync("the device answers at the end of the run");
         self.cursor.point_at(Attribution::Untagged);
 
         // Read outside the lock: a window the backend could not close on the
@@ -387,6 +386,7 @@ impl State {
 
 #[cfg(test)]
 mod tests {
+    use burn_tensor::Device;
     use burn_tensor::StreamId;
     use cubecl::logging::{Communication, ExecutionId, StreamRole, WaitTarget};
     use cubecl::server::{Collective, TransportProvider};
@@ -394,7 +394,9 @@ mod tests {
 
     use super::super::test_observation::minted;
     use super::*;
-    use crate::breakdown::{CollectiveMemberTime, CollectivePath, Component, MemberTime, Unplaced};
+    use crate::breakdown::{
+        CollectiveMemberTime, CollectivePath, Component, MemberSchedule, MemberTime, Unplaced,
+    };
 
     /// A launch on the thread driving the model lands under the component that
     /// thread has open, and under none once it has closed — the unfused case,
@@ -629,14 +631,14 @@ mod tests {
     ];
 
     fn recorder() -> RunRecorder {
-        RunRecorder::new(&Device::flex(), Floors::default())
+        RunRecorder::new(&DeviceList::new(&[Device::flex()]), Floors::default())
     }
 
     /// A recorder for a sharded compute device of the two [`MEMBERS`].
     fn sharded() -> RunRecorder {
         RunRecorder::with_members(
-            &Device::flex(),
-            MemberList::over(MEMBERS.map(service).to_vec()),
+            &DeviceList::new(&[Device::flex()]),
+            MemberList::over(MEMBERS.map(service).to_vec(), MemberSchedule::Concurrent),
             Floors::default(),
         )
     }
