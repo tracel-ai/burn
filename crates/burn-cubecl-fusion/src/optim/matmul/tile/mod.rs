@@ -2,8 +2,8 @@
 //!
 //! A routine stores its product through a destination the caller chooses, so the fused one is
 //! the unfused routine's own kernel storing into the trace's element-wise block ([`TraceSink`](sink::TraceSink))
-//! instead of a buffer. Which routine runs is the one cubek's matmul autotune elected for the
-//! product ([`elected`]); the autotune then races it fused against the fallback, the routine
+//! instead of a buffer. Which routine runs is the one the backend's matmul autotune elected for
+//! the product ([`elected`]); the autotune then races it fused against the fallback, the routine
 //! storing its product and the block running as its own kernel.
 
 mod operand;
@@ -13,6 +13,7 @@ mod sink;
 use super::optimization::MatmulOptimizationTuneArg;
 use crate::{
     CubeFusionHandle,
+    elector::elected_matmul,
     engine::{
         launch::FuseTraceLauncher,
         trace::{TraceError, TuneOutput},
@@ -27,13 +28,9 @@ use cubecl::{
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
 use cubek::matmul::kernels::{
-    MatmulOpStrategy,
+    MatmulOpStrategy, MatmulTuneKey, create_key,
     plan::MatmulCall,
     select::{problem::MatmulProblem, selector::measured_autotune},
-    tune::{
-        MatmulAutotuneGroups,
-        key::{MatmulTuneKey, create_key},
-    },
 };
 use cubek::std::{
     Hardware,
@@ -108,12 +105,12 @@ pub(crate) fn execute(arg: MatmulOptimizationTuneArg, context: &mut Context<Cube
     TUNER.execute(&tune_id, &client, tunables, TuneInput::new(context, arg));
 }
 
-/// The routine cubek's matmul autotune elected for `call`, prepared for a sink and handed to
-/// `visitor`; `None` where the product's plan is no single autotune, or the autotune has not
-/// measured the product's key yet.
+/// The routine the backend's matmul autotune elected for `call`, prepared for a sink and handed to
+/// `visitor`; `None` where the product's plan is no single race, or the race has not measured the
+/// product's key yet ([`RoutineElector::elect_matmul`](crate::RoutineElector::elect_matmul)).
 ///
-/// The autotune is the one the unfused product races on, under the same device identity, so the
-/// fused product launches whichever routine the unfused one settled.
+/// The race is the one cubek's selection sends the unfused product to, under the same device
+/// identity, so the fused product launches whichever routine the unfused one settled.
 fn elected<V: SinkLaunchVisitor>(call: &MatmulCall, visitor: V) -> Option<V::Output> {
     let (lhs_shape, rhs_shape) = (
         call.lhs.meta.logical_shape().ok()?,
@@ -124,7 +121,7 @@ fn elected<V: SinkLaunchVisitor>(call: &MatmulCall, visitor: V) -> Option<V::Out
         (&rhs_shape, call.rhs.tensor.kind()),
     );
     let autotune = measured_autotune(MatmulOpStrategy::Autotune, &problem, &call.hw)?;
-    let (settings, _) = autotune.fastest_routine(call, MatmulAutotuneGroups::default())?;
+    let settings = elected_matmul(autotune, call)?;
     Some(settings.sink_launch(call, visitor))
 }
 

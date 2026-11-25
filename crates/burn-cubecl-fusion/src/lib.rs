@@ -24,9 +24,11 @@ pub mod optim;
 pub mod inspect;
 
 mod base;
+mod elector;
 
 pub mod engine;
 #[cfg(feature = "autotune")]
 pub(crate) mod tune;
 
 pub use base::*;
+pub use elector::RoutineElector;

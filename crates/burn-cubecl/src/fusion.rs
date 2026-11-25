@@ -8,6 +8,7 @@ use burn_fusion::{
 };
 use burn_ir::{BackendIr, TensorHandle};
 
+mod elector;
 mod registry;
 pub use burn_cubecl_fusion::optim::{CubeOptimization, CubeOptimizationState, FusedOperation};
 pub use registry::{

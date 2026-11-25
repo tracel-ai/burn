@@ -4,4 +4,4 @@ mod tune;
 
 pub use base::*;
 #[cfg(feature = "autotune")]
-use tune::*;
+pub(crate) use tune::*;

@@ -1,5 +1,6 @@
 #[cfg(feature = "autotune")]
-use super::autotune_reduce_dims_plan;
+use super::{autotune_reduce_dims_plan, launch_tuned};
+use crate::CubeDevice;
 use crate::ops::permute;
 use crate::{
     ops::numeric::{empty_device_contiguous_dtype, fill_device_dtype, zeros_client},
@@ -15,7 +16,8 @@ use cubecl::prelude::InputScalar;
 use cubek::reduce::{
     ReduceError, ReduceOperation,
     kernels::{
-        ReduceElements, ReduceKernel, ReduceKernelHeuristic, ReduceOpStrategy, ReduceWorkspace,
+        Reduce, ReduceElements, ReduceKernel, ReduceKernelHeuristic, ReduceOpStrategy,
+        ReduceTensors, ReduceWorkspace,
     },
 };
 
@@ -451,18 +453,15 @@ pub fn reduce_dim(
 
     let device = input.device.clone();
     let workspace = reduce_workspace(&client, &input, dim, config, elements, false);
-    cubek::reduce::kernels::Reduce::new(strategy.into())
-        .with_workspace(workspace)
-        .execute(
-            &client,
-            &device,
-            input.binding(),
-            output.clone().binding(),
-            dim,
-            config,
-            elements,
-        )
-        .map(|_| output)
+    let tensors = ReduceTensors::checked(
+        &client,
+        input.binding(),
+        output.clone().binding(),
+        dim,
+        config,
+        elements,
+    )?;
+    launch_reduce(strategy, &device, tensors.with_workspace(workspace)).map(|_| output)
 }
 
 /// Reduce the given `axis` of `input`, returning the values **and** their indices from a
@@ -535,20 +534,17 @@ pub fn reduce_dim_with_indices(
 
     let device = input.device.clone();
     let workspace = reduce_workspace(&client, &input, dim, config, elements, true);
-    cubek::reduce::kernels::Reduce::new(strategy.into())
-        .with_workspace(workspace)
-        .execute_with_indices(
-            &client,
-            &device,
-            input.binding(),
-            values.clone().binding(),
-            indices.clone().binding(),
-            dim,
-            config,
-            elements,
-            dtype_to_elem_type(indices_dtype),
-        )
-        .map(|_| (values, indices))
+    let tensors = ReduceTensors::checked_with_indices(
+        &client,
+        input.binding(),
+        values.clone().binding(),
+        indices.clone().binding(),
+        dim,
+        config,
+        elements,
+        dtype_to_elem_type(indices_dtype),
+    )?;
+    launch_reduce(strategy, &device, tensors.with_workspace(workspace)).map(|_| (values, indices))
 }
 
 /// The scratch cubek's reductions that split a row across cubes take for reducing `dim` of
@@ -625,15 +621,29 @@ pub enum KernelReduceStrategy {
     Autotune,
 }
 
-impl From<KernelReduceStrategy> for ReduceOpStrategy {
-    fn from(strategy: KernelReduceStrategy) -> Self {
-        match strategy {
-            KernelReduceStrategy::Unspecified => {
-                ReduceOpStrategy::Heuristic(ReduceKernelHeuristic::Tile)
-            }
-            KernelReduceStrategy::Specific(kernel) => ReduceOpStrategy::Specific(kernel),
-            #[cfg(feature = "autotune")]
-            KernelReduceStrategy::Autotune => ReduceOpStrategy::Autotune,
+/// `tensors` reduced by the kernel `strategy` picks: cubek's rule or pin, or the routine the
+/// autotune measures fastest on `device`.
+///
+/// # Errors
+///
+/// [`ReduceError::Declined`] where cubek's pick cannot run the problem on this device; the autotune
+/// never refuses, its floor serving every problem.
+fn launch_reduce(
+    strategy: KernelReduceStrategy,
+    #[cfg_attr(not(feature = "autotune"), allow(unused_variables))] device: &CubeDevice,
+    tensors: ReduceTensors,
+) -> Result<(), ReduceError> {
+    match strategy {
+        KernelReduceStrategy::Unspecified => {
+            Reduce::new(ReduceOpStrategy::Heuristic(ReduceKernelHeuristic::Tile)).launch(tensors)
+        }
+        KernelReduceStrategy::Specific(kernel) => {
+            Reduce::new(ReduceOpStrategy::Specific(kernel)).launch(tensors)
+        }
+        #[cfg(feature = "autotune")]
+        KernelReduceStrategy::Autotune => {
+            launch_tuned(tensors, device);
+            Ok(())
         }
     }
 }

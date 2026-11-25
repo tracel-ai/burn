@@ -1,9 +1,10 @@
-//! Attention's forward pass through cubek's autotune over its tile-DSL routines
+//! Attention's forward pass through the autotune over cubek's tile-DSL routines
 //! ([`launch_tuned`]), for the attentions [`forward_serves`] admits.
 
 use core::num::NonZeroUsize;
 
-use super::kept_arrivals;
+use super::{kept_arrivals, launch_tuned};
+use crate::tune::GroupPriority;
 use crate::{
     CubeBackend,
     kernel::cast,
@@ -15,11 +16,10 @@ use burn_backend::{DType, Shape, cubecl::dtype_to_storage_type};
 use cubecl::features::TypeUsage;
 use cubecl::prelude::InputScalar;
 use cubek::attention::kernels::select::problem::QueryPositions;
-use cubek::attention::kernels::tune::{AttentionTuneInputs, launch_tuned};
 use cubek::attention::kernels::{
-    AttentionScoring, AttentionTensors, AttentionVisibility, QueryPlacement, ScoreScale,
+    AttentionScoring, AttentionTensors, AttentionTuneInputs, AttentionVisibility, QueryPlacement,
+    ScoreScale,
 };
-use cubek::std::autotune::GroupPriority;
 
 /// Whether the tile routines take `query`, `key` and `value` as operands: one element, which they
 /// are verified on and the device runs, and query heads that split evenly over the key heads.
@@ -105,7 +105,7 @@ pub fn forward_serves(
         && visibility_serves(options, query.meta.shape()[2], key.meta.shape()[2])
 }
 
-/// Executes attention through cubek's autotune over its tile-DSL routines, over a key/value
+/// Executes attention through the autotune over cubek's tile-DSL routines, over a key/value
 /// `cache` when one is given. Without one, every position of `key` and `value` is attended; with
 /// one, each sequence attends its first `lengths[b]` positions, a single query among the routines
 /// that serve one, counting in at counters kept for its device and stream.

@@ -1,4 +1,5 @@
 use super::optimization::{ReduceOptimizationInfo, ReduceOptimizationTuneArg, reduce_operation};
+use crate::elector::elected_reduce;
 use crate::{
     CubeFusionHandle,
     engine::trace::TuneOutput,
@@ -12,11 +13,11 @@ use cubecl::{
     tile::Geometry,
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
-use cubek::reduce::kernels::{ReduceCandidate, ReduceElements, ReduceKey, ReduceRoutineProblem};
+use cubek::reduce::kernels::{ReduceElements, ReduceKey, ReduceRoutineProblem};
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 
-/// Autotune key for standard fused reduction operations: the reduce's own key, as cubek's reduce
+/// Autotune key for standard fused reduction operations: the reduce's own key, as the backend's reduce
 /// autotune states it, beside what the trace fuses around it.
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
 pub struct FusedReduceAutotuneKey {
@@ -29,7 +30,7 @@ pub struct FusedReduceAutotuneKey {
     fuse_num_ops: usize,
 }
 
-/// Run the fused reduce: the routine cubek's reduce autotune elected for the unfused reduce,
+/// Run the fused reduce: the routine the backend's reduce autotune elected for the unfused reduce,
 /// reading through the trace's read block, then the write block, or the fallback, whichever the
 /// autotune measured faster for its key.
 pub fn fused_reduce_autotune(
@@ -38,11 +39,11 @@ pub fn fused_reduce_autotune(
 ) {
     static TUNER: LocalTuner<FusedReduceAutotuneKey, CubeTuneId> = local_tuner!();
 
-    // Until cubek's reduce autotune has elected a routine for the unfused reduce, the fused launch
+    // Until the backend's reduce autotune has elected a routine for the unfused reduce, the fused launch
     // has nothing to run. The fallback runs alone, outside a round, and its unfused reduce settles
     // that election; a round raced before it would settle the fused key on the fallback for good.
     let reduce_key = reduce_key(&arg.info, &context.tensors);
-    if ReduceCandidate::fastest(&arg.info.client, &arg.info.device, &reduce_key).is_none() {
+    if elected_reduce(&arg.info.client, &arg.info.device, &reduce_key).is_none() {
         arg.execute_fallback(context);
         return;
     }
@@ -83,7 +84,7 @@ pub(crate) fn create_key(input: &TuneInput<ReduceOptimizationTuneArg>) -> FusedR
     )
 }
 
-/// The unfused reduce's key, as cubek's reduce autotune states it: the problem the operands state,
+/// The unfused reduce's key, as the backend's reduce autotune states it: the problem the operands state,
 /// not the widths they are read at.
 fn reduce_key(info: &ReduceOptimizationInfo, tensors: &HashMap<TensorId, TensorIr>) -> ReduceKey {
     let reduce = &info.reduce;

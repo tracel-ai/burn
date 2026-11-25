@@ -3,6 +3,8 @@
 //! attentions [`backward_serves`] admits.
 
 use super::tile::{routines_take, scoring, visibility_serves};
+use super::{launch_backward_tuned, launch_tuned};
+use crate::tune::GroupPriority;
 use crate::{
     CubeBackend, CubeDevice,
     ops::{numeric::full_device_dtype, swap_dims},
@@ -13,10 +15,9 @@ use burn_backend::{DType, Shape, cubecl::dtype_to_storage_type};
 use cubecl::client::Client;
 use cubecl::prelude::InputScalar;
 use cubecl::std::tensor::TensorHandle;
+use cubek::attention::kernels::AttentionTuneInputs;
 use cubek::attention::kernels::select::problem::QueryPositions;
-use cubek::attention::kernels::tune::{AttentionTuneInputs, launch_tuned};
-use cubek::attention_backward::{AttentionBackwardTensors, attention_backward as launch_backward};
-use cubek::std::autotune::GroupPriority;
+use cubek::attention_backward::AttentionBackwardTensors;
 
 /// Whether cubek's forward pass with logsumexp and its backward pass serve an attention of
 /// `query` against `key` and `value` with `options`, no mask and no additive bias: operands of one
@@ -121,7 +122,7 @@ pub fn attention_backward(
     .unwrap_or_else(|why| {
         panic!("cubek's attention backward pass declines these operands: {why:?}")
     });
-    let gradients = launch_backward(&device, tensors);
+    let gradients = launch_backward_tuned(&device, tensors);
     AttentionBackward::new(
         cube_tensor(gradients.query, &client, &device, dtype),
         cube_tensor(gradients.key, &client, &device, dtype),

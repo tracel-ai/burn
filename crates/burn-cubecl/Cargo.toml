@@ -54,8 +54,9 @@ persistence = ["cubecl/persistence", "burn-std/persistence"]
 autotune = ["burn-cubecl-fusion?/autotune"]
 autotune-checks = [
     "autotune",
+    "dep:bytemuck",
+    "dep:half",
     "cubecl/autotune-checks",
-    "cubek/autotune-checks",
     "burn-cubecl-fusion?/autotune-checks",
 ]
 
@@ -76,6 +77,8 @@ burn-backend = { workspace = true, features = [
     "cubecl-device",
 ] }
 cubecl = { workspace = true, features = ["stdlib"] }
+# `ServiceId`, which keys the tile convolution's tuner; `cubecl::device` is another module.
+cubecl-common = { workspace = true }
 cubek = { workspace = true, features = [
     "attention",
     "attention-tiled",
@@ -89,10 +92,15 @@ cubek = { workspace = true, features = [
     "reduce",
     "random",
     "quantization",
+    "rms-norm",
     "stdlib",
+    "swiglu",
 ] }
 
 derive-new = { workspace = true }
+# What the autotune checks read two candidates' outputs back as.
+bytemuck = { workspace = true, optional = true }
+half = { workspace = true, optional = true, features = ["bytemuck"] }
 log = { workspace = true }
 
 # Async
