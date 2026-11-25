@@ -1,0 +1,130 @@
+//! The reduce routines' autotune: every routine at every setting the device lists
+//! ([`ReduceCandidate::list`]), raced per problem, over the unit routine as the floor.
+
+use crate::tune::{
+    Autotune, CandidateIdentity, CandidatePriority, Ceiling, GroupPriority, Identity, Roofline,
+    TuneCandidate,
+};
+use cubecl::client::Client;
+use cubecl::throughput::MemoryAccess;
+use cubecl::tune::{LocalTuner, TunableSet, local_tuner};
+use cubecl::{CubeTuneId, Device};
+use cubek::reduce::kernels::{
+    Reduce, ReduceCandidate, ReduceKernel, ReduceKey, ReduceOpStrategy, ReducePrepared,
+    ReduceTensors,
+};
+use cubek::std::Hardware;
+use cubek::std::routine::EstimatedProblem;
+use std::sync::Arc;
+
+/// What a candidate of the autotune is identified by: the candidate itself, or the floor by name.
+type ReduceIdentity = CandidateIdentity<ReduceCandidate>;
+
+/// The autotune as it is built, before it closes into its candidates.
+type ReduceAutotune = Autotune<ReduceKey, ReduceTensors, (), ReduceIdentity>;
+
+/// The autotune's candidates, as the tuner holds them.
+type ReduceTunables = Arc<TunableSet<ReduceKey, ReduceTensors, (), ReduceIdentity>>;
+
+static TUNER: LocalTuner<ReduceKey, CubeTuneId> = local_tuner!("reduce");
+
+/// `tensors` reduced by the routine the autotune finds fastest for them on `device`. It never
+/// refuses: the floor serves every problem.
+pub(crate) fn launch_tuned(tensors: ReduceTensors, device: &Device) {
+    let client = tensors.client().clone();
+    let id = CubeTuneId::new(&client, device);
+    let tunables = tunables(&id, &client);
+    TUNER.execute(&id, &client, tunables, tensors);
+}
+
+/// The candidate the tuner on `client`'s `device` found fastest for `key`, or `None` where no
+/// round in this process has settled the key, or the floor named apart won it: what a fused reduce
+/// runs, so it inherits the kernel the unfused round chose.
+#[cfg(feature = "fusion")]
+pub(crate) fn fastest_tuned(
+    client: &Client,
+    device: &Device,
+    key: &ReduceKey,
+) -> Option<ReduceCandidate> {
+    let id = CubeTuneId::new(client, device);
+    let tunables = tunables(&id, client);
+    TUNER.fastest_identity(&id, &tunables, key)?.routine()
+}
+
+/// The autotune for the device `id` names, built on first touch. The one place it is built: a
+/// tuner caches a set per initializer *type*, so a second `init` site would build a second set.
+fn tunables(id: &CubeTuneId, client: &Client) -> ReduceTunables {
+    let hw = Hardware::from_client(client);
+    TUNER.init(id, move || candidates(hw.clone()))
+}
+
+/// One routine at one of its settings, as the autotune races it, on the device it was listed for.
+#[derive(Debug, Clone)]
+struct ReduceRaced {
+    candidate: ReduceCandidate,
+    hw: Hardware,
+}
+
+impl TuneCandidate for ReduceRaced {
+    type Strategy = String;
+    type Key = ReduceKey;
+    type Blueprint = ReducePrepared;
+
+    fn strategy(&self) -> &String {
+        self.candidate.name()
+    }
+
+    /// First, lowered a level for each halving the prepared grid falls short of filling the
+    /// device; last where the routine declines the problem.
+    fn priority(&self, key: &ReduceKey) -> CandidatePriority {
+        match self.candidate.prepared(key) {
+            Some(prepared) => CandidatePriority::FIRST
+                .lowered(self.hw.halvings_short_of_filling(prepared.launch())),
+            None => CandidatePriority::LAST,
+        }
+    }
+
+    fn blueprint(&self, key: &ReduceKey) -> Option<ReducePrepared> {
+        self.candidate.prepared(key)
+    }
+}
+
+/// Every routine's candidates on `hw`, identified by their routine and setting, over the unit
+/// routine as the floor, which serves every problem on every device.
+fn candidates(hw: Hardware) -> TunableSet<ReduceKey, ReduceTensors, (), ReduceIdentity> {
+    let mut autotune = ReduceAutotune::new(|tensors: &ReduceTensors| ReduceKey::from(tensors));
+    let tile = autotune.group("tile", GroupPriority::DEFAULT);
+    let raced = ReduceCandidate::list(&hw)
+        .into_iter()
+        .map(|candidate| ReduceRaced {
+            candidate,
+            hw: hw.clone(),
+        })
+        .collect();
+    autotune
+        .identified(
+            &tile,
+            raced,
+            |raced: &ReduceRaced| ReduceIdentity::Routine(raced.candidate.clone()),
+            |raced, tensors: ReduceTensors| {
+                raced
+                    .candidate
+                    .launch(&tensors)
+                    .map_err(|decline| decline.to_string())
+            },
+        )
+        .bounded(|_, tensors: &ReduceTensors| Roofline {
+            client: tensors.client().clone(),
+            ceiling: Ceiling::Memory(MemoryAccess::Read),
+            work: tensors.problem().demand(),
+        })
+        .floor(ReduceIdentity::named(
+            "unit-direct-reduce floor",
+            |tensors: ReduceTensors| {
+                Reduce::new(ReduceOpStrategy::Specific(ReduceKernel::Unit))
+                    .launch(tensors)
+                    .map_err(|error| error.to_string())
+            },
+        ))
+        .finish()
+}
