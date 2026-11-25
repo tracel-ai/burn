@@ -290,7 +290,7 @@ fn every_table_holds_the_candidates_written_down() {
     }
     assert_eq!(
         written,
-        include_str!("autotunes.txt"),
+        include_str!("autotunes.txt").replace("\r\n", "\n"),
         "an autotune changed; rewrite autotunes.txt with CUBEK_WRITE_PLANS=1 and review the diff"
     );
 }
@@ -332,7 +332,7 @@ fn devices_listed() -> [(&'static str, Hardware); 4] {
 /// lhs and rhs, and a destination the call allocated once at the product's shape, which the winner
 /// then writes too.
 #[test]
-#[cfg(any(feature = "cuda", feature = "vulkan", feature = "metal"))]
+#[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
 fn a_race_runs_on_the_calls_buffers() {
     use crate::CubeDevice;
     use cubecl::CubeTuneId;

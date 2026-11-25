@@ -409,7 +409,7 @@ mod tests {
     /// candidates the call's own operands, and the output every candidate and the winner write is
     /// the call's.
     #[test]
-    #[cfg(any(feature = "cuda", feature = "vulkan", feature = "metal"))]
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn a_race_runs_on_the_calls_buffers() {
         use crate::CubeDevice;
         use cubecl::server::Overlap;
@@ -419,7 +419,7 @@ mod tests {
         let client = CubeDevice::default().client();
         let (heads, kv_heads, head_dim) = (8, 2, 64);
         let zeros = |shape: [usize; 4]| {
-            PlainTensor::zeros(&client, &shape, row_major_contiguous_strides(shape), F16)
+            PlainTensor::zeros(&client, &shape, row_major_contiguous_strides(shape), F32)
         };
         let hw = Hardware::from_client(&client);
         for queries in [1, 37] {
