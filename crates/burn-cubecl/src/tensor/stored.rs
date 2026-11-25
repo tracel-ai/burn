@@ -230,7 +230,6 @@ mod tests {
             let (scales, scales_metadata, scales_bytes) = match order.scales_storage(N, rows_a_read)
             {
                 Some(storage) => {
-                    let block_scale = scheme.block_scale().expect("tile order keeps block scales");
                     let tiled = relayout(
                         CubeTensor::new(
                             client.clone(),
@@ -240,7 +239,7 @@ mod tests {
                             DType::U32,
                         ),
                         &tile_order::scales_dimensions(N),
-                        Field::of_scale(block_scale.dtype),
+                        Field::of_scale(scheme.finest().dtype),
                         storage,
                     );
                     let bytes =

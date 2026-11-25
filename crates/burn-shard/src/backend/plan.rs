@@ -1,6 +1,6 @@
 use burn_backend::{DType, ops::attention::AttentionShapes};
 use burn_ir::{AttentionOpIr, CustomOpIr, OperationIr, TensorId, TensorIr};
-use burn_std::{Slice, params_shape};
+use burn_std::{Slice, params_shape, quantization::BlockExtent};
 
 use super::{CustomOpPlan, classify::OpClass, custom_ops::CustomOpRuleMap, shardings::Shardings};
 use crate::{
@@ -204,12 +204,14 @@ impl TensorShardings<'_> {
     }
 
     /// Whether each member's part of a quantized output holds the whole's scales. A quantize
-    /// reads its scales. An op that only moves values may requantize them, which keeps every
-    /// block's scale but not a per-tensor scale drawn from one member's part. Any other op may
-    /// quantize its result by another scheme than its output's.
+    /// reads its scales. An op that only moves values may requantize them, which keeps the scale
+    /// of every block of a few values but not one over a whole axis, drawn from one member's part.
+    /// Any other op may quantize its result by another scheme than its output's.
     fn keeps_scales(kind: OpKind, out: &TensorIr) -> bool {
-        let block_scales_only =
-            matches!(out.dtype, DType::QFloat(scheme) if scheme.tensor_scale().is_none());
+        let counted = |extent: BlockExtent| extent != BlockExtent::WholeAxis;
+        let block_scales_only = matches!(out.dtype, DType::QFloat(scheme) if scheme
+            .levels()
+            .all(|level| counted(level.size.rest) && level.size.extents.into_iter().all(counted)));
         match kind {
             OpKind::Quantize => true,
             OpKind::Reshape

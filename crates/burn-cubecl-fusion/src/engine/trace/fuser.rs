@@ -192,7 +192,7 @@ impl TraceFuser {
         let (precision, precision_scales) = match tensor.dtype {
             DType::QFloat(scheme) => (
                 FuseType::from_quant_scheme(scheme)?,
-                FuseType::from_scale_dtype(scheme.scale_dtype())?,
+                FuseType::from_scale_dtype(scheme.finest().dtype)?,
             ),
             _ => return None,
         };

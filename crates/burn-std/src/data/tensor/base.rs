@@ -1261,11 +1261,14 @@ mod tests {
             ));
         }
 
-        let zero_block = scheme.per_block([0], crate::ScaleDtype::F32);
-        assert!(matches!(
-            TensorData::try_from_bytes_vec(vec![0; 4], [1], DType::QFloat(zero_block)),
-            Err(DataError::InvalidQuantizedLayout { .. })
-        ));
+        let past_rank = scheme.per_block([2, 1], crate::ScaleDtype::F32);
+        let coarser_rows = QuantScheme::mxfp4_row_factored();
+        for unheld in [past_rank, coarser_rows] {
+            assert!(matches!(
+                TensorData::try_from_bytes_vec(vec![0; 8], [1], DType::QFloat(unheld)),
+                Err(DataError::InvalidQuantizedLayout { .. })
+            ));
+        }
 
         assert!(matches!(
             TensorData::try_from_bytes_vec(vec![], [usize::MAX, 2], DType::QFloat(scheme)),

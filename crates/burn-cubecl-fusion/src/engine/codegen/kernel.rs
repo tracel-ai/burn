@@ -1043,7 +1043,7 @@ fn dequantize<C: Float, N: Size>(
             other => panic!("{other:?} doesn't support native packing"),
         },
     }];
-    let scale_ty = comptime![ElemType::from_scale_dtype(scheme.scale_dtype())];
+    let scale_ty = comptime![ElemType::from_scale_dtype(scheme.finest().dtype)];
     let define!(QStoreType) = quant_ty;
     let define!(QScaleType) = scale_ty;
     let size!(NumQuant) = scheme.num_quants();

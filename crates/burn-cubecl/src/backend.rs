@@ -43,7 +43,7 @@ fn qfloat_params_usable(client: &Client, dtype: DType) -> bool {
     quantizable(&scheme)
         && client
             .properties()
-            .type_usage(ElemType::from_scale_dtype(scheme.scale_dtype()))
+            .type_usage(ElemType::from_scale_dtype(scheme.finest().dtype))
             .is_superset(TypeUsage::Buffer | TypeUsage::Conversion)
 }
 
