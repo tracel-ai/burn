@@ -87,7 +87,7 @@ pub struct Breakdown {
     pub unfused: bool,
     /// What each member of a sharded compute device did over the run, and what its collectives
     /// cost each member; or each device of an
-    /// [`Instrument::for_devices`](crate::Instrument::for_devices) run, in the order it was given.
+    /// `Instrument::for_devices` run.
     /// `None` for a device of one, whose figures are the rest of the breakdown's, and for a
     /// sharded compute device whose members are one device.
     ///

@@ -71,7 +71,8 @@ use crate::{ComponentObserver, Declaration};
 /// that holds all it did; outside a block, a launch falls back to the
 /// component whose operation sealed the segment.
 pub struct RunRecorder {
-    /// Every device the run launches on, each drained at its end.
+    /// Every device the run launches on, in the order the caller gave them, each drained in turn
+    /// at the run's end.
     devices: Vec<Device>,
     /// Before the run, so every timing's window can be placed after it
     /// on one clock and the gaps between them read off.

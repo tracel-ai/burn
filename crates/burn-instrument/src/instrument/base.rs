@@ -20,6 +20,7 @@ use crate::{Breakdown, ComponentObservation, Measurement, Peaks};
 /// See the [crate docs](crate#measuring-a-model) for what an instrumented run
 /// records and how far its numbers are to be trusted.
 pub struct Instrument {
+    /// In the order the caller gave them, each seeded and synced in turn.
     devices: Vec<Device>,
     claim: Claim,
     warmup: usize,
@@ -66,9 +67,19 @@ impl Instrument {
     /// An instrument for work that launches on each of `devices` in turn, as a model split by
     /// layers does, and the process's one until it is dropped.
     ///
-    /// Its breakdown times each cubecl device as a member, in the order of `devices`: see
-    /// [`Breakdown::per_member`]. With several devices its measurement probes no peaks, since one
-    /// component's kernels can run on cards that differ.
+    /// With several devices its measurement probes no peaks, since one component's kernels can
+    /// run on cards that differ. Otherwise it is [`new`](Self::new)'s instrument.
+    ///
+    /// # Assumptions
+    ///
+    /// `devices` holds at least one device.
+    ///
+    /// # Guarantees
+    ///
+    /// Each distinct cubecl device behind `devices` is one member of
+    /// [`Breakdown::per_member`], in the order it first appears, a sharded compute device
+    /// standing for its members in member order. A device behind no cubecl device is no member,
+    /// and fewer than two members leave `per_member` `None`.
     ///
     /// # Panics
     ///
@@ -113,7 +124,8 @@ impl Instrument {
         self
     }
 
-    /// Warm `model` up, measure the device's peaks and its clean wall, then
+    /// Warm `model` up, measure the device's peaks (none for an instrument over several devices)
+    /// and its clean wall, then
     /// price it and run it once more instrumented: see
     /// [`breakdown`](Self::breakdown).
     ///
@@ -296,6 +308,12 @@ mod tests {
             .measure(|| runs += 1);
         assert_eq!(runs, 2 + 3 + 1 + 1);
         assert!(measurement.clean_wall.is_some());
+    }
+
+    #[test]
+    #[should_panic(expected = "an instrument watches a device")]
+    fn an_instrument_over_no_device_is_refused() {
+        Instrument::for_devices(&[]);
     }
 
     /// What `#[compute]` expands to, as a crate depending on `burn` sees it.

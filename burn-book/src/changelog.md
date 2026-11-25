@@ -264,14 +264,14 @@ Reports also include the measured cost of a kernel launch.
 - `PerMember::collectives` counts the collectives a sharded compute device ran, by operation, path
   and size, with each member's part time and exposed time (`CollectiveTime`). Kernels are placed on
   the member whose device ran them, so a sharded compute device whose members do not fuse is timed
-  per member too; `DispatchDevice::shard_member_ids` names the members' devices. Measurement files
+  per member too; `DispatchDevice::member_ids` names the members' devices. Measurement files
   are version 6.
   ([#6527](https://github.com/tracel-ai/burn/pull/6527))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 - `Instrument::for_devices` times work that runs on several devices in turn, such as a model split
   by layers, with each device a member of `Breakdown::per_member`. `DispatchDevice::shard_member_ids`
-  is replaced by `member_ids`, an iterator that also yields a cubecl device's own id.
+  is replaced by `member_ids`, which also yields a cubecl device's own id.
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Flex SIMD operations

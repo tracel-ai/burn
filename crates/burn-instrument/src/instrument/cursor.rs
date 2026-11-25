@@ -109,14 +109,15 @@ impl LaunchCursor {
             .iter()
             .flat_map(|device| device.as_dispatch().fusion_workers())
             .collect();
-        if !ids.is_empty() {
-            // Opening a handle waits on the worker while holding cubecl's channel registry, which
-            // a block still running there can need too: open them idle.
-            for device in devices {
-                device
-                    .sync()
-                    .expect("the device answers before the workers are reached");
-            }
+        if ids.is_empty() {
+            return Self::over(ids);
+        }
+        // Opening a handle waits on the worker while holding cubecl's channel registry, which a
+        // block still running there can need too: open them idle.
+        for device in devices {
+            device
+                .sync()
+                .expect("the device answers before the workers are reached");
         }
         Self::over(ids)
     }
