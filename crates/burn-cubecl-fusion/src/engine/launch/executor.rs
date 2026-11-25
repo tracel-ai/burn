@@ -118,15 +118,14 @@ impl<'a> LaunchPlanExecutor<'a> {
                 }
             }
 
+            let concat_args_offset = inputs.concats.values.len();
             for op in &block.ops {
                 if let FuseOp::Cat {
                     inputs: tensors,
                     dim,
-                    concat_pos,
                     ..
                 } = op
                 {
-                    debug_assert_eq!(*concat_pos, inputs.concats.values.len());
                     let args = concat_args(
                         &inputs,
                         tensors,
@@ -137,8 +136,8 @@ impl<'a> LaunchPlanExecutor<'a> {
                     );
                     inputs.concats.push(args);
                 }
+                ops.push(op.clone());
             }
-            ops.extend_from_slice(&block.ops);
 
             for opsw in block_plan.writes.into_values() {
                 for op in opsw {
@@ -173,6 +172,7 @@ impl<'a> LaunchPlanExecutor<'a> {
                 rank: plan.rank,
                 ref_layout: reference,
                 ops,
+                concat_args_offset,
                 width: block_plan.width,
                 vector_axis,
             };

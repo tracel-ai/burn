@@ -598,9 +598,12 @@ mod tests {
     fn select_and_cat(fuser: &mut TraceFuser, table: &TensorIr) -> Vec<TensorIr> {
         let mut registered = select(fuser, table);
         let out = tensor(3, &[table.shape[0] * 2, COLS], DType::F32);
-        let inputs = vec![fuser.input_indexed(table).unwrap(); 2];
-        let output = fuser.output(&out).unwrap();
-        fuser.fuse_cat(inputs, output, 0);
+        let op = FuseOp::Cat {
+            inputs: vec![fuser.input_indexed(table).unwrap(); 2],
+            output: fuser.output(&out).unwrap(),
+            dim: 0,
+        };
+        fuser.fuse_operation(op);
         registered.push(out);
         registered
     }

@@ -199,8 +199,6 @@ pub enum FuseOp {
         inputs: Vec<FuseArg>,
         output: FuseArg,
         dim: usize,
-        /// Slot in the global concat arguments.
-        concat_pos: usize,
     },
     Dequantize {
         values: FuseArg,
@@ -295,7 +293,6 @@ impl Display for FuseOp {
                 inputs,
                 output,
                 dim,
-                ..
             } => {
                 write!(f, "{output} = cat(inputs=[")?;
                 for (i, input) in inputs.iter().enumerate() {
@@ -391,7 +388,7 @@ pub struct GlobalArgs {
     /// When there are no metadata as a reference layout, we provide runtime shape/strides in this
     /// sequence instead.
     pub runtime_layouts: Sequence<usize>,
-    /// Segment boundaries and read layouts for the concatenations in this trace.
+    /// Segment boundaries and read layouts in block and operation order.
     pub concats: Sequence<ConcatArgs>,
     /// Variables shared between blocks.
     pub variables: MultiBlockVariables,
@@ -706,6 +703,8 @@ pub struct FuseBlockConfig {
     pub rank: usize,
     pub ref_layout: RefLayout,
     pub ops: Vec<FuseOp>,
+    /// Number of entries in [`GlobalArgs::concats`] that precede this block.
+    pub concat_args_offset: usize,
     pub width: VectorSize,
     /// The axis a vector of [width](Self::width) elements runs along.
     ///

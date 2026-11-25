@@ -236,6 +236,7 @@ fn fuse(
     pos: usize,
     #[comptime] config: &FuseBlockConfig,
 ) {
+    let mut concat_pos = comptime![config.concat_args_offset];
     #[unroll]
     for index in 0..config.ops.len() {
         let op = config.ops[index].clone();
@@ -307,18 +308,20 @@ fn fuse(
                 inputs: tensors,
                 output,
                 dim,
-                concat_pos,
-            } => concat::<E, N>(
-                inputs,
-                outputs,
-                locals,
-                pos,
-                dim,
-                tensors,
-                output,
-                config,
-                inputs.concats.index(concat_pos),
-            ),
+            } => {
+                concat::<E, N>(
+                    inputs,
+                    outputs,
+                    locals,
+                    pos,
+                    dim,
+                    tensors,
+                    output,
+                    config,
+                    inputs.concats.index(concat_pos),
+                );
+                comptime![concat_pos += 1];
+            }
             FuseOp::Dequantize {
                 values,
                 params,

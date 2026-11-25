@@ -23,7 +23,6 @@ pub struct TraceFuser {
     block_current: FuseBlockBuilder,
     blocks_previous: Vec<FuseBlockBuilder>,
     resources: FuseResources,
-    num_concats: usize,
 }
 
 impl TraceFuser {
@@ -34,7 +33,6 @@ impl TraceFuser {
             block_current: FuseBlockBuilder::new(settings),
             blocks_previous: Default::default(),
             resources: Default::default(),
-            num_concats: 0,
         }
     }
 
@@ -53,17 +51,6 @@ impl TraceFuser {
     /// Register an operation.
     pub fn fuse_operation(&mut self, op: FuseOp) {
         self.block_current.ops.push(op);
-    }
-
-    /// Register a concat and reserve its launch argument across all trace blocks.
-    pub(crate) fn fuse_cat(&mut self, inputs: Vec<FuseArg>, output: FuseArg, dim: usize) {
-        self.fuse_operation(FuseOp::Cat {
-            inputs,
-            output,
-            dim,
-            concat_pos: self.num_concats,
-        });
-        self.num_concats += 1;
     }
 
     /// The number of operations fused.
