@@ -65,30 +65,32 @@ impl Probe {
             };
             let mut estimate = KernelEstimate::from(&grid);
             R::estimate(&problem, &blueprint, &grid, &mut estimate);
-            let peaks = Peaks::measured(&self.client, demand, self.arithmetic, estimate.cube.units);
+            let peaks = Peaks::measured(&self.client, &self.hw, &estimate, demand, self.arithmetic);
             if i == 0 {
                 eprintln!("peaks {name}: {peaks:?}");
             }
             let prio = peaks.priority_of(&estimate, demand, &self.hw).get();
             let us =
                 |t: Option<core::time::Duration>| t.map_or(f64::NAN, |t| t.as_secs_f64() * 1e6);
-            let pred = us(peaks.time_of(&estimate, &self.hw));
+            let pred = us(peaks.time_of(&estimate, demand, &self.hw));
             let floor = us(peaks.floor_of(demand));
             let Some(measured) = self.measure(|| candidate.launch(self.call.clone()).is_ok())
             else {
                 continue;
             };
             let (m, n, k) = self.shape;
-            let parts = peaks.prediction_of(&estimate, &self.hw);
+            let parts = peaks.prediction_of(&estimate, demand, &self.hw);
             let part =
                 |f: fn(&burn_cubecl::tune::Prediction) -> f64| parts.as_ref().map_or(f64::NAN, f);
             let staging = estimate.staging.as_ref();
             println!(
-                "{m},{n},{k},{name},\"{}\",{prio},{pred:.2},{floor:.2},{measured:.2},{},{},{:.2},{:.2},{:.3},{:.3},{},{},{:?},{:.3e},{},{},{}",
+                "{m},{n},{k},{name},\"{}\",{prio},{pred:.2},{floor:.2},{measured:.2},{},{},{:.2},{:.2},{:.2},{:.2},{:.3},{:.3},{},{},{:?},{:.3e},{},{},{}",
                 candidate.settings(),
                 estimate.cubes.unwrap_or(0),
                 estimate.cube.units,
                 part(|p| p.memory.as_secs_f64() * 1e6),
+                part(|p| p.cache.as_secs_f64() * 1e6),
+                part(|p| p.shared.as_secs_f64() * 1e6),
                 part(|p| p.compute.as_secs_f64() * 1e6),
                 part(|p| p.bandwidth_share),
                 part(|p| p.lanes_filled),
@@ -144,6 +146,14 @@ fn main() {
             k: i.k as usize,
         });
     eprintln!("cmma: {cmma:?}");
+    for shift in 20..=28 {
+        let bytes = 1u64 << shift;
+        let rate = cubecl::std::throughput::measure_cache_read(&client, bytes);
+        eprintln!("re-read {:>4} MB: {:7.0} GB/s", bytes >> 20, rate / 1e9);
+    }
+    if std::env::var("PROBE_CURVE_ONLY").is_ok() {
+        return;
+    }
     let arithmetic = Arithmetic {
         vector: ThroughputKey::compute(None, F16, F32),
         matrix: cmma.map(|dims| ThroughputKey::compute(Some(dims), F16, F32)),
@@ -165,7 +175,7 @@ fn main() {
             (2048, 4096, 4096),
         ]);
     println!(
-        "m,n,k,routine,setting,priority,pred_us,floor_us,us,cubes,units,mem_us,comp_us,bw_share,lanes,worker_cubes,overlapped,instr,ops_per_cube,stages,in_flight,registers"
+        "m,n,k,routine,setting,priority,pred_us,floor_us,us,cubes,units,mem_us,cache_us,shared_us,comp_us,bw_share,lanes,worker_cubes,overlapped,instr,ops_per_cube,stages,in_flight,registers"
     );
     for (m, n, k) in shapes {
         eprintln!("=== {m}x{n}x{k} ===");

@@ -247,7 +247,7 @@ where
             vector: ThroughputKey::compute(None, f32, f32),
             matrix: None,
         };
-        Peaks::measured(&self.client, demand, arithmetic, estimate.cube.units)
+        Peaks::measured(&self.client, &self.hw, &estimate, demand, arithmetic)
             .priority_of(&estimate, demand, &self.hw)
     }
 

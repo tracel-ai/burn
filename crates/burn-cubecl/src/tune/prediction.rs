@@ -9,7 +9,11 @@
 //!   bandwidth between them;
 //! - the resident cubes' reads in flight — a stage's bytes times the stages a cube holds — decide
 //!   how much of the memory latency is hidden, and so what fraction of the bandwidth is reached;
-//! - every stream is moved in whole transactions, a run shorter than one paying for it;
+//! - every stream is moved in whole transactions, a run shorter than one paying for it, and no
+//!   more of what the cubes request comes from memory than the problem's own bytes: the rest is
+//!   what one cube reads again after another, served by the cache;
+//! - what the cubes stage moves through shared memory at its bandwidth, as far as the resident
+//!   cubes fill the device;
 //! - the operations, and the plane-wide drain atomics, run at the rate of the instruction the
 //!   work names, as far as the resident units fill the device's lanes;
 //! - traffic and arithmetic overlap where a worker holds more than one cube or a cube more than
@@ -21,7 +25,8 @@ use super::{CandidatePriority, WorkerLimits};
 use core::time::Duration;
 use cubecl::client::Client;
 use cubecl::std::throughput::{
-    compute_bound, measure_cube_rate, measure_launch_overhead, memory_bound,
+    compute_bound, measure_cache_read, measure_cube_rate, measure_launch_overhead,
+    measure_shared_read, memory_bound,
 };
 use cubecl::throughput::{MemoryAccess, ResourceBound, ThroughputKey};
 use cubecl::tune::Work;
@@ -44,6 +49,11 @@ pub struct Arithmetic {
 pub struct Peaks {
     /// Bytes a second a copy of the problem's footprint sustains.
     pub memory_bytes_per_s: f64,
+    /// Bytes a second the device reads what its last-level cache holds at, every unit reading
+    /// again what others read: the rate of a kernel's re-reads. `NaN` where not measured.
+    pub cache_bytes_per_s: f64,
+    /// Bytes a second the device reads its shared memory at. `NaN` where not measured.
+    pub shared_bytes_per_s: f64,
     /// Operations a second plain arithmetic sustains.
     pub vector_ops_per_s: f64,
     /// Operations a second the family's matrix instruction sustains, where it has one.
@@ -56,29 +66,51 @@ pub struct Peaks {
 }
 
 impl Peaks {
-    /// The peaks `client`'s device sustains for a problem of `demand` run by cubes of
-    /// `units_per_cube` units, computing on `arithmetic`.
+    /// The peaks `client`'s device, `hw`, sustains for the kernel `estimate` describes on a
+    /// problem of `demand`, computing on `arithmetic`: its cubes' rate at their size, and its
+    /// re-reads' at the footprint a wave of its resident cubes reads
+    /// ([`reread_footprint`](Self::reread_footprint)).
     ///
     /// The first call for a footprint, an instruction or a cube size runs cubecl's probe of
     /// it; later calls read its cache. A peak the device cannot measure is zero, which predicts
     /// nothing, and an unmeasured cube rate bounds nothing.
     pub fn measured(
         client: &Client,
+        hw: &Hardware,
+        estimate: &KernelEstimate,
         demand: Work,
         arithmetic: Arithmetic,
-        units_per_cube: u32,
     ) -> Self {
+        let demand = estimate.demand.unwrap_or(demand);
         // A threshold of one is the peak itself: only the rate is read.
         let rate = |key| compute_bound(client, key, demand, 1.0).resource.peak_per_s;
         Self {
             memory_bytes_per_s: memory_bound(client, MemoryAccess::Copy, demand, 1.0)
                 .resource
                 .peak_per_s,
+            cache_bytes_per_s: measure_cache_read(
+                client,
+                Self::reread_footprint(estimate, demand, hw),
+            ),
+            shared_bytes_per_s: measure_shared_read(client),
             vector_ops_per_s: rate(arithmetic.vector),
             matrix_ops_per_s: arithmetic.matrix.map(rate),
-            cubes_per_s: measure_cube_rate(client, units_per_cube),
+            cubes_per_s: measure_cube_rate(client, estimate.cube.units),
             launch_overhead: measure_launch_overhead(client),
         }
+    }
+
+    /// The bytes the cubes of `estimate` resident on `hw` at once read over their walk, no more
+    /// than the problem of `demand` holds: the working set what one cube reads again is found in,
+    /// which decides the level of the cache that serves it.
+    pub fn reread_footprint(estimate: &KernelEstimate, demand: Work, hw: &Hardware) -> u64 {
+        let reads = estimate.staging.as_ref().map_or(0.0, |staging| {
+            transacted_bytes(&staging.reads, hw.transaction_bytes())
+        });
+        let resident = Residency::of(estimate, hw, WorkerLimits::of(hw))
+            .map_or(1, |residency| residency.device_cubes);
+        let active = estimate.cubes.unwrap_or(1).min(resident);
+        ((active as f64 * reads) as u64).min(demand.bytes as u64)
     }
 
     /// The time no kernel of a problem of `demand` beats: its bytes moved once and its
@@ -95,21 +127,32 @@ impl Peaks {
         Some(memory.max(compute)? + self.launch_overhead)
     }
 
-    /// The time the kernel `estimate` describes takes on `hw` at these peaks.
+    /// The time the kernel `estimate` describes takes on `hw` at these peaks, for a problem of
+    /// `demand` — the estimate's own, where it states one.
     ///
     /// `None` where the estimate leaves its cubes or its staging unstated, where its work runs
     /// on a matrix instruction these peaks hold no rate for, or where a peak it is timed at was
     /// not measured.
-    pub fn time_of(&self, estimate: &KernelEstimate, hw: &Hardware) -> Option<Duration> {
-        self.predict(estimate, hw, WorkerLimits::of(hw))
+    pub fn time_of(
+        &self,
+        estimate: &KernelEstimate,
+        demand: Work,
+        hw: &Hardware,
+    ) -> Option<Duration> {
+        self.predict(estimate, demand, hw, WorkerLimits::of(hw))
             .map(|prediction| prediction.time())
     }
 
     /// The parts [`time_of`](Self::time_of) adds up for the kernel `estimate` describes, each
     /// as the prediction weighed it: what a person reads to see why a candidate is placed where
     /// it is. `None` where `time_of` is.
-    pub fn prediction_of(&self, estimate: &KernelEstimate, hw: &Hardware) -> Option<Prediction> {
-        self.predict(estimate, hw, WorkerLimits::of(hw))
+    pub fn prediction_of(
+        &self,
+        estimate: &KernelEstimate,
+        demand: Work,
+        hw: &Hardware,
+    ) -> Option<Prediction> {
+        self.predict(estimate, demand, hw, WorkerLimits::of(hw))
     }
 
     /// Where the kernel `estimate` describes goes in a round for a problem of `demand` on `hw`:
@@ -123,7 +166,7 @@ impl Peaks {
         hw: &Hardware,
     ) -> CandidatePriority {
         let demand = estimate.demand.unwrap_or(demand);
-        match (self.time_of(estimate, hw), self.floor_of(demand)) {
+        match (self.time_of(estimate, demand, hw), self.floor_of(demand)) {
             (Some(predicted), Some(floor)) => CandidatePriority::above_floor(predicted, floor),
             _ => CandidatePriority::FIRST,
         }
@@ -136,9 +179,11 @@ impl Peaks {
     fn predict(
         &self,
         estimate: &KernelEstimate,
+        demand: Work,
         hw: &Hardware,
         limits: Option<WorkerLimits>,
     ) -> Option<Prediction> {
+        let demand = estimate.demand.unwrap_or(demand);
         let staging = estimate.staging.as_ref()?;
         let cubes = estimate.cubes?.max(1);
         let residency = Residency::of(estimate, hw, limits)?;
@@ -151,19 +196,28 @@ impl Peaks {
         let stage_reads = read / staging.stages.max(1) as f64;
         let in_flight = active * stage_reads * f64::from(staging.stages_in_flight.max(1));
         let bandwidth_share = latency_hidden(in_flight, hw);
-        let traffic = cubes as f64 * (read + written) / bandwidth_share;
-        let memory = time_at(traffic, self.memory_bytes_per_s)?;
+        // What the cubes request past the problem's own bytes, one reading again what another
+        // read, comes from the cache.
+        let requested = cubes as f64 * (read + written);
+        let from_memory = requested.min(demand.bytes as f64);
+        let memory = time_at(from_memory / bandwidth_share, self.memory_bytes_per_s)?;
+        let cache = optional_time(requested - from_memory, self.cache_bytes_per_s)?;
 
         // A drain atomic serializes its plane: every unit of it waits on one shared address.
         let plane = f64::from(hw.properties.hardware.plane_size_max.max(1));
         let operations = cubes as f64 * (staging.operations + staging.drain_atomics as f64 * plane);
         let lanes_filled = residency.lanes_filled(active, estimate.cube.units);
-        let compute = time_at(operations / lanes_filled, self.rate_of(estimate)?)?
-            .mul_f64(residency.last_wave_stretch(cubes));
+        let stretch = residency.last_wave_stretch(cubes);
+        let compute = time_at(operations / lanes_filled, self.rate_of(estimate)?)?.mul_f64(stretch);
+        let staged = cubes as f64 * (staging.shared_reads + staging.shared_writes) as f64;
+        let shared =
+            optional_time(staged / lanes_filled, self.shared_bytes_per_s)?.mul_f64(stretch);
 
         Some(Prediction {
             memory,
+            cache,
             compute,
+            shared,
             started: time_at(cubes as f64, self.cubes_per_s).unwrap_or_default(),
             launch_overhead: self.launch_overhead,
             overlapped: residency.overlaps(staging.stages_in_flight),
@@ -187,10 +241,16 @@ impl Peaks {
 /// A predicted time, in the parts [`Peaks::time_of`] adds up.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Prediction {
-    /// The kernel's traffic, at the share of the bandwidth its reads in flight reach.
+    /// The kernel's traffic from memory — no more than the problem's own bytes — at the share of
+    /// the bandwidth its reads in flight reach.
     pub memory: Duration,
+    /// What its cubes read again, one after another, at the cache's bandwidth.
+    pub cache: Duration,
     /// Its arithmetic, at the share of the lanes its resident units fill, over every wave.
     pub compute: Duration,
+    /// What its cubes stage, through shared memory, as far as they fill the device, over every
+    /// wave.
+    pub shared: Duration,
     /// What running its cubes takes at the device's cube rate, however little each does.
     pub started: Duration,
     /// What its launch costs on top.
@@ -208,12 +268,17 @@ pub struct Prediction {
 }
 
 impl Prediction {
-    /// The predicted time: traffic and arithmetic, overlapped or one after the other, no less
-    /// than running the cubes takes, and the launch.
+    /// The predicted time, no less than running the cubes takes, and the launch.
+    ///
+    /// What a worker does itself — reading again what its cache holds, reading and writing
+    /// what it staged, computing — issues from its own instructions one after another; what it
+    /// waits on memory for overlaps all of it where it holds a second cube or a second stage,
+    /// and adds to it where it holds neither.
     pub fn time(&self) -> Duration {
+        let on_chip = self.cache + self.shared + self.compute;
         let busy = match self.overlapped {
-            true => self.memory.max(self.compute),
-            false => self.memory + self.compute,
+            true => self.memory.max(on_chip),
+            false => self.memory + on_chip,
         };
         busy.max(self.started) + self.launch_overhead
     }
@@ -336,6 +401,15 @@ fn time_at(amount: f64, per_s: f64) -> Option<Duration> {
     .time_at_peak()
 }
 
+/// [`time_at`] for an amount that may be nothing: no time whatever the rate, where `time_at`
+/// would read an unmeasured peak as no time to give.
+fn optional_time(amount: f64, per_s: f64) -> Option<Duration> {
+    match amount > 0.0 {
+        true => time_at(amount, per_s),
+        false => Some(Duration::ZERO),
+    }
+}
+
 /// Bytes `streams` move in whole transactions of `transaction` bytes: each run rounded up to the
 /// transactions it touches.
 fn transacted_bytes(streams: &[GlobalStream], transaction: usize) -> f64 {
@@ -358,10 +432,19 @@ mod tests {
     /// a prediction reads in nanoseconds.
     const PEAKS: Peaks = Peaks {
         memory_bytes_per_s: 1e9,
+        cache_bytes_per_s: 4e9,
+        shared_bytes_per_s: 8e9,
         vector_ops_per_s: 1e9,
         matrix_ops_per_s: None,
         cubes_per_s: f64::NAN,
         launch_overhead: Duration::ZERO,
+    };
+
+    /// A problem whose own bytes are as many as any kernel requests: every byte comes from
+    /// memory.
+    const ANY_DEMAND: Work = Work {
+        compute_ops: 0,
+        bytes: usize::MAX,
     };
 
     /// A worker holding 1024 units in at most 8 cubes, 64K registers, 64 KB of shared memory,
@@ -394,6 +477,8 @@ mod tests {
                 stages: 1,
                 stages_in_flight: 1,
                 drain_atomics: 0,
+                shared_reads: 0,
+                shared_writes: 0,
             }),
             work: Some(UnitWork {
                 instruction: ArithmeticInstruction::Vector,
@@ -420,7 +505,7 @@ mod tests {
     fn time(estimate: &KernelEstimate) -> Duration {
         let hw = devices::strix_halo();
         PEAKS
-            .predict(estimate, &hw, Some(LIMITS))
+            .predict(estimate, ANY_DEMAND, &hw, Some(LIMITS))
             .expect("timed")
             .time()
     }
@@ -550,12 +635,18 @@ mod tests {
         let mut kernel = reading(40, 4096);
         kernel.staging.as_mut().unwrap().operations = 4096.0;
         let traffic_only = PEAKS
-            .predict(&reading(40, 4096), &hw, Some(alone))
+            .predict(&reading(40, 4096), ANY_DEMAND, &hw, Some(alone))
             .unwrap()
             .time();
-        let both = PEAKS.predict(&kernel, &hw, Some(alone)).unwrap().time();
+        let both = PEAKS
+            .predict(&kernel, ANY_DEMAND, &hw, Some(alone))
+            .unwrap()
+            .time();
         assert!(both > traffic_only);
-        let overlapped = PEAKS.predict(&kernel, &hw, Some(LIMITS)).unwrap().time();
+        let overlapped = PEAKS
+            .predict(&kernel, ANY_DEMAND, &hw, Some(LIMITS))
+            .unwrap()
+            .time();
         assert!(overlapped < both);
     }
 
@@ -581,9 +672,50 @@ mod tests {
         };
         let cubes = 8 * 40 * 4;
         let predicted = started
-            .predict(&computing(cubes, 0.0), &hw, Some(LIMITS))
+            .predict(&computing(cubes, 0.0), ANY_DEMAND, &hw, Some(LIMITS))
             .map(|p| p.time());
         assert_close(predicted.unwrap(), Duration::from_micros(cubes));
+    }
+
+    /// What cubes request past the problem's own bytes is read again from the cache, at its
+    /// bandwidth: a quarter of the requests from memory, the rest four times as fast.
+    #[test]
+    fn reads_past_the_problems_bytes_come_from_the_cache() {
+        let hw = devices::strix_halo();
+        let bytes = hiding_bytes(&hw);
+        let cubes = 8 * 40;
+        let requested = cubes * bytes;
+        let demand = Work {
+            compute_ops: 0,
+            bytes: (requested / 4) as usize,
+        };
+        let predicted = PEAKS
+            .predict(&reading(cubes, bytes), demand, &hw, Some(LIMITS))
+            .unwrap();
+        assert_close(predicted.memory, Duration::from_nanos(requested / 4));
+        assert_close(predicted.cache, Duration::from_nanos(requested * 3 / 4 / 4));
+    }
+
+    /// What a cube stages moves through shared memory at its bandwidth, and bounds the cube
+    /// alongside its traffic and arithmetic.
+    #[test]
+    fn staging_moves_through_shared_memory() {
+        let mut staged = computing(8 * 40, 0.0);
+        let staging = staged.staging.as_mut().unwrap();
+        staging.shared_reads = 6000;
+        staging.shared_writes = 2000;
+        // 8000 bytes a cube at 8 bytes a nanosecond.
+        assert_close(time(&staged), Duration::from_nanos(8 * 40 * 1000));
+    }
+
+    /// What a worker does itself issues one after another: its arithmetic and its staging add
+    /// up, where its memory traffic would overlap them.
+    #[test]
+    fn a_workers_own_work_adds_up() {
+        let mut both = computing(8 * 40, 1000.0);
+        both.staging.as_mut().unwrap().shared_reads = 8000;
+        // 1000 operations and 8000 staged bytes a cube: a microsecond each.
+        assert_close(time(&both), Duration::from_nanos(8 * 40 * 2000));
     }
 
     /// Work on a matrix instruction the peaks hold no rate for predicts nothing.
@@ -592,7 +724,7 @@ mod tests {
         let hw = devices::strix_halo();
         let mut matrix = reading(8 * 40, 1024);
         matrix.work.as_mut().unwrap().instruction = ArithmeticInstruction::Matrix;
-        assert_eq!(PEAKS.predict(&matrix, &hw, Some(LIMITS)), None);
+        assert_eq!(PEAKS.predict(&matrix, ANY_DEMAND, &hw, Some(LIMITS)), None);
     }
 
     #[test]
@@ -600,6 +732,8 @@ mod tests {
         let hw = devices::strix_halo();
         let unmeasured = Peaks {
             memory_bytes_per_s: 0.0,
+            cache_bytes_per_s: 0.0,
+            shared_bytes_per_s: 0.0,
             vector_ops_per_s: 0.0,
             matrix_ops_per_s: None,
             cubes_per_s: f64::NAN,

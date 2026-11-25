@@ -269,3 +269,21 @@ cubecl-std = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotun
 cubecl-tile = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-tile" }
 cubecl-wgpu = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-wgpu" }
 cubecl-zspace = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-zspace" }
+
+# Local prototype only: the estimate carrying reuse and shared-memory traffic (cubek branch estimate-reuse).
+[patch."https://github.com/tracel-ai/cubek"]
+cubek = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek" }
+cubek-attention = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-attention" }
+cubek-attention-backward = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-attention-backward" }
+cubek-convolution = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-convolution" }
+cubek-fft = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-fft" }
+cubek-interpolate = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-interpolate" }
+cubek-matmul = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-matmul" }
+cubek-microkernel = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-microkernel" }
+cubek-pool = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-pool" }
+cubek-quant = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-quant" }
+cubek-random = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-random" }
+cubek-reduce = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-reduce" }
+cubek-rms-norm = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-rms-norm" }
+cubek-std = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-std" }
+cubek-swiglu = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-swiglu" }

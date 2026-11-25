@@ -132,16 +132,17 @@ fn main() {
                         let demand = problem.demand();
                         let peaks = Peaks::measured(
                             &client,
+                            &hw,
+                            &estimate,
                             demand,
                             Arithmetic {
                                 vector: ThroughputKey::compute(None, f32, f32),
                                 matrix: None,
                             },
-                            estimate.cube.units,
                         );
                         let prio = peaks.priority_of(&estimate, demand, &hw).get();
                         let pred = peaks
-                            .time_of(&estimate, &hw)
+                            .time_of(&estimate, demand, &hw)
                             .map(|t| t.as_secs_f64() * 1e6)
                             .unwrap_or(f64::NAN);
                         let floor = peaks
