@@ -74,6 +74,8 @@ conflicts with it (E0119); delete the handwritten one.
 
 #### Compilation and autotuning
 
+- Fix a CubeCL matmul panic when a broadcast operand reused a kernel tuned for a dense matrix.
+
 - Include the preceding `CompileOnly` pass's statistics in the following
   `CompileAndAutotune` pass on CubeCL backends, so deferred completions appear in its snapshot.
 
