@@ -437,10 +437,10 @@ pub struct PerMember {
 pub enum MemberSchedule {
     /// All at once, as a sharded compute device's do: the run took its busiest member's time.
     #[default]
-    AtOnce,
+    Concurrent,
     /// One after another, as a model split by layers across devices: the run took the sum of its
     /// members' times.
-    InTurn,
+    Sequential,
 }
 
 /// What one member of a sharded compute device, or one device a run is timed across, did over an

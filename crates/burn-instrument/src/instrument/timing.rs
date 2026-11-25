@@ -217,8 +217,8 @@ impl Timeline {
             }
         }
         let idle = match self.members.schedule() {
-            MemberSchedule::AtOnce => idle,
-            MemberSchedule::InTurn => self.turn_gaps(),
+            MemberSchedule::Concurrent => idle,
+            MemberSchedule::Sequential => self.turn_gaps(),
         };
         Settled { idle, per_member }
     }
@@ -301,7 +301,7 @@ mod tests {
         let members = [1, 2].map(|index_id| ServiceId::of::<()>(DeviceId::new(0, index_id)));
         let mut timeline = Timeline::new(
             epoch,
-            MemberList::over(members.to_vec(), MemberSchedule::AtOnce),
+            MemberList::over(members.to_vec(), MemberSchedule::Concurrent),
         );
         let micros = Duration::from_micros;
         let window = |start: u64, end: u64| {
@@ -330,7 +330,7 @@ mod tests {
                         idle: micros(5),
                     },
                 ],
-                schedule: MemberSchedule::AtOnce,
+                schedule: MemberSchedule::Concurrent,
                 off_members: micros(16),
                 collectives: Vec::new(),
             })
@@ -343,7 +343,7 @@ mod tests {
         let members = [1, 2].map(|index_id| ServiceId::of::<()>(DeviceId::new(0, index_id)));
         let mut timeline = Timeline::new(
             epoch,
-            MemberList::over(members.to_vec(), MemberSchedule::InTurn),
+            MemberList::over(members.to_vec(), MemberSchedule::Sequential),
         );
         let micros = Duration::from_micros;
         let window = |start: u64, end: u64| {

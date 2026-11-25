@@ -170,7 +170,7 @@ impl HostSplit {
         let Some(wall) = measurement.clean_wall else {
             return Self::NoCleanRun;
         };
-        if schedule(measurement) == Some(MemberSchedule::AtOnce) {
+        if schedule(measurement) == Some(MemberSchedule::Concurrent) {
             return Self::SeveralMembers;
         }
         let device = measurement.breakdown.total_time();
@@ -180,7 +180,7 @@ impl HostSplit {
             Self::NothingTimed
         } else if device > wall {
             Self::ClocksDisagree
-        } else if schedule(measurement) == Some(MemberSchedule::InTurn) {
+        } else if schedule(measurement) == Some(MemberSchedule::Sequential) {
             Self::MembersInTurn {
                 idle: wall - device,
             }

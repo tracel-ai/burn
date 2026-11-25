@@ -275,6 +275,7 @@ Reports also include the measured cost of a kernel launch.
   `DispatchDevice::shard_member_ids` is replaced by `member_ids`, which also yields a cubecl
   device's own id. Measurement files are version 7, and one of version 6 is refused: measure it
   again.
+  ([#6632](https://github.com/tracel-ai/burn/pull/6632))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Flex SIMD operations

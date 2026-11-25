@@ -1,9 +1,9 @@
 //! Which member of the profiled device an execution ran on.
 
-use burn_tensor::Device;
 use cubecl::logging::ExecutionPlace;
 use cubecl_common::device::ServiceId;
 
+use super::devices::DeviceList;
 use crate::breakdown::MemberSchedule;
 
 /// A member of the profiled device, by its index in member order: `0` on a device of one.
@@ -38,22 +38,15 @@ impl MemberList {
     ///
     /// Opens each member's client, so it syncs `devices` first: opening one waits on the device's
     /// worker while holding cubecl's registry, which work still running there can need.
-    pub fn of(devices: &[Device]) -> Self {
-        let ids: Vec<_> = devices
-            .iter()
-            .flat_map(|device| device.as_dispatch().member_ids())
-            .collect();
+    pub fn of(devices: &DeviceList) -> Self {
+        let ids: Vec<_> = devices.member_ids().collect();
         if ids.len() < 2 {
             return Self::default();
         }
-        for device in devices {
-            device
-                .sync()
-                .expect("the device answers before its members are reached");
-        }
-        let schedule = match devices.len() {
-            1 => MemberSchedule::AtOnce,
-            _ => MemberSchedule::InTurn,
+        devices.sync("the device answers before its members are reached");
+        let schedule = match devices.several() {
+            false => MemberSchedule::Concurrent,
+            true => MemberSchedule::Sequential,
         };
         Self::over(
             ids.into_iter()
@@ -120,7 +113,7 @@ mod tests {
     fn an_execution_is_placed_on_the_member_whose_service_it_names() {
         let members = MemberList::over(
             vec![service::<u8>(0), service::<u16>(0)],
-            MemberSchedule::AtOnce,
+            MemberSchedule::Concurrent,
         );
 
         assert_eq!(members.count(), 2);
@@ -140,7 +133,7 @@ mod tests {
     fn a_device_named_twice_is_one_member() {
         let members = MemberList::over(
             vec![service::<u8>(3), service::<u8>(3)],
-            MemberSchedule::AtOnce,
+            MemberSchedule::Concurrent,
         );
 
         assert!(!members.several());

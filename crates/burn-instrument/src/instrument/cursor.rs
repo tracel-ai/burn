@@ -39,9 +39,8 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use burn_tensor::Device;
-
 use super::component_tree::ComponentId;
+use super::devices::DeviceList;
 use cubecl_common::device::{DeviceId, DeviceService, DeviceServiceStage, ServerUtilitiesHandle};
 use cubecl_common::device_handle::DeviceHandle;
 
@@ -104,21 +103,14 @@ pub struct LaunchCursor {
 impl LaunchCursor {
     /// A cursor for work running on `devices`, moving their fusion workers' attribution too where
     /// their ops go through them (`DispatchDevice::fusion_workers`).
-    pub fn new(devices: &[Device]) -> Self {
-        let ids: Vec<DeviceId> = devices
-            .iter()
-            .flat_map(|device| device.as_dispatch().fusion_workers())
-            .collect();
+    pub fn new(devices: &DeviceList) -> Self {
+        let ids: Vec<DeviceId> = devices.fusion_workers().collect();
         if ids.is_empty() {
             return Self::over(ids);
         }
         // Opening a handle waits on the worker while holding cubecl's channel registry, which a
         // block still running there can need too: open them idle.
-        for device in devices {
-            device
-                .sync()
-                .expect("the device answers before the workers are reached");
-        }
+        devices.sync("the device answers before the workers are reached");
         Self::over(ids)
     }
 

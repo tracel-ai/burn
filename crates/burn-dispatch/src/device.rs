@@ -8,6 +8,7 @@ use burn_capture::CaptureDevice;
 #[cfg(feature = "shard")]
 use burn_shard::{ShardCustomOps, ShardError, ShardedComputeDevice};
 
+#[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
@@ -502,21 +503,35 @@ impl DispatchDevice {
     ///
     /// A sharded compute device's members come in member order.
     pub fn member_ids(&self) -> impl Iterator<Item = DeviceId> + use<> {
-        let ids: Box<dyn Iterator<Item = DeviceId>> = match self {
-            #[cfg(cube_backend)]
-            DispatchDevice::Cube(device) => Box::new(core::iter::once(device.to_id())),
-            #[cfg(all(cube_backend, feature = "shard"))]
-            DispatchDevice::ShardedCompute(device) => Box::new(
-                device
-                    .members::<crate::backends::Cube>()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|member| member.to_id()),
-            ),
-            #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(device) => Box::new(device.inner.member_ids()),
-            #[allow(unreachable_patterns)]
-            _ => Box::new(core::iter::empty()),
+        // Autodiff never wraps autodiff, so one step reaches the device that runs the kernels.
+        #[cfg(feature = "autodiff")]
+        let device = match self {
+            DispatchDevice::Autodiff(device) => device.inner.as_ref(),
+            device => device,
+        };
+        #[cfg(not(feature = "autodiff"))]
+        let device = self;
+        #[cfg(cube_backend)]
+        let ids = {
+            let (own, members): (Option<DeviceId>, Vec<CubeDevice>) = match device {
+                DispatchDevice::Cube(device) => (Some(device.to_id()), Vec::new()),
+                #[cfg(feature = "shard")]
+                DispatchDevice::ShardedCompute(device) => (
+                    None,
+                    device
+                        .members::<crate::backends::Cube>()
+                        .unwrap_or_default(),
+                ),
+                #[allow(unreachable_patterns)]
+                _ => (None, Vec::new()),
+            };
+            own.into_iter()
+                .chain(members.into_iter().map(|member| member.to_id()))
+        };
+        #[cfg(not(cube_backend))]
+        let ids = {
+            let _ = device;
+            core::iter::empty()
         };
         ids
     }

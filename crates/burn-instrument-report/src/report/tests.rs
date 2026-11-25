@@ -755,7 +755,7 @@ fn a_run_on_several_members_reads_each_member_apart() {
                 idle: micros(1_500),
             },
         ],
-        schedule: MemberSchedule::AtOnce,
+        schedule: MemberSchedule::Concurrent,
         off_members: micros(300),
         collectives: Vec::new(),
     });
@@ -809,7 +809,7 @@ fn a_run_on_members_in_turn_reads_their_sum() {
     };
     measurement.breakdown.per_member = Some(PerMember {
         members: vec![member(600), member(500)],
-        schedule: MemberSchedule::InTurn,
+        schedule: MemberSchedule::Sequential,
         off_members: Duration::ZERO,
         collectives: Vec::new(),
     });

@@ -285,7 +285,7 @@ mod tests {
           "idle": 340
         }
       ],
-      "schedule": "AtOnce",
+      "schedule": "Concurrent",
       "off_members": 25,
       "collectives": [
         {
@@ -449,7 +449,7 @@ mod tests {
                             idle: Duration::from_nanos(340),
                         },
                     ],
-                    schedule: MemberSchedule::AtOnce,
+                    schedule: MemberSchedule::Concurrent,
                     off_members: Duration::from_nanos(25),
                     collectives: vec![CollectiveTime {
                         operation: "all_reduce".to_string(),

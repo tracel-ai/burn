@@ -81,11 +81,11 @@ impl Display for Members<'_, '_> {
 fn computing(per_member: &PerMember) -> (std::time::Duration, &'static str) {
     let times = per_member.members.iter().map(|member| member.on_device);
     match per_member.schedule {
-        MemberSchedule::AtOnce => (
+        MemberSchedule::Concurrent => (
             times.max().unwrap_or_default(),
             "the slowest member's kernels: collectives, the host, and imbalance between members",
         ),
-        MemberSchedule::InTurn => (
+        MemberSchedule::Sequential => (
             times.sum(),
             "every member's kernels: the host, and the hops between members",
         ),
