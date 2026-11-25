@@ -1,6 +1,6 @@
 use crate::{
     Backend, TensorMetadata,
-    distributed::{ReduceOperation, ShardingError},
+    distributed::{ReduceOperation, Sharding, ShardingError},
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use alloc::{boxed::Box, vec, vec::Vec};
@@ -426,6 +426,35 @@ impl DimSplit {
         split
     }
 
+    /// The chunk member `member` of `members` holds of a split into `chunks`: the members form
+    /// that many contiguous groups, each holding its chunk alike.
+    ///
+    /// # Assumptions
+    ///
+    /// `member` is below `members`, and `chunks` is at least one and divides `members`.
+    pub fn chunk_of(member: usize, members: usize, chunks: usize) -> usize {
+        member / (members / chunks)
+    }
+
+    /// `dims`, a tensor's extents, cut to the shard member `member` of `members` holds under
+    /// `sharding`: a split dim to its chunk, every other dim whole.
+    ///
+    /// # Assumptions
+    ///
+    /// `sharding` is one `members` members can hold a tensor of `dims` under: its split dim is
+    /// one of `dims`, and its chunks are as [`chunk_of`](Self::chunk_of) assumes. `member` is
+    /// below `members`.
+    pub fn cut_to_member(dims: &mut [usize], sharding: Sharding, member: usize, members: usize) {
+        if let (Some(dim), Some(chunks)) = (sharding.split_dim(), sharding.num_chunks(members)) {
+            let split = Self {
+                dim,
+                len: dims[dim],
+                members: chunks,
+            };
+            dims[dim] = split.range(Self::chunk_of(member, members, chunks)).len();
+        }
+    }
+
     /// The indices along `dim` that `member` holds.
     pub fn range(&self, member: usize) -> Range<usize> {
         let base = self.len / self.members;
@@ -841,6 +870,29 @@ mod tests {
         let ranges: Vec<_> = (0..3).map(|member| split.range(member)).collect();
 
         assert_eq!(ranges, [0..3, 3..5, 5..7]);
+    }
+
+    #[test]
+    fn a_replicated_split_cuts_every_member_of_a_group_to_its_chunk() {
+        let sharding = Sharding::ReplicatedSplit { dim: 0, groups: 2 };
+        let cut = |member| {
+            let mut dims = [3, 2];
+            DimSplit::cut_to_member(&mut dims, sharding, member, 4);
+            dims
+        };
+
+        assert_eq!(
+            (0..4).map(cut).collect::<Vec<_>>(),
+            [[2, 2], [2, 2], [1, 2], [1, 2]]
+        );
+    }
+
+    #[test]
+    fn a_replicated_tensor_is_whole_on_every_member() {
+        let mut dims = [3, 2];
+        DimSplit::cut_to_member(&mut dims, Sharding::Replicated, 1, 2);
+
+        assert_eq!(dims, [3, 2]);
     }
 
     #[test]
