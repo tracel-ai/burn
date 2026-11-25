@@ -49,6 +49,15 @@ fn each_card_of_a_run_split_across_two_is_timed_as_a_member() {
 
     let breakdown = Instrument::for_devices(&cards).breakdown(run);
 
+    assert!(
+        !breakdown.tree.is_empty()
+            && breakdown
+                .tree
+                .iter()
+                .all(|stage| !stage.total_time().is_zero()),
+        "each stage's kernels land under its component: {:?}",
+        breakdown.tree
+    );
     let per_member = breakdown.per_member.expect("each card is timed apart");
     assert_eq!(per_member.members.len(), 2);
     assert_eq!(per_member.schedule, MemberSchedule::InTurn);

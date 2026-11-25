@@ -86,8 +86,8 @@ fn computing(per_member: &PerMember) -> (std::time::Duration, &'static str) {
             "the slowest member's kernels: collectives, the host, and imbalance between members",
         ),
         MemberSchedule::InTurn => (
-            times.sum::<std::time::Duration>() + per_member.off_members,
-            "every member's kernels and those on no member: the host, and the hops between members",
+            times.sum(),
+            "every member's kernels: the host, and the hops between members",
         ),
     }
 }

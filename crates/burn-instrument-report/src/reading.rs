@@ -148,7 +148,10 @@ pub(crate) enum HostSplit {
     },
     /// The members ran in turn, so what their kernels leave of the clean run holds the hops
     /// between them as well as the host, and no timing tells the two apart.
-    MembersInTurn,
+    MembersInTurn {
+        /// The clean run less every member's kernels.
+        idle: Duration,
+    },
     /// No clean run was measured to split.
     NoCleanRun,
     /// The run was on several members at once, whose kernels sum past any one device's time.
@@ -178,7 +181,9 @@ impl HostSplit {
         } else if device > wall {
             Self::ClocksDisagree
         } else if schedule(measurement) == Some(MemberSchedule::InTurn) {
-            Self::MembersInTurn
+            Self::MembersInTurn {
+                idle: wall - device,
+            }
         } else {
             Self::Measured {
                 host: wall - device,
@@ -187,12 +192,11 @@ impl HostSplit {
         }
     }
 
-    /// Of the clean run, the time the device spent waiting on the host — the
-    /// launches, the op recording, everything between kernels — where the run splits.
-    pub(crate) fn host(self) -> Option<Duration> {
+    /// Of the clean run, the time the device spent on no kernel where the run splits: the
+    /// host's, and where members ran in turn the hops between them too.
+    pub(crate) fn idle(self) -> Option<Duration> {
         match self {
-            Self::Measured { host, .. } => Some(host),
-            Self::MembersInTurn => None,
+            Self::Measured { host: idle, .. } | Self::MembersInTurn { idle } => Some(idle),
             Self::NoCleanRun
             | Self::SeveralMembers
             | Self::TimedAlone
@@ -201,11 +205,24 @@ impl HostSplit {
         }
     }
 
+    /// The ladder's rung with the device never idle, and the lever that reaches it.
+    pub(crate) fn never_idle(self) -> [&'static str; 2] {
+        match self {
+            Self::MembersInTurn { .. } => ["the members never waiting", "host, hops"],
+            Self::Measured { .. }
+            | Self::NoCleanRun
+            | Self::SeveralMembers
+            | Self::TimedAlone
+            | Self::NothingTimed
+            | Self::ClocksDisagree => ["the device never waiting", "fewer launches"],
+        }
+    }
+
     /// Why the run does not split, one string per printed line: empty where it does.
     pub(crate) fn why_not_separable(self) -> &'static [&'static str] {
         match self {
             Self::Measured { .. } => &[],
-            Self::MembersInTurn => &[
+            Self::MembersInTurn { .. } => &[
                 "the members ran in turn, so the time",
                 "between their kernels holds the hops between them too",
             ],

@@ -243,7 +243,7 @@ fn a_run_without_a_clean_run_splits_nothing_and_says_so() {
         ..measurement()
     };
     let report = Report::new(&measurement);
-    assert_eq!(report.host_split().host(), None);
+    assert_eq!(report.host_split().idle(), None);
     assert_eq!(
         report.wall(),
         measurement.breakdown.total_time(),
@@ -713,7 +713,7 @@ fn a_run_timed_in_place_splits_the_clean_run_into_device_and_host() {
     let mut measurement = measurement();
     measurement.breakdown.timed_alone = false;
     assert_eq!(
-        Report::new(&measurement).host_split().host(),
+        Report::new(&measurement).host_split().idle(),
         Some(Duration::from_micros(710))
     );
 
@@ -816,12 +816,17 @@ fn a_run_on_members_in_turn_reads_their_sum() {
 
     let rendered = Report::new(&measurement);
 
-    assert_eq!(rendered.host_split(), HostSplit::MembersInTurn);
+    assert!(
+        matches!(rendered.host_split(), HostSplit::MembersInTurn { .. }),
+        "{:?}",
+        rendered.host_split()
+    );
     assert_eq!(rendered.host_split().share(micros(1)), None);
+    assert_eq!(rendered.ladder().host, micros(710));
     assert_eq!(
-        rendered.ladder().host,
-        Duration::ZERO,
-        "fewer launches recover none of the hops"
+        rendered.host_split().never_idle(),
+        ["the members never waiting", "host, hops"],
+        "fewer launches alone do not recover the hops"
     );
     let table = rendered.to_string();
     let not_computing = table
@@ -887,7 +892,7 @@ fn the_host_time_is_split_by_where_the_device_waited() {
 #[test]
 fn a_run_timed_alone_does_not_split_off_the_host() {
     let measurement = measurement();
-    assert_eq!(Report::new(&measurement).host_split().host(), None);
+    assert_eq!(Report::new(&measurement).host_split().idle(), None);
     assert_eq!(Report::new(&measurement).ladder().host, Duration::ZERO);
 
     let table = Report::new(&measurement).to_string();
@@ -909,7 +914,7 @@ fn a_run_with_no_device_time_splits_nothing() {
         clear(component);
     }
     measurement.breakdown.untagged.clear();
-    assert_eq!(Report::new(&measurement).host_split().host(), None);
+    assert_eq!(Report::new(&measurement).host_split().idle(), None);
 
     fn clear(component: &mut Component) {
         component.kernels.clear();

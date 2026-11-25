@@ -9,11 +9,13 @@ use crate::roofline::Ladder;
 /// that is unavailable.
 pub(super) struct Recoverable {
     ladder: Ladder,
+    /// The rung with the device never idle, and the lever that reaches it.
+    never_idle: [&'static str; 2],
 }
 
 impl Recoverable {
-    pub(super) fn new(ladder: Ladder) -> Self {
-        Self { ladder }
+    pub(super) fn new(ladder: Ladder, never_idle: [&'static str; 2]) -> Self {
+        Self { ladder, never_idle }
     }
 }
 
@@ -47,10 +49,11 @@ impl Display for Recoverable {
         // The outermost lever where the split is known: time the device
         // spent idle, which no kernel and no fusion recovers.
         if !ladder.host.is_zero() {
+            let [rung, lever] = self.never_idle;
             writeln!(
                 f,
-                "    {:<34} {:>8} ms   ← fewer launches {:>10} ms",
-                "the device never waiting",
+                "    {:<34} {:>8} ms   ← {lever:<14} {:>10} ms",
+                rung,
                 Millis(ladder.device()),
                 Millis(ladder.host)
             )?;
