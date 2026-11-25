@@ -180,26 +180,29 @@ impl Timeline {
     /// device was not idle for it at all. Each member's device is idle on its own: another
     /// member's kernel running meanwhile does not fill the gap.
     pub fn settle(mut self) -> Settled {
+        let members = &self.members;
         self.windows
-            .sort_by_key(|window| (window.ran_on, window.start));
+            .sort_by_key(|window| (members.lane(window.ran_on), window.start));
         let mut idle = Vec::with_capacity(self.windows.len());
         let mut per_member = self.members.several().then(|| PerMember {
             members: vec![MemberTime::default(); self.members.count()],
+            schedule: self.members.schedule(),
             off_members: Duration::ZERO,
             collectives: Vec::new(),
         });
         let mut busy_until: Option<(RanOn, Duration)> = None;
         for window in &self.windows {
             let length = window.end.saturating_sub(window.start);
+            let lane = self.members.lane(window.ran_on);
             let gap = match busy_until {
-                Some((ran_on, busy)) if ran_on == window.ran_on => {
+                Some((busy_lane, busy)) if busy_lane == lane => {
                     Some(window.start.saturating_sub(busy))
                 }
                 _ => None,
             };
             busy_until = Some(match busy_until {
-                Some((ran_on, busy)) if ran_on == window.ran_on => (ran_on, busy.max(window.end)),
-                _ => (window.ran_on, window.end),
+                Some((busy_lane, busy)) if busy_lane == lane => (lane, busy.max(window.end)),
+                _ => (lane, window.end),
             });
             match (window.ran_on, per_member.as_mut()) {
                 (RanOn::OffMembers, Some(per_member)) => per_member.off_members += length,
@@ -225,6 +228,7 @@ mod tests {
 
     use super::super::members::Member;
     use super::*;
+    use crate::breakdown::MemberSchedule;
 
     /// The device's idle stretches are charged to the kernel that ended each:
     /// that launch is what it was waiting for. A kernel that starts before
@@ -275,7 +279,10 @@ mod tests {
     fn each_member_is_idle_on_its_own() {
         let epoch = Instant::now();
         let members = [1, 2].map(|index_id| ServiceId::of::<()>(DeviceId::new(0, index_id)));
-        let mut timeline = Timeline::new(epoch, MemberList::over(members.to_vec()));
+        let mut timeline = Timeline::new(
+            epoch,
+            MemberList::over(members.to_vec(), MemberSchedule::AtOnce),
+        );
         let micros = Duration::from_micros;
         let window = |start: u64, end: u64| {
             ProfileTicks::from_start_end(epoch + micros(start), epoch + micros(end))
@@ -303,9 +310,47 @@ mod tests {
                         idle: micros(5),
                     },
                 ],
+                schedule: MemberSchedule::AtOnce,
                 off_members: micros(16),
                 collectives: Vec::new(),
             })
+        );
+    }
+
+    #[test]
+    fn members_in_turn_wait_on_one_timeline() {
+        let epoch = Instant::now();
+        let members = [1, 2].map(|index_id| ServiceId::of::<()>(DeviceId::new(0, index_id)));
+        let mut timeline = Timeline::new(
+            epoch,
+            MemberList::over(members.to_vec(), MemberSchedule::InTurn),
+        );
+        let micros = Duration::from_micros;
+        let window = |start: u64, end: u64| {
+            ProfileTicks::from_start_end(epoch + micros(start), epoch + micros(end))
+        };
+        let at = Attribution::Untagged;
+        let (first, second) = (RanOn::Member(Member(0)), RanOn::Member(Member(1)));
+        timeline.push(at, first, &window(0, 10));
+        timeline.push(at, second, &window(90, 100));
+        timeline.push(at, first, &window(120, 130));
+
+        let settled = timeline.settle();
+        assert_eq!(settled.idle, [(at, micros(80)), (at, micros(20))]);
+        assert_eq!(
+            settled.per_member.map(|per_member| per_member.members),
+            Some(vec![
+                MemberTime {
+                    on_device: micros(20),
+                    idle: micros(20),
+                },
+                MemberTime {
+                    on_device: micros(10),
+                    idle: micros(80),
+                },
+            ]),
+            "each gap is the run's, on the member whose kernel ended it, not the wait for \
+             another member's turn"
         );
     }
 }

@@ -398,7 +398,9 @@ mod tests {
 
     use super::super::test_observation::minted;
     use super::*;
-    use crate::breakdown::{CollectiveMemberTime, CollectivePath, Component, MemberTime, Unplaced};
+    use crate::breakdown::{
+        CollectiveMemberTime, CollectivePath, Component, MemberSchedule, MemberTime, Unplaced,
+    };
 
     /// A launch on the thread driving the model lands under the component that
     /// thread has open, and under none once it has closed — the unfused case,
@@ -640,7 +642,7 @@ mod tests {
     fn sharded() -> RunRecorder {
         RunRecorder::with_members(
             &[Device::flex()],
-            MemberList::over(MEMBERS.map(service).to_vec()),
+            MemberList::over(MEMBERS.map(service).to_vec(), MemberSchedule::AtOnce),
             Floors::default(),
         )
     }

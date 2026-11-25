@@ -4,6 +4,8 @@ use burn_tensor::Device;
 use cubecl::logging::ExecutionPlace;
 use cubecl_common::device::ServiceId;
 
+use crate::breakdown::MemberSchedule;
+
 /// A member of the profiled device, by its index in member order: `0` on a device of one.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Member(pub usize);
@@ -26,11 +28,13 @@ pub enum RanOn {
 pub struct MemberList {
     /// Each member's device with the runtime serving it, as an execution's place names it.
     services: Vec<ServiceId>,
+    schedule: MemberSchedule,
 }
 
 impl MemberList {
     /// The members of a run on `devices`: each cubecl device in order, a sharded compute device's
-    /// members in member order. None when that is one device at most.
+    /// members in member order. None when that is one device at most. Several devices run in
+    /// turn, a sharded compute device's members at once.
     ///
     /// Opens each member's client, so it syncs `devices` first: opening one waits on the device's
     /// worker while holding cubecl's registry, which work still running there can need.
@@ -47,30 +51,53 @@ impl MemberList {
                 .sync()
                 .expect("the device answers before its members are reached");
         }
+        let schedule = match devices.len() {
+            1 => MemberSchedule::AtOnce,
+            _ => MemberSchedule::InTurn,
+        };
         Self::over(
             ids.into_iter()
                 .map(|id| cubecl::Device::from_id(id).client().service_id())
                 .collect(),
+            schedule,
         )
     }
 
-    /// The members whose devices are served at `services`, in member order.
+    /// The members whose devices are served at `services`, in member order, working on `schedule`.
     ///
     /// A device named twice is kept once: its executions name one place, so they cannot be told
     /// apart by member, and the device is timed as one.
-    pub fn over(services: Vec<ServiceId>) -> Self {
+    pub fn over(services: Vec<ServiceId>, schedule: MemberSchedule) -> Self {
         let mut kept: Vec<ServiceId> = Vec::with_capacity(services.len());
         for service in services {
             if !kept.contains(&service) {
                 kept.push(service);
             }
         }
-        Self { services: kept }
+        Self {
+            services: kept,
+            schedule,
+        }
     }
 
     /// How many members there are to time apart, one for a device of one.
     pub fn count(&self) -> usize {
         self.services.len().max(1)
+    }
+
+    /// Whether the members worked at once or in turn.
+    pub fn schedule(&self) -> MemberSchedule {
+        self.schedule
+    }
+
+    /// The timeline a window that ran on `ran_on` waits on: its member's own where the members
+    /// work at once, one for them all where they take turns, so a member waiting for another's
+    /// turn is not read as waiting on the host.
+    pub fn lane(&self, ran_on: RanOn) -> RanOn {
+        match self.schedule {
+            MemberSchedule::AtOnce => ran_on,
+            MemberSchedule::InTurn => RanOn::Device,
+        }
     }
 
     /// Whether the device has more than one member, so each is timed apart.
@@ -101,7 +128,10 @@ mod tests {
     /// devices alike.
     #[test]
     fn an_execution_is_placed_on_the_member_whose_service_it_names() {
-        let members = MemberList::over(vec![service::<u8>(0), service::<u16>(0)]);
+        let members = MemberList::over(
+            vec![service::<u8>(0), service::<u16>(0)],
+            MemberSchedule::AtOnce,
+        );
 
         assert_eq!(members.count(), 2);
         assert_eq!(
@@ -118,7 +148,10 @@ mod tests {
     /// A sharded compute device whose members are one device is timed as one.
     #[test]
     fn a_device_named_twice_is_one_member() {
-        let members = MemberList::over(vec![service::<u8>(3), service::<u8>(3)]);
+        let members = MemberList::over(
+            vec![service::<u8>(3), service::<u8>(3)],
+            MemberSchedule::AtOnce,
+        );
 
         assert!(!members.several());
         assert_eq!(members.ran_on(&place(service::<u8>(4))), RanOn::Device);

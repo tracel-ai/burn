@@ -72,7 +72,7 @@ impl Instrument {
     ///
     /// # Assumptions
     ///
-    /// `devices` holds at least one device.
+    /// `devices` holds at least one device, and none of several is a sharded compute device.
     ///
     /// # Guarantees
     ///
@@ -83,9 +83,17 @@ impl Instrument {
     ///
     /// # Panics
     ///
-    /// If `devices` is empty, and as [`new`](Self::new) panics, for each device.
+    /// If `devices` is empty or holds a sharded compute device among several, and as
+    /// [`new`](Self::new) panics, for each device.
     pub fn for_devices(devices: &[Device]) -> Self {
         let first = devices.first().expect("an instrument watches a device");
+        assert!(
+            devices.len() == 1
+                || devices
+                    .iter()
+                    .all(|device| device.as_dispatch().member_ids().count() < 2),
+            "devices taking turns are timed one member each, so none is a sharded compute device"
+        );
         #[cfg(not(feature = "fusion"))]
         assert!(
             devices

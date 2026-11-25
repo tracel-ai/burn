@@ -2,7 +2,7 @@
 //! as a model split by layers does: each card is a member, timed on its own.
 #![cfg(any(feature = "sharded-tests-cuda", feature = "sharded-tests-rocm"))]
 
-use burn_instrument::{Bounds, Instrument, compute};
+use burn_instrument::{Bounds, Instrument, MemberSchedule, compute};
 use burn_tensor::{Device, DeviceType, Distribution, Tensor};
 
 /// What `#[compute]` expands to, as a crate depending on `burn` sees it.
@@ -51,6 +51,7 @@ fn each_card_of_a_run_split_across_two_is_timed_as_a_member() {
 
     let per_member = breakdown.per_member.expect("each card is timed apart");
     assert_eq!(per_member.members.len(), 2);
+    assert_eq!(per_member.schedule, MemberSchedule::InTurn);
     for (index, member) in per_member.members.iter().enumerate() {
         assert!(!member.on_device.is_zero(), "card {index}: {per_member:?}");
     }

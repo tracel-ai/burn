@@ -421,6 +421,8 @@ impl Component {
 pub struct PerMember {
     /// Each member, in member order.
     pub members: Vec<MemberTime>,
+    /// Whether the members worked at once or in turn.
+    pub schedule: MemberSchedule,
     /// The device time of kernels that ran on no member's device: credited to their components,
     /// on no member.
     #[serde(with = "super::nanoseconds")]
@@ -428,6 +430,18 @@ pub struct PerMember {
     /// The collectives the run issued, one entry per operation, path and size, in the order
     /// each was first issued.
     pub collectives: Vec<CollectiveTime>,
+}
+
+/// How the members of a run shared its work, which decides what a component's time is.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MemberSchedule {
+    /// All at once, as a sharded compute device's do: a component takes its busiest member's
+    /// time.
+    #[default]
+    AtOnce,
+    /// One after another, as a model split by layers across devices: a component takes the sum
+    /// of its members' times.
+    InTurn,
 }
 
 /// What one member of a sharded compute device, or one device a run is timed across, did over an

@@ -270,8 +270,11 @@ Reports also include the measured cost of a kernel launch.
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 - `Instrument::for_devices` times work that runs on several devices in turn, such as a model split
-  by layers, with each device a member of `Breakdown::per_member`. `DispatchDevice::shard_member_ids`
-  is replaced by `member_ids`, which also yields a cubecl device's own id.
+  by layers, with each device a member of `Breakdown::per_member`. `PerMember::schedule` says
+  whether members worked at once or in turn, and the report sums members in turn.
+  `DispatchDevice::shard_member_ids` is replaced by `member_ids`, which also yields a cubecl
+  device's own id. Measurement files are version 7, and one of version 6 is refused: measure it
+  again.
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Flex SIMD operations

@@ -78,7 +78,7 @@ impl<'a> Report<'a> {
         let tree = &self.measurement.breakdown.tree;
         Ladder {
             measured: self.wall(),
-            host: self.host_split.host().unwrap_or_default(),
+            host: self.host_split.idle().unwrap_or_default(),
             kernels: tree
                 .iter()
                 .map(|component| self.roofline.deepest_floor(component))

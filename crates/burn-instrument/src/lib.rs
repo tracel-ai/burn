@@ -108,8 +108,8 @@ pub use observer::*;
 #[cfg(feature = "std")]
 pub use breakdown::{
     Breakdown, CollectiveMemberTime, CollectivePath, CollectiveTime, Component, FusedElsewhere,
-    FusedShare, Kernel, MEASUREMENT_FILE_VERSION, Measurement, MeasurementFileError, MemberTime,
-    PerMember, Unplaced, Variant,
+    FusedShare, Kernel, MEASUREMENT_FILE_VERSION, Measurement, MeasurementFileError,
+    MemberSchedule, MemberTime, PerMember, Unplaced, Variant,
 };
 #[cfg(feature = "std")]
 pub use component_path::ComponentPath;
