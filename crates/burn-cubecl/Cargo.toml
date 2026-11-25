@@ -76,6 +76,8 @@ burn-backend = { workspace = true, features = [
     "cubecl-device",
 ] }
 cubecl = { workspace = true, features = ["stdlib"] }
+# `ServiceId`, which keys the tile convolution's tuner; `cubecl::device` is another module.
+cubecl-common = { workspace = true }
 cubek = { workspace = true, features = [
     "attention",
     "attention-tiled",
