@@ -23,7 +23,7 @@ pub use base::*;
 pub(crate) use checks::assert_equivalent;
 pub use group::*;
 pub(crate) use prediction::routine_estimate;
-pub use prediction::{Arithmetic, Peaks};
+pub use prediction::{Arithmetic, Peaks, Prediction};
 pub use priority::*;
 pub use roofline::*;
 pub use worker::WorkerLimits;

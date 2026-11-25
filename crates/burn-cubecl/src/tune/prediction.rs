@@ -102,6 +102,14 @@ impl Peaks {
     /// not measured.
     pub fn time_of(&self, estimate: &KernelEstimate, hw: &Hardware) -> Option<Duration> {
         self.predict(estimate, hw, WorkerLimits::of(hw))
+            .map(|prediction| prediction.time())
+    }
+
+    /// The parts [`time_of`](Self::time_of) adds up for the kernel `estimate` describes, each
+    /// as the prediction weighed it: what a person reads to see why a candidate is placed where
+    /// it is. `None` where `time_of` is.
+    pub fn prediction_of(&self, estimate: &KernelEstimate, hw: &Hardware) -> Option<Prediction> {
+        self.predict(estimate, hw, WorkerLimits::of(hw))
     }
 
     /// Where the kernel `estimate` describes goes in a round for a problem of `demand` on `hw`:
@@ -130,7 +138,7 @@ impl Peaks {
         estimate: &KernelEstimate,
         hw: &Hardware,
         limits: Option<WorkerLimits>,
-    ) -> Option<Duration> {
+    ) -> Option<Prediction> {
         let staging = estimate.staging.as_ref()?;
         let cubes = estimate.cubes?.max(1);
         let residency = Residency::of(estimate, hw, limits)?;
@@ -142,7 +150,8 @@ impl Peaks {
         // Reads in flight: a stage's share of a cube's reads, times the stages it holds.
         let stage_reads = read / staging.stages.max(1) as f64;
         let in_flight = active * stage_reads * f64::from(staging.stages_in_flight.max(1));
-        let traffic = cubes as f64 * (read + written) / latency_hidden(in_flight, hw);
+        let bandwidth_share = latency_hidden(in_flight, hw);
+        let traffic = cubes as f64 * (read + written) / bandwidth_share;
         let memory = time_at(traffic, self.memory_bytes_per_s)?;
 
         // A drain atomic serializes its plane: every unit of it waits on one shared address.
@@ -152,9 +161,17 @@ impl Peaks {
         let compute = time_at(operations / lanes_filled, self.rate_of(estimate)?)?
             .mul_f64(residency.last_wave_stretch(cubes));
 
-        let busy = residency.overlap(staging.stages_in_flight, memory, compute);
-        let started = time_at(cubes as f64, self.cubes_per_s).unwrap_or_default();
-        Some(busy.max(started) + self.launch_overhead)
+        Some(Prediction {
+            memory,
+            compute,
+            started: time_at(cubes as f64, self.cubes_per_s).unwrap_or_default(),
+            launch_overhead: self.launch_overhead,
+            overlapped: residency.overlaps(staging.stages_in_flight),
+            bandwidth_share,
+            lanes_filled,
+            worker_cubes: residency.worker_cubes,
+            device_cubes: residency.device_cubes,
+        })
     }
 
     /// The rate the estimate's work computes at: its matrix instruction's, where it names one,
@@ -164,6 +181,41 @@ impl Peaks {
             Some(ArithmeticInstruction::Matrix) => self.matrix_ops_per_s,
             _ => Some(self.vector_ops_per_s),
         }
+    }
+}
+
+/// A predicted time, in the parts [`Peaks::time_of`] adds up.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Prediction {
+    /// The kernel's traffic, at the share of the bandwidth its reads in flight reach.
+    pub memory: Duration,
+    /// Its arithmetic, at the share of the lanes its resident units fill, over every wave.
+    pub compute: Duration,
+    /// What running its cubes takes at the device's cube rate, however little each does.
+    pub started: Duration,
+    /// What its launch costs on top.
+    pub launch_overhead: Duration,
+    /// Whether its traffic and its arithmetic overlap.
+    pub overlapped: bool,
+    /// The share of the bandwidth its reads in flight reach.
+    pub bandwidth_share: f64,
+    /// The share of the device's lanes its resident units fill.
+    pub lanes_filled: f64,
+    /// Its cubes resident on one worker.
+    pub worker_cubes: u64,
+    /// Its cubes resident on the whole device.
+    pub device_cubes: u64,
+}
+
+impl Prediction {
+    /// The predicted time: traffic and arithmetic, overlapped or one after the other, no less
+    /// than running the cubes takes, and the launch.
+    pub fn time(&self) -> Duration {
+        let busy = match self.overlapped {
+            true => self.memory.max(self.compute),
+            false => self.memory + self.compute,
+        };
+        busy.max(self.started) + self.launch_overhead
     }
 }
 
@@ -230,15 +282,11 @@ impl Residency {
         })
     }
 
-    /// How long traffic taking `memory` and arithmetic taking `compute` keep the device busy:
-    /// the longer of the two where a worker holds a second cube or a cube a second stage to
-    /// overlap them with, both one after the other where neither does.
-    fn overlap(&self, stages_in_flight: u32, memory: Duration, compute: Duration) -> Duration {
-        let overlapped = self.worker_cubes > 1 || stages_in_flight > 1;
-        match overlapped {
-            true => memory.max(compute),
-            false => memory + compute,
-        }
+    /// Whether a kernel holding `stages_in_flight` stages overlaps its traffic with its
+    /// arithmetic: where a worker holds a second cube or a cube a second stage to overlap them
+    /// with.
+    fn overlaps(&self, stages_in_flight: u32) -> bool {
+        self.worker_cubes > 1 || stages_in_flight > 1
     }
 
     /// How much longer `cubes` take than whole waves of resident cubes would: the slots of
@@ -371,7 +419,10 @@ mod tests {
 
     fn time(estimate: &KernelEstimate) -> Duration {
         let hw = devices::strix_halo();
-        PEAKS.predict(estimate, &hw, Some(LIMITS)).expect("timed")
+        PEAKS
+            .predict(estimate, &hw, Some(LIMITS))
+            .expect("timed")
+            .time()
     }
 
     /// `actual` within a percent of `expected`: a prediction is a float divided into a
@@ -498,10 +549,13 @@ mod tests {
         };
         let mut kernel = reading(40, 4096);
         kernel.staging.as_mut().unwrap().operations = 4096.0;
-        let traffic_only = PEAKS.predict(&reading(40, 4096), &hw, Some(alone)).unwrap();
-        let both = PEAKS.predict(&kernel, &hw, Some(alone)).unwrap();
+        let traffic_only = PEAKS
+            .predict(&reading(40, 4096), &hw, Some(alone))
+            .unwrap()
+            .time();
+        let both = PEAKS.predict(&kernel, &hw, Some(alone)).unwrap().time();
         assert!(both > traffic_only);
-        let overlapped = PEAKS.predict(&kernel, &hw, Some(LIMITS)).unwrap();
+        let overlapped = PEAKS.predict(&kernel, &hw, Some(LIMITS)).unwrap().time();
         assert!(overlapped < both);
     }
 
@@ -526,7 +580,9 @@ mod tests {
             ..PEAKS
         };
         let cubes = 8 * 40 * 4;
-        let predicted = started.predict(&computing(cubes, 0.0), &hw, Some(LIMITS));
+        let predicted = started
+            .predict(&computing(cubes, 0.0), &hw, Some(LIMITS))
+            .map(|p| p.time());
         assert_close(predicted.unwrap(), Duration::from_micros(cubes));
     }
 
