@@ -27,7 +27,6 @@ Operations report device failures as `ExecutionError` instead of panicking.
 - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
 - `cubecl`: conversions between Burn and [CubeCL](https://github.com/tracel-ai/cubecl) types.
 - `cubecl-device` and `cubecl-<runtime>`: implement `DeviceOps` for `cubecl::Device`.
-- `tracing`: instrument operations with the `tracing` crate.
 
 See the [contributor book](https://burn.dev/books/contributor/project-architecture/backend.html)
 for how backends fit into Burn's architecture.

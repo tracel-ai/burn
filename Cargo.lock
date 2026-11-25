@@ -971,7 +971,6 @@ dependencies = [
  "parking_lot",
  "portable-atomic",
  "spin 0.12.3",
- "tracing",
 ]
 
 [[package]]
@@ -1118,7 +1117,6 @@ dependencies = [
  "log",
  "serde",
  "text_placeholder",
- "tracing",
 ]
 
 [[package]]
@@ -1250,7 +1248,6 @@ dependencies = [
  "log",
  "serde",
  "spin 0.12.3",
- "tracing",
 ]
 
 [[package]]
@@ -2397,7 +2394,6 @@ dependencies = [
  "sanitize-filename",
  "serde",
  "serde_json",
- "tracing",
  "variadics_please",
 ]
 
@@ -2463,7 +2459,6 @@ dependencies = [
  "half",
  "log",
  "serde",
- "tracing",
 ]
 
 [[package]]
@@ -2498,7 +2493,6 @@ dependencies = [
  "serde_json",
  "spin 0.12.3",
  "toml",
- "tracing",
  "turso",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -2527,7 +2521,6 @@ dependencies = [
  "log",
  "paste",
  "serde",
- "tracing",
 ]
 
 [[package]]
@@ -2707,7 +2700,6 @@ dependencies = [
  "smallvec",
  "thiserror 2.0.21",
  "toml",
- "tracing",
  "wasm-bindgen-futures",
 ]
 
@@ -2737,7 +2729,6 @@ dependencies = [
  "serde_json",
  "smallvec",
  "thiserror 2.0.21",
- "tracing",
 ]
 
 [[package]]
@@ -2824,7 +2815,6 @@ dependencies = [
  "pliron",
  "thiserror 2.0.21",
  "tracel-ash",
- "tracing",
  "wasm-bindgen-futures",
  "wgpu",
 ]

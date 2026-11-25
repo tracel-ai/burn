@@ -19,13 +19,6 @@ default = ["fusion", "burn-cubecl/default", "cubecl/default"]
 doc = ["burn-cubecl/doc"]
 std = ["burn-cubecl/std", "cubecl/std"]
 
-tracing = [
-    "cubecl/tracing",
-    "burn-cubecl/tracing",
-    "burn-backend/tracing",
-    "burn-fusion?/tracing",
-]
-
 fusion = ["burn-fusion", "burn-cubecl/fusion"]
 persistence = ["burn-cubecl/persistence"]
 autotune = ["burn-cubecl/autotune"]
