@@ -20,7 +20,7 @@ use crate::{Breakdown, ComponentObservation, Measurement, Peaks};
 /// See the [crate docs](crate#measuring-a-model) for what an instrumented run
 /// records and how far its numbers are to be trusted.
 pub struct Instrument {
-    device: Device,
+    devices: Vec<Device>,
     claim: Claim,
     warmup: usize,
     samples: usize,
@@ -60,17 +60,34 @@ impl Instrument {
     /// feature: the instrument could not see the blocks, and would place every
     /// fused kernel on whichever component sealed it.
     pub fn new(device: &Device) -> Self {
+        Self::for_devices(std::slice::from_ref(device))
+    }
+
+    /// An instrument for work that launches on each of `devices` in turn, as a model split by
+    /// layers does, and the process's one until it is dropped.
+    ///
+    /// Its breakdown times each cubecl device as a member, in the order of `devices`: see
+    /// [`Breakdown::per_member`]. With several devices its measurement probes no peaks, since one
+    /// component's kernels can run on cards that differ.
+    ///
+    /// # Panics
+    ///
+    /// If `devices` is empty, and as [`new`](Self::new) panics, for each device.
+    pub fn for_devices(devices: &[Device]) -> Self {
+        let first = devices.first().expect("an instrument watches a device");
         #[cfg(not(feature = "fusion"))]
         assert!(
-            device.as_dispatch().fusion_workers().is_empty(),
+            devices
+                .iter()
+                .all(|device| device.as_dispatch().fusion_workers().is_empty()),
             "the device fuses, so instrumenting it needs burn-instrument's `fusion` feature"
         );
         Self {
             claim: Claim::take(),
-            device: device.clone(),
+            devices: devices.to_vec(),
             warmup: Self::WARMUP_RUNS,
             samples: Self::SAMPLE_RUNS,
-            dtype: device.settings().float_dtype,
+            dtype: first.settings().float_dtype,
         }
     }
 
@@ -126,12 +143,18 @@ impl Instrument {
         }
         // Before anything is timed: the probes are saturating kernels that
         // move clocks and thermals for whatever runs after them.
-        let peaks = Peaks::new(&self.device, self.dtype);
+        let peaks = match self.devices.as_slice() {
+            [device] => Some(Peaks::new(device, self.dtype)),
+            _ => None,
+        };
         let clean_wall = self.clean_wall(&mut model);
-        let device = format!("{:?}", self.device);
+        let device = match self.devices.as_slice() {
+            [device] => format!("{device:?}"),
+            devices => format!("{devices:?}"),
+        };
         Measurement {
             device,
-            peaks: Some(peaks),
+            peaks,
             clean_wall,
             breakdown: self.breakdown(model),
         }
@@ -179,13 +202,13 @@ impl Instrument {
     /// If the device stops answering at the end of the run.
     pub fn breakdown<T>(self, mut model: impl FnMut() -> T) -> Breakdown {
         let floors = self.price(&mut model);
-        self.device.seed(Self::SEED);
+        self.seed();
         // One recorder, three observations: the components arrive on this
         // thread and the kernels and fusion blocks on whichever thread runs
         // them, so the tree is written from both. Each kernel lands under the
         // attribution of the thread that issued it — see `LaunchCursor`.
         // Built here rather than in `new`, so its epoch is the run's.
-        let recorder = Arc::new(RunRecorder::new(&self.device, floors));
+        let recorder = Arc::new(RunRecorder::new(&self.devices, floors));
         let watching = Watching::new(&recorder, self.claim);
         let observation = ComponentObservation::new(Box::new(Arc::clone(&recorder)));
         let output = model();
@@ -198,14 +221,28 @@ impl Instrument {
     /// Run `model` under a pricing observer to its end, its output held to
     /// the sync, and say the floor each entry declared.
     fn price<T>(&self, model: &mut impl FnMut() -> T) -> Floors {
-        self.device.seed(Self::SEED);
+        self.seed();
         let pricing = Pricing::default();
         let observation = ComponentObservation::new(Box::new(pricing.clone()));
         let output = model();
         drop(observation);
-        self.device.sync().expect("the device answers");
+        self.sync();
         drop(output);
         pricing.floors()
+    }
+
+    /// Set every device to [`SEED`](Self::SEED).
+    fn seed(&self) {
+        for device in &self.devices {
+            device.seed(Self::SEED);
+        }
+    }
+
+    /// Wait for every device.
+    fn sync(&self) {
+        for device in &self.devices {
+            device.sync().expect("the device answers");
+        }
     }
 
     /// The median wall time of the configured samples, or `None` for none.
@@ -223,7 +260,7 @@ impl Instrument {
     /// Run `model` clean to its end, its output held to the sync.
     fn run_clean<T>(&self, model: &mut impl FnMut() -> T) {
         let output = model();
-        self.device.sync().expect("the device answers");
+        self.sync();
         drop(output);
     }
 }

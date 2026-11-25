@@ -71,7 +71,8 @@ use crate::{ComponentObserver, Declaration};
 /// that holds all it did; outside a block, a launch falls back to the
 /// component whose operation sealed the segment.
 pub struct RunRecorder {
-    device: Device,
+    /// Every device the run launches on, each drained at its end.
+    devices: Vec<Device>,
     /// Before the run, so every timing's window can be placed after it
     /// on one clock and the gaps between them read off.
     epoch: Instant,
@@ -103,22 +104,22 @@ struct State {
 }
 
 impl RunRecorder {
-    /// A recorder for work running on `device`, its entries scored against
+    /// A recorder for work running on `devices`, its entries scored against
     /// `floors`.
     ///
     /// Points every launching thread at no component first: the cursor is a
     /// thread-local, so a worker still pointing into a previous recorder's
     /// arena would record this one's first kernels at an index that means
     /// something else here.
-    pub fn new(device: &Device, floors: Floors) -> Self {
-        Self::with_members(device, MemberList::of(device), floors)
+    pub fn new(devices: &[Device], floors: Floors) -> Self {
+        Self::with_members(devices, MemberList::of(devices), floors)
     }
 
-    fn with_members(device: &Device, members: MemberList, floors: Floors) -> Self {
-        let cursor = LaunchCursor::new(device);
+    fn with_members(devices: &[Device], members: MemberList, floors: Floors) -> Self {
+        let cursor = LaunchCursor::new(devices);
         cursor.point_at(Attribution::Untagged);
         Self {
-            device: device.clone(),
+            devices: devices.to_vec(),
             epoch: Instant::now(),
             cursor,
             members,
@@ -164,9 +165,11 @@ impl RunRecorder {
     /// If the device stops answering.
     fn end_run(&self) {
         self.cursor.point_at(Attribution::EndOfRun);
-        self.device
-            .sync()
-            .expect("the device answers at the end of the run");
+        for device in &self.devices {
+            device
+                .sync()
+                .expect("the device answers at the end of the run");
+        }
         self.cursor.point_at(Attribution::Untagged);
 
         // Read outside the lock: a window the backend could not close on the
@@ -629,13 +632,13 @@ mod tests {
     ];
 
     fn recorder() -> RunRecorder {
-        RunRecorder::new(&Device::flex(), Floors::default())
+        RunRecorder::new(&[Device::flex()], Floors::default())
     }
 
     /// A recorder for a sharded compute device of the two [`MEMBERS`].
     fn sharded() -> RunRecorder {
         RunRecorder::with_members(
-            &Device::flex(),
+            &[Device::flex()],
             MemberList::over(MEMBERS.map(service).to_vec()),
             Floors::default(),
         )

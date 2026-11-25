@@ -102,16 +102,21 @@ pub struct LaunchCursor {
 }
 
 impl LaunchCursor {
-    /// A cursor for work running on `device`, moving its fusion workers' attribution too where
-    /// its ops go through them (`DispatchDevice::fusion_workers`).
-    pub fn new(device: &Device) -> Self {
-        let ids = device.as_dispatch().fusion_workers();
+    /// A cursor for work running on `devices`, moving their fusion workers' attribution too where
+    /// their ops go through them (`DispatchDevice::fusion_workers`).
+    pub fn new(devices: &[Device]) -> Self {
+        let ids: Vec<DeviceId> = devices
+            .iter()
+            .flat_map(|device| device.as_dispatch().fusion_workers())
+            .collect();
         if !ids.is_empty() {
             // Opening a handle waits on the worker while holding cubecl's channel registry, which
             // a block still running there can need too: open them idle.
-            device
-                .sync()
-                .expect("the device answers before the workers are reached");
+            for device in devices {
+                device
+                    .sync()
+                    .expect("the device answers before the workers are reached");
+            }
         }
         Self::over(ids)
     }

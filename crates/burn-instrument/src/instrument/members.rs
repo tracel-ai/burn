@@ -13,15 +13,15 @@ pub struct Member(pub usize);
 pub enum RanOn {
     /// The one device a device of one runs everything on.
     Device,
-    /// A member of a sharded compute device.
+    /// A member of a sharded compute device, or one of the devices a run is timed across.
     Member(Member),
-    /// A device that is no member of the sharded compute device profiled, so it fills no
-    /// member's gaps and opens none.
+    /// A device that is no member of what was profiled, so it fills no member's gaps and opens
+    /// none.
     OffMembers,
 }
 
-/// The devices of a sharded compute device's members, in member order: what places an execution
-/// on a member. Empty for a device of one.
+/// The cubecl devices a run is timed on one by one, in member order: what places an execution on
+/// a member. Empty for a device of one.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MemberList {
     /// Each member's device with the runtime serving it, as an execution's place names it.
@@ -29,13 +29,20 @@ pub struct MemberList {
 }
 
 impl MemberList {
-    /// The members of `device` where it is a sharded compute device of cubecl members.
+    /// The members of a run on `devices`: each cubecl device in order, a sharded compute device's
+    /// members in member order. None when that is one device at most.
     ///
-    /// Opens each member's client, so it syncs `device` first: opening one waits on the device's
+    /// Opens each member's client, so it syncs `devices` first: opening one waits on the device's
     /// worker while holding cubecl's registry, which work still running there can need.
-    pub fn of(device: &Device) -> Self {
-        let ids = device.as_dispatch().shard_member_ids();
-        if !ids.is_empty() {
+    pub fn of(devices: &[Device]) -> Self {
+        let ids: Vec<_> = devices
+            .iter()
+            .flat_map(|device| device.as_dispatch().member_ids())
+            .collect();
+        if ids.len() < 2 {
+            return Self::default();
+        }
+        for device in devices {
             device
                 .sync()
                 .expect("the device answers before its members are reached");

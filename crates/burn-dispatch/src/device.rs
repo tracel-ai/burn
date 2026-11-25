@@ -8,7 +8,6 @@ use burn_capture::CaptureDevice;
 #[cfg(feature = "shard")]
 use burn_shard::{ShardCustomOps, ShardError, ShardedComputeDevice};
 
-#[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
@@ -494,23 +493,32 @@ impl DispatchDevice {
         DispatchDevice::Autodiff(AutodiffDevice::new(device, checkpointing))
     }
 
-    /// The ids of this sharded compute device's cubecl members, in member order, and none for
-    /// any other device. Each is the cubecl device's id, as [`fusion_workers`](Self::fusion_workers)
-    /// gives it. An autodiff device answers for the device it wraps.
-    pub fn shard_member_ids(&self) -> Vec<DeviceId> {
-        match self {
+    /// The ids of the cubecl devices this device runs its kernels on: its own for a cubecl device,
+    /// its members' for a sharded compute device, and none for any other device. Each is the
+    /// cubecl device's id, as [`fusion_workers`](Self::fusion_workers) gives it. An autodiff
+    /// device answers for the device it wraps.
+    ///
+    /// # Guarantees
+    ///
+    /// A sharded compute device's members come in member order.
+    pub fn member_ids(&self) -> impl Iterator<Item = DeviceId> + use<> {
+        let ids: Box<dyn Iterator<Item = DeviceId>> = match self {
+            #[cfg(cube_backend)]
+            DispatchDevice::Cube(device) => Box::new(core::iter::once(device.to_id())),
             #[cfg(all(cube_backend, feature = "shard"))]
-            DispatchDevice::ShardedCompute(device) => device
-                .members::<crate::backends::Cube>()
-                .unwrap_or_default()
-                .iter()
-                .map(|member| member.to_id())
-                .collect(),
+            DispatchDevice::ShardedCompute(device) => Box::new(
+                device
+                    .members::<crate::backends::Cube>()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|member| member.to_id()),
+            ),
             #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(device) => device.inner.shard_member_ids(),
+            DispatchDevice::Autodiff(device) => Box::new(device.inner.member_ids()),
             #[allow(unreachable_patterns)]
-            _ => Vec::new(),
-        }
+            _ => Box::new(core::iter::empty()),
+        };
+        ids
     }
 
     /// The ids of the workers this device's fusion servers run on: one for a fused device, one per
@@ -531,7 +539,7 @@ impl DispatchDevice {
                 .collect(),
             #[cfg(all(cube_backend, feature = "shard"))]
             DispatchDevice::ShardedCompute(_) => match burn_cubecl::FUSED {
-                true => self.shard_member_ids(),
+                true => self.member_ids().collect(),
                 false => Vec::new(),
             },
             #[cfg(feature = "autodiff")]

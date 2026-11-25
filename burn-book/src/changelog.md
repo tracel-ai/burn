@@ -269,6 +269,11 @@ Reports also include the measured cost of a kernel launch.
   ([#6527](https://github.com/tracel-ai/burn/pull/6527))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- `Instrument::for_devices` times work that runs on several devices in turn, such as a model split
+  by layers, with each device a member of `Breakdown::per_member`. `DispatchDevice::shard_member_ids`
+  is replaced by `member_ids`, an iterator that also yields a cubecl device's own id.
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 #### Flex SIMD operations
 
 - Speed up Flex CPU F32 `exp`, `sigmoid`, and `softmax` with a SIMD `exp` within 2 ulp of libm, and
