@@ -3,7 +3,7 @@
 use burn_cubecl::{
     CubeDevice, cubecl,
     kernel::swiglu::launch_tuned,
-    tune::{GroupPriority, Peaks},
+    tune::{Arithmetic, GroupPriority, Peaks},
 };
 use cubecl::ir::{ElemType, FloatKind};
 use cubecl::throughput::ThroughputKey;
@@ -122,7 +122,10 @@ fn main() {
                         let peaks = Peaks::measured(
                             &client,
                             demand,
-                            ThroughputKey::compute(None, f32, f32),
+                            Arithmetic {
+                                vector: ThroughputKey::compute(None, f32, f32),
+                                matrix: None,
+                            },
                         );
                         let prio = peaks.priority_of(&estimate, demand, &hw).get();
                         let pred = peaks

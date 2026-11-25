@@ -16,12 +16,14 @@ mod priority;
 mod roofline;
 #[cfg(test)]
 mod tests;
+mod worker;
 
 pub use base::*;
 #[cfg(feature = "autotune-checks")]
 pub(crate) use checks::assert_equivalent;
 pub use group::*;
-pub use prediction::Peaks;
 pub(crate) use prediction::routine_estimate;
+pub use prediction::{Arithmetic, Peaks};
 pub use priority::*;
 pub use roofline::*;
+pub use worker::WorkerLimits;

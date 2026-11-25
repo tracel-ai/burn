@@ -4,8 +4,8 @@
 //! meets it warm, and a round read cold would time a kernel nobody runs.
 
 use crate::tune::{
-    Autotune, CandidateIdentity, CandidatePriority, GroupPriority, Identity, Peaks, TuneCandidate,
-    routine_estimate,
+    Arithmetic, Autotune, CandidateIdentity, CandidatePriority, GroupPriority, Identity, Peaks,
+    TuneCandidate, routine_estimate,
 };
 use cubecl::client::Client;
 use cubecl::ir::{ElemType, FloatKind};
@@ -243,8 +243,11 @@ where
         };
         let f32 = ElemType::Float(FloatKind::F32);
         let demand = problem.demand();
-        Peaks::measured(&self.client, demand, ThroughputKey::compute(None, f32, f32))
-            .priority_of(&estimate, demand, &self.hw)
+        let arithmetic = Arithmetic {
+            vector: ThroughputKey::compute(None, f32, f32),
+            matrix: None,
+        };
+        Peaks::measured(&self.client, demand, arithmetic).priority_of(&estimate, demand, &self.hw)
     }
 
     fn blueprint(&self, key: &SwigluKey) -> Option<SwigluRoutinePrepared<M>> {
