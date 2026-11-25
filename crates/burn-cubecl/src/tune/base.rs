@@ -55,7 +55,8 @@ use super::roofline::{Bounded, ReadCold};
 use super::{CandidatePriority, GroupPriority, Roofline, TuneCandidate, priority_of};
 use core::fmt::Display;
 use cubecl::tune::{
-    AutotuneKey, CloneInputGenerator, InputGenerator, KeyGenerator, OrderedSettings, Tunable,
+    AutotuneKey, CloneInputGenerator, InputGenerator, KeyGenerator, OrderedSettings, Patience,
+    Tunable,
     TunableSet, TuneGroup, TuneInputs,
 };
 use std::sync::Arc;
@@ -390,12 +391,25 @@ struct GroupLayout {
 }
 
 impl GroupLayout {
+    /// When a round stops measuring a group: after [`min_measured`](Patience::min_measured)
+    /// candidates in priority order, once [`max_misses`](Patience::max_misses) in a row fail to
+    /// beat the leader. The minimum also holds the roofline's early stop back, so a family of
+    /// that many candidates or fewer is always raced whole.
+    const PATIENCE: Patience = Patience {
+        min_measured: 10,
+        max_misses: 5,
+    };
+
     /// A group at a fixed priority, whatever the key. Ordered: its candidates'
-    /// priorities say what to try first, not what to leave out. Every member is measured: no
-    /// patience cuts the group short.
+    /// priorities say what to try first, and [`PATIENCE`](Self::PATIENCE) how far down that
+    /// order the round goes.
     fn priority_group<K: AutotuneKey>(name: &str, priority: GroupPriority) -> TuneGroup<K> {
         let priority = priority.get();
-        TuneGroup::ordered(name, move |_key| priority, OrderedSettings::default())
+        TuneGroup::ordered(
+            name,
+            move |_key| priority,
+            OrderedSettings::default().with_patience(Self::PATIENCE),
+        )
     }
 
     /// The priority a candidate of a one-candidate group sits at — the floor's,
@@ -415,7 +429,14 @@ impl Display for GroupLayout {
         if let Some(inputs) = self.measured {
             write!(f, "-measured-{inputs}")?;
         }
-        Ok(())
+        // How far a round goes decides its winner as the priorities do, so a winner chosen
+        // under another patience is not an answer to this autotune.
+        let patience = Self::PATIENCE;
+        write!(
+            f,
+            "-patience{}x{}",
+            patience.min_measured, patience.max_misses
+        )
     }
 }
 
