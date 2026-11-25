@@ -59,13 +59,28 @@ impl Predictor {
         settings: &R::Settings,
         arithmetic: Arithmetic,
     ) -> CandidatePriority {
-        let Some(estimate) = self.estimate::<R>(problem, settings) else {
+        let estimate = self.estimate::<R>(problem, settings).map(|mut estimate| {
+            estimate.demand = Some(problem.demand());
+            estimate
+        });
+        self.priority_of(estimate, arithmetic)
+    }
+
+    /// Where a candidate whose launch `estimate` describes goes in a round, computing on
+    /// `arithmetic`: how far its predicted time sits above the roofline of the demand it states
+    /// ([`Peaks::priority_of`]). Last where there is no estimate, its routine declining the
+    /// problem; first where there is no device to probe, or the estimate states no demand.
+    pub(crate) fn priority_of(
+        &self,
+        estimate: Option<KernelEstimate>,
+        arithmetic: Arithmetic,
+    ) -> CandidatePriority {
+        let Some(estimate) = estimate else {
             return CandidatePriority::LAST;
         };
-        let Some(client) = &self.client else {
+        let (Some(client), Some(demand)) = (&self.client, estimate.demand) else {
             return CandidatePriority::FIRST;
         };
-        let demand = problem.demand();
         Peaks::measured(client, &self.hw, &estimate, demand, arithmetic)
             .priority_of(&estimate, demand, &self.hw)
     }
