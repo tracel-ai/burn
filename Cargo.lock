@@ -946,6 +946,7 @@ name = "burn"
 version = "0.23.0-pre.2"
 dependencies = [
  "burn-core",
+ "burn-derive",
  "burn-linalg",
  "burn-nn",
  "burn-optim",

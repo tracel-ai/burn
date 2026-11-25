@@ -12,7 +12,7 @@ pub trait OptimizerStateStorage<O: Optimizer>: Clone + Send + Sync + 'static {
     /// Checkpointable representation for a parameter of rank `D`.
     type Stored<const D: usize>: Clone + RecordState;
 
-    /// Encode statistics after the equation has produced the parameter update.
+    /// Encode statistics on the update device after the equation produces the parameter update.
     fn store<const D: usize>(&self, state: O::State<D>) -> Self::Stored<D>;
 
     /// Reconstruct the statistics for the next update, in its compute dtype.

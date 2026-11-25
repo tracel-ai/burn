@@ -22,8 +22,8 @@ impl OptimizerPrecision {
 }
 
 impl<S> OptimizerPrecision<S> {
-    /// Choose how to retain statistics between steps. A [`FloatDType`] casts every tensor
-    /// to one dtype. A [`crate::OptimizerStateMapper`] can select individual tensor leaves.
+    /// Choose how to retain statistics between steps. A [`FloatDType`] casts all floating-point
+    /// statistics to one dtype. A [`crate::OptimizerStateMapper`] can select individual tensor leaves.
     /// [`crate::AdamMomentStorage`] composes statistic codecs for Adam and AdamW.
     /// An [`OptimizerStateStorage`] can supply its own checkpoint record and decoder.
     pub fn with_state_storage<T>(self, storage: T) -> OptimizerPrecision<T> {

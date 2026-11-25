@@ -237,21 +237,32 @@ mod tests {
 
     #[test]
     fn bare_checkpoint_can_resume_in_device_default_precision() {
-        let config = AdamWConfig::new().with_epsilon(0.001);
+        let config = AdamWConfig::new()
+            .with_beta_1(0.5)
+            .with_beta_2(0.5)
+            .with_epsilon(0.5)
+            .with_weight_decay(0.0);
         let mut original = config.init();
-        let param = update(&mut original, parameter(1.0, FloatDType::F16), 0.01, 1.0)
+        let param = update(&mut original, parameter(1.0, FloatDType::F16), 0.0, 1.0)
             .map(|t| t.cast(FloatDType::F32));
         let mut restored = config.init().load_record(original.to_record());
-        assert!(
-            restored
-                .to_record()
-                .tensors
-                .iter()
-                .all(|t| t.data.dtype() == DType::F32)
-        );
-        let before = param.val().into_scalar::<f32>();
-        let param = update(&mut restored, param, 0.01, 1.0);
-        assert!(param.val().into_scalar::<f32>() < before);
+        let record = restored.to_record();
+        assert_eq!(record.len(), 2);
+        for leaf in [".momentum.moment_1", ".momentum.moment_2"] {
+            assert!(
+                record
+                    .tensors
+                    .iter()
+                    .any(|t| t.name.ends_with(leaf) && t.data.dtype() == DType::F32)
+            );
+        }
+
+        // After gradients [1, 0], both bias-corrected moments are 1/3.
+        // A fresh optimizer with a zero gradient would leave the parameter at 1.
+        let param = update(&mut restored, param, 1.0, 0.0);
+        let moment = 1.0_f32 / 3.0;
+        let expected = 1.0 - moment / (moment.sqrt() + 0.5);
+        assert!((param.val().into_scalar::<f32>() - expected).abs() < 1e-6);
     }
 
     #[test]

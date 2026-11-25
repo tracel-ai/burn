@@ -247,7 +247,7 @@ impl ModuleOptimizer {
     /// State tensors are materialized on the default device; no device argument is needed because
     /// each parameter's state is migrated to that parameter's (gradient's) device on the next
     /// [`step`](ModuleOptimizer::step) — see the `to_device` call in the step path. The load device
-    /// is therefore irrelevant to correctness.
+    /// must support the stored representations used by precision wrappers.
     pub fn load_record(mut self, record: OptimizerRecord) -> Self {
         let device = Device::default();
         let mut ranks: BTreeMap<u64, usize> = BTreeMap::new();
@@ -290,6 +290,7 @@ impl ModuleOptimizer {
             let path = paths.get(&id);
             let (optim, grad_clipping) =
                 self.optim_from_param(id.into(), path.map(|path| path.as_str()));
+            source.begin_parameter(&prefix);
             // Skip parameters whose state can't be reconstructed (truncated/foreign record); they
             // are re-initialized lazily on the next step rather than aborting the load.
             if let Some(state) = optim.state_unflatten(rank, &prefix, &mut source, &device) {

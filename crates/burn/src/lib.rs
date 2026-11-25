@@ -287,9 +287,23 @@ mod capture_tests {
     }
 }
 
-/// Optimizers module.
+/// Optimizers and their state.
+///
+/// A custom optimizer can derive checkpointing and tensor mapping for its state.
+///
+/// ```
+/// use burn::optim::{RecordState, StateMappable};
+/// use burn::tensor::Tensor;
+///
+/// #[derive(Clone, RecordState, StateMappable)]
+/// struct MomentumState<const D: usize> {
+///     velocity: Tensor<D>,
+///     step: usize,
+/// }
+/// ```
 #[cfg(feature = "optim")]
 pub mod optim {
+    pub use burn_derive::{BurnRecordState as RecordState, BurnStateMappable as StateMappable};
     pub use burn_optim::*;
 }
 

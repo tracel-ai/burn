@@ -1,5 +1,5 @@
-use crate::{RecordState, StateSink, StateSource};
-use burn_core::tensor::{Device, Tensor};
+use crate::{RecordState, StateSink, StateSource, optim::state::QUANTIZED_STORAGE_KEY};
+use burn_core::tensor::{DType, Device, Tensor};
 
 const MASTER_KEY: &str = "__precision.master";
 const STATELESS_KEY: &str = "__precision.stateless";
@@ -45,7 +45,15 @@ pub(super) struct StoredState<S>(pub S);
 
 impl<S: RecordState> RecordState for StoredState<S> {
     fn state_flatten(&self, prefix: &str, out: &mut StateSink) {
+        let start = out.tensors.len();
         self.0.state_flatten(prefix, out);
+        // Bare optimizers decode these statistics when importing a precision checkpoint.
+        if out.tensors[start..]
+            .iter()
+            .any(|(_, data)| matches!(data.dtype(), DType::QFloat(_)))
+        {
+            out.push_scalar(prefix, QUANTIZED_STORAGE_KEY, true.into());
+        }
     }
     fn state_unflatten(prefix: &str, src: &mut StateSource, device: &Device) -> Option<Self> {
         src.with_recorded_dtypes(|src| S::state_unflatten(prefix, src, device))

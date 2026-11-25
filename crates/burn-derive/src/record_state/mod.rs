@@ -10,8 +10,8 @@ enum FieldKind {
     Tensor,
     /// An `Option<Tensor<D>>` leaf (carrying the inner `Tensor<D>` type).
     OptionTensor(Type),
-    /// A `Vec<Tensor<D>>` field (carrying the inner `Tensor<D>` type).
-    VecTensor(Type),
+    /// A `Vec<Tensor<D>>` field.
+    VecTensor,
     /// A scalar leaf serialized via `burn_pack::Scalar`'s `From`/`TryFrom` conversions.
     Scalar,
     /// An `Option<scalar>` leaf (carrying the inner scalar type).
@@ -69,9 +69,7 @@ fn classify(ty: &Type) -> Result<FieldKind, syn::Error> {
     Ok(match head_ident(ty).as_deref() {
         Some("Tensor") => FieldKind::Tensor,
         Some("Vec") => match single_generic_arg(ty) {
-            Some(inner) if head_ident(&inner).as_deref() == Some("Tensor") => {
-                FieldKind::VecTensor(inner)
-            }
+            Some(inner) if head_ident(&inner).as_deref() == Some("Tensor") => FieldKind::VecTensor,
             _ => {
                 return Err(syn::Error::new_spanned(
                     ty,
@@ -92,14 +90,17 @@ fn classify(ty: &Type) -> Result<FieldKind, syn::Error> {
     })
 }
 
-pub(crate) fn derive_impl(ast: &DeriveInput) -> proc_macro::TokenStream {
-    match try_derive_impl(ast) {
+pub(crate) fn derive_impl(ast: &DeriveInput, packages: &[&str]) -> proc_macro::TokenStream {
+    match try_derive_impl(ast, packages) {
         Ok(tokens) => tokens,
         Err(err) => err.to_compile_error().into(),
     }
 }
 
-fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Error> {
+fn try_derive_impl(
+    ast: &DeriveInput,
+    packages: &[&str],
+) -> Result<proc_macro::TokenStream, syn::Error> {
     let name = &ast.ident;
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
@@ -150,12 +151,12 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                     let #ident: Option<#inner> = src.read_tensor(prefix, #leaf, device);
                 });
             }
-            FieldKind::VecTensor(inner) => {
+            FieldKind::VecTensor => {
                 flatten.push(quote! {
                     out.push_scalar(
                         prefix,
                         concat!(#leaf, ".len"),
-                        __optim::__private::Scalar::from(self.#ident.len()),
+                        self.#ident.len().into(),
                     );
                     for (__index, __value) in self.#ident.iter().enumerate() {
                         let __leaf = __optim::join_index(#leaf, __index);
@@ -164,11 +165,11 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                 });
                 unflatten.push(quote! {
                     let #ident = {
-                        let __len = <usize as ::core::convert::TryFrom<__optim::__private::Scalar>>::try_from(
+                        let __len = <usize as ::core::convert::TryFrom<_>>::try_from(
                             src.take_scalar(prefix, concat!(#leaf, ".len"))?,
                         )
                         .ok()?;
-                        let mut __items = __optim::__private::Vec::<#inner>::with_capacity(__len);
+                        let mut __items = <#ty>::with_capacity(__len);
                         for __index in 0..__len {
                             let __leaf = __optim::join_index(#leaf, __index);
                             __items.push(src.read_tensor(prefix, &__leaf, device)?);
@@ -179,10 +180,10 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
             }
             FieldKind::Scalar => {
                 flatten.push(quote! {
-                    out.push_scalar(prefix, #leaf, __optim::__private::Scalar::from(self.#ident));
+                    out.push_scalar(prefix, #leaf, self.#ident.into());
                 });
                 unflatten.push(quote! {
-                    let #ident = <#ty as ::core::convert::TryFrom<__optim::__private::Scalar>>::try_from(
+                    let #ident = <#ty as ::core::convert::TryFrom<_>>::try_from(
                         src.take_scalar(prefix, #leaf)?,
                     )
                     .ok()?;
@@ -191,12 +192,12 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
             FieldKind::OptionScalar(inner) => {
                 flatten.push(quote! {
                     if let Some(value) = self.#ident {
-                        out.push_scalar(prefix, #leaf, __optim::__private::Scalar::from(value));
+                        out.push_scalar(prefix, #leaf, value.into());
                     }
                 });
                 unflatten.push(quote! {
                     let #ident: Option<#inner> = src.take_scalar(prefix, #leaf).and_then(|__s| {
-                        <#inner as ::core::convert::TryFrom<__optim::__private::Scalar>>::try_from(__s).ok()
+                        <#inner as ::core::convert::TryFrom<_>>::try_from(__s).ok()
                     });
                 });
             }
@@ -235,7 +236,7 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
         }
     }
 
-    let root = optim_path()?;
+    let root = optim_path(packages)?;
     Ok(quote! {
         const _: () = {
             use #root as __optim;
@@ -247,7 +248,7 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                 fn state_unflatten(
                     prefix: &str,
                     src: &mut __optim::StateSource,
-                    device: &__optim::__private::Device,
+                    device: &__optim::Device,
                 ) -> Option<Self> {
                     #(#unflatten)*
                     Some(Self { #(#ctor),* })
@@ -258,15 +259,16 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
     .into())
 }
 
-// Resolve the public re-export for applications which depend only on burn, including renamed
-// dependencies. The absolute burn_optim path also works in its own integration tests.
-fn optim_path() -> syn::Result<proc_macro2::TokenStream> {
+// Resolve renames for the crate exporting the derive. A second package name supports
+// existing direct burn-derive users who only depend on the burn facade.
+fn optim_path(packages: &[&str]) -> syn::Result<proc_macro2::TokenStream> {
     use proc_macro_crate::{FoundCrate, crate_name};
-    for package in ["burn-optim", "burn"] {
+    for &package in packages {
         if let Ok(found) = crate_name(package) {
-            let name = match found {
-                FoundCrate::Itself => package.replace('-', "_"),
-                FoundCrate::Name(name) => name,
+            // Both packages can name burn_optim, including in examples and doctests
+            // where `crate` refers to the target being compiled.
+            let FoundCrate::Name(name) = found else {
+                return Ok(quote!(::burn_optim));
             };
             let ident = quote::format_ident!("{name}");
             return Ok(if package == "burn" {

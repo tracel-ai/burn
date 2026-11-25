@@ -18,6 +18,18 @@ use alloc::vec::Vec;
 
 use burn_core::tensor::{DType, Device, Tensor, TensorData, kind::Basic};
 use burn_pack::Scalar;
+use core::ops::Bound::{Included, Unbounded};
+
+// A hyphen distinguishes this metadata from fields emitted by legacy RecordState derives.
+pub(super) const QUANTIZED_STORAGE_KEY: &str = "__precision.quantized-storage";
+
+#[derive(Clone, Copy, Debug, Default)]
+enum LoadPrecision {
+    #[default]
+    DeviceDefault,
+    DecodeQuantizedStorage,
+    Recorded,
+}
 
 /// Join a `prefix` and a `leaf` into a dot-separated path (`"prefix.leaf"`).
 ///
@@ -76,7 +88,7 @@ impl StateSink {
 /// scalars are looked up by name and left in place.
 #[derive(Default, Debug)]
 pub struct StateSource {
-    preserve_dtype: bool,
+    precision: LoadPrecision,
     tensors: BTreeMap<String, TensorData>,
     scalars: BTreeMap<String, Scalar>,
 }
@@ -87,7 +99,7 @@ impl StateSource {
         Self {
             tensors: BTreeMap::new(),
             scalars,
-            preserve_dtype: false,
+            precision: LoadPrecision::DeviceDefault,
         }
     }
 
@@ -106,15 +118,23 @@ impl StateSource {
         self.tensors.remove(&join_path(prefix, leaf))
     }
 
+    pub(super) fn begin_parameter(&mut self, prefix: &str) {
+        self.precision = match self.take_scalar(prefix, QUANTIZED_STORAGE_KEY) {
+            Some(Scalar::Bool(true)) => LoadPrecision::DecodeQuantizedStorage,
+            _ => LoadPrecision::DeviceDefault,
+        };
+    }
+
     pub(crate) fn with_recorded_dtypes<T>(&mut self, load: impl FnOnce(&mut Self) -> T) -> T {
-        let previous = core::mem::replace(&mut self.preserve_dtype, true);
+        let previous = core::mem::replace(&mut self.precision, LoadPrecision::Recorded);
         let result = load(self);
-        self.preserve_dtype = previous;
+        self.precision = previous;
         result
     }
 
     /// Reconstruct a tensor leaf in its recorded representation for a storage policy,
-    /// or the device's default precision for an ordinary optimizer.
+    /// or with the ordinary device defaults. Ordinary quantized leaves retain their
+    /// scheme unless the checkpoint identifies them as encoded optimizer statistics.
     pub fn read_tensor<const D: usize, K: Basic>(
         &mut self,
         prefix: &str,
@@ -123,13 +143,13 @@ impl StateSource {
     ) -> Option<Tensor<D, K>> {
         let data = self.take_tensor(prefix, leaf)?;
         let dtype = data.dtype();
-        Some(if self.preserve_dtype {
-            Tensor::from_data(data, (device, dtype))
-        } else if matches!(dtype, DType::QFloat(_)) {
-            let decoded = Tensor::<D>::from_data(data, device).dequantize();
-            Tensor::from_bridge(decoded.into_bridge())
-        } else {
-            Tensor::from_data(data, device)
+        Some(match self.precision {
+            LoadPrecision::Recorded => Tensor::from_data(data, (device, dtype)),
+            LoadPrecision::DecodeQuantizedStorage if matches!(dtype, DType::QFloat(_)) => {
+                let decoded = Tensor::<D>::from_data(data, device).dequantize();
+                Tensor::from_bridge(decoded.into_bridge())
+            }
+            _ => Tensor::from_data(data, device),
         })
     }
 
@@ -144,9 +164,13 @@ impl StateSource {
     /// Used by the derive to tell an absent optional nested state (nothing recorded) apart from a
     /// present one whose leaves all happen to be optional.
     pub fn has_under(&self, prefix: &str) -> bool {
-        let pat = join_path(prefix, "");
-        self.tensors.keys().any(|k| k.starts_with(&pat))
-            || self.scalars.keys().any(|k| k.starts_with(&pat))
+        fn contains_prefix<V>(map: &BTreeMap<String, V>, prefix: &str) -> bool {
+            map.range::<str, _>((Included(prefix), Unbounded))
+                .next()
+                .is_some_and(|(key, _)| key.starts_with(prefix))
+        }
+        let prefix = join_path(prefix, "");
+        contains_prefix(&self.tensors, &prefix) || contains_prefix(&self.scalars, &prefix)
     }
 }
 
@@ -267,6 +291,22 @@ mod tests {
         let opt_nested = out.opt_nested.unwrap();
         assert_eq!(data(&opt_nested.weight), vec![11.0]);
         assert_eq!(opt_nested.step, 12);
+    }
+
+    #[test]
+    fn ordinary_checkpoint_preserves_quantized_tensor_data() {
+        use burn::tensor::quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype};
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native)
+            .per_tensor(ScaleDtype::F32);
+        let state = Inner {
+            weight: tensor(&[1e-10, -2e-10]).quantize_dynamic(&scheme),
+            step: 1,
+        };
+        let expected = state.weight.to_data();
+        let restored = round_trip(&state).unwrap();
+        assert_eq!(restored.weight.to_data(), expected);
     }
 
     #[test]

@@ -205,7 +205,10 @@ Resume from a matching model checkpoint with the same group definitions and stor
 Checkpoints persist the stored tensors in their actual dtypes and include any master weights.
 The load device must support these representations. Float and native quantized tensor mappers
 preserve the original record names, so an ordinary checkpoint can seed their statistics and
-the model can supply the initial master. A custom record determines its own schema compatibility.
+the model can supply the initial master. When a bare optimizer imports a precision checkpoint
+with native quantized statistics, it decodes them in the load device's default float dtype.
+An ordinary custom optimizer loading its own quantized state retains the recorded scheme.
+A custom record determines its own schema compatibility.
 
 ## Optimizer State and Records
 
@@ -277,7 +280,8 @@ The `step` method receives the previous state, if any, and returns the updated t
 new state. `to_device` moves every tensor held by the state to the requested device.
 
 To use uniform or per-tensor storage in a custom optimizer, derive `RecordState` and `StateMappable`
-on its floating-point statistics, including nested structs. Implement `MappableOptimizer` and
+on its state, including nested structs. Dtype storage casts the floating-point statistics and
+preserves integer and boolean tensors. Implement `MappableOptimizer` and
 delegate `map_state` to `state.map_tensors(mapper)`. The wrapper calls `Optimizer::step` with the parameter,
 gradient and statistics in the selected compute dtype. An optimizer with a default promotion policy
 can disable it in `without_default_precision` when the wrapper is constructed.
