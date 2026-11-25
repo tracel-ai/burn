@@ -297,7 +297,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base=066ee5677716903ebb8a13f684a082deef87a729
+          base=$(sed -n 's/^cubecl = {.*rev = "\([0-9a-f]*\)".*/\1/p' Cargo.toml)
+          [[ ${#base} == 40 ]]
           fix=14de238a289fc1ca1722d06a3379845154230020
           cubecl="$RUNNER_TEMP/cubecl"
           git init -q "$cubecl"
