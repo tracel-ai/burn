@@ -1,4 +1,4 @@
-//! The rooflines a round of the few-rows, many-rows and routed autotunes stops at: what a product
+//! The rooflines a round of the few-rows and many-rows autotunes stops at: what a product
 //! costs, against the ceiling each autotune's routines are bound by.
 
 use crate::tune::{Ceiling, Roofline};
@@ -6,7 +6,6 @@ use cubecl::ir::{ElemType, FloatKind};
 use cubecl::throughput::{CmmaDims, MemoryAccess, ThroughputKey};
 use cubecl::tune::Work;
 use cubek::matmul::kernels::MatmulTuneKey;
-use cubek::matmul::kernels::indexed::routed::{RoutedMatmulKey, RoutedMatmulTensors};
 use cubek::matmul::kernels::plan::MatmulCall;
 use cubek::std::{Hardware, Instructions};
 
@@ -47,21 +46,10 @@ pub(super) fn many_rows(key: &MatmulTuneKey, call: &MatmulCall) -> Roofline {
     }
 }
 
-/// The routed autotune's roofline: the product's work ([`RoutedMatmulTensors::work`]) against both
-/// walls, as the many-rows autotune argues them.
-pub(super) fn routed(_key: &RoutedMatmulKey, tensors: &RoutedMatmulTensors) -> Roofline {
-    let hw = Hardware::from_client(tensors.client());
-    Roofline {
-        client: tensors.client().clone(),
-        ceiling: matmul_ceiling(&hw, tensors.elem()),
-        work: tensors.work(),
-    }
-}
-
 /// The ceiling of a product on matrix instructions: the largest the device offers at `elem`
 /// accumulating in `f32`, plain arithmetic where it offers none, or the read bus, whichever is
 /// higher for the key.
-fn matmul_ceiling(hw: &Hardware, elem: ElemType) -> Ceiling {
+pub fn matmul_ceiling(hw: &Hardware, elem: ElemType) -> Ceiling {
     let accumulate = ElemType::Float(FloatKind::F32);
     let instruction = hw
         .properties
