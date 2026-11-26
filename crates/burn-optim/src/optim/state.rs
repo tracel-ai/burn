@@ -17,22 +17,12 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use burn_core::tensor::{
-    DType, Device, Tensor, TensorData,
+    Device, Tensor, TensorData,
     kind::{Basic, Kind},
 };
 use burn_pack::Scalar;
 
 pub use burn_derive::RecordState;
-
-/// Cast floating-point state to the precision used by the current update.
-pub(super) fn cast_state_tensor<const D: usize>(state: Tensor<D>, dtype: DType) -> Tensor<D> {
-    let saved = state.dtype();
-    if saved != dtype && saved.is_float() && dtype.is_float() {
-        state.cast(dtype)
-    } else {
-        state
-    }
-}
 
 /// Join a `prefix` and a `leaf` into a dot-separated path (`"prefix.leaf"`).
 ///
@@ -105,9 +95,7 @@ impl StateSource {
         self.tensors.remove(&join_path(prefix, leaf))
     }
 
-    /// Take a tensor leaf and restore it on `device`. Numeric fields keep their recorded
-    /// precision. If a field changed kind, use the device default for the new kind.
-    /// A packed quantized leaf can only be restored into a float field.
+    /// Restore a tensor leaf on `device`, preserving its numeric dtype when it fits the field.
     pub fn restore_tensor<const D: usize, K: Basic>(
         &mut self,
         prefix: &str,
@@ -117,17 +105,15 @@ impl StateSource {
         let data = self.take_tensor(prefix, leaf)?;
         let dtype = data.dtype();
         let keep_dtype = match K::KIND {
-            Kind::Float => dtype.is_float() || matches!(dtype, DType::QFloat(_)),
+            Kind::Float => dtype.is_float(),
             Kind::Int => dtype.is_int() || dtype.is_uint(),
             Kind::Bool => false, // Bool storage is device-specific.
         };
-        if keep_dtype {
-            return Some(Tensor::from_data(data, (device, dtype)));
-        }
-        if matches!(dtype, DType::QFloat(_)) {
-            return None;
-        }
-        Some(Tensor::from_data(data, device))
+        Some(if keep_dtype {
+            Tensor::from_data(data, (device, dtype))
+        } else {
+            Tensor::from_data(data, device)
+        })
     }
 
     /// Read the scalar named `{prefix}.{leaf}`, if present.
@@ -178,7 +164,7 @@ impl RecordState for () {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_core::tensor::{FloatDType, Int};
+    use burn_core::tensor::{DType, FloatDType, Int};
 
     /// Flatten `state` then rebuild it from the produced tensors and scalars.
     fn round_trip<T: RecordState>(state: &T) -> Option<T> {
@@ -330,32 +316,19 @@ mod tests {
         assert!(Inner::<1>::state_unflatten("p", &mut source, &Device::default()).is_none());
     }
 
-    #[derive(RecordState)]
-    struct IntegerState {
-        value: Tensor<1, Int>,
-    }
-
     #[test]
-    fn restore_tensor_converts_a_changed_field_kind() {
+    fn restore_tensor_preserves_unsigned_dtype() {
         let device = Device::default();
+        if !device.supports_dtype(DType::U32) {
+            return;
+        }
         let mut source = StateSource::default();
-        source.insert_tensor("p.value".into(), TensorData::from([7.0f32, -3.0]));
+        source.insert_tensor("p.value".into(), TensorData::from([u32::MAX]));
 
-        let state = IntegerState::state_unflatten("p", &mut source, &device).unwrap();
-
-        assert_eq!(
-            state.value.dtype(),
-            DType::from(device.settings().int_dtype)
-        );
-        assert_eq!(state.value.try_into_vec_as::<i32>().unwrap(), [7, -3]);
-    }
-
-    #[test]
-    fn restore_tensor_rejects_quantized_data_for_an_integer_field() {
-        let mut source = StateSource::default();
-        let data = TensorData::quantized(vec![1i8], [1], Default::default(), &[0.5], None);
-        source.insert_tensor("p.value".into(), data);
-
-        assert!(IntegerState::state_unflatten("p", &mut source, &Device::default()).is_none());
+        let value = source
+            .restore_tensor::<1, Int>("p", "value", &device)
+            .unwrap();
+        assert_eq!(value.dtype(), DType::U32);
+        assert_eq!(value.try_into_vec_as::<u32>().unwrap(), [u32::MAX]);
     }
 }

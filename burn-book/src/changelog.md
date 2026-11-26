@@ -1147,8 +1147,8 @@ See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics)
 
 #### Optimizers
 
-- Optimizer checkpoints preserve the saved numeric dtype of state tensors. Built-in optimizers
-  can resume at a different precision when the training device supports both dtypes.
+- Optimizer checkpoints restore each state tensor in its saved numeric dtype, so training can
+  resume when an optimizer's accumulator precision differs from the device default.
 
 - Custom optimizer and scheduler states can now derive `burn::optim::RecordState` in crates
   that depend only on `burn` with the `optim` feature enabled.

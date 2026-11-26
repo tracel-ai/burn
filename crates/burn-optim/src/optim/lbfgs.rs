@@ -2,7 +2,7 @@
 
 use burn_core as burn;
 
-use super::{GradientsParams, ParameterContext, state::cast_state_tensor};
+use super::{GradientsParams, ParameterContext};
 use crate::{LearningRate, OptimizerRecord, RecordTensor};
 use crate::{RecordState, StateSink, StateSource};
 use burn::config::Config;
@@ -522,28 +522,19 @@ pub struct LBFGSState {
 }
 
 impl LBFGSState {
-    fn align_with_gradient(&mut self, gradient: &Tensor<1>) {
-        let shape = gradient.dims();
-        let device = gradient.device();
-        let dtype = gradient.dtype();
-        if self.current_device().is_some_and(|d| d != device) {
-            *self = core::mem::take(self).to_device(&device);
-        }
+    fn check_num_params(&self, num_params: usize) {
         for tensor in self
             .history_s
-            .iter_mut()
-            .chain(self.history_y.iter_mut())
-            .chain(self.d.iter_mut())
-            .chain(self.prev_flat_grad.iter_mut())
+            .iter()
+            .chain(self.history_y.iter())
+            .chain(self.d.iter())
+            .chain(self.prev_flat_grad.iter())
         {
             assert_eq!(
                 tensor.dims(),
-                shape,
+                [num_params],
                 "L-BFGS state tensor length must match the module parameter count"
             );
-            if tensor.dtype() != dtype {
-                *tensor = cast_state_tensor(tensor.clone(), dtype);
-            }
         }
     }
 
@@ -635,9 +626,8 @@ impl LBFGS {
 
     /// Load the optimizer state from an [`OptimizerRecord`].
     ///
-    /// State tensors are materialized on the default device, which must support their recorded
-    /// dtypes. The next [`step`](LBFGS::step) moves them to the gradient's device in those
-    /// dtypes before casting them to the gradient precision.
+    /// State tensors are restored on the default device and moved to the gradient's device on
+    /// the next [`step`](LBFGS::step). Both devices must support the saved dtypes.
     pub fn load_record(mut self, record: OptimizerRecord) -> Self {
         let device = Device::default();
         let mut source = StateSource::new(record.scalars);
@@ -697,10 +687,17 @@ impl LBFGS {
             flat_grad.tensor.dims(),
             "L-BFGS flat parameter and gradient lengths must match"
         );
-        self.state.align_with_gradient(&flat_grad.tensor);
+        self.state.check_num_params(x_flat.dims()[0]);
 
         if x_flat.dims()[0] == 0 {
             return (module, loss);
+        }
+
+        // Migrate the state to the gradient's device when they differ (e.g. just after loading a
+        // record on the default device). This is a no-op once the state is built from gradients.
+        let device = flat_grad.tensor.device();
+        if self.state.current_device().is_some_and(|d| d != device) {
+            self.state = core::mem::take(&mut self.state).to_device(&device);
         }
 
         let opt_cond =
@@ -912,7 +909,7 @@ mod tests {
     use super::*;
     use crate::GradientsParams;
     use burn::module::Param;
-    use burn::tensor::{DType, Tensor, TensorData};
+    use burn::tensor::{Tensor, TensorData};
     use burn_nn::Linear;
 
     fn given_linear_layer(weight: TensorData, bias: TensorData, device: &Device) -> Linear {
@@ -1133,36 +1130,6 @@ mod tests {
             (loss_original - loss_reloaded).abs() < tol,
             "losses differ after burnpack round-trip: {loss_original} vs {loss_reloaded}"
         );
-    }
-
-    #[test]
-    fn resume_history_after_casting_model_to_f32() {
-        let device = Device::default().autodiff();
-        if !device.supports_dtype(DType::F64) {
-            return;
-        }
-        let config = LBFGSConfig::new().with_max_iter(1);
-        let mut optimizer = config.init();
-        let mut param = Param::from_tensor(Tensor::<1>::from_data([2.0], (&device, DType::F64)));
-        for _ in 0..2 {
-            (param, _) = optimizer.step(0.5, param, |p| {
-                let loss = p.val().square().sum();
-                let grads = GradientsParams::from_grads(loss.backward(), &p);
-                (loss.into_scalar(), grads)
-            });
-        }
-
-        let target = Param::from_tensor(Tensor::<1>::zeros([1], (&device, DType::F32)));
-        let param = target.load_record(param.into_record().cast_to_module_dtype());
-        let mut resumed = config.init().load_record(optimizer.to_record());
-        let (param, _) = resumed.step(0.5, param, |p| {
-            let loss = p.val().mul_scalar(3.0).sum();
-            let grads = GradientsParams::from_grads(loss.backward(), &p);
-            (loss.into_scalar(), grads)
-        });
-        // Repeating the previous gradient adds no history pair. The saved curvature
-        // gives a direction of -1.5, taking the parameter from 0.75 to zero.
-        assert_eq!(param.val().into_scalar::<f32>(), 0.0);
     }
 
     #[test]

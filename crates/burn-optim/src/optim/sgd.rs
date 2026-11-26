@@ -145,39 +145,6 @@ mod tests {
     }
 
     #[test]
-    fn resume_momentum_after_casting_model_to_f32() {
-        use burn::module::{Module, Param};
-        use burn::tensor::DType;
-
-        let device = Device::default();
-        if !device.supports_dtype(DType::F16) {
-            return;
-        }
-        let training = device.clone().autodiff();
-        let weight = |dtype| Param::from_tensor(Tensor::<1>::ones([1], (&training, dtype)));
-        let step = |optimizer: &mut ModuleOptimizer, param: Param<Tensor<1>>, grad: f32| {
-            let mut grads = GradientsParams::new();
-            grads.register(
-                param.id,
-                Tensor::<1>::from_data([grad], (&device, param.dtype())),
-            );
-            optimizer.step(0.25, param, grads)
-        };
-
-        let momentum = MomentumConfig::new().with_momentum(0.5).with_dampening(0.0);
-        let config = SgdConfig::new().with_momentum(Some(momentum));
-        let mut optimizer = config.init();
-        let saved = step(&mut optimizer, weight(DType::F16), 2.0);
-
-        let param = weight(DType::F32).load_record(saved.into_record().cast_to_module_dtype());
-        let mut resumed = config.init().load_record(optimizer.to_record());
-        let param = step(&mut resumed, param, -0.5);
-        // The saved velocity of 2 contributes 1 to the resumed velocity of 0.5.
-        assert_eq!(param.dtype(), DType::F32);
-        assert_eq!(param.val().into_scalar::<f32>(), 0.375);
-    }
-
-    #[test]
     fn lora_finetune_trains_adapter_and_freezes_base() {
         use burn::module::{Lora, Module};
         use burn::tensor::Tolerance;

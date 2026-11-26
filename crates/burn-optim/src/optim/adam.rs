@@ -3,13 +3,13 @@ use burn_core as burn;
 use crate::RecordState;
 
 use burn::config::Config;
-use burn::tensor::{DType, Device, Tensor};
+use burn::tensor::Device;
+use burn::tensor::Tensor;
 
 use super::{
     Optimizer,
     decay::{WeightDecay, WeightDecayConfig},
     module_optimizer::ModuleOptimizer,
-    state::cast_state_tensor,
 };
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
@@ -151,8 +151,7 @@ impl AdaptiveMomentum {
         grad: Tensor<D>,
         momentum_state: Option<AdaptiveMomentumState<D>>,
     ) -> (Tensor<D>, AdaptiveMomentumState<D>) {
-        let state = if let Some(state) = momentum_state {
-            let mut state = state.for_gradient_dtype(grad.dtype());
+        let state = if let Some(mut state) = momentum_state {
             let factor = 1.0 - self.beta_1;
             state.moment_1 = state
                 .moment_1
@@ -213,15 +212,6 @@ impl AdaptiveMomentum {
 }
 
 impl<const D: usize> AdaptiveMomentumState<D> {
-    pub(crate) fn for_gradient_dtype(mut self, dtype: DType) -> Self {
-        self.moment_1 = cast_state_tensor(self.moment_1, dtype);
-        self.moment_2 = cast_state_tensor(self.moment_2, dtype);
-        self.max_moment_2 = self
-            .max_moment_2
-            .map(|tensor| cast_state_tensor(tensor, dtype));
-        self
-    }
-
     /// Move state to device.
     ///
     /// # Arguments
