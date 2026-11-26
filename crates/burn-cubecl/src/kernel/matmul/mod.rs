@@ -8,5 +8,5 @@ pub mod utils;
 pub use base::*;
 #[cfg(any(feature = "fusion", test))]
 pub use tune::fastest_routine;
-pub use tune::{MatmulAutotuneGroups, m_grouped, routed};
+pub use tune::{MatmulAutotuneGroups, matmul_ceiling};
 pub use utils::*;

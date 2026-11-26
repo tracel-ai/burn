@@ -17,24 +17,19 @@
 //!
 //! The block-scaled autotune races only the block-scaled kernel's settings, which all give the
 //! same numbers.
-//!
-//! The indexed products have autotunes of their own, each its tuner and key: the routed product's
-//! ([`routed`]) and the M-grouped product's ([`m_grouped`]), the public entries of a caller that
-//! measures them.
 
 mod base;
 mod block_scaled;
 mod candidate;
 mod few_rows;
 mod floor;
-pub mod m_grouped;
 mod many_rows;
 mod packed_candidate;
 mod roofline;
-pub mod routed;
 #[cfg(test)]
 mod tests;
 
 pub use base::MatmulAutotuneGroups;
 #[cfg(any(feature = "fusion", test))]
 pub use base::fastest_routine;
+pub use roofline::matmul_ceiling;
