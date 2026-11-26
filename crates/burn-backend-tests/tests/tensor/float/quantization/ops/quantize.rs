@@ -656,3 +656,33 @@ fn should_quantize_each_row_under_its_own_scale() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), Tolerance::default());
 }
+
+/// Blocks of `[2, 4]` over `[4, 8]` lay a `[2, 2]` grid, whose flat scales list its blocks row by
+/// row. The scales are not powers of two, so a value read under another block's scale rounds.
+#[test]
+fn should_quantize_each_block_of_a_grid_under_its_own_scale() {
+    let device = Default::default();
+    let scales = [[1.0f32, 3.0], [5.0, 7.0]];
+    let values: Vec<f32> = (0..4)
+        .flat_map(|row| (0..8).map(move |col| (col + 1) as f32 * scales[row / 2][col / 4]))
+        .collect();
+    let tensor = TestTensor::<2>::from_data(TensorData::new(values, [4, 8]), &device);
+    let qparams = QuantizationParameters {
+        scales: TestTensor::from_data(
+            TensorData::new(scales.as_flattened().to_vec(), [4]),
+            &device,
+        ),
+        global: None,
+    };
+    let scheme = QuantScheme::default()
+        .with_value(QuantValue::E4M3)
+        .with_store(QuantStore::Native)
+        .per_block([2, 4], ScaleDtype::F32);
+
+    let actual = tensor.clone().quantize(&scheme, qparams).dequantize();
+
+    // Every value is its block's scale times an integer up to 8, which e4m3 holds exactly.
+    actual
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&tensor.into_data(), Tolerance::default());
+}
