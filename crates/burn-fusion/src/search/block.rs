@@ -429,9 +429,9 @@ impl<O> BlockOptimization<O> {
     /// [operations](ExecutionStrategy::Operations) in a
     /// [composed](ExecutionStrategy::Composed) strategy.
     ///
-    /// The last resort of [optimize_final](crate::search::StreamOptimizer::optimize_final),
-    /// which searches the tail again first: a plan covering only part of a sync's segment
-    /// could never be matched again, since plan lookup at a sync compares the whole segment.
+    /// The last resort at a sync, where the explorer searches the tail again first: a plan
+    /// covering only part of a sync's segment could never be matched again, since plan lookup
+    /// at a sync compares the whole segment.
     ///
     /// The uncovered positions are always a trailing run of the segment (interior
     /// holes are re-optimized by the stream optimizer before this is called — enforced

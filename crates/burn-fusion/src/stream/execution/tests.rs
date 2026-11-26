@@ -546,6 +546,7 @@ fn should_fuse_the_leftover_of_a_sync_segment() {
     stream.assert_number_of_operations(0);
     stream.assert_number_of_executions(1);
     stream.assert_last_executed(plan_id);
+    // Checks the plan's operations and trigger; its strategy is checked below.
     stream.assert_plan(
         plan_id,
         ExecutionPlan {
@@ -581,6 +582,70 @@ fn should_fuse_the_leftover_of_a_sync_segment() {
     }
     stream.sync();
     stream.assert_number_of_executions(2);
+    stream.assert_last_executed(plan_id);
+    stream.assert_number_of_explorations(1);
+}
+
+/// An operation no fuser takes, inside the leftover of a sync segment, runs unfused on its own
+/// while the fusable run after it still fuses.
+#[test]
+fn should_fuse_past_an_unfusable_operation_in_the_leftover_of_a_sync_segment() {
+    use crate::search::testing::add;
+
+    let plan_id = 0;
+    let head = [add(100, 101, 102), add(102, 103, 104)];
+    // Each operation reads the previous one's output, so the segment is one block the hungry
+    // fuser keeps open until the sync.
+    let lone = add(104, 200, 201);
+    let tail = [add(201, 105, 106), add(106, 107, 108)];
+    let mut segment: Vec<OperationIr> = head.to_vec();
+    segment.push(lone);
+    segment.extend(tail.iter().cloned());
+    let mut hungry = segment.clone();
+    hungry.push(add(300, 301, 302));
+    let builders: Vec<Box<dyn OperationFuser<TestOptimization>>> = vec![
+        Box::new(TestOptimizationBuilder::new(0, head.to_vec())),
+        Box::new(TestOptimizationBuilder::new(1, tail.to_vec())),
+        Box::new(TestOptimizationBuilder::new(2, hungry)),
+    ];
+    let mut stream = TestStream::new(builders);
+
+    for operation in segment.iter().cloned() {
+        stream.add(operation);
+    }
+    stream.sync();
+    stream.assert_number_of_operations(0);
+    stream.assert_last_executed(plan_id);
+
+    let plan = stream.store.get_unchecked(plan_id);
+    let mut covered = plan.optimization.ordering.clone();
+    covered.sort_unstable();
+    assert_eq!(covered, (0..segment.len()).collect::<Vec<_>>());
+    let mut fused = Vec::new();
+    let mut unfused = Vec::new();
+    match &plan.optimization.strategy {
+        ExecutionStrategy::Composed(parts) => {
+            for part in parts {
+                match part.as_ref() {
+                    ExecutionStrategy::Optimization { opt, ordering, .. } => {
+                        fused.push((opt.builder_id, ordering.to_vec()))
+                    }
+                    ExecutionStrategy::Operations { ordering } => {
+                        unfused.extend(ordering.iter().copied())
+                    }
+                    other => panic!("unexpected part {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected a composed plan, got {other:?}"),
+    }
+    assert_eq!(fused, vec![(0, vec![0, 1]), (1, vec![3, 4])]);
+    assert_eq!(unfused, vec![2]);
+
+    for operation in segment {
+        stream.add(operation);
+    }
+    stream.sync();
     stream.assert_last_executed(plan_id);
     stream.assert_number_of_explorations(1);
 }
