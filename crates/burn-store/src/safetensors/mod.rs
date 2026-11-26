@@ -314,8 +314,12 @@
 //! - **Efficient access**: Use offsets to read only needed tensors
 //! - **Simple parsing**: Standard JSON header with fixed structure
 
+mod grouping;
 mod store;
 
+pub use grouping::{
+    NoGrouping, QuantizedGroup, SafetensorsDtype, SafetensorsEntry, TensorGrouping,
+};
 pub use store::{SafetensorsStore, SafetensorsStoreError};
 
 #[cfg(test)]

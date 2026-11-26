@@ -10,9 +10,11 @@ use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use burn_core::tensor::{BoolStore, DType, Shape};
+use burn_core::tensor::quantization::check_quantized_parts;
+use burn_core::tensor::{BoolStore, DType, Shape, TensorData};
 use burn_pack::Tensor as PackTensor;
 
+use super::grouping::{NoGrouping, QuantizedGroup, SafetensorsEntry, TensorGrouping};
 use crate::StoreTensor;
 use core::fmt;
 use core::ops::Deref;
@@ -141,6 +143,7 @@ impl SafetensorsStore {
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             tensors_cache: None,
+            grouping: Box::new(NoGrouping),
         })
     }
 
@@ -163,6 +166,7 @@ impl SafetensorsStore {
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             tensors_cache: None,
+            grouping: Box::new(NoGrouping),
         })
     }
 
@@ -513,6 +517,39 @@ impl SafetensorsStore {
         self
     }
 
+    /// Read the entries `grouping` names together, each group as one quantized tensor.
+    ///
+    /// The grouping sees each file's entries under their own names, before any remapping, and
+    /// the tensor each group forms is then remapped, filtered and adapted like any other. The
+    /// default, [`NoGrouping`], reads every entry alone, so a file holding a dtype burn has no
+    /// plain tensor for (`F8_E4M3`, `F8_E8M0`, `F4`) fails to load until a grouping claims it.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use burn_store::{QuantizedGroup, SafetensorsEntry, SafetensorsStore, SafetensorsStoreError, TensorGrouping};
+    /// struct Release;
+    ///
+    /// impl TensorGrouping for Release {
+    ///     fn group(
+    ///         &self,
+    ///         entries: &[SafetensorsEntry],
+    ///     ) -> Result<Vec<QuantizedGroup>, SafetensorsStoreError> {
+    ///         Ok(Vec::new()) // pair each `<p>.weight` with its `<p>.scale` here
+    ///     }
+    /// }
+    ///
+    /// let store = SafetensorsStore::from_file("model.safetensors").with_grouping(Release);
+    /// ```
+    pub fn with_grouping(mut self, grouping: impl TensorGrouping + 'static) -> Self {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.grouping = Box::new(grouping),
+            Self::Memory(p) => p.grouping = Box::new(grouping),
+        }
+        self.clear_tensors_cache();
+        self
+    }
+
     /// Set the adapter for loading tensors (converting from source format to Burn).
     pub fn with_from_adapter(mut self, adapter: impl ModuleAdapter + 'static) -> Self {
         match &mut self {
@@ -578,6 +615,8 @@ pub struct FileStore {
     to_adapter: Box<dyn ModuleAdapter>,
     /// Cached tensors (parsed once, reused)
     tensors_cache: Option<BTreeMap<String, StoreTensor>>,
+    /// Which entries of the file are read together as one quantized tensor
+    grouping: Box<dyn TensorGrouping>,
 }
 
 /// Memory-based store.
@@ -600,6 +639,8 @@ pub struct MemoryStore {
     to_adapter: Box<dyn ModuleAdapter>,
     /// Cached tensors (parsed once, reused)
     tensors_cache: Option<BTreeMap<String, StoreTensor>>,
+    /// Which entries of the file are read together as one quantized tensor
+    grouping: Box<dyn TensorGrouping>,
 }
 
 impl Default for MemoryStore {
@@ -620,6 +661,7 @@ impl Default for MemoryStore {
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             tensors_cache: None,
+            grouping: Box::new(NoGrouping),
         }
     }
 }
@@ -939,13 +981,13 @@ impl SafetensorsStore {
         #[allow(unused_mut)]
         let mut tensors: Vec<StoreTensor> = match self {
             #[cfg(feature = "std")]
-            Self::File(p) => lazy_tensors_from_file(&p.path)?,
+            Self::File(p) => lazy_tensors_from_file(&p.path, p.grouping.as_ref())?,
             Self::Memory(p) => {
                 let data_arc = p
                     .data
                     .clone()
                     .ok_or_else(|| SafetensorsStoreError::Other("No data loaded".to_string()))?;
-                lazy_tensors(data_arc)?
+                lazy_tensors(data_arc, p.grouping.as_ref())?
             }
         }
         .into_iter()
@@ -1063,8 +1105,12 @@ fn to_safetensors_views(
 ///
 /// Only the header is parsed here; each tensor's bytes are copied out when its data is asked
 /// for. `source` is whatever holds the container bytes - an in-memory buffer, or a memory map
-/// of a file - which is why this is generic rather than written once per source.
-fn lazy_tensors<S>(source: Arc<S>) -> Result<Vec<PackTensor>, SafetensorsStoreError>
+/// of a file - which is why this is generic rather than written once per source. The entries
+/// `grouping` names are read together, each group as one quantized tensor.
+fn lazy_tensors<S>(
+    source: Arc<S>,
+    grouping: &dyn TensorGrouping,
+) -> Result<Vec<PackTensor>, SafetensorsStoreError>
 where
     S: Deref<Target = [u8]> + Send + Sync + 'static,
 {
@@ -1072,10 +1118,65 @@ where
     // whose start can be derived from the validated metadata length.
     let (_, metadata) = safetensors::SafeTensors::read_metadata(&source)?;
     let data_start = source.len() - metadata.data_len();
-    let mut loaded = Vec::new();
+    // In the order the file lays the entries down, so a grouping sees them as the file does.
+    let names = metadata.offset_keys();
+    let info = |name: &str| {
+        metadata.info(name).ok_or_else(|| {
+            SafetensorsStoreError::Other(format!(
+                "a quantized group names `{name}`, which the file does not hold"
+            ))
+        })
+    };
+    let entries = names
+        .iter()
+        .map(|name| {
+            info(name).map(|info| SafetensorsEntry {
+                name: name.clone(),
+                dtype: info.dtype,
+                shape: info.shape.clone(),
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let range = |name: &str| {
+        info(name).map(|info| data_start + info.data_offsets.0..data_start + info.data_offsets.1)
+    };
 
-    for (name, info) in metadata.tensors() {
-        let dtype = safetensor_dtype_to_burn(info.dtype)?;
+    let mut claimed: hashbrown::HashSet<String> = hashbrown::HashSet::new();
+    let mut loaded = Vec::new();
+    for group in grouping.group(&entries)? {
+        let parts = [Some(&group.codes), Some(&group.scales)];
+        for entry in parts
+            .into_iter()
+            .chain([group.tensor_scale.as_ref()])
+            .flatten()
+        {
+            if !claimed.insert(entry.clone()) {
+                return Err(SafetensorsStoreError::Other(format!(
+                    "`{entry}` is claimed by two quantized groups"
+                )));
+            }
+        }
+        let global = group.tensor_scale.as_deref().map(range).transpose()?;
+        loaded.push(quantized_group(
+            source.clone(),
+            group.clone(),
+            [range(&group.codes)?, range(&group.scales)?],
+            global,
+        )?);
+    }
+
+    for name in names {
+        if claimed.contains(&name) {
+            continue;
+        }
+        let info = info(&name)?;
+        let dtype = safetensor_dtype_to_burn(info.dtype).map_err(|_| {
+            SafetensorsStoreError::Other(format!(
+                "tensor `{name}` is stored at {:?}, which burn reads only as part of a quantized \
+                 tensor, and no grouping claims it (see `SafetensorsStore::with_grouping`)",
+                info.dtype
+            ))
+        })?;
         let shape: Shape = info.shape.as_slice().into();
         let (start, end) = info.data_offsets;
         let tensor_start = data_start + start;
@@ -1106,10 +1207,55 @@ where
     Ok(loaded)
 }
 
+/// The quantized tensor `group` forms of the entries at `ranges` (codes, then block scales) and
+/// `global` in `source`, read only when its data is asked for.
+///
+/// Its byte length is checked here against its shape and scheme, so a grouping that pairs the
+/// wrong entries fails while the file is opened, naming the tensor, rather than when its data
+/// is drawn.
+fn quantized_group<S>(
+    source: Arc<S>,
+    group: QuantizedGroup,
+    ranges: [core::ops::Range<usize>; 2],
+    global: Option<core::ops::Range<usize>>,
+) -> Result<PackTensor, SafetensorsStoreError>
+where
+    S: Deref<Target = [u8]> + Send + Sync + 'static,
+{
+    let [codes, scales] = ranges;
+    let shape = Shape::from(group.shape.as_slice());
+    check_quantized_parts(
+        &shape,
+        &group.scheme,
+        [codes.len(), scales.len()],
+        global.as_ref().map(ExactSizeIterator::len),
+    )
+    .map_err(|err| SafetensorsStoreError::Other(format!("tensor `{}`: {err}", group.name)))?;
+
+    let (scheme, tensor_shape) = (group.scheme, shape.clone());
+    Ok(bridge::deferred(
+        group.name,
+        DType::QFloat(scheme),
+        shape,
+        None,
+        move || {
+            TensorData::from_quantized_parts(
+                &source[codes.clone()],
+                &source[scales.clone()],
+                global.clone().map(|global| &source[global]),
+                tensor_shape.clone(),
+                scheme,
+            )
+            .map_err(|err| burn_pack::Error::TensorBytesSizeMismatch(err.to_string()))
+        },
+    ))
+}
+
 /// Memory map a safetensors file and read it into lazily-loading tensors.
 #[cfg(feature = "std")]
 fn lazy_tensors_from_file(
     path: &std::path::Path,
+    grouping: &dyn TensorGrouping,
 ) -> Result<Vec<PackTensor>, SafetensorsStoreError> {
     // Always use memory mapping for the most efficient access
     use memmap2::MmapOptions;
@@ -1117,7 +1263,7 @@ fn lazy_tensors_from_file(
     let file = std::fs::File::open(path)?;
     let mmap = unsafe { MmapOptions::new().map(&file)? };
 
-    lazy_tensors(Arc::new(mmap))
+    lazy_tensors(Arc::new(mmap), grouping)
 }
 
 /// Helper to convert safetensors Dtype to burn DType.

@@ -4,6 +4,7 @@ mod error_handling;
 #[cfg(feature = "std")]
 mod file_io;
 mod filtering;
+mod grouping;
 mod integration;
 mod metadata;
 mod mixed_datatypes;
