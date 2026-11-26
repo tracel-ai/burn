@@ -411,8 +411,15 @@ impl<O> BlockOptimization<O> {
     }
 
     /// This optimization, then `next`, which covers positions after all of this one's, as one
-    /// flat [composed](ExecutionStrategy::Composed) strategy like every other producer emits.
+    /// flat [composed](ExecutionStrategy::Composed) strategy, so a composed strategy never nests.
     pub fn followed_by(self, next: Self) -> Self {
+        debug_assert!(
+            next.ordering
+                .iter()
+                .min()
+                .is_none_or(|&first| self.ordering.iter().all(|&position| position < first)),
+            "the next optimization covers positions after all of this one's"
+        );
         let mut ordering = self.ordering;
         ordering.extend(next.ordering);
         let mut parts = self.strategy.into_parts();
