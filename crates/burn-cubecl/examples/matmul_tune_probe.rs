@@ -85,7 +85,7 @@ impl Probe {
                 |f: fn(&burn_cubecl::tune::Prediction) -> f64| parts.as_ref().map_or(f64::NAN, f);
             let staging = estimate.staging.as_ref();
             println!(
-                "{m},{n},{k},{name},\"{}\",{prio},{pred:.2},{floor:.2},{measured:.2},{},{},{:.2},{:.2},{:.2},{:.2},{:.3},{:.3},{},{},{:?},{:.3e},{},{},{}",
+                "{m},{n},{k},{name},\"{}\",{prio},{pred:.2},{floor:.2},{measured:.2},{},{},{:.2},{:.2},{:.2},{:.2},{:.3},{:.3},{},{},{:.2},{:?},{:.3e},{},{},{}",
                 candidate.settings(),
                 estimate.cubes.unwrap_or(0),
                 estimate.cube.units,
@@ -96,7 +96,8 @@ impl Probe {
                 part(|p| p.bandwidth_share),
                 part(|p| p.lanes_filled),
                 parts.map_or(0, |p| p.worker_cubes),
-                parts.is_some_and(|p| p.overlapped),
+                parts.map_or(0, |p| p.streams),
+                part(|p| p.overlap),
                 estimate.work.map(|w| w.instruction),
                 staging.map_or(f64::NAN, |s| s.operations),
                 staging.map_or(0, |s| s.stages),
@@ -180,7 +181,7 @@ fn main() {
             (2048, 4096, 4096),
         ]);
     println!(
-        "m,n,k,routine,setting,priority,pred_us,floor_us,us,cubes,units,mem_us,cache_us,shared_us,comp_us,bw_share,lanes,worker_cubes,overlapped,instr,ops_per_cube,stages,in_flight,registers"
+        "m,n,k,routine,setting,priority,pred_us,floor_us,us,cubes,units,mem_us,cache_us,shared_us,comp_us,bw_share,lanes,worker_cubes,streams,overlap,instr,ops_per_cube,stages,in_flight,registers"
     );
     for (m, n, k) in shapes {
         eprintln!("=== {m}x{n}x{k} ===");

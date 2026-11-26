@@ -255,7 +255,8 @@ impl Peaks {
             shared,
             started: time_at(cubes as f64, self.cubes_per_s).unwrap_or_default(),
             launch_overhead: self.launch_overhead,
-            overlapped: residency.overlaps(staging.stages_in_flight),
+            streams: residency.streams(staging.stages_in_flight),
+            overlap: staging.overlap(),
             bandwidth_share,
             lanes_filled,
             worker_cubes: residency.worker_cubes,
@@ -290,8 +291,12 @@ pub struct Prediction {
     pub started: Duration,
     /// What its launch costs on top.
     pub launch_overhead: Duration,
-    /// Whether its traffic and its arithmetic overlap.
-    pub overlapped: bool,
+    /// The streams of work one worker interleaves: its resident cubes, times the stages each
+    /// holds in flight.
+    pub streams: u64,
+    /// The share of what the streams could hide behind one another that the walk's loads let
+    /// them hide ([`CubeStaging::overlap`](cubek::std::microkernel::CubeStaging::overlap)).
+    pub overlap: f64,
     /// The share of the bandwidth its reads in flight reach.
     pub bandwidth_share: f64,
     /// The share of the device's lanes its resident units fill.
@@ -305,16 +310,19 @@ pub struct Prediction {
 impl Prediction {
     /// The predicted time, no less than running the cubes takes, and the launch.
     ///
-    /// What a worker does itself — reading again what its cache holds, reading and writing
-    /// what it staged, computing — issues from its own instructions one after another; what it
-    /// waits on memory for overlaps all of it where it holds a second cube or a second stage,
-    /// and adds to it where it holds neither.
+    /// A worker's parts — waiting on memory, reading again what its cache holds, reading and
+    /// writing what it staged, computing — follow one another within one stream of work, and
+    /// overlap across the streams it interleaves as far as its loads let them: the slowest part
+    /// takes its whole time, and of each other part the streams could hide all but their share,
+    /// of which [`overlap`](Self::overlap) is hidden. One stream, or loads that hide nothing, add
+    /// them all; many streams of loads that hide everything approach the slowest alone.
     pub fn time(&self) -> Duration {
-        let on_chip = self.cache + self.shared + self.compute;
-        let busy = match self.overlapped {
-            true => self.memory.max(on_chip),
-            false => self.memory + on_chip,
-        };
+        let parts = [self.memory, self.cache, self.shared, self.compute];
+        let slowest = parts.into_iter().max().unwrap_or_default();
+        let rest = parts.into_iter().sum::<Duration>() - slowest;
+        let hideable = 1.0 - 1.0 / self.streams.max(1) as f64;
+        let hidden = (self.overlap.clamp(0.0, 1.0) * hideable).clamp(0.0, 1.0);
+        let busy = slowest + rest.mul_f64(1.0 - hidden);
         busy.max(self.started) + self.launch_overhead
     }
 }
@@ -382,11 +390,10 @@ impl Residency {
         })
     }
 
-    /// Whether a kernel holding `stages_in_flight` stages overlaps its traffic with its
-    /// arithmetic: where a worker holds a second cube or a cube a second stage to overlap them
-    /// with.
-    fn overlaps(&self, stages_in_flight: u32) -> bool {
-        self.worker_cubes > 1 || stages_in_flight > 1
+    /// The streams of work a worker interleaves for a kernel holding `stages_in_flight` stages:
+    /// each resident cube's stages in flight.
+    fn streams(&self, stages_in_flight: u32) -> u64 {
+        self.worker_cubes * u64::from(stages_in_flight.max(1))
     }
 
     /// How much longer `cubes` take than whole waves of resident cubes would: the slots of
@@ -447,6 +454,8 @@ fn transacted_bytes(streams: &[GlobalStream], transaction: usize) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cubecl::tile::launch::Delivery;
+    use cubecl::tile::stage::Prefetch;
     use cubek::std::devices;
     use cubek::std::microkernel::{CubeFootprint, CubeStaging, UnitWork};
 
@@ -501,6 +510,8 @@ mod tests {
                 drain_atomics: 0,
                 shared_reads: 0,
                 shared_writes: 0,
+                delivery: Delivery::SyncPerUnit,
+                prefetch: Prefetch::InSlots,
             }),
             work: Some(UnitWork {
                 instruction: ArithmeticInstruction::Vector,
@@ -672,6 +683,32 @@ mod tests {
         assert!(overlapped < both);
     }
 
+    /// Every part overlaps the others across the streams a worker interleaves, as far as its
+    /// loads let them: one stream adds them; four, of loads that hide everything, leave a quarter
+    /// of the parts under the slowest unhidden, and of loads that hide a third, three quarters.
+    #[test]
+    fn the_parts_under_the_slowest_hide_across_streams_as_the_loads_let_them() {
+        let micros = Duration::from_micros;
+        let prediction = |streams, overlap| Prediction {
+            memory: micros(400),
+            cache: micros(100),
+            shared: micros(100),
+            compute: micros(200),
+            started: Duration::ZERO,
+            launch_overhead: Duration::ZERO,
+            streams,
+            overlap,
+            bandwidth_share: 1.0,
+            lanes_filled: 1.0,
+            worker_cubes: streams,
+            device_cubes: streams,
+        };
+        assert_eq!(prediction(1, 1.0).time(), micros(800));
+        assert_eq!(prediction(4, 1.0).time(), micros(500));
+        assert_eq!(prediction(4, 1.0 / 3.0).time(), micros(700));
+        assert_eq!(prediction(4, 0.0).time(), micros(800));
+    }
+
     /// Drain atomics serialize their plane, so they cost arithmetic as a plane's worth each.
     #[test]
     fn drain_atomics_cost_a_plane_each() {
@@ -730,14 +767,26 @@ mod tests {
         assert_close(time(&staged), Duration::from_nanos(8 * 40 * 1000));
     }
 
-    /// What a worker does itself issues one after another: its arithmetic and its staging add
-    /// up, where its memory traffic would overlap them.
+    /// On a worker holding one cube of one stage, nothing interleaves with its own work: its
+    /// arithmetic and its staging add up.
     #[test]
-    fn a_workers_own_work_adds_up() {
-        let mut both = computing(8 * 40, 1000.0);
+    fn one_stream_adds_a_workers_own_work() {
+        let alone = WorkerLimits {
+            cubes_count: 1,
+            ..LIMITS
+        };
+        let hw = devices::strix_halo();
+        let prediction = |kernel: &KernelEstimate| {
+            (PEAKS.predict(kernel, ANY_DEMAND, &hw, Some(alone)))
+                .unwrap()
+                .time()
+        };
+        let arithmetic = computing(8 * 40, 1000.0);
+        let mut both = arithmetic.clone();
         both.staging.as_mut().unwrap().shared_reads = 8000;
-        // 1000 operations and 8000 staged bytes a cube: a microsecond each.
-        assert_close(time(&both), Duration::from_nanos(8 * 40 * 2000));
+        // 8000 staged bytes a cube take as long as its 1000 operations: twice the arithmetic.
+        let alone_time = prediction(&arithmetic);
+        assert_close(prediction(&both), alone_time * 2 - PEAKS.launch_overhead);
     }
 
     /// Work on a matrix instruction the peaks hold no rate for predicts nothing.
