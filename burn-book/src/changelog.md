@@ -697,7 +697,7 @@ whose tensors are split over `devices` (crate `burn-shard`).
 
 - Fix `quantize` on CubeCL backends reading flat scales along the wrong axes when the scheme's grid
   of blocks has more than one axis, such as one scale per row: each row now quantizes under its own
-  scale.
+  scale. ([#6649](https://github.com/tracel-ai/burn/pull/6649))
 
 #### Random operation keys
 
