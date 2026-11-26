@@ -10,7 +10,7 @@ use cubecl::{prelude::TensorBinding, tile::Dimension, zspace::metadata::Metadata
 use cubek::matmul::kernels::{
     plan::MatmulCallInput,
     select::problem::OperandKind,
-    tensor::{PackedTensor, PlainTensor, StoredTensor},
+    tensor::{PlainTensor, StoredTensor},
 };
 
 /// One operand of a fused product: the tensor the trace names, and the handle it lies in.
@@ -40,7 +40,7 @@ impl<'a> TraceOperand<'a> {
     }
 
     /// It as one matrix over `dimensions`, bound as it is stored where its handle lies: plain, or,
-    /// quantized, packed under its scales ([`PackedTensor::of_quantized`]).
+    /// quantized, under its scales ([`StoredTensor::of_quantized`]).
     pub(super) fn call_input(
         &self,
         dimensions: [Dimension; 2],
@@ -58,7 +58,7 @@ impl<'a> TraceOperand<'a> {
             .expect("a quantized operand holds its scales");
         let block_scales = self.param(&qparams.scales);
         let global_scale = qparams.global.as_ref().map(|scale| self.param(scale));
-        let packed = PackedTensor::of_quantized(
+        let stored = StoredTensor::of_quantized(
             &handle.client,
             values,
             scheme,
@@ -68,7 +68,7 @@ impl<'a> TraceOperand<'a> {
         )
         .map_err(TileFusedMatmulError::Operand)?;
         Ok(MatmulCallInput {
-            tensor: StoredTensor::Packed(packed),
+            tensor: stored,
             meta,
             framework_dequantize: None,
         })

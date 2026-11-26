@@ -325,16 +325,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::CubeDevice;
     use cubecl::features::MmaConfig;
     use cubecl::ir::{ElemType, FloatKind};
-    use cubecl::server::Overlap;
-    use cubecl::zspace::striding::row_major_contiguous_strides;
     use cubek::attention::kernels::{
-        AttentionKeyElements, AttentionScoring, AttentionVisibility, QueryPlacement, ScoreScale,
+        AttentionKeyElements, AttentionVisibility, QueryPlacement, ScoreScale,
     };
-    use cubek::matmul::kernels::tensor::PlainTensor;
     use cubek::std::devices;
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     use cubek::std::routine::EstimatedProblem;
 
     const F16: ElemType = ElemType::Float(FloatKind::F16);
@@ -396,8 +393,9 @@ mod tests {
     /// A setting that prepares on the device is placed by its prediction, which never puts it
     /// with the declines: a prompt's and a decode step's keys alike.
     #[test]
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn a_setting_that_prepares_is_placed_above_the_declines() {
-        let predictor = Predictor::on_device(&CubeDevice::default().client());
+        let predictor = Predictor::on_device(&crate::CubeDevice::default().client());
         let lead = AttentionTuneCandidate::list(UnitAttentionRoutine, &predictor).swap_remove(0);
         for key in [key(32, 8, 1), key(32, 8, 4096)] {
             assert!(lead.blueprint(&key).is_some());
@@ -431,11 +429,17 @@ mod tests {
     /// candidates the call's own operands, and the output every candidate and the winner write is
     /// the call's.
     #[test]
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn a_race_runs_on_the_calls_buffers() {
+        use crate::CubeDevice;
+        use cubecl::server::Overlap;
+        use cubecl::zspace::striding::row_major_contiguous_strides;
+        use cubek::attention::kernels::AttentionScoring;
+        use cubek::matmul::kernels::tensor::PlainTensor;
         let client = CubeDevice::default().client();
         let (heads, kv_heads, head_dim) = (8, 2, 64);
         let zeros = |shape: [usize; 4]| {
-            PlainTensor::zeros(&client, &shape, row_major_contiguous_strides(shape), F16)
+            PlainTensor::zeros(&client, &shape, row_major_contiguous_strides(shape), F32)
         };
         let predictor = Predictor::on_device(&client);
         for queries in [1, 37] {
@@ -471,8 +475,12 @@ mod tests {
     /// predicted time and warm device time on this machine, as CSV on stdout.
     #[test]
     #[ignore = "a measurement of this machine, run by hand"]
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn probe_prefill_priorities() {
-        let client = CubeDevice::default().client();
+        use cubecl::zspace::striding::row_major_contiguous_strides;
+        use cubek::attention::kernels::AttentionScoring;
+        use cubek::matmul::kernels::tensor::PlainTensor;
+        let client = crate::CubeDevice::default().client();
         let predictor = Predictor::on_device(&client);
         let (heads, kv_heads, head_dim) = (32, 8, 128);
         println!("seq,routine,setting,priority,pred_us,floor_us,us");
@@ -541,6 +549,7 @@ mod tests {
     }
 
     /// One prefill problem the probe times every candidate on.
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     struct Probe<'a> {
         seq: usize,
         inputs: &'a AttentionTuneInputs,
@@ -548,6 +557,7 @@ mod tests {
         predictor: &'a Predictor,
     }
 
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     impl Probe<'_> {
         /// Every distinct candidate of `candidates` that prepares, timed through `launch`.
         fn sweep<R, M, SM>(

@@ -271,13 +271,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::CubeDevice;
     use cubecl::ir::{ElemType, FloatKind};
     use cubek::std::devices;
 
     const F16: ElemType = ElemType::Float(FloatKind::F16);
 
     /// The memory `output`'s buffer lies in.
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn output_memory(output: &TensorHandle) -> impl PartialEq + core::fmt::Debug + use<> {
         PlainTensor::of_handle(output.clone())
             .binding
@@ -287,8 +287,9 @@ mod tests {
     }
 
     /// A race of three rows over 64, its output allocated once.
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn race_of_three_rows() -> RmsNormRace {
-        let client = CubeDevice::default().client();
+        let client = crate::CubeDevice::default().client();
         let f32 = ElemType::Float(FloatKind::F32);
         let call = RmsNormCall {
             client: client.clone(),
@@ -303,6 +304,7 @@ mod tests {
     /// **A race runs on the call's buffers.** The autotune hands its candidates the call's own
     /// rows, weight and output, whatever bucket the rows' count is keyed in.
     #[test]
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn a_race_runs_on_the_calls_rows() {
         let race = race_of_three_rows();
         let tunables = candidates(
@@ -319,6 +321,7 @@ mod tests {
     /// **A race allocates no output.** Every candidate that runs writes the norm into the race's
     /// one output.
     #[test]
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn every_candidate_writes_the_races_output() {
         let race = race_of_three_rows();
         let hw = Predictor::on_device(&race.call.client);
@@ -377,8 +380,9 @@ mod tests {
     /// A decode step's single row by cubes of one row leaves the device idle, so it is predicted
     /// further above its roofline than a prompt's rows, which fill it.
     #[test]
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn a_grid_that_leaves_the_device_idle_is_tried_later() {
-        let predictor = Predictor::on_device(&CubeDevice::default().client());
+        let predictor = Predictor::on_device(&crate::CubeDevice::default().client());
         let lead = RmsNormTuneCandidate::list(PlaneRmsNormRoutine, &predictor).swap_remove(0);
         assert!(
             lead.priority(&RmsNormKey::new(F16, 128, 1))

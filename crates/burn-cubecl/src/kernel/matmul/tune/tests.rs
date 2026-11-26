@@ -76,6 +76,7 @@ fn a_declined_setting_is_tried_last_and_claims_no_launch() {
 /// fills it: the lead setting on a product a single cube covers, against one that spreads over
 /// every worker.
 #[test]
+#[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
 fn a_grid_that_leaves_the_device_idle_is_tried_later() {
     let predictor = Predictor::on_device(&crate::CubeDevice::default().client());
     let lead = MatmulTuneCandidate::list(CubeStagedMatmulRoutine, &predictor).swap_remove(0);
@@ -245,6 +246,7 @@ fn a_packed_setting_is_last_on_a_float_key_and_first_without_a_device() {
 /// packed problem a key describes: one at least of the settings the device lists prepares a
 /// decode step's q4 projection, and its prediction never puts it with the declines.
 #[test]
+#[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
 fn a_packed_setting_is_placed_by_its_estimate_on_a_device() {
     let client = crate::CubeDevice::default().client();
     let predictor = Predictor::on_device(&client);
@@ -278,7 +280,7 @@ fn every_table_holds_the_candidates_written_down() {
     }
     assert_eq!(
         written,
-        include_str!("autotunes.txt"),
+        include_str!("autotunes.txt").replace("\r\n", "\n"),
         "an autotune changed; rewrite autotunes.txt with CUBEK_WRITE_PLANS=1 and review the diff"
     );
 }
@@ -329,6 +331,7 @@ fn devices_listed() -> [(&'static str, Hardware); 4] {
 /// lhs and rhs, and a destination the call allocated once at the product's shape, which the winner
 /// then writes too.
 #[test]
+#[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
 fn a_race_runs_on_the_calls_buffers() {
     use crate::CubeDevice;
     use cubecl::CubeTuneId;
@@ -360,7 +363,7 @@ fn a_race_runs_on_the_calls_buffers() {
     let raced = tunables.generate_inputs(&call.key(), &call);
     let memory = |input: &MatmulCallInput| match &input.tensor {
         StoredTensor::Plain(tensor) => tensor.binding.handle.memory.id(),
-        StoredTensor::Packed(_) => unreachable!("a float call"),
+        StoredTensor::Scaled(_) | StoredTensor::Packed(_) => unreachable!("a float call"),
     };
     assert_eq!(memory(&raced.lhs), memory(&call.lhs));
     assert_eq!(memory(&raced.rhs), memory(&call.rhs));

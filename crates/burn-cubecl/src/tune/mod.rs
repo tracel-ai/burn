@@ -15,7 +15,7 @@ mod prediction;
 mod predictor;
 mod priority;
 mod roofline;
-#[cfg(test)]
+#[cfg(all(test, any(feature = "cuda", feature = "wgpu", feature = "metal")))]
 mod tests;
 mod worker;
 

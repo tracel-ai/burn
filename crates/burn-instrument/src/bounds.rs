@@ -1,5 +1,5 @@
 use burn_tensor::kind::Basic;
-use burn_tensor::quantization::ScaleDtype;
+use burn_tensor::quantization::scale_size;
 use burn_tensor::{DType, Tensor};
 
 /// What one component must move and compute to run **alone**, at best: with nothing of its own
@@ -91,18 +91,11 @@ pub fn tensor_bytes<const D: usize, K: Basic>(tensor: &Tensor<D, K>) -> u64 {
     match tensor.dtype() {
         DType::QFloat(scheme) => {
             let values = elements * scheme.size_bits_value() as u64 / 8;
-            // A two-level scheme adds one per-tensor scalar on top of the block scales, which is
-            // below this model's resolution.
-            let scales = match scheme.block_scale() {
-                None => 1,
-                Some(block) => elements / block.size.num_elements() as u64,
-            };
-            let scale_bytes = match scheme.scale_dtype() {
-                ScaleDtype::F32 => 4,
-                ScaleDtype::F16 | ScaleDtype::BF16 => 2,
-                ScaleDtype::UE8M0 | ScaleDtype::UE4M3 => 1,
-            };
-            values + scales * scale_bytes
+            let scales = scheme.levels().map(|level| {
+                let grid = level.size.num_blocks(&tensor.dims());
+                grid.iter().product::<usize>() as u64 * scale_size(level.dtype) as u64
+            });
+            values + scales.sum::<u64>()
         }
         dtype => elements * dtype.size() as u64,
     }

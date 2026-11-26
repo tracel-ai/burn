@@ -175,6 +175,7 @@ mod tests {
     /// A candidate that prepares on the device is placed by its prediction, which never puts it
     /// with the declines.
     #[test]
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn a_candidate_that_prepares_is_placed_above_the_declines() {
         let unit = raced(
             "unit-direct-reduce",
@@ -195,7 +196,10 @@ mod tests {
     }
 
     /// A sum no caller asks for: it accumulates in less than it reads.
-    #[cfg(feature = "fusion")]
+    #[cfg(all(
+        feature = "fusion",
+        any(feature = "cuda", feature = "wgpu", feature = "metal")
+    ))]
     #[test]
     fn a_key_no_reduction_settled_has_no_fastest_candidate() {
         let device = cubecl::test_device();

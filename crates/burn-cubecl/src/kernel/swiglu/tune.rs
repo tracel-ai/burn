@@ -239,10 +239,9 @@ where
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(feature = "cuda", feature = "wgpu", feature = "metal")))]
 mod tests {
     use super::*;
-    use crate::CubeDevice;
     use cubecl::ir::{ElemType, FloatKind};
     use cubek::matmul::kernels::tensor::PlainTensor;
 
@@ -259,7 +258,7 @@ mod tests {
 
     /// A race of three fused rows of 128, its output allocated once.
     fn race_of_three_rows() -> SwigluRace {
-        let client = CubeDevice::default().client();
+        let client = crate::CubeDevice::default().client();
         let f32 = ElemType::Float(FloatKind::F32);
         let call = SwigluCall {
             client: client.clone(),
@@ -305,7 +304,7 @@ mod tests {
     /// predicted further above its roofline than a prompt's rows, which fill it.
     #[test]
     fn a_grid_that_leaves_the_device_idle_is_tried_later() {
-        let predictor = Predictor::on_device(&CubeDevice::default().client());
+        let predictor = Predictor::on_device(&crate::CubeDevice::default().client());
         let lead = SwigluTuneCandidate::list(CubeSwigluRoutine, &predictor).swap_remove(0);
         assert!(
             lead.priority(&SwigluKey::new(F16, 2816, 1))
