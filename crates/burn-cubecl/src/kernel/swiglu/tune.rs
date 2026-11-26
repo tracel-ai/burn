@@ -72,7 +72,8 @@ pub fn launch_tuned(call: SwigluCall, device: &Device, tile: GroupPriority) -> T
             .expect("the floor gates every float row");
     }
     let client = call.client.clone();
-    let out = SwigluTensors::allocate_out(&client, &call.both);
+    let out = SwigluTensors::allocate_out(&client, &call.both)
+        .unwrap_or_else(|why| panic!("no swiglu output serves these rows: {why}"));
     // Keyed by the device: the set is built from what this device supports.
     let id = CubeTuneId::new(&client, device);
     let tunables = tunables(&id, &client, tile);
@@ -266,7 +267,7 @@ mod tests {
             client: client.clone(),
             both: PlainTensor::zeros(&client, &[3, 128], [128, 1], f32),
         };
-        let out = SwigluTensors::allocate_out(&client, &call.both);
+        let out = SwigluTensors::allocate_out(&client, &call.both).expect("an f32 row is gated");
         SwigluRace { call, out }
     }
 

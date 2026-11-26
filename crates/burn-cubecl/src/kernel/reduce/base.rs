@@ -569,10 +569,10 @@ fn reduce_workspace(
     );
     // A runtime may refuse an empty allocation: every buffer holds at least one counter.
     let at_least_one = |bytes: u64| (bytes as usize).max(size_of::<u32>());
-    let counters = at_least_one(bytes.arrivals) / size_of::<u32>();
+    let counters = at_least_one(bytes.arrivals_bytes) / size_of::<u32>();
     ReduceWorkspace {
-        partials: client.empty(at_least_one(bytes.partials)),
-        partial_indices: client.empty(at_least_one(bytes.partial_indices)),
+        partials: client.empty(at_least_one(bytes.partials_bytes)),
+        partial_indices: client.empty(at_least_one(bytes.partial_indices_bytes)),
         arrivals: client.create(Bytes::from_elems(vec![0u32; counters])),
     }
 }
