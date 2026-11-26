@@ -102,8 +102,8 @@ impl Projection {
 
     /// Read the input and the weight once, write the output once.
     fn bounds(&self, x: &Tensor<2>) -> Bounds {
-        let [rows, input] = tensor_dims(x);
-        let [_, output] = tensor_dims(&self.weight);
+        let [rows, _] = tensor_dims(x);
+        let [input, output] = tensor_dims(&self.weight);
         let element = x.dtype().size() as u64;
         Bounds {
             read: tensor_bytes(x) + tensor_bytes(&self.weight),
@@ -123,11 +123,14 @@ impl Projection {
   than none.
 
 On a sharded compute device of several members, the run is priced twice: for the device, and for
-the lead, its first member, given how the operands are split. `tensor_dims` and
-`tensor_bytes` answer for the share being priced, a split operand reading as the lead's shard and
-a replicated one whole, so a floor written through them needs nothing more. A floor that cannot
-price the lead's share of what it was handed returns `None` where `pricing_lead()` is true, and
-one that never asks, through those three, leaves the component timed and not scored on the lead.
+the lead, its first member, given how the operands are split. `tensor_dims` and `tensor_bytes`
+answer for the share being priced, a split operand reading as the lead's shard and a replicated
+one whole. They give what the lead holds as the component is entered, not what an operation
+inside redistributes: with the weight above split by rows, the product cuts the replicated input
+to the lead's half, which this floor still reads whole. A floor returns `None` where
+`pricing_lead()` is true and it cannot price the lead's share, and one that neither reads a shape
+through `tensor_dims` nor asks `pricing_lead()` leaves the component timed and not scored on the
+lead.
 
 ## Measuring a model
 
@@ -184,7 +187,8 @@ let measurement = Instrument::new(&device).measure(|| model.forward(batch.clone(
 ```
 
 The model must also satisfy the state requirements above. `Instrument::breakdown` runs the
-closure twice, for pricing and timing, and has the same replay requirements.
+closure twice, for pricing and timing, and a third time on a sharded compute device of several
+members, to price its lead. It has the same replay requirements.
 
 ### Profiling the text classifier
 

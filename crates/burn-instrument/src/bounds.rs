@@ -2,6 +2,7 @@ use burn_tensor::kind::Basic;
 use burn_tensor::quantization::quantized_data_len;
 use burn_tensor::{DType, Shape, Tensor};
 
+use crate::observer::lead_share_priced;
 use crate::pricing_lead;
 
 /// What one component must move and compute to run **alone**, at best: with nothing of its own
@@ -85,12 +86,12 @@ impl core::iter::Sum for Bounds {
 /// The bytes a tensor occupies **as it is stored**: for a quantized tensor, its packed values
 /// plus its scales, not the width its elements read back as. Any kind of tensor: indices and
 /// masks are traffic too. While the lead's share is priced ([`pricing_lead`]), the bytes of the
-/// lead's shard.
+/// lead's shard, read without asking for it: bytes alone do not make a floor the lead's.
 ///
 /// Why [`Bounds`] are declared by the component rather than computed for it: the component holds
 /// the tensor and so knows its scheme, and no caller has to restate it.
 pub fn tensor_bytes<const D: usize, K: Basic>(tensor: &Tensor<D, K>) -> u64 {
-    stored_bytes(&tensor_dims(tensor), tensor.dtype())
+    stored_bytes(&dims_priced(tensor, lead_share_priced()), tensor.dtype())
 }
 
 /// The shape [`Bounds`] are declared from: `tensor`'s, or while the lead's share is priced
@@ -100,7 +101,12 @@ pub fn tensor_bytes<const D: usize, K: Basic>(tensor: &Tensor<D, K>) -> u64 {
 /// compute device's lead with the same declaration as the device: a split operand reads as the
 /// lead's shard, a replicated one whole.
 pub fn tensor_dims<const D: usize, K: Basic>(tensor: &Tensor<D, K>) -> [usize; D] {
-    let lead = pricing_lead().then(|| tensor.shard_dims()).flatten();
+    dims_priced(tensor, pricing_lead())
+}
+
+/// `tensor`'s shape, or its shard on the lead where `lead`.
+fn dims_priced<const D: usize, K: Basic>(tensor: &Tensor<D, K>, lead: bool) -> [usize; D] {
+    let lead = lead.then(|| tensor.shard_dims()).flatten();
     match lead.as_deref() {
         Some([lead, ..]) => *lead,
         _ => tensor.dims(),
@@ -202,6 +208,40 @@ mod tests {
         let tensor = Tensor::<2>::zeros([3, 4], &Default::default());
 
         assert_eq!(crate::price_at_lead(|| tensor_dims(&tensor)), [3, 4]);
+    }
+
+    #[cfg(feature = "instrument")]
+    #[test]
+    fn bytes_alone_do_not_make_a_floor_the_leads() {
+        let tensor = over_two_members(burn_tensor::Sharding::Split { dim: 1 });
+        let lead = crate::Observing.price_lead();
+
+        let read = tensor_bytes(&tensor);
+
+        assert_eq!(
+            lead.priced(Some(Bounds {
+                read,
+                write: 0,
+                flops: 0
+            })),
+            None
+        );
+    }
+
+    #[cfg(feature = "instrument")]
+    #[test]
+    fn a_shape_read_at_the_lead_makes_a_floor_the_leads() {
+        let tensor = over_two_members(burn_tensor::Sharding::Split { dim: 1 });
+        let lead = crate::Observing.price_lead();
+
+        let [_, columns] = tensor_dims(&tensor);
+
+        let floor = Bounds {
+            read: columns as u64,
+            write: 0,
+            flops: 0,
+        };
+        assert_eq!(lead.priced(Some(floor)), Some(floor));
     }
 
     /// A declaration that moved traffic from reads to writes inside one unchanged total is

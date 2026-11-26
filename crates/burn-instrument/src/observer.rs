@@ -100,8 +100,8 @@ std::thread_local! {
 /// sharded compute device, whose times and peaks a report reads such a run by.
 ///
 /// On a sharded compute device of several members, the instrument prices a run twice, for the
-/// device and for the lead. [`tensor_bytes`](crate::tensor_bytes) and
-/// [`tensor_dims`](crate::tensor_dims) answer for the share being priced, so one declaration
+/// device and for the lead. [`tensor_dims`](crate::tensor_dims) and
+/// [`tensor_bytes`](crate::tensor_bytes) answer for the share being priced, so one declaration
 /// prices both; a floor that cannot price the lead's share of what it was handed returns `None`
 /// where this is `true`.
 ///
@@ -109,14 +109,20 @@ std::thread_local! {
 ///
 /// `false` everywhere but in a component's `bounds` evaluated in the lead's pricing run, and
 /// inside [`price_at_lead`]. A lead floor is kept only where its evaluation asked this, itself or
-/// through those two: one that never asked priced the device, not the lead.
+/// through [`tensor_dims`](crate::tensor_dims): one that never asked priced the device, not the
+/// lead. [`tensor_bytes`](crate::tensor_bytes) answers without asking, since a floor written for
+/// one device reads its bytes through it and its shapes whole.
 pub fn pricing_lead() -> bool {
+    let pricing = lead_share_priced();
     #[cfg(feature = "instrument")]
-    {
-        let pricing = PRICING_LEAD.with(core::cell::Cell::get);
-        LEAD_ASKED.with(|asked| asked.set(asked.get() || pricing));
-        pricing
-    }
+    LEAD_ASKED.with(|asked| asked.set(asked.get() || pricing));
+    pricing
+}
+
+/// Whether the lead's share is being priced, read without asking [`pricing_lead`].
+pub(crate) fn lead_share_priced() -> bool {
+    #[cfg(feature = "instrument")]
+    return PRICING_LEAD.with(core::cell::Cell::get);
     #[cfg(not(feature = "instrument"))]
     false
 }
@@ -124,15 +130,20 @@ pub fn pricing_lead() -> bool {
 /// What `price` returns with the lead's share priced, as a component's bounds are in the lead's
 /// pricing run of a sharded compute device: how a floor's share at the lead is read outside an
 /// instrumented run, as a test of it does.
+#[cfg(feature = "instrument")]
 pub fn price_at_lead<T>(price: impl FnOnce() -> T) -> T {
     let _lead = Observing.price_lead();
     price()
 }
 
-/// The lead's share, priced on this thread until the guard drops. See [`pricing_lead`].
+/// The lead's share, priced on this thread until the guard drops, which restores the pricing it
+/// was made inside. See [`pricing_lead`].
 #[doc(hidden)]
 #[must_use = "the lead's share is priced only while this guard lives"]
 pub struct LeadPricing {
+    /// Whether the share was priced, and asked for, when this guard was made.
+    #[cfg(feature = "instrument")]
+    enclosing: (bool, bool),
     _thread: core::marker::PhantomData<*const ()>,
 }
 
@@ -149,7 +160,9 @@ impl LeadPricing {
 #[cfg(feature = "instrument")]
 impl Drop for LeadPricing {
     fn drop(&mut self) {
-        PRICING_LEAD.with(|lead| lead.set(false));
+        let (pricing, asked) = self.enclosing;
+        PRICING_LEAD.with(|lead| lead.set(pricing));
+        LEAD_ASKED.with(|inner| inner.set(asked || inner.get()));
     }
 }
 
@@ -254,12 +267,12 @@ impl Observing {
     #[doc(hidden)]
     #[inline]
     pub fn price_lead(self) -> LeadPricing {
-        #[cfg(feature = "instrument")]
-        {
-            LEAD_ASKED.with(|asked| asked.set(false));
-            PRICING_LEAD.with(|lead| lead.set(true));
-        }
         LeadPricing {
+            #[cfg(feature = "instrument")]
+            enclosing: (
+                PRICING_LEAD.with(|lead| lead.replace(true)),
+                LEAD_ASKED.with(|asked| asked.replace(false)),
+            ),
             _thread: core::marker::PhantomData,
         }
     }

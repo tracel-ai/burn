@@ -405,6 +405,26 @@ fn the_leads_share_ends_with_the_bounds_it_priced() {
     assert!(!after);
 }
 
+#[test]
+fn a_lead_pricing_inside_another_leaves_the_enclosing_one_priced() {
+    let enclosing = crate::price_at_lead(|| {
+        crate::price_at_lead(|| ());
+        crate::pricing_lead()
+    });
+
+    assert!(enclosing);
+}
+
+#[test]
+fn a_lead_pricing_inside_another_keeps_what_the_enclosing_one_asked() {
+    let lead = crate::Observing.price_lead();
+    crate::pricing_lead();
+
+    crate::price_at_lead(|| ());
+
+    assert!(lead.priced(Some(Bounds::default())).is_some());
+}
+
 /// They priced the device's work, which is not the lead's share of it.
 #[test]
 fn bounds_that_never_ask_for_the_leads_share_price_no_lead() {
