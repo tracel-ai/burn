@@ -10,7 +10,8 @@ use burn_backend::{
 
 /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.
 ///
-/// `scale` may be flat: the kernel reads it on the scheme's grid of blocks over `tensor`.
+/// `scale` holds one scale for each block of the scheme's grid over `tensor`, in any shape that
+/// lists them in row-major grid order, a flat one included.
 ///
 /// # Panics
 ///
@@ -25,7 +26,15 @@ pub fn quantize(
     let (out_values, out_params) = output.clone().quantized_handles().unwrap();
     let out_global = output.global();
     let dtype = tensor.dtype;
-    let scale = on_grid(scale, &tensor, scheme);
+    // The kernel finds a value's scale along the scales' own axes, so it reads them on the grid.
+    let grid = params_shape(&tensor.shape(), scheme);
+    assert_eq!(
+        scale.shape().num_elements(),
+        grid.num_elements(),
+        "quantize: {scheme:?} over {:?} takes one scale for each of {grid:?} blocks",
+        tensor.shape()
+    );
+    let scale = reshape(scale, grid);
 
     // Innermost first: the block scales, then the per-tensor scale they are normalized against.
     let mut scales = vec![scale.binding()];
@@ -46,20 +55,4 @@ pub fn quantize(
     .expect("Kernel to never fail");
 
     output
-}
-
-/// `scale` stated on the grid of blocks `scheme` lays over `tensor`, which is what the kernel
-/// indexes it by: a flat scale of a block scheme would be read along the wrong axes.
-fn on_grid(scale: CubeTensor, tensor: &CubeTensor, scheme: &QuantScheme) -> CubeTensor {
-    let grid = params_shape(&tensor.shape(), scheme);
-    assert_eq!(
-        scale.shape().num_elements(),
-        grid.num_elements(),
-        "quantize: {scheme:?} over {:?} takes one scale for each of {grid:?} blocks",
-        tensor.shape()
-    );
-    match scale.shape() == grid {
-        true => scale,
-        false => reshape(scale, grid),
-    }
 }
