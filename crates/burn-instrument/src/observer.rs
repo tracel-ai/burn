@@ -24,9 +24,9 @@ pub trait ComponentObserver {
     fn prices(&self) -> bool {
         true
     }
-    /// Whether the components entered also evaluate their lead's bounds, which an observer asks
-    /// for only of a run on a sharded compute device of several members, whose first member those
-    /// bounds price.
+    /// Whether the components entered evaluate their bounds at the lead's share (see
+    /// [`pricing_lead`]): what an observer of a pricing run of a sharded compute device's lead
+    /// asks for.
     fn prices_lead(&self) -> bool {
         false
     }
@@ -77,9 +77,6 @@ pub struct Declaration<'a> {
     /// The floor for running this entry alone, where the component declares one. `None` is a
     /// component that is timed and not scored.
     pub bounds: Option<Bounds>,
-    /// The floor of the lead, the first member of a sharded compute device, for its share of this
-    /// entry. `None` is a component that is timed and not scored on a sharded compute device.
-    pub lead_bounds: Option<Bounds>,
 }
 
 #[cfg(feature = "instrument")]
@@ -93,6 +90,67 @@ std::thread_local! {
     static OBSERVED: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
     static OBSERVER: core::cell::RefCell<Option<Box<dyn ComponentObserver>>> =
         const { core::cell::RefCell::new(None) };
+    /// Whether the bounds being evaluated on this thread price the lead's share.
+    static PRICING_LEAD: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+    /// Whether those bounds have asked [`pricing_lead`] since the share was set.
+    static LEAD_ASKED: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+}
+
+/// Whether the bounds being evaluated price the lead's share: the work of the first member of a
+/// sharded compute device, whose times and peaks a report reads such a run by.
+///
+/// On a sharded compute device of several members, the instrument prices a run twice, for the
+/// device and for the lead. [`tensor_bytes`](crate::tensor_bytes) and
+/// [`tensor_dims`](crate::tensor_dims) answer for the share being priced, so one declaration
+/// prices both; a floor that cannot price the lead's share of what it was handed returns `None`
+/// where this is `true`.
+///
+/// # Guarantees
+///
+/// `false` everywhere but in a component's `bounds` evaluated in the lead's pricing run, and
+/// inside [`price_at_lead`]. A lead floor is kept only where its evaluation asked this, itself or
+/// through those two: one that never asked priced the device, not the lead.
+pub fn pricing_lead() -> bool {
+    #[cfg(feature = "instrument")]
+    {
+        let pricing = PRICING_LEAD.with(core::cell::Cell::get);
+        LEAD_ASKED.with(|asked| asked.set(asked.get() || pricing));
+        pricing
+    }
+    #[cfg(not(feature = "instrument"))]
+    false
+}
+
+/// What `price` returns with the lead's share priced, as a component's bounds are in the lead's
+/// pricing run of a sharded compute device: how a floor's share at the lead is read outside an
+/// instrumented run, as a test of it does.
+pub fn price_at_lead<T>(price: impl FnOnce() -> T) -> T {
+    let _lead = Observing.price_lead();
+    price()
+}
+
+/// The lead's share, priced on this thread until the guard drops. See [`pricing_lead`].
+#[doc(hidden)]
+#[must_use = "the lead's share is priced only while this guard lives"]
+pub struct LeadPricing {
+    _thread: core::marker::PhantomData<*const ()>,
+}
+
+impl LeadPricing {
+    /// `bounds`, where their evaluation asked [`pricing_lead`].
+    pub fn priced(self, bounds: Option<Bounds>) -> Option<Bounds> {
+        #[cfg(feature = "instrument")]
+        return bounds.filter(|_| LEAD_ASKED.with(core::cell::Cell::get));
+        #[cfg(not(feature = "instrument"))]
+        return bounds.and(None);
+    }
+}
+
+#[cfg(feature = "instrument")]
+impl Drop for LeadPricing {
+    fn drop(&mut self) {
+        PRICING_LEAD.with(|lead| lead.set(false));
+    }
 }
 
 /// The observation of this thread, or `None` when nothing observes it.
@@ -182,13 +240,28 @@ impl Observing {
         prices
     }
 
-    /// Whether the component being entered should evaluate its lead's bounds too. See
+    /// Whether the component being entered evaluates its bounds at the lead's share. See
     /// [`ComponentObserver::prices_lead`].
     #[inline]
     pub fn prices_lead(self) -> bool {
         let mut prices = false;
         Self::with_observer(|observer| prices = observer.prices_lead());
         prices
+    }
+
+    /// Price the lead's share until the guard drops, while a component's bounds are evaluated in
+    /// the lead's pricing run. See [`pricing_lead`].
+    #[doc(hidden)]
+    #[inline]
+    pub fn price_lead(self) -> LeadPricing {
+        #[cfg(feature = "instrument")]
+        {
+            LEAD_ASKED.with(|asked| asked.set(false));
+            PRICING_LEAD.with(|lead| lead.set(true));
+        }
+        LeadPricing {
+            _thread: core::marker::PhantomData,
+        }
     }
 
     /// Suspend observation while a bounds expression runs, so its annotated helpers
@@ -259,7 +332,6 @@ mod tests {
                     label: "after panic",
                     variant: None,
                     site: "test::forward",
-                    lead_bounds: None,
                     bounds: None,
                 }),
         );
@@ -278,7 +350,6 @@ mod tests {
                 label: "attention",
                 variant: Some("flash"),
                 site: "test::attend",
-                lead_bounds: None,
                 bounds: Some(Bounds {
                     read: 6,
                     write: 2,
@@ -289,7 +360,6 @@ mod tests {
                 label: "qkv",
                 variant: None,
                 site: "test::project",
-                lead_bounds: None,
                 bounds: None,
             });
         }
@@ -323,7 +393,6 @@ mod tests {
             label,
             variant: None,
             site: "test::forward",
-            lead_bounds: None,
             bounds: None,
         };
         let (outer, _observation) = installed();
@@ -374,7 +443,6 @@ mod tests {
             label: "attention",
             variant: None,
             site: "test::attend",
-            lead_bounds: None,
             bounds: None,
         }));
         assert_eq!(mine.events(), ["+attention:-:-", "-"]);

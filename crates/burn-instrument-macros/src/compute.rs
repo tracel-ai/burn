@@ -21,8 +21,6 @@ struct Args {
     /// This entry's floor as an expression, or, as a bare path, the function that computes it
     /// from every parameter.
     bounds: Option<Expr>,
-    /// The lead's floor on a sharded compute device, written as `bounds` is.
-    lead_bounds: Option<Expr>,
 }
 
 impl syn::parse::Parse for Args {
@@ -36,13 +34,12 @@ impl syn::parse::Parse for Args {
                 "variant" => args.variant = Some(input.parse()?),
                 // Tokens rather than a string, so go-to-definition and rename keep working.
                 "bounds" => args.bounds = Some(input.parse()?),
-                "lead_bounds" => args.lead_bounds = Some(input.parse()?),
                 other => {
                     return Err(syn::Error::new(
                         key.span(),
                         format!(
-                            "unknown `compute` argument `{other}`, expected `label`, `variant`, \
-                             `bounds` or `lead_bounds`"
+                            "unknown `compute` argument `{other}`, expected `label`, `variant` \
+                             or `bounds`"
                         ),
                     ));
                 }
@@ -83,10 +80,20 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
         Some(variant) => quote!(::core::convert::Into::into(#variant)),
         None => quote!(None),
     };
-    // `Into`, so the bounds may be `Bounds` or `Option<Bounds>`: a component that has no floor
-    // for what it was handed declines rather than declaring a zero.
-    let bounds = declared(args.bounds.as_ref(), &function)?;
-    let lead_bounds = declared(args.lead_bounds.as_ref(), &function)?;
+    // `Into` in both arms, so the bounds may be `Bounds` or `Option<Bounds>`: a component that
+    // has no floor for what it was handed declines rather than declaring a zero.
+    let bounds = match &args.bounds {
+        None => quote!(None),
+        // A function's path is called with `self` and every parameter by reference.
+        Some(Expr::Path(path)) if names_a_function(path, &function) => {
+            let priced = parameters(&function)?;
+            let priced = priced.iter().map(Parameter::priced);
+            quote!(::core::convert::Into::into(#path(&self #(, #priced)*)))
+        }
+        // Anything else is the value or the call the author wrote, evaluated with every
+        // parameter in scope.
+        Some(bounds) => quote!(::core::convert::Into::into(#bounds)),
+    };
 
     let entry = function.sig.ident.to_string();
     let site = quote!(::core::concat!(::core::module_path!(), "::", #entry));
@@ -114,26 +121,24 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                 (#label_binding, #variant_binding) => {
                     // Asked before observation is suspended, which leaves no observer to answer.
                     let #prices_lead_binding = __burn_instrument_observing.prices_lead();
-                    let (__burn_instrument_bounds, __burn_instrument_lead_bounds): (
-                        ::core::option::Option<burn::instrument::Bounds>,
-                        ::core::option::Option<burn::instrument::Bounds>,
-                    ) = match __burn_instrument_observing.prices() {
-                        true => {
-                            let __burn_instrument_suspended =
-                                __burn_instrument_observing.suspend();
-                            (#bounds, match #prices_lead_binding {
-                                true => #lead_bounds,
-                                false => None,
-                            })
-                        },
-                        false => (None, None),
-                    };
+                    let __burn_instrument_bounds: ::core::option::Option<burn::instrument::Bounds> =
+                        match __burn_instrument_observing.prices() {
+                            true => {
+                                let __burn_instrument_suspended =
+                                    __burn_instrument_observing.suspend();
+                                match #prices_lead_binding {
+                                    // Sizes read at the lead's share, in the lead's pricing run.
+                                    true => __burn_instrument_observing.price_lead().priced(#bounds),
+                                    false => #bounds,
+                                }
+                            },
+                            false => None,
+                        };
                     Some(__burn_instrument_observing.enter(burn::instrument::Declaration {
                         label: #label_binding,
                         variant: #variant_binding,
                         site: #site,
                         bounds: __burn_instrument_bounds,
-                        lead_bounds: __burn_instrument_lead_bounds,
                     }))
                 }
             },
@@ -142,22 +147,6 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
     });
 
     Ok(quote!(#function))
-}
-
-/// A declared floor, `bounds` or `lead_bounds`, as the expression that yields it.
-fn declared(floor: Option<&Expr>, function: &ItemFn) -> syn::Result<TokenStream> {
-    Ok(match floor {
-        None => quote!(None),
-        // A function's path is called with `self` and every parameter by reference.
-        Some(Expr::Path(path)) if names_a_function(path, function) => {
-            let priced = parameters(function)?;
-            let priced = priced.iter().map(Parameter::priced);
-            quote!(::core::convert::Into::into(#path(&self #(, #priced)*)))
-        }
-        // Anything else is the value or the call the author wrote, evaluated with every
-        // parameter in scope.
-        Some(floor) => quote!(::core::convert::Into::into(#floor)),
-    })
 }
 
 /// The method `item` annotates, refused where a tag cannot be held around its body.

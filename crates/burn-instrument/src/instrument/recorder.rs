@@ -216,11 +216,12 @@ impl ComponentObserver for RunRecorder {
         let entered = {
             let mut state = self.locked();
             let floor = state.floors.next();
-            state.tree.enter(Declaration {
+            let entered = state.tree.enter(Declaration {
                 bounds: declared.bounds.or(floor.bounds),
-                lead_bounds: declared.lead_bounds.or(floor.lead_bounds),
                 ..declared
-            })
+            });
+            state.tree.credit_lead_bounds(floor.lead_bounds);
+            entered
         };
         // Outside the lock: a full queue waits for the worker, and the worker
         // may be waiting on the lock to record a launch.
@@ -880,7 +881,6 @@ mod tests {
             label,
             variant: None,
             site: "test::forward",
-            lead_bounds: None,
             bounds: None,
         }
     }

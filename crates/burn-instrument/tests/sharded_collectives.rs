@@ -6,7 +6,9 @@
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
-use burn_instrument::{Bounds, CollectivePath, Instrument, Peaks, compute, member_tensor_bytes};
+use burn_instrument::{
+    Bounds, CollectivePath, Instrument, Peaks, compute, tensor_bytes, tensor_dims,
+};
 use burn_tensor::{
     Device, DeviceType, Distribution, FloatDType, MemoryAccess, PeakKey, Sharding, Shards, Tensor,
 };
@@ -23,20 +25,21 @@ struct Project;
 
 impl Project {
     /// A partial sum, which `exp` cannot take until it is all-reduced.
-    #[compute(bounds = Bounds::default(), lead_bounds = Self::lead_bounds)]
+    #[compute(bounds = Self::bounds)]
     fn forward(&self, lhs: Tensor<2>, rhs: Tensor<2>) -> Tensor<2> {
         lhs.matmul(rhs).exp()
     }
 
-    /// The lead reads its shards of both operands and writes a whole partial sum.
-    fn lead_bounds(&self, lhs: &Tensor<2>, rhs: &Tensor<2>) -> Option<Bounds> {
-        let [rows, inner] = lhs.shard_dims()?[0];
-        let [_, columns] = rhs.shard_dims()?[0];
-        Some(Bounds {
-            read: member_tensor_bytes(lhs)?[0] + member_tensor_bytes(rhs)?[0],
+    /// Reads both operands and writes the product: on the lead, its shards and a whole partial
+    /// sum.
+    fn bounds(&self, lhs: &Tensor<2>, rhs: &Tensor<2>) -> Bounds {
+        let [rows, inner] = tensor_dims(lhs);
+        let [_, columns] = tensor_dims(rhs);
+        Bounds {
+            read: tensor_bytes(lhs) + tensor_bytes(rhs),
             write: (rows * columns * size_of::<f32>()) as u64,
             flops: 2 * (rows * inner * columns) as u64,
-        })
+        }
     }
 }
 
@@ -207,7 +210,14 @@ fn a_sharded_device_of_one_card_is_a_plain_device() {
         panic!("one component: {:?}", breakdown.tree);
     };
     assert_eq!(project.lead_bounds, None);
-    assert_eq!(project.bounds, Some(Bounds::default()));
+    assert_eq!(
+        project.bounds,
+        Some(Bounds {
+            read: (2 * SIDE * SIDE * size_of::<f32>()) as u64,
+            write: (SIDE * SIDE * size_of::<f32>()) as u64,
+            flops: (2 * SIDE * SIDE * SIDE) as u64,
+        })
+    );
     let own_copy = (device.measure_peaks(&[PeakKey::Memory(MemoryAccess::Copy)]))
         .into_iter()
         .next()

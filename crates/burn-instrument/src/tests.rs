@@ -8,7 +8,7 @@
 // expansion that warns on either fails this module's compilation.
 #![deny(unused_variables, unused_mut, unused_braces)]
 
-use crate::observed::{entered, entered_sharded, installed};
+use crate::observed::{entered, entered_at_lead, installed};
 use crate::{Bounds, compute};
 
 /// What the expansion names, as a crate depending on `burn` sees it.
@@ -56,27 +56,22 @@ impl Mixer {
         }
     }
 
-    /// The lead's part of mixing `x` over two members.
-    fn lead_bounds(&self, x: &u32) -> Bounds {
+    /// The floor of mixing `x`, of which the lead of a sharded compute device does half.
+    fn shared_bounds(&self, x: &u32) -> Bounds {
+        let x = match crate::pricing_lead() {
+            true => *x as u64 / 2,
+            false => *x as u64,
+        };
         Bounds {
-            read: *x as u64 * 2,
-            write: *x as u64,
-            flops: 1,
+            read: x * 4,
+            write: x * 2,
+            flops: 2,
         }
     }
 
-    /// A floor for the device, and one for the lead of a sharded compute device.
-    #[compute(label = "split", bounds = Self::bounds, lead_bounds = Self::lead_bounds)]
+    /// One floor, priced for the device and for the lead of a sharded compute device.
+    #[compute(label = "split", bounds = Self::shared_bounds)]
     fn split(&self, x: u32) -> u32 {
-        x * self.scale
-    }
-
-    fn lead_priced_off_shards() -> Bounds {
-        panic!("a lead floor is priced only on a sharded compute device")
-    }
-
-    #[compute(label = "split", lead_bounds = Self::lead_priced_off_shards())]
-    fn split_unpriced_off_shards(&self, x: u32) -> u32 {
         x * self.scale
     }
 
@@ -382,29 +377,42 @@ fn a_floor_can_be_the_call_that_computes_it() {
 }
 
 #[test]
-fn a_component_on_a_sharded_device_prices_its_lead_beside_the_device() {
-    let seen = entered_sharded(|| {
-        Mixer { scale: 3 }.split(7);
+fn a_component_prices_the_device_outside_the_leads_pricing_run() {
+    let seen = entered(|| {
+        Mixer { scale: 3 }.split(8);
     });
 
-    assert_eq!(seen.events(), ["+split:-:28", "-"]);
-    assert_eq!(
-        seen.lead_bounds("split"),
-        [Some(Bounds {
-            read: 14,
-            write: 7,
-            flops: 1,
-        })]
-    );
+    assert_eq!(seen.events(), ["+split:-:48", "-"]);
 }
 
 #[test]
-fn a_lead_floor_is_left_unevaluated_off_a_sharded_device() {
-    let seen = entered(|| {
-        Mixer { scale: 3 }.split_unpriced_off_shards(7);
+fn the_leads_pricing_run_prices_its_share_with_the_same_bounds() {
+    let seen = entered_at_lead(|| {
+        Mixer { scale: 3 }.split(8);
     });
 
-    assert_eq!(seen.lead_bounds("split"), [None]);
+    assert_eq!(seen.events(), ["+split:-:24", "-"]);
+}
+
+#[test]
+fn the_leads_share_ends_with_the_bounds_it_priced() {
+    let mut after = true;
+    entered_at_lead(|| {
+        Mixer { scale: 3 }.split(8);
+        after = crate::pricing_lead();
+    });
+
+    assert!(!after);
+}
+
+/// They priced the device's work, which is not the lead's share of it.
+#[test]
+fn bounds_that_never_ask_for_the_leads_share_price_no_lead() {
+    let seen = entered_at_lead(|| {
+        Mixer { scale: 3 }.consume(7);
+    });
+
+    assert_eq!(seen.events(), ["+consume:-:-", "-"]);
 }
 
 /// A label can come from an argument the body never reads, so a caller can name the role

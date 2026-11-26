@@ -1,8 +1,8 @@
-use alloc::vec::Vec;
-
 use burn_tensor::kind::Basic;
 use burn_tensor::quantization::quantized_data_len;
 use burn_tensor::{DType, Shape, Tensor};
+
+use crate::pricing_lead;
 
 /// What one component must move and compute to run **alone**, at best: with nothing of its own
 /// reaching global memory twice.
@@ -84,30 +84,27 @@ impl core::iter::Sum for Bounds {
 
 /// The bytes a tensor occupies **as it is stored**: for a quantized tensor, its packed values
 /// plus its scales, not the width its elements read back as. Any kind of tensor: indices and
-/// masks are traffic too.
+/// masks are traffic too. While the lead's share is priced ([`pricing_lead`]), the bytes of the
+/// lead's shard.
 ///
 /// Why [`Bounds`] are declared by the component rather than computed for it: the component holds
 /// the tensor and so knows its scheme, and no caller has to restate it.
 pub fn tensor_bytes<const D: usize, K: Basic>(tensor: &Tensor<D, K>) -> u64 {
-    stored_bytes(&tensor.dims(), tensor.dtype())
+    stored_bytes(&tensor_dims(tensor), tensor.dtype())
 }
 
-/// The bytes each member's shard of `tensor` occupies as stored: [`tensor_bytes`] of what each
-/// member holds, for pricing a member's part of a component.
+/// The shape [`Bounds`] are declared from: `tensor`'s, or while the lead's share is priced
+/// ([`pricing_lead`]), its shard on the lead, as [`Tensor::shard_dims`] gives it.
 ///
-/// # Guarantees
-///
-/// One entry per member, in member order, as [`Tensor::shard_dims`] gives their shapes; `None`
-/// exactly where `tensor` is not on a sharded compute device.
-pub fn member_tensor_bytes<const D: usize, K: Basic>(tensor: &Tensor<D, K>) -> Option<Vec<u64>> {
-    let dtype = tensor.dtype();
-    let shards = tensor.shard_dims()?;
-    Some(
-        shards
-            .iter()
-            .map(|dims| stored_bytes(dims, dtype))
-            .collect(),
-    )
+/// A floor that reads shapes through this and sizes through [`tensor_bytes`] prices a sharded
+/// compute device's lead with the same declaration as the device: a split operand reads as the
+/// lead's shard, a replicated one whole.
+pub fn tensor_dims<const D: usize, K: Basic>(tensor: &Tensor<D, K>) -> [usize; D] {
+    let lead = pricing_lead().then(|| tensor.shard_dims()).flatten();
+    match lead.as_deref() {
+        Some([lead, ..]) => *lead,
+        _ => tensor.dims(),
+    }
 }
 
 /// The bytes a tensor of `dims` occupies when stored as `dtype`, a quantized one laid out as
@@ -143,6 +140,68 @@ mod tests {
 
         assert_eq!(tensor_bytes(&indices), 12 * indices.dtype().size() as u64);
         assert_eq!(tensor_bytes(&mask), 12 * mask.dtype().size() as u64);
+    }
+
+    /// A `[2, 6]` tensor over two flex members, split as `sharding` says.
+    #[cfg(feature = "instrument")]
+    fn over_two_members(sharding: burn_tensor::Sharding) -> Tensor<2> {
+        use burn_tensor::{Device, Sharding, Shards};
+
+        let device = Device::shard_options(&[Device::flex(), Device::flex()])
+            .init()
+            .expect("two flex members form a sharded compute device");
+        let shape = match sharding {
+            Sharding::Split { dim: 1 } => [2, 3],
+            _ => [2, 6],
+        };
+        let shards = (device.shard_members())
+            .expect("a sharded compute device")
+            .iter()
+            .map(|member| Tensor::zeros(shape, member))
+            .collect();
+        Tensor::from_shards(Shards { shards, sharding }, &device).expect("each member's part")
+    }
+
+    #[cfg(feature = "instrument")]
+    #[test]
+    fn the_lead_reads_its_shard_of_a_split_tensor() {
+        let tensor = over_two_members(burn_tensor::Sharding::Split { dim: 1 });
+
+        assert_eq!(crate::price_at_lead(|| tensor_dims(&tensor)), [2, 3]);
+    }
+
+    #[cfg(feature = "instrument")]
+    #[test]
+    fn the_leads_bytes_are_those_of_its_shard() {
+        let tensor = over_two_members(burn_tensor::Sharding::Split { dim: 1 });
+
+        let lead = crate::price_at_lead(|| tensor_bytes(&tensor));
+
+        assert_eq!(lead, tensor_bytes(&tensor) / 2);
+    }
+
+    #[cfg(feature = "instrument")]
+    #[test]
+    fn the_lead_reads_a_replicated_tensor_whole() {
+        let tensor = over_two_members(burn_tensor::Sharding::Replicated);
+
+        assert_eq!(crate::price_at_lead(|| tensor_dims(&tensor)), [2, 6]);
+    }
+
+    #[cfg(feature = "instrument")]
+    #[test]
+    fn the_device_reads_a_split_tensor_whole() {
+        let tensor = over_two_members(burn_tensor::Sharding::Split { dim: 1 });
+
+        assert_eq!(tensor_dims(&tensor), [2, 6]);
+    }
+
+    #[cfg(feature = "instrument")]
+    #[test]
+    fn a_tensor_on_one_device_reads_whole_at_the_lead() {
+        let tensor = Tensor::<2>::zeros([3, 4], &Default::default());
+
+        assert_eq!(crate::price_at_lead(|| tensor_dims(&tensor)), [3, 4]);
     }
 
     /// A declaration that moved traffic from reads to writes inside one unchanged total is

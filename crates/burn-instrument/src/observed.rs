@@ -12,7 +12,6 @@ struct Entry {
     variant: Option<String>,
     site: &'static str,
     bounds: Option<Bounds>,
-    lead_bounds: Option<Bounds>,
 }
 
 /// What a run did at the seam, in order. Exits are kept as well as entries, because "children
@@ -27,8 +26,8 @@ enum Event {
 pub(crate) struct Entered {
     events: Mutex<Vec<Event>>,
     depth: Mutex<usize>,
-    /// Whether the run is observed as one on a sharded compute device.
-    sharded: bool,
+    /// Whether the run is observed as the lead's pricing run of a sharded compute device.
+    lead: bool,
 }
 
 impl ComponentObserver for &'static Entered {
@@ -40,7 +39,6 @@ impl ComponentObserver for &'static Entered {
             variant: declared.variant.map(str::to_string),
             site: declared.site,
             bounds: declared.bounds,
-            lead_bounds: declared.lead_bounds,
         }));
         *depth += 1;
     }
@@ -51,7 +49,7 @@ impl ComponentObserver for &'static Entered {
     }
 
     fn prices_lead(&self) -> bool {
-        self.sharded
+        self.lead
     }
 }
 
@@ -82,16 +80,6 @@ impl Entered {
                 }
             }
             sites
-        })
-    }
-
-    /// The lead bounds each entry of `label` declared, in entry order.
-    pub(crate) fn lead_bounds(&self, label: &str) -> Vec<Option<Bounds>> {
-        self.with_entries(|entries| {
-            entries
-                .filter(|entry| entry.label == label)
-                .map(|entry| entry.lead_bounds)
-                .collect()
         })
     }
 
@@ -129,13 +117,13 @@ pub(crate) fn entered(run: impl FnOnce()) -> &'static Entered {
     observed(Entered::default(), run)
 }
 
-/// Observe what `run` enters as a run on a sharded compute device.
-pub(crate) fn entered_sharded(run: impl FnOnce()) -> &'static Entered {
-    let sharded = Entered {
-        sharded: true,
+/// Observe what `run` enters as the lead's pricing run of a sharded compute device.
+pub(crate) fn entered_at_lead(run: impl FnOnce()) -> &'static Entered {
+    let lead = Entered {
+        lead: true,
         ..Entered::default()
     };
-    observed(sharded, run)
+    observed(lead, run)
 }
 
 fn observed(seen: Entered, run: impl FnOnce()) -> &'static Entered {

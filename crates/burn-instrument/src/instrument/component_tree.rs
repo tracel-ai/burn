@@ -67,6 +67,16 @@ impl ComponentTree {
         Attribution::Component(component)
     }
 
+    /// Add `bounds`, the lead's floor of the entry just entered, to its component's: summed
+    /// across entries as [`Component::bounds`](crate::Component::bounds) are.
+    pub fn credit_lead_bounds(&mut self, bounds: Option<Bounds>) {
+        let (Some(component), Some(bounds)) = (self.innermost(), bounds) else {
+            return;
+        };
+        let lead = &mut self.component_mut(component).lead_bounds;
+        *lead = Some(lead.unwrap_or_default() + bounds);
+    }
+
     /// Leave the innermost open component, and say where launches land now.
     pub fn exit(&mut self) -> Attribution {
         self.open.pop();
@@ -326,9 +336,6 @@ impl ComponentRecord {
         // was declared rather than losing the component's roofline entirely.
         if let Some(bounds) = declared.bounds {
             self.bounds = Some(self.bounds.unwrap_or_default() + bounds);
-        }
-        if let Some(bounds) = declared.lead_bounds {
-            self.lead_bounds = Some(self.lead_bounds.unwrap_or_default() + bounds);
         }
     }
 }
@@ -607,14 +614,12 @@ mod tests {
     fn lead_bounds_sum_across_entries() {
         let mut components = ComponentTree::default();
         for read in [4, 5] {
-            components.enter(Declaration {
-                lead_bounds: Some(Bounds {
-                    read,
-                    write: 1,
-                    flops: 2,
-                }),
-                ..declared("attention")
-            });
+            components.enter(declared("attention"));
+            components.credit_lead_bounds(Some(Bounds {
+                read,
+                write: 1,
+                flops: 2,
+            }));
             components.exit();
         }
 
@@ -825,7 +830,6 @@ mod tests {
             label,
             variant: None,
             site: "test::forward",
-            lead_bounds: None,
             bounds: None,
         }
     }

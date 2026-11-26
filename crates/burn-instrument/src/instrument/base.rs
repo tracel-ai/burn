@@ -225,17 +225,25 @@ impl Instrument {
         breakdown
     }
 
-    /// Run `model` under a pricing observer to its end, its output held to
-    /// the sync, and say the floor each entry declared.
+    /// Run `model` under a pricing observer to its end, and say the floor each entry declared:
+    /// on a sharded compute device, again at the lead's share, in a run of its own so each entry
+    /// evaluates its bounds once per run.
     fn price<T>(&self, model: &mut impl FnMut() -> T) -> Floors {
+        let device = self.priced(model, false);
+        let lead = (self.devices.sharded()).then(|| self.priced(model, true));
+        Floors::new(device, lead)
+    }
+
+    /// One pricing run of `model`, its output held to the sync, at the lead's share where `lead`.
+    fn priced<T>(&self, model: &mut impl FnMut() -> T, lead: bool) -> Pricing {
         self.devices.seed(Self::SEED);
-        let pricing = Pricing::new(self.devices.sharded());
+        let pricing = Pricing::new(lead);
         let observation = ComponentObservation::new(Box::new(pricing.clone()));
         let output = model();
         drop(observation);
         self.devices.sync("the device answers");
         drop(output);
-        pricing.floors()
+        pricing
     }
 
     /// The median wall time of the configured samples, or `None` for none.
