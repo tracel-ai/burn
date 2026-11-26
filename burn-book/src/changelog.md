@@ -641,6 +641,9 @@ whose tensors are split over `devices` (crate `burn-shard`).
   [#6062](https://github.com/tracel-ai/burn/pull/6062),
   [#6069](https://github.com/tracel-ai/burn/pull/6069))
 
+- On CubeCL backends, casting between `F32` and `Flex32` now returns the requested dtype in both
+  directions.
+
 #### Grid sampling
 
 - Fix bilinear `grid_sample_2d` on CubeCL backends reading the wrong y coordinates when the grid's
