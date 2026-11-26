@@ -21,7 +21,7 @@ pub fn random_bernoulli(
         dtype_to_storage_type(dtype),
         key.seed(),
     )
-    .expect("Kernel to never fail");
+    .unwrap_or_else(|why| panic!("no random kernel serves this output: {why}"));
 
     output
 }
