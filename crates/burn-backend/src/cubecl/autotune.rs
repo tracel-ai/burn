@@ -1,5 +1,5 @@
 //! What every cubecl-backed autotune table shares, decided in one place: the roofline bounds a
-//! level settles for, and how far down its candidates a round goes ([`configured_patience`]).
+//! level settles for, and how far down its candidates a round goes ([`Patience::for_level`]).
 
 use alloc::{sync::Arc, vec::Vec};
 use core::time::Duration;
@@ -11,44 +11,22 @@ use cubecl::{
     },
 };
 
-/// When a round stops measuring a group: after [`min_measured`](Patience::min_measured)
-/// candidates in priority order, once [`max_misses`](Patience::max_misses) in a row fail to beat
-/// the leader. The minimum also holds the roofline's early stop back, so a table of that many
-/// candidates or fewer is always raced whole.
-///
-/// Twenty misses, not fewer, while the estimates that order a group still miss some kernels by
-/// several times: replayed over matmul and attention races on four devices, it settles on the
-/// fastest candidate of each, measuring about a third of them.
-pub const PATIENCE: Patience = Patience {
-    min_measured: 10,
-    max_misses: 20,
-};
-
 /// The priority the candidates of a [`raced_group`] sit at: one level, so a round over them is
 /// their order of registration.
 pub const RACED_PRIORITY: i8 = 0;
 
 /// The group a table built on a [`TunableSet`] directly races its candidates in: one group at
 /// one priority, its members measured in the order they are added, with the patience the
-/// configured level gives every table ([`configured_patience`]). A member joins it at
-/// [`RACED_PRIORITY`].
+/// configured level gives every table ([`Patience::for_level`]), read when the group is built.
+/// A member joins it at [`RACED_PRIORITY`].
 pub fn raced_group<K: AutotuneKey>(name: &str) -> TuneGroup<K> {
     TuneGroup::ordered(
         name,
         |_key| RACED_PRIORITY,
         OrderedSettings {
-            patience: configured_patience(),
+            patience: Patience::for_level(&CubeClRuntimeConfig::get().autotune.level),
         },
     )
-}
-
-/// When a round stops measuring a group at the configured level: [`PATIENCE`], or never at
-/// [`AutotuneLevel::Full`], which races every candidate.
-///
-/// Read when a group is built, so a level changed through [`RuntimeConfig::set`] afterwards
-/// reaches only the groups built after it.
-pub fn configured_patience() -> Option<Patience> {
-    configured_thresholds().map(|_| PATIENCE)
 }
 
 /// Registers `bounds`, which states a problem's roofline, on `set`, so a round ends at the first

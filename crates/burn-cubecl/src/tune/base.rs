@@ -53,8 +53,8 @@
 
 use super::roofline::{Bounded, ReadCold};
 use super::{CandidatePriority, GroupPriority, Roofline, TuneCandidate, priority_of};
-use burn_backend::cubecl::autotune::configured_patience;
 use core::fmt::Display;
+use cubecl::config::{CubeClRuntimeConfig, RuntimeConfig};
 use cubecl::tune::{
     AutotuneKey, CloneInputGenerator, InputGenerator, KeyGenerator, OrderedSettings, Patience,
     Tunable, TunableSet, TuneGroup, TuneInputs,
@@ -156,7 +156,7 @@ impl<K: AutotuneKey, I: TuneInputs, O: 'static, Id: Identity> Autotune<K, I, O, 
         let layout = GroupLayout {
             groups: Vec::new(),
             measured,
-            patience: configured_patience(),
+            patience: Patience::for_level(&CubeClRuntimeConfig::get().autotune.level),
         };
         Self {
             set: TunableSet::new(key_gen, input_gen),
@@ -393,7 +393,7 @@ struct GroupLayout {
     /// [`measured_on`](Autotune::measured_on) gives.
     measured: Option<&'static str>,
     /// When a round stops measuring each group, read from the configured level when the
-    /// autotune is built ([`configured_patience`]); `None` races every candidate.
+    /// autotune is built ([`Patience::for_level`]); `None` races every candidate.
     patience: Option<Patience>,
 }
 
@@ -501,6 +501,7 @@ impl<S: Display> Identity for CandidateIdentity<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cubecl::config::autotune::AutotuneLevel;
 
     /// A group layout is a candidate *name*, so editing a configuration
     /// reaches the persisted tuning cache.
@@ -573,7 +574,7 @@ mod tests {
             GroupLayout {
                 groups: vec![("tile", shipped), ("cubek", shipped)],
                 measured: None,
-                patience: Some(burn_backend::cubecl::autotune::PATIENCE),
+                patience: Patience::for_level(&AutotuneLevel::Balanced),
             }
             .to_string()
         );
