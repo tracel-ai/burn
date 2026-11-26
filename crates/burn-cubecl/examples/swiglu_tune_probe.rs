@@ -18,7 +18,7 @@ use cubek::swiglu::kernels::{
 use std::time::Instant;
 
 fn main() {
-    let device = CubeDevice::rocm(0).expect("rocm device");
+    let device = CubeDevice::default();
     let client = device.client();
     let hw = Hardware::from_client(&client);
     let iters: usize = std::env::var("PROBE_ITERS")

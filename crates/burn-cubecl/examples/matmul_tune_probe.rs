@@ -13,6 +13,7 @@ use cubek::matmul::kernels::plan::{MatmulCall, MatmulCallInput};
 use cubek::matmul::kernels::tensor::PlainTensor;
 use cubek::matmul::kernels::{
     CubeShuffleMatmulRoutine, CubeStagedAsyncCopyMatmulRoutine, CubeStagedMatmulRoutine,
+    CubeStagedTmaFillerMatmulRoutine, CubeStagedTmaMatmulRoutine, CubeStagedTmaStoredMatmulRoutine,
     HypercubeLastArrivalMatmulRoutine, MatmulBlueprint, MatmulRoutine, MatmulRoutineCandidate,
     MatmulRoutineProblem, PlaneShuffleMatmulRoutine, UnitRegistersMatmulRoutine,
     UnitWholeKMatmulRoutine,
@@ -123,12 +124,16 @@ impl Probe {
             let ticks = cubecl::future::block_on(profile.resolve())?;
             Some(ticks.duration().as_secs_f64() * 1e6)
         };
-        (0..5).filter_map(|_| time()).reduce(f64::min)
+        let samples = std::env::var("PROBE_SAMPLES")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(9);
+        (0..samples).filter_map(|_| time()).reduce(f64::min)
     }
 }
 
 fn main() {
-    let device = CubeDevice::rocm(0).expect("rocm device");
+    let device = CubeDevice::default();
     let client = device.client();
     let hw = Hardware::from_client(&client);
     let cmma = hw
@@ -203,6 +208,9 @@ fn main() {
         probe.sweep("unit_whole_k", UnitWholeKMatmulRoutine);
         probe.sweep("cube_staged", CubeStagedMatmulRoutine);
         probe.sweep("cube_staged_async", CubeStagedAsyncCopyMatmulRoutine);
+        probe.sweep("cube_staged_tma", CubeStagedTmaMatmulRoutine);
+        probe.sweep("cube_staged_tma_filler", CubeStagedTmaFillerMatmulRoutine);
+        probe.sweep("cube_staged_tma_stored", CubeStagedTmaStoredMatmulRoutine);
         probe.sweep("hypercube_last_arrival", HypercubeLastArrivalMatmulRoutine);
         probe.sweep("unit_registers", UnitRegistersMatmulRoutine);
     }

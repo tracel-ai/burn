@@ -15,9 +15,13 @@ use cubecl::{
 /// candidates in priority order, once [`max_misses`](Patience::max_misses) in a row fail to beat
 /// the leader. The minimum also holds the roofline's early stop back, so a table of that many
 /// candidates or fewer is always raced whole.
+///
+/// Twenty misses, not fewer, while the estimates that order a group still miss some kernels by
+/// several times: replayed over matmul and attention races on four devices, it settles on the
+/// fastest candidate of each, measuring about a third of them.
 pub const PATIENCE: Patience = Patience {
     min_measured: 10,
-    max_misses: 10,
+    max_misses: 20,
 };
 
 /// The priority the candidates of a [`raced_group`] sit at: one level, so a round over them is

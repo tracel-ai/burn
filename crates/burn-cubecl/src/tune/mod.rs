@@ -24,7 +24,7 @@ pub use base::*;
 pub(crate) use checks::assert_equivalent;
 pub use group::*;
 pub use prediction::{Arithmetic, Peaks, Prediction};
-pub(crate) use predictor::Predictor;
+pub use predictor::Predictor;
 pub use priority::*;
 pub use roofline::*;
 pub use worker::WorkerLimits;
