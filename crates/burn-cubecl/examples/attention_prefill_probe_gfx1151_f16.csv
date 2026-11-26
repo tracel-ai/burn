@@ -1,0 +1,419 @@
+seq,routine,setting,priority,pred_us,floor_us,us
+512,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1",56,213.44,98.63,580.79
+512,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1 queries=last_first",56,213.44,98.63,578.24
+512,cube_staged,"cube-fragment-attention fragments=1x1 heads=1 planes_along_queries=1 planes_along_keys=1 queries=last_first",53,278.81,98.63,560.49
+512,cube_staged,"cube-fragment-attention fragments=1x1 heads=2 planes_along_queries=1 planes_along_keys=1 queries=last_first",55,234.60,98.63,528.59
+512,cube_staged,"cube-fragment-attention fragments=1x1 heads=8 planes_along_queries=1 planes_along_keys=1 queries=last_first",56,213.44,98.63,563.13
+512,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=2 planes_along_keys=1 queries=last_first",57,196.46,98.63,608.25
+512,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1 stages_in_flight=2 queries=last_first",57,201.54,98.63,672.73
+512,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1 prefetch=registers queries=last_first",56,213.44,98.63,536.50
+512,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1 stages_in_flight=2 prefetch=registers queries=last_first",57,201.54,98.63,602.44
+512,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1 layout=padded_rows queries=last_first",56,213.44,98.63,313.93
+512,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1 layout=blocks queries=last_first",56,213.44,98.63,545.30
+512,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1 layout=padded_blocks queries=last_first",56,213.44,98.63,375.67
+512,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1 layout=swizzled_blocks queries=last_first",56,213.44,98.63,324.25
+512,cube_staged,"cube-fragment-attention fragments=1x1 scratch=whole heads=4 planes_along_queries=1 planes_along_keys=1 queries=last_first",56,213.44,98.63,557.88
+512,cube_staged,"cube-fragment-attention fragments=1x1 score=window heads=1 planes_along_queries=1 planes_along_keys=2 queries=last_first",53,271.51,98.63,569.02
+512,cube_staged,"cube-fragment-attention fragments=1x1 score=window heads=1 planes_along_queries=1 planes_along_keys=4 queries=last_first",53,271.51,98.63,692.69
+512,cube_staged,"cube-fragment-attention fragments=1x2 heads=2 planes_along_queries=2 planes_along_keys=1 layout=swizzled_blocks queries=last_first",57,189.63,98.63,427.56
+512,cube_staged,"cube-fragment-attention fragments=1x2 heads=2 planes_along_queries=2 planes_along_keys=1 stages_in_flight=2 layout=swizzled_blocks delivery=async query=as_keys queries=last_first",57,189.63,98.63,965.04
+512,cube_staged,"cube-fragment-attention fragments=1x1 heads=2 planes_along_queries=2 planes_along_keys=1 layout=padded_rows queries=last_first",56,213.44,98.63,339.65
+512,cube_staged,"cube-fragment-attention fragments=1x1 heads=1 planes_along_queries=4 planes_along_keys=1 layout=padded_rows queries=last_first",56,213.44,98.63,607.02
+512,cube_shuffle,"cube-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 heads=1 planes_along_queries=1 planes_along_keys=4",43,720.35,98.63,1369.96
+512,cube_shuffle,"cube-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 heads=1 planes_along_queries=1 planes_along_keys=2",43,716.48,98.63,1080.20
+512,cube_shuffle,"cube-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 heads=1 planes_along_queries=1 planes_along_keys=8",43,712.61,98.63,1149.41
+512,cube_shuffle,"cube-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 heads=1 planes_along_queries=1 planes_along_keys=4",45,577.77,98.63,1026.21
+512,cube_shuffle,"cube-shuffle-attention shuffle rows=4 units_per_key=32 keys_in_flight=2 heads=1 planes_along_queries=1 planes_along_keys=4",43,722.29,98.63,1656.48
+512,cube_shuffle,"cube-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 heads=1 planes_along_queries=1 planes_along_keys=4",43,716.48,98.63,1166.47
+512,cube_shuffle,"cube-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 heads=4 planes_along_queries=1 planes_along_keys=4",43,718.41,98.63,981.24
+512,cube_shuffle,"cube-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 heads=1 planes_along_queries=2 planes_along_keys=4",43,722.29,98.63,794.14
+512,cube_shuffle,"cube-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 heads=1 planes_along_queries=1 planes_along_keys=4 queries=last_first",43,720.35,98.63,819.51
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=32",40,942.02,98.63,4203.19
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 cubes_along_keys=8",39,1083.53,98.63,1687.22
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 cubes_along_keys=8",39,1082.32,98.63,2074.83
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 cubes_along_keys=8",39,1083.53,98.63,1345.52
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 cubes_along_keys=8",39,1083.53,98.63,1478.87
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 cubes_along_keys=8",42,773.20,98.63,1531.71
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 cubes_along_keys=8",42,769.32,98.63,2225.63
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=8",42,775.13,98.63,1157.59
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 cubes_along_keys=8",42,775.13,98.63,1072.43
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=8 keys_in_flight=2 cubes_along_keys=8",45,619.00,98.63,2495.29
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=8 keys_in_flight=4 cubes_along_keys=8",45,617.06,98.63,3133.04
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 cubes_along_keys=8",45,615.61,98.63,1016.08
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=4 cubes_along_keys=8",45,617.06,98.63,1180.46
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",39,1075.63,98.63,2623.37
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=8",39,1075.99,98.63,2970.05
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",39,1081.59,98.63,2000.69
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=8",39,1082.20,98.63,2456.52
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",42,767.07,98.63,2326.15
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=8",42,777.71,98.63,3768.43
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",42,765.86,98.63,1799.27
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=8",42,767.79,98.63,1884.58
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=8",42,777.95,98.63,3064.25
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=8",35,1493.97,98.63,5854.27
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=8",42,777.71,98.63,3210.53
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=8",42,777.71,98.63,2666.39
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",45,612.30,98.63,1706.34
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 cubes_along_keys=16",38,1140.75,98.63,2929.98
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 cubes_along_keys=16",38,1141.48,98.63,3632.73
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 cubes_along_keys=16",38,1140.75,98.63,2225.55
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 cubes_along_keys=16",38,1140.75,98.63,2524.18
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 cubes_along_keys=16",42,829.45,98.63,2602.73
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 cubes_along_keys=16",42,824.74,98.63,3351.85
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=16",42,830.42,98.63,1892.33
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 cubes_along_keys=16",42,830.42,98.63,1978.53
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=8 keys_in_flight=2 cubes_along_keys=16",44,672.63,98.63,3487.17
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=8 keys_in_flight=4 cubes_along_keys=16",44,670.94,98.63,4020.93
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 cubes_along_keys=16",44,674.77,98.63,1683.77
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=4 cubes_along_keys=16",44,676.22,98.63,1981.73
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",38,1157.60,98.63,4143.32
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=16",32,2150.09,98.63,4902.88
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",38,1134.27,98.63,3541.00
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=16",38,1133.97,98.63,4337.01
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",42,838.46,98.63,4106.12
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=16",35,1554.48,98.63,5569.61
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",42,824.50,98.63,3438.36
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=16",42,838.82,98.63,3533.48
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=16",35,1554.23,98.63,5269.62
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=16",28,2986.02,98.63,7931.47
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=16",41,850.28,98.63,4410.32
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=16",35,1554.48,98.63,4551.26
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",44,679.50,98.63,3428.76
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 cubes_along_keys=32",37,1251.55,98.63,5577.84
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 cubes_along_keys=32",37,1251.34,98.63,6444.89
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 cubes_along_keys=32",37,1251.55,98.63,5533.88
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 cubes_along_keys=32",37,1251.55,98.63,5456.54
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 cubes_along_keys=32",40,942.99,98.63,5067.94
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 cubes_along_keys=32",40,942.02,98.63,6011.60
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 cubes_along_keys=32",40,942.02,98.63,4033.57
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=8 keys_in_flight=2 cubes_along_keys=32",42,800.63,98.63,5974.14
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=8 keys_in_flight=4 cubes_along_keys=32",42,800.51,98.63,7184.63
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 cubes_along_keys=32",42,789.68,98.63,3622.80
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=4 cubes_along_keys=32",42,788.35,98.63,4051.29
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",31,2313.64,98.63,8235.36
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=32",24,4298.30,98.63,9227.84
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",37,1278.61,98.63,8189.71
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=32",31,2266.89,98.63,8251.55
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",34,1675.25,98.63,7941.83
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=32",28,3106.80,98.63,9476.63
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",40,958.99,98.63,6910.24
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=32",34,1675.61,98.63,7370.18
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=32",28,3106.80,98.63,9165.92
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=32",21,5970.13,98.63,13073.69
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=32",34,1699.09,98.63,8426.22
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=32",28,3107.04,98.63,8499.61
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",42,810.78,98.63,6915.93
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=2",43,730.76,98.63,1181.16
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=4",43,745.55,98.63,989.13
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=1 cubes_along_keys=32",40,942.02,98.63,4233.41
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=8 cubes_along_keys=32",40,942.63,98.63,5355.62
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=4 keys_in_flight=1 cubes_along_keys=32",40,959.54,98.63,10852.72
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=4 keys_in_flight=2 cubes_along_keys=32",40,959.48,98.63,9036.35
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=4 keys_in_flight=4 cubes_along_keys=32",34,1675.49,98.63,12243.46
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=4 keys_in_flight=8 cubes_along_keys=32",28,3061.02,98.63,22341.68
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=1 cubes_along_keys=32",40,943.11,98.63,4486.81
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=8 cubes_along_keys=32",34,1647.83,98.63,8215.28
+512,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=32 keys_in_flight=2 cubes_along_keys=32",40,942.02,98.63,4260.74
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=32",40,942.02,98.63,4657.00
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 cubes_along_keys=8",39,1083.53,98.63,2039.12
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 cubes_along_keys=8",39,1082.32,98.63,2411.22
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 cubes_along_keys=8",39,1083.53,98.63,1715.28
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 cubes_along_keys=8",39,1083.53,98.63,1819.41
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 cubes_along_keys=8",42,773.20,98.63,1779.32
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 cubes_along_keys=8",42,769.32,98.63,2646.41
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=8",42,775.13,98.63,1672.65
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 cubes_along_keys=8",42,775.13,98.63,1684.53
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=8 keys_in_flight=2 cubes_along_keys=8",45,619.00,98.63,2917.50
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=8 keys_in_flight=4 cubes_along_keys=8",45,617.06,98.63,3560.90
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 cubes_along_keys=8",45,615.61,98.63,1715.43
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=4 cubes_along_keys=8",45,617.06,98.63,1704.67
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",39,1075.63,98.63,2404.44
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=8",39,1075.99,98.63,2877.71
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",39,1081.59,98.63,2095.25
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=8",39,1082.20,98.63,2308.07
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",42,767.07,98.63,2157.17
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=8",42,777.71,98.63,3979.26
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",42,765.86,98.63,1911.43
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=8",42,767.79,98.63,2005.74
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=8",42,777.95,98.63,3138.05
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=8",35,1493.97,98.63,4949.42
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=8",42,777.71,98.63,2317.34
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=8",42,777.71,98.63,2567.56
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",45,612.30,98.63,1854.22
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 cubes_along_keys=16",38,1140.75,98.63,3597.83
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 cubes_along_keys=16",38,1141.48,98.63,4082.37
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 cubes_along_keys=16",38,1140.75,98.63,2739.20
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 cubes_along_keys=16",38,1140.75,98.63,3068.43
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 cubes_along_keys=16",42,829.45,98.63,3174.96
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 cubes_along_keys=16",42,824.74,98.63,3990.30
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=16",42,830.42,98.63,2410.33
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 cubes_along_keys=16",42,830.42,98.63,2504.93
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=8 keys_in_flight=2 cubes_along_keys=16",44,672.63,98.63,4075.48
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=8 keys_in_flight=4 cubes_along_keys=16",44,670.94,98.63,4915.24
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 cubes_along_keys=16",44,674.77,98.63,2122.89
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=4 cubes_along_keys=16",44,676.22,98.63,2444.06
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",38,1157.60,98.63,4516.42
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=16",32,2150.09,98.63,4897.71
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",38,1134.27,98.63,4102.29
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=16",38,1133.97,98.63,4187.87
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",42,838.46,98.63,4232.65
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=16",35,1554.48,98.63,5930.90
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",42,824.50,98.63,3746.16
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=16",42,838.82,98.63,3952.09
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=16",35,1554.23,98.63,5021.16
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=16",28,2986.02,98.63,7097.39
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=16",41,850.28,98.63,4527.85
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=16",35,1554.48,98.63,4633.57
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",44,679.50,98.63,3823.89
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 cubes_along_keys=32",37,1251.55,98.63,6631.08
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 cubes_along_keys=32",37,1251.34,98.63,7612.35
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 cubes_along_keys=32",37,1251.55,98.63,5561.65
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 cubes_along_keys=32",37,1251.55,98.63,5785.12
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 cubes_along_keys=32",40,942.99,98.63,5912.27
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 cubes_along_keys=32",40,942.02,98.63,7709.33
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 cubes_along_keys=32",40,942.02,98.63,4900.94
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=8 keys_in_flight=2 cubes_along_keys=32",42,800.63,98.63,6937.16
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=8 keys_in_flight=4 cubes_along_keys=32",42,800.51,98.63,9115.83
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 cubes_along_keys=32",42,789.68,98.63,4496.98
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=4 cubes_along_keys=32",42,788.35,98.63,5217.05
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",31,2313.64,98.63,9553.73
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=32",24,4298.30,98.63,9876.49
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",37,1278.61,98.63,8424.07
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=32",31,2266.89,98.63,8661.35
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",34,1675.25,98.63,8353.53
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=32",28,3106.80,98.63,10501.31
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",40,958.99,98.63,7388.33
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=32",34,1675.61,98.63,7973.65
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=32",28,3106.80,98.63,9483.00
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=32",21,5970.13,98.63,11545.44
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=32",34,1699.09,98.63,8899.43
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=32",28,3107.04,98.63,8949.80
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",42,810.78,98.63,7438.94
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=2",43,730.76,98.63,1197.99
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=4",43,745.55,98.63,1366.81
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=1 cubes_along_keys=32",40,942.02,98.63,4357.72
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=8 cubes_along_keys=32",40,942.63,98.63,6170.55
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=4 keys_in_flight=1 cubes_along_keys=32",40,959.54,98.63,11701.49
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=4 keys_in_flight=2 cubes_along_keys=32",40,959.48,98.63,10057.79
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=4 keys_in_flight=4 cubes_along_keys=32",34,1675.49,98.63,12613.95
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=4 keys_in_flight=8 cubes_along_keys=32",28,3061.02,98.63,22502.11
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=1 cubes_along_keys=32",40,943.11,98.63,5411.73
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=8 cubes_along_keys=32",34,1647.83,98.63,9924.86
+512,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=32 keys_in_flight=2 cubes_along_keys=32",40,942.02,98.63,4859.87
+512,hypercube_fragment_partial,"hypercube-fragment-partial-attention fragments=1x1 score=window cubes_along_keys=8",51,326.14,98.63,1364.74
+512,hypercube_fragment_partial,"hypercube-fragment-partial-attention fragments=1x1 score=window cubes_along_keys=4",52,297.73,98.63,938.71
+512,hypercube_fragment_partial,"hypercube-fragment-partial-attention fragments=1x1 score=window cubes_along_keys=16",50,384.78,98.63,2973.38
+512,hypercube_fragment_partial,"hypercube-fragment-partial-attention fragments=1x1 score=window cubes_along_keys=7",51,343.68,98.63,1240.35
+512,hypercube_fragment_partial,"hypercube-fragment-partial-attention fragments=1x1 score=window cubes_along_keys=10",49,405.36,98.63,1496.25
+512,hypercube_fragment_partial,"hypercube-fragment-partial-attention fragments=1x1 score=window cubes_along_keys=13",49,418.76,98.63,1680.57
+512,hypercube_stream_fragment,"hypercube-stream-fragment-attention fragments=1x1 score=window cubes_per_worker=1",42,827.77,98.63,3719.53
+512,hypercube_stream_fragment,"hypercube-stream-fragment-attention fragments=1x1 score=window cubes_per_worker=2",48,453.94,98.63,1958.73
+2048,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1",58,2802.59,1517.13,7566.91
+2048,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1 queries=last_first",58,2802.59,1517.13,7502.31
+2048,cube_staged,"cube-fragment-attention fragments=1x1 heads=1 planes_along_queries=1 planes_along_keys=1 queries=last_first",53,4326.50,1517.13,8418.05
+2048,cube_staged,"cube-fragment-attention fragments=1x1 heads=2 planes_along_queries=1 planes_along_keys=1 queries=last_first",55,3417.89,1517.13,7161.76
+2048,cube_staged,"cube-fragment-attention fragments=1x1 heads=8 planes_along_queries=1 planes_along_keys=1 queries=last_first",58,2802.59,1517.13,7550.60
+2048,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=2 planes_along_keys=1 queries=last_first",59,2546.17,1517.13,8193.11
+2048,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1 stages_in_flight=2 queries=last_first",57,2897.82,1517.13,9545.76
+2048,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1 prefetch=registers queries=last_first",58,2802.59,1517.13,7101.51
+2048,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1 stages_in_flight=2 prefetch=registers queries=last_first",57,2897.82,1517.13,8006.24
+2048,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1 layout=padded_rows queries=last_first",58,2802.59,1517.13,4457.03
+2048,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1 layout=blocks queries=last_first",58,2802.59,1517.13,7428.73
+2048,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1 layout=padded_blocks queries=last_first",58,2802.59,1517.13,4429.65
+2048,cube_staged,"cube-fragment-attention fragments=1x1 heads=4 planes_along_queries=1 planes_along_keys=1 layout=swizzled_blocks queries=last_first",58,2802.59,1517.13,4923.58
+2048,cube_staged,"cube-fragment-attention fragments=1x1 scratch=whole heads=4 planes_along_queries=1 planes_along_keys=1 queries=last_first",58,2802.59,1517.13,7409.01
+2048,cube_staged,"cube-fragment-attention fragments=1x1 score=window heads=1 planes_along_queries=1 planes_along_keys=2 queries=last_first",53,4341.12,1517.13,7995.57
+2048,cube_staged,"cube-fragment-attention fragments=1x1 score=window heads=1 planes_along_queries=1 planes_along_keys=4 queries=last_first",53,4311.89,1517.13,8884.17
+2048,cube_staged,"cube-fragment-attention fragments=1x2 heads=2 planes_along_queries=2 planes_along_keys=1 layout=swizzled_blocks queries=last_first",58,2802.59,1517.13,6319.62
+2048,cube_staged,"cube-fragment-attention fragments=1x2 heads=2 planes_along_queries=2 planes_along_keys=1 stages_in_flight=2 layout=swizzled_blocks delivery=async query=as_keys queries=last_first",58,2802.59,1517.13,13690.34
+2048,cube_staged,"cube-fragment-attention fragments=1x1 heads=2 planes_along_queries=2 planes_along_keys=1 layout=padded_rows queries=last_first",58,2802.59,1517.13,4355.44
+2048,cube_staged,"cube-fragment-attention fragments=1x1 heads=1 planes_along_queries=4 planes_along_keys=1 layout=padded_rows queries=last_first",58,2802.59,1517.13,4546.56
+2048,cube_shuffle,"cube-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 heads=1 planes_along_queries=1 planes_along_keys=4",43,11589.77,1517.13,13765.16
+2048,cube_shuffle,"cube-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 heads=1 planes_along_queries=1 planes_along_keys=2",43,11613.00,1517.13,13603.17
+2048,cube_shuffle,"cube-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 heads=1 planes_along_queries=1 planes_along_keys=8",43,11551.05,1517.13,14102.69
+2048,cube_shuffle,"cube-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 heads=1 planes_along_queries=1 planes_along_keys=4",45,9013.28,1517.13,12546.22
+2048,cube_shuffle,"cube-shuffle-attention shuffle rows=4 units_per_key=32 keys_in_flight=2 heads=1 planes_along_queries=1 planes_along_keys=4",43,11589.77,1517.13,25855.67
+2048,cube_shuffle,"cube-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 heads=1 planes_along_queries=1 planes_along_keys=4",43,11613.00,1517.13,12682.54
+2048,cube_shuffle,"cube-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 heads=4 planes_along_queries=1 planes_along_keys=4",43,11582.03,1517.13,14159.48
+2048,cube_shuffle,"cube-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 heads=1 planes_along_queries=2 planes_along_keys=4",43,11551.05,1517.13,14592.00
+2048,cube_shuffle,"cube-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 heads=1 planes_along_queries=1 planes_along_keys=4 queries=last_first",43,11589.77,1517.13,15793.01
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=32",42,12229.45,1517.13,31883.64
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 cubes_along_keys=8",39,16986.60,1517.13,17558.85
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 cubes_along_keys=8",39,16983.22,1517.13,18801.45
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 cubes_along_keys=8",39,16986.60,1517.13,18020.46
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 cubes_along_keys=8",39,16986.60,1517.13,17949.62
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 cubes_along_keys=8",42,11802.65,1517.13,13790.27
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 cubes_along_keys=8",42,11787.16,1517.13,26944.19
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=8",42,11787.16,1517.13,14741.21
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 cubes_along_keys=8",42,11787.16,1517.13,13948.68
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=8 keys_in_flight=2 cubes_along_keys=8",45,9204.86,1517.13,27941.14
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=8 keys_in_flight=4 cubes_along_keys=8",45,9066.81,1517.13,38267.94
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 cubes_along_keys=8",45,9226.16,1517.13,12941.89
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=4 cubes_along_keys=8",45,9204.86,1517.13,13045.34
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",39,16470.98,1517.13,20301.93
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=8",39,16471.47,1517.13,23549.90
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",39,16986.60,1517.13,19488.85
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=8",39,16981.76,1517.13,20430.47
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",43,11572.95,1517.13,16901.76
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=8",43,11570.05,1517.13,31970.02
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",43,11522.29,1517.13,16566.38
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=8",43,11527.13,1517.13,16426.86
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=8",43,11524.30,1517.13,22767.01
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=8",43,11523.33,1517.13,45916.74
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=8",43,11570.05,1517.13,22915.11
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=8",43,11571.01,1517.13,21065.66
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",45,9080.61,1517.13,15430.57
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 cubes_along_keys=16",39,17232.87,1517.13,20395.18
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 cubes_along_keys=16",39,17229.48,1517.13,22923.13
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 cubes_along_keys=16",39,17232.87,1517.13,19746.01
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 cubes_along_keys=16",39,17232.87,1517.13,20396.25
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 cubes_along_keys=16",43,11764.46,1517.13,17820.42
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 cubes_along_keys=16",43,11760.59,1517.13,31131.84
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=16",42,12033.42,1517.13,17348.34
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 cubes_along_keys=16",42,12033.42,1517.13,17179.22
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=8 keys_in_flight=2 cubes_along_keys=16",45,9290.60,1517.13,33750.51
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=8 keys_in_flight=4 cubes_along_keys=16",45,9289.63,1517.13,42900.66
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 cubes_along_keys=16",45,9448.22,1517.13,15840.73
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=4 cubes_along_keys=16",45,9280.92,1517.13,16667.63
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",39,16802.98,1517.13,28294.35
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=16",39,16801.77,1517.13,33700.56
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",39,16706.38,1517.13,25920.61
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=16",39,16705.42,1517.13,29464.54
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",43,11758.87,1517.13,24498.47
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=16",43,11758.87,1517.13,42340.13
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",42,11807.65,1517.13,21134.57
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=16",42,11808.14,1517.13,21855.10
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=16",42,11930.93,1517.13,32114.07
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=16",42,11929.96,1517.13,63649.03
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=16",43,11758.87,1517.13,27600.95
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=16",43,11757.90,1517.13,28144.95
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",45,9311.44,1517.13,20516.33
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 cubes_along_keys=32",39,17175.25,1517.13,35598.33
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 cubes_along_keys=32",39,17175.73,1517.13,39142.77
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 cubes_along_keys=32",39,17175.25,1517.13,35488.52
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 cubes_along_keys=32",39,17175.25,1517.13,36014.74
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 cubes_along_keys=32",42,12227.52,1517.13,34296.06
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 cubes_along_keys=32",42,12279.97,1517.13,46086.38
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 cubes_along_keys=32",42,12229.45,1517.13,31876.78
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=8 keys_in_flight=2 cubes_along_keys=32",44,9785.21,1517.13,45436.02
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=8 keys_in_flight=4 cubes_along_keys=32",44,9784.72,1517.13,57490.62
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 cubes_along_keys=32",44,9757.04,1517.13,29052.32
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=4 cubes_along_keys=32",44,9749.78,1517.13,31556.78
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",39,17179.31,1517.13,48748.32
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=32",39,17179.31,1517.13,54952.96
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",38,17275.30,1517.13,45062.72
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=32",38,17276.26,1517.13,48608.38
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",42,12228.00,1517.13,44166.02
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=32",42,12413.78,1517.13,69355.50
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",42,12228.97,1517.13,39874.09
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=32",42,12227.27,1517.13,41347.04
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=32",42,12414.26,1517.13,55774.70
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=32",35,23868.34,1517.13,87287.87
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=32",42,12413.78,1517.13,49192.62
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=32",42,12414.02,1517.13,50719.83
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",44,9751.74,1517.13,38598.35
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=2",43,11695.39,1517.13,14481.16
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=4",43,11695.00,1517.13,14621.14
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=1 cubes_along_keys=32",42,12229.45,1517.13,32288.32
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=16 keys_in_flight=8 cubes_along_keys=32",42,12224.61,1517.13,35098.15
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=4 keys_in_flight=1 cubes_along_keys=32",42,12280.21,1517.13,117256.39
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=4 keys_in_flight=2 cubes_along_keys=32",42,12279.97,1517.13,73203.87
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=4 keys_in_flight=4 cubes_along_keys=32",42,12228.00,1517.13,109773.56
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=4 keys_in_flight=8 cubes_along_keys=32",42,12226.79,1517.13,252978.09
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=1 cubes_along_keys=32",42,12228.00,1517.13,32447.09
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=8 keys_in_flight=8 cubes_along_keys=32",42,12279.97,1517.13,62474.22
+2048,hypercube_last_arrival_shuffle,"hypercube-last-arrival-shuffle-attention shuffle rows=4 units_per_key=32 keys_in_flight=2 cubes_along_keys=32",42,12229.45,1517.13,36661.14
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=32",42,12229.45,1517.13,35340.84
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 cubes_along_keys=8",39,16986.60,1517.13,17432.86
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 cubes_along_keys=8",39,16983.22,1517.13,17383.53
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 cubes_along_keys=8",39,16986.60,1517.13,18517.04
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 cubes_along_keys=8",39,16986.60,1517.13,18049.21
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 cubes_along_keys=8",42,11802.65,1517.13,14586.39
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 cubes_along_keys=8",42,11787.16,1517.13,27399.42
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=8",42,11787.16,1517.13,15811.68
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 cubes_along_keys=8",42,11787.16,1517.13,15266.34
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=8 keys_in_flight=2 cubes_along_keys=8",45,9204.86,1517.13,30647.05
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=8 keys_in_flight=4 cubes_along_keys=8",45,9066.81,1517.13,39379.25
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 cubes_along_keys=8",45,9226.16,1517.13,14264.71
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=4 cubes_along_keys=8",45,9204.86,1517.13,14584.27
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",39,16470.98,1517.13,18903.24
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=8",39,16471.47,1517.13,21080.22
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",39,16986.60,1517.13,19291.68
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=8",39,16981.76,1517.13,19789.75
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",43,11572.95,1517.13,16296.26
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=8",43,11570.05,1517.13,31624.68
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",43,11522.29,1517.13,17035.24
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=8",43,11527.13,1517.13,16853.90
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=8",43,11524.30,1517.13,21781.16
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=8",43,11523.33,1517.13,42807.21
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=8",43,11570.05,1517.13,19204.28
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=8",43,11571.01,1517.13,19530.01
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=8",45,9080.61,1517.13,15620.92
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 cubes_along_keys=16",39,17232.87,1517.13,21769.06
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 cubes_along_keys=16",39,17229.48,1517.13,23261.92
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 cubes_along_keys=16",39,17232.87,1517.13,20930.10
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 cubes_along_keys=16",39,17232.87,1517.13,21396.45
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 cubes_along_keys=16",43,11764.46,1517.13,20660.90
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 cubes_along_keys=16",43,11760.59,1517.13,33165.59
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=16",42,12033.42,1517.13,18782.41
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 cubes_along_keys=16",42,12033.42,1517.13,19029.08
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=8 keys_in_flight=2 cubes_along_keys=16",45,9290.60,1517.13,35484.12
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=8 keys_in_flight=4 cubes_along_keys=16",45,9289.63,1517.13,44471.50
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 cubes_along_keys=16",45,9448.22,1517.13,16757.24
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=4 cubes_along_keys=16",45,9280.92,1517.13,18654.61
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",39,16802.98,1517.13,25612.99
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=16",39,16801.77,1517.13,28781.05
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",39,16706.38,1517.13,24811.94
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=16",39,16705.42,1517.13,26349.56
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",43,11758.87,1517.13,24569.36
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=16",43,11758.87,1517.13,43443.27
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",42,11807.65,1517.13,22515.53
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=16",42,11808.14,1517.13,23072.65
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=16",42,11930.93,1517.13,31583.47
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=16",42,11929.96,1517.13,59914.29
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=16",43,11758.87,1517.13,25903.81
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=16",43,11757.90,1517.13,26946.39
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=16",45,9311.44,1517.13,21616.37
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 cubes_along_keys=32",39,17175.25,1517.13,39911.37
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 cubes_along_keys=32",39,17175.73,1517.13,42908.55
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 cubes_along_keys=32",39,17175.25,1517.13,37032.76
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 cubes_along_keys=32",39,17175.25,1517.13,39151.10
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 cubes_along_keys=32",42,12227.52,1517.13,39180.63
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 cubes_along_keys=32",42,12279.97,1517.13,48438.55
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 cubes_along_keys=32",42,12229.45,1517.13,36067.92
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=8 keys_in_flight=2 cubes_along_keys=32",44,9785.21,1517.13,46135.93
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=8 keys_in_flight=4 cubes_along_keys=32",44,9784.72,1517.13,58147.44
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 cubes_along_keys=32",44,9757.04,1517.13,32491.33
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=4 cubes_along_keys=32",44,9749.78,1517.13,35505.47
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",39,17179.31,1517.13,44670.54
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=32",39,17179.31,1517.13,47822.39
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",38,17275.30,1517.13,42632.96
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=2 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=32",38,17276.26,1517.13,44689.83
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",42,12228.00,1517.13,44874.78
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=32",42,12413.78,1517.13,67985.41
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",42,12228.97,1517.13,41644.79
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=4 cubes_along_keys=32",42,12227.27,1517.13,42620.29
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=32",42,12414.26,1517.13,52237.12
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=32",35,23868.34,1517.13,80930.67
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 planes_along_keys=8 cubes_along_keys=32",42,12413.78,1517.13,44839.31
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=4 planes_along_keys=8 cubes_along_keys=32",42,12414.02,1517.13,46898.35
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=8 units_per_key=16 keys_in_flight=2 planes_along_keys=4 cubes_along_keys=32",44,9751.74,1517.13,41492.73
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=2",43,11695.39,1517.13,14548.08
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=2 cubes_along_keys=4",43,11695.00,1517.13,15382.60
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=1 cubes_along_keys=32",42,12229.45,1517.13,34193.08
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=16 keys_in_flight=8 cubes_along_keys=32",42,12224.61,1517.13,38767.71
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=4 keys_in_flight=1 cubes_along_keys=32",42,12280.21,1517.13,117437.12
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=4 keys_in_flight=2 cubes_along_keys=32",42,12279.97,1517.13,73742.95
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=4 keys_in_flight=4 cubes_along_keys=32",42,12228.00,1517.13,108760.32
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=4 keys_in_flight=8 cubes_along_keys=32",42,12226.79,1517.13,253201.83
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=1 cubes_along_keys=32",42,12228.00,1517.13,37134.14
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=8 keys_in_flight=8 cubes_along_keys=32",42,12279.97,1517.13,64698.76
+2048,hypercube_shuffle_partial,"hypercube-shuffle-partial-attention shuffle rows=4 units_per_key=32 keys_in_flight=2 cubes_along_keys=32",42,12229.45,1517.13,37683.69
+2048,hypercube_fragment_partial,"hypercube-fragment-partial-attention fragments=1x1 score=window cubes_along_keys=8",53,4472.51,1517.13,10978.76
+2048,hypercube_fragment_partial,"hypercube-fragment-partial-attention fragments=1x1 score=window cubes_along_keys=4",53,4439.48,1517.13,9476.95
+2048,hypercube_fragment_partial,"hypercube-fragment-partial-attention fragments=1x1 score=window cubes_along_keys=16",52,4714.68,1517.13,18576.51
+2048,hypercube_fragment_partial,"hypercube-fragment-partial-attention fragments=1x1 score=window cubes_along_keys=7",52,4606.63,1517.13,10626.01
+2048,hypercube_fragment_partial,"hypercube-fragment-partial-attention fragments=1x1 score=window cubes_along_keys=10",52,4587.44,1517.13,11661.30
+2048,hypercube_fragment_partial,"hypercube-fragment-partial-attention fragments=1x1 score=window cubes_along_keys=13",52,4671.24,1517.13,12538.49
+2048,hypercube_stream_fragment,"hypercube-stream-fragment-attention fragments=1x1 score=window cubes_per_worker=1",41,13263.55,1517.13,57348.04
+2048,hypercube_stream_fragment,"hypercube-stream-fragment-attention fragments=1x1 score=window cubes_per_worker=2",48,7277.91,1517.13,30165.46

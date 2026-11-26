@@ -335,6 +335,7 @@ mod tests {
     };
     use cubek::matmul::kernels::tensor::PlainTensor;
     use cubek::std::devices;
+    use cubek::std::routine::EstimatedProblem;
 
     const F16: ElemType = ElemType::Float(FloatKind::F16);
     const F32: ElemType = ElemType::Float(FloatKind::F32);
@@ -463,6 +464,152 @@ mod tests {
                 matches!(out(&raced).overlap(&out(&call)), Overlap::Same),
                 "{queries} queries"
             );
+        }
+    }
+
+    /// Not a check but a measurement, run by hand: every distinct prefill candidate's priority,
+    /// predicted time and warm device time on this machine, as CSV on stdout.
+    #[test]
+    #[ignore = "a measurement of this machine, run by hand"]
+    fn probe_prefill_priorities() {
+        let client = CubeDevice::default().client();
+        let predictor = Predictor::on_device(&client);
+        let (heads, kv_heads, head_dim) = (32, 8, 128);
+        println!("seq,routine,setting,priority,pred_us,floor_us,us");
+        for seq in [512usize, 2048] {
+            let zeros = |shape: [usize; 4]| {
+                PlainTensor::zeros(&client, &shape, row_major_contiguous_strides(shape), F16)
+            };
+            let cache = [1, kv_heads, seq, head_dim];
+            let visibility = AttentionVisibility::new(true, None, QueryPlacement::Last);
+            let inputs = AttentionTuneInputs::new(
+                &client,
+                zeros([1, heads, seq, head_dim]),
+                zeros(cache),
+                zeros(cache),
+                None,
+                PlainTensor::of_u32s(&client, &[1], &[seq as u32]),
+                seq,
+                None,
+                AttentionScoring::standard(visibility, head_dim),
+            )
+            .expect("an even group of a float element");
+            let key = inputs.many_queries_key();
+            let probe = Probe {
+                seq,
+                inputs: &inputs,
+                key: &key,
+                predictor: &predictor,
+            };
+            probe.sweep(
+                "cube_staged",
+                AttentionTuneCandidate::list(CubeStagedAttentionRoutine, &predictor),
+                AttentionTuneCandidate::launch,
+            );
+            probe.sweep(
+                "cube_shuffle",
+                AttentionTuneCandidate::list(CubeShuffleAttentionRoutine, &predictor),
+                AttentionTuneCandidate::launch,
+            );
+            probe.sweep(
+                "hypercube_last_arrival_shuffle",
+                AttentionTuneCandidate::list(
+                    HypercubeLastArrivalShuffleAttentionRoutine::new(),
+                    &predictor,
+                ),
+                AttentionTuneCandidate::launch,
+            );
+            probe.sweep(
+                "hypercube_shuffle_partial",
+                AttentionTuneCandidate::list(
+                    HypercubeShufflePartialAttentionRoutine::new(),
+                    &predictor,
+                ),
+                AttentionTuneCandidate::launch_split_keys,
+            );
+            probe.sweep(
+                "hypercube_fragment_partial",
+                AttentionTuneCandidate::list(HypercubeFragmentPartialAttentionRoutine, &predictor),
+                AttentionTuneCandidate::launch_split_keys,
+            );
+            probe.sweep(
+                "hypercube_stream_fragment",
+                AttentionTuneCandidate::list(HypercubeStreamFragmentAttentionRoutine, &predictor),
+                AttentionTuneCandidate::launch,
+            );
+        }
+    }
+
+    /// One prefill problem the probe times every candidate on.
+    struct Probe<'a> {
+        seq: usize,
+        inputs: &'a AttentionTuneInputs,
+        key: &'a AttentionKey,
+        predictor: &'a Predictor,
+    }
+
+    impl Probe<'_> {
+        /// Every distinct candidate of `candidates` that prepares, timed through `launch`.
+        fn sweep<R, M, SM>(
+            &self,
+            name: &str,
+            candidates: Vec<AttentionTuneCandidate<R>>,
+            launch: impl Fn(&AttentionTuneCandidate<R>, AttentionTuneInputs) -> Result<(), String>,
+        ) where
+            M: AttentionMicrokernel,
+            SM: PartialEq,
+            R: Routine<
+                    Problem = AttentionRoutineProblem,
+                    Microkernel = M,
+                    Blueprint = AttentionBlueprint<M, SM>,
+                >,
+        {
+            let problem = AttentionRoutineProblem::try_from(self.key).expect("a problem");
+            let demand = problem.demand();
+            let client = self.inputs.client().clone();
+            let hw = self.predictor.hardware();
+            let arithmetic = Arithmetic::product(hw, problem.elements.query);
+            let mut seen = Vec::new();
+            for candidate in &candidates {
+                let Some(prepared) = candidate.blueprint(self.key) else {
+                    continue;
+                };
+                if seen.contains(&prepared) {
+                    continue;
+                }
+                seen.push(prepared);
+                let Some(estimate) = self.predictor.estimate::<R>(&problem, candidate.strategy())
+                else {
+                    continue;
+                };
+                let peaks =
+                    crate::tune::Peaks::measured(&client, hw, &estimate, demand, arithmetic);
+                let us = |time: Option<core::time::Duration>| {
+                    time.map_or(f64::NAN, |time| time.as_secs_f64() * 1e6)
+                };
+                let predicted = us(peaks.time_of(&estimate, demand, hw));
+                let floor = us(peaks.floor_of(demand));
+                let run = || launch(candidate, self.inputs.clone()).is_ok();
+                if !(run() && run()) {
+                    continue;
+                }
+                let measured = (0..3)
+                    .filter_map(|_| {
+                        let window = client.profile_start().ok()?;
+                        run();
+                        let profile = client.profile_end(window).ok()?;
+                        let ticks = cubecl::future::block_on(profile.resolve())?;
+                        Some(ticks.duration().as_secs_f64() * 1e6)
+                    })
+                    .reduce(f64::min)
+                    .unwrap_or(f64::NAN);
+                println!(
+                    "{},{name},\"{}\",{},{predicted:.2},{floor:.2},{measured:.2}",
+                    self.seq,
+                    candidate.strategy(),
+                    candidate.priority(self.key).get(),
+                );
+            }
         }
     }
 }

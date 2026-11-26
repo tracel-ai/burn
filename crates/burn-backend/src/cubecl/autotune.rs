@@ -17,7 +17,7 @@ use cubecl::{
 /// candidates or fewer is always raced whole.
 pub const PATIENCE: Patience = Patience {
     min_measured: 10,
-    max_misses: 5,
+    max_misses: 10,
 };
 
 /// The priority the candidates of a [`raced_group`] sit at: one level, so a round over them is
