@@ -27,6 +27,10 @@
 extern crate derive_new;
 
 extern crate alloc;
+extern crate self as burn_optim;
+
+/// Device on which an optimizer record is restored.
+pub use burn_core::tensor::Device;
 
 /// Optimizer module.
 mod optim;

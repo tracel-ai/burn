@@ -1,5 +1,8 @@
+mod mapping;
+pub(crate) use mapping::derive_mapping;
+
 use proc_macro_crate::{FoundCrate, crate_name};
-use proc_macro2::{Ident, Span, TokenStream};
+use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, GenericArgument, PathArguments, Type};
 
@@ -9,8 +12,8 @@ enum FieldKind {
     Tensor,
     /// An `Option<Tensor<D>>` leaf (carrying the inner `Tensor<D>` type).
     OptionTensor(Type),
-    /// A `Vec<Tensor<D>>` field (carrying the inner `Tensor<D>` type).
-    VecTensor(Type),
+    /// A `Vec<Tensor<D>>` field.
+    VecTensor,
     /// A scalar leaf serialized via `burn_pack::Scalar`'s `From`/`TryFrom` conversions.
     Scalar,
     /// An `Option<scalar>` leaf (carrying the inner scalar type).
@@ -68,9 +71,7 @@ fn classify(ty: &Type) -> Result<FieldKind, syn::Error> {
     Ok(match head_ident(ty).as_deref() {
         Some("Tensor") => FieldKind::Tensor,
         Some("Vec") => match single_generic_arg(ty) {
-            Some(inner) if head_ident(&inner).as_deref() == Some("Tensor") => {
-                FieldKind::VecTensor(inner)
-            }
+            Some(inner) if head_ident(&inner).as_deref() == Some("Tensor") => FieldKind::VecTensor,
             _ => {
                 return Err(syn::Error::new_spanned(
                     ty,
@@ -91,15 +92,17 @@ fn classify(ty: &Type) -> Result<FieldKind, syn::Error> {
     })
 }
 
-pub(crate) fn derive_impl(ast: &DeriveInput) -> proc_macro::TokenStream {
-    match try_derive_impl(ast) {
+pub(crate) fn derive_impl(ast: &DeriveInput, packages: &[&str]) -> proc_macro::TokenStream {
+    match try_derive_impl(ast, packages) {
         Ok(tokens) => tokens,
         Err(err) => err.to_compile_error().into(),
     }
 }
 
-fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Error> {
-    let (optim, device) = record_state_paths()?;
+fn try_derive_impl(
+    ast: &DeriveInput,
+    packages: &[&str],
+) -> Result<proc_macro::TokenStream, syn::Error> {
     let name = &ast.ident;
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
@@ -137,7 +140,7 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                     out.push_tensor(prefix, #leaf, self.#ident.clone().into_data());
                 });
                 unflatten.push(quote! {
-                    let #ident = <#ty>::from_data(src.take_tensor(prefix, #leaf)?, device);
+                    let #ident: #ty = src.read_tensor(prefix, #leaf, device)?;
                 });
             }
             FieldKind::OptionTensor(inner) => {
@@ -147,12 +150,10 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                     }
                 });
                 unflatten.push(quote! {
-                    let #ident = src
-                        .take_tensor(prefix, #leaf)
-                        .map(|data| <#inner>::from_data(data, device));
+                    let #ident: Option<#inner> = src.read_tensor(prefix, #leaf, device);
                 });
             }
-            FieldKind::VecTensor(inner) => {
+            FieldKind::VecTensor => {
                 flatten.push(quote! {
                     out.push_scalar(
                         prefix,
@@ -160,7 +161,7 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                         ::core::convert::Into::into(self.#ident.len()),
                     );
                     for (__index, __value) in self.#ident.iter().enumerate() {
-                        let __leaf = #optim::join_index(#leaf, __index);
+                        let __leaf = __optim::join_index(#leaf, __index);
                         out.push_tensor(prefix, &__leaf, __value.clone().into_data());
                     }
                 });
@@ -172,11 +173,8 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                         .ok()?;
                         let mut __items = <#ty>::with_capacity(__len);
                         for __index in 0..__len {
-                            let __leaf = #optim::join_index(#leaf, __index);
-                            __items.push(<#inner>::from_data(
-                                src.take_tensor(prefix, &__leaf)?,
-                                device,
-                            ));
+                            let __leaf = __optim::join_index(#leaf, __index);
+                            __items.push(src.read_tensor(prefix, &__leaf, device)?);
                         }
                         __items
                     };
@@ -208,29 +206,29 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
             FieldKind::Nested => {
                 flatten.push(quote! {
                     {
-                        let __path = #optim::join_path(prefix, #leaf);
-                        #optim::RecordState::state_flatten(&self.#ident, &__path, out);
+                        let __path = __optim::join_path(prefix, #leaf);
+                        __optim::RecordState::state_flatten(&self.#ident, &__path, out);
                     }
                 });
                 unflatten.push(quote! {
                     let #ident = {
-                        let __path = #optim::join_path(prefix, #leaf);
-                        <#ty as #optim::RecordState>::state_unflatten(&__path, src, device)?
+                        let __path = __optim::join_path(prefix, #leaf);
+                        <#ty as __optim::RecordState>::state_unflatten(&__path, src, device)?
                     };
                 });
             }
             FieldKind::OptionNested(inner) => {
                 flatten.push(quote! {
                     if let Some(value) = &self.#ident {
-                        let __path = #optim::join_path(prefix, #leaf);
-                        #optim::RecordState::state_flatten(value, &__path, out);
+                        let __path = __optim::join_path(prefix, #leaf);
+                        out.push_present(&__path, value);
                     }
                 });
                 unflatten.push(quote! {
                     let #ident = {
-                        let __path = #optim::join_path(prefix, #leaf);
-                        if src.has_under(&__path) {
-                            <#inner as #optim::RecordState>::state_unflatten(&__path, src, device)
+                        let __path = __optim::join_path(prefix, #leaf);
+                        if src.has_record(&__path) {
+                            <#inner as __optim::RecordState>::state_unflatten(&__path, src, device)
                         } else {
                             None
                         }
@@ -240,60 +238,49 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
         }
     }
 
+    let root = optim_path(packages)?;
     Ok(quote! {
-        impl #impl_generics #optim::RecordState for #name #ty_generics #where_clause {
-            fn state_flatten(&self, prefix: &str, out: &mut #optim::StateSink) {
-                #(#flatten)*
-            }
+        const _: () = {
+            use #root as __optim;
+            impl #impl_generics __optim::RecordState for #name #ty_generics #where_clause {
+                fn state_flatten(&self, prefix: &str, out: &mut __optim::StateSink) {
+                    #(#flatten)*
+                }
 
-            fn state_unflatten(
-                prefix: &str,
-                src: &mut #optim::StateSource,
-                device: &#device,
-            ) -> Option<Self> {
-                #(#unflatten)*
-                Some(Self { #(#ctor),* })
+                fn state_unflatten(
+                    prefix: &str,
+                    src: &mut __optim::StateSource,
+                    device: &__optim::Device,
+                ) -> Option<Self> {
+                    #(#unflatten)*
+                    Some(Self { #(#ctor),* })
+                }
             }
-        }
+        };
     }
     .into())
 }
 
-fn record_state_paths() -> syn::Result<(TokenStream, TokenStream)> {
-    if let Some(optim) = dependency_path("burn-optim") {
-        return Ok((optim, device_path()?));
-    }
-    if let Some(burn) = dependency_path("burn") {
-        return Ok((quote!(#burn::optim), quote!(#burn::tensor::Device)));
-    }
-    Err(syn::Error::new(
-        Span::call_site(),
-        "RecordState requires a dependency on burn or burn-optim",
-    ))
-}
-
-fn device_path() -> syn::Result<TokenStream> {
-    for package in ["burn-core", "burn-tensor", "burn"] {
-        if let Some(path) = dependency_path(package) {
-            return Ok(if package == "burn-tensor" {
-                quote!(#path::Device)
+// Resolve renames for the crate exporting the derive. A second package name supports
+// existing direct burn-derive users who only depend on the burn facade.
+fn optim_path(packages: &[&str]) -> syn::Result<proc_macro2::TokenStream> {
+    for &package in packages {
+        if let Ok(found) = crate_name(package) {
+            // Both packages can name burn_optim, including in examples and doctests
+            // where `crate` refers to the target being compiled.
+            let FoundCrate::Name(name) = found else {
+                return Ok(quote!(::burn_optim));
+            };
+            let ident = Ident::new_raw(&name, Span::call_site());
+            return Ok(if package == "burn" {
+                quote!(::#ident::optim)
             } else {
-                quote!(#path::tensor::Device)
+                quote!(::#ident)
             });
         }
     }
     Err(syn::Error::new(
         Span::call_site(),
-        "deriving RecordState with burn-optim requires a direct dependency on burn, burn-core, or burn-tensor",
+        "optimizer state derives require burn or burn-optim",
     ))
-}
-
-fn dependency_path(package: &str) -> Option<TokenStream> {
-    Some(match crate_name(package).ok()? {
-        FoundCrate::Itself => quote!(crate),
-        FoundCrate::Name(name) => {
-            let ident = Ident::new_raw(&name, Span::call_site());
-            quote!(::#ident)
-        }
-    })
 }

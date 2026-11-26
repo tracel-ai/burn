@@ -40,7 +40,7 @@ pub struct Lion {
 }
 
 /// State of the [`Lion`] optimizer.
-#[derive(RecordState, Clone, new)]
+#[derive(RecordState, Clone, new, crate::StateMappable)]
 pub struct LionState<const D: usize> {
     /// Exponential moving average of the gradients.
     pub momentum: Tensor<D>,
@@ -115,9 +115,8 @@ impl Optimizer for Lion {
         (tensor, Some(LionState::new(momentum)))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.momentum = state.momentum.to_device(device);
-        state
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        super::precision::move_state(state, device)
     }
 }
 

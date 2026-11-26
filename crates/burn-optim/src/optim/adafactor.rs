@@ -2,12 +2,12 @@ use burn_core as burn;
 
 use burn::{
     config::Config,
-    tensor::{DType, Device, FloatDType, Tensor},
+    tensor::{Device, Tensor},
 };
 
 use crate::{LearningRate, RecordState, grad_clipping::GradientClippingConfig};
 
-use super::{ModuleOptimizer, Optimizer};
+use super::{ModuleOptimizer, Optimizer, precision::ComputePrecision};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -52,12 +52,13 @@ pub struct AdafactorConfig {
 ///
 /// Matrices store only row and column second moments. Higher-rank tensors factor their
 /// last two dimensions independently for each leading index; vectors store a full second
-/// moment. No first moment is stored. Half-precision parameters use `f32` updates and state.
+/// moment. No first moment is stored. By default, half-precision parameters use `f32` updates and state.
 ///
 /// See [Adafactor: Adaptive Learning Rates with Sublinear Memory Cost](https://arxiv.org/abs/1804.04235).
 /// Configured by [`AdafactorConfig`].
 #[derive(Clone)]
 pub struct Adafactor {
+    compute: ComputePrecision,
     epsilon_1: f32,
     epsilon_2: f32,
     clip_threshold: f32,
@@ -68,7 +69,7 @@ pub struct Adafactor {
 }
 
 /// Adafactor state for a single parameter tensor.
-#[derive(RecordState, Clone)]
+#[derive(RecordState, Clone, crate::StateMappable)]
 pub struct AdafactorState<const D: usize> {
     /// Number of updates applied to this parameter.
     pub time: usize,
@@ -114,6 +115,7 @@ impl AdafactorConfig {
         );
 
         Adafactor {
+            compute: ComputePrecision::PromoteHalf,
             epsilon_1: self.epsilon_1,
             epsilon_2: self.epsilon_2,
             clip_threshold: self.clip_threshold,
@@ -144,14 +146,30 @@ impl Optimizer for Adafactor {
         grad: Tensor<D>,
         state: Option<Self::State<D>>,
     ) -> (Tensor<D>, Option<Self::State<D>>) {
-        let dtype = tensor.dtype();
-        // Squaring and adding epsilon in half precision can underflow, even for ordinary
-        // gradients. Keep the accumulated statistics and the whole update in f32.
-        let (tensor, grad) = match dtype {
-            DType::F16 | DType::BF16 => (tensor.cast(FloatDType::F32), grad.cast(FloatDType::F32)),
-            _ => (tensor, grad),
-        };
+        let (tensor, state) = self.compute.apply(tensor, grad, |tensor, grad| {
+            self.update(lr, tensor, grad, state)
+        });
+        (tensor, Some(state))
+    }
 
+    fn without_default_precision(mut self) -> Self {
+        self.compute = ComputePrecision::Input;
+        self
+    }
+
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        super::precision::move_state(state, device)
+    }
+}
+
+impl Adafactor {
+    fn update<const D: usize>(
+        &self,
+        lr: LearningRate,
+        tensor: Tensor<D>,
+        grad: Tensor<D>,
+        state: Option<AdafactorState<D>>,
+    ) -> (Tensor<D>, AdafactorState<D>) {
         let squared_grad = grad.clone().square().add_scalar(self.epsilon_1);
         let (second_moment, column_second_moment) = if D >= 2 {
             (
@@ -220,21 +238,7 @@ impl Optimizer for Adafactor {
         } else {
             tensor.mul_scalar(1.0 - lr * self.weight_decay as f64)
         };
-        let tensor = tensor - update;
-        let tensor = match dtype {
-            DType::F16 | DType::BF16 => tensor.cast(FloatDType::from(dtype)),
-            _ => tensor,
-        };
-
-        (tensor, Some(state))
-    }
-
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.second_moment = state.second_moment.to_device(device);
-        state.column_second_moment = state
-            .column_second_moment
-            .map(|column| column.to_device(device));
-        state
+        (tensor - update, state)
     }
 }
 

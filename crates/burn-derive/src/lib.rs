@@ -124,12 +124,36 @@ pub fn config_derive(input: TokenStream) -> TokenStream {
 /// type alias (e.g. `f64`, not `LearningRate`): classification is syntactic, so an alias is treated
 /// as a nested state.
 ///
-/// Use `burn` with the `optim` feature, or use `burn-optim` with a direct dependency on `burn-core`,
-/// `burn-tensor`, or `burn` for the device type.
+/// Use `burn` with the `optim` feature or depend directly on `burn-optim`.
 #[proc_macro_derive(RecordState)]
 pub fn record_state_derive(input: TokenStream) -> TokenStream {
-    let input = syn::parse(input).unwrap();
-    record_state::derive_impl(&input)
+    record_state::derive_impl(&syn::parse_macro_input!(input), &["burn-optim", "burn"])
+}
+
+/// Derive alongside `RecordState` to visit floating-point, integer and boolean tensors.
+#[proc_macro_derive(StateMappable)]
+pub fn state_mappable_derive(input: TokenStream) -> TokenStream {
+    state_mapping(input, &["burn-optim", "burn"])
+}
+
+// The facade re-exports these derives under their ordinary names. Resolving the
+// facade itself avoids selecting a direct burn-optim dependency from a different target.
+#[doc(hidden)]
+#[proc_macro_derive(BurnRecordState)]
+pub fn burn_record_state_derive(input: TokenStream) -> TokenStream {
+    record_state::derive_impl(&syn::parse_macro_input!(input), &["burn"])
+}
+
+#[doc(hidden)]
+#[proc_macro_derive(BurnStateMappable)]
+pub fn burn_state_mappable_derive(input: TokenStream) -> TokenStream {
+    state_mapping(input, &["burn"])
+}
+
+fn state_mapping(input: TokenStream, packages: &[&str]) -> TokenStream {
+    record_state::derive_mapping(&syn::parse_macro_input!(input), packages)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
 }
 
 /// Derive macro for the `AutodiffSignal` trait, for a struct passed between the layers of a split

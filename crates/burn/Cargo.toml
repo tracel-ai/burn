@@ -98,7 +98,7 @@ signal = ["dep:burn-signal"]
 rl = ["dep:burn-rl", "burn-train?/rl"]
 
 # Optimizer
-optim = ["burn-optim", "autodiff"]
+optim = ["burn-optim", "dep:burn-derive", "autodiff"]
 
 # Backend
 ir = ["burn-core/ir"]
@@ -142,6 +142,7 @@ shard = ["burn-core/shard"]
 # ** Please make sure all dependencies support no_std when std is disabled **
 
 burn-core = { workspace = true }
+burn-derive = { workspace = true, optional = true }
 burn-linalg = { workspace = true, optional = true }
 burn-train = { workspace = true, optional = true }
 burn-store = { workspace = true, optional = true }

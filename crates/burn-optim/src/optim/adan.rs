@@ -54,7 +54,7 @@ pub struct Adan {
 }
 
 /// Adan state.
-#[derive(RecordState, Clone, new)]
+#[derive(RecordState, Clone, new, crate::StateMappable)]
 pub struct AdanState<const D: usize> {
     /// The current adaptive Nesterov momentum state.
     pub momentum: AdaptiveNesterovMomentumState<D>,
@@ -93,9 +93,8 @@ impl Optimizer for Adan {
         (tensor_updated, Some(AdanState::new(momentum_state)))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.momentum = state.momentum.to_device(device);
-        state
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        super::precision::move_state(state, device)
     }
 }
 
@@ -134,7 +133,7 @@ impl AdanConfig {
 }
 
 /// Adaptive Nesterov momentum state.
-#[derive(RecordState, Clone, new)]
+#[derive(RecordState, Clone, new, crate::StateMappable)]
 pub struct AdaptiveNesterovMomentumState<const D: usize> {
     /// The number of iterations aggregated.
     pub time: usize,
@@ -220,16 +219,7 @@ impl AdaptiveNesterovMomentum {
     }
 }
 
-impl<const D: usize> AdaptiveNesterovMomentumState<D> {
-    #[allow(clippy::wrong_self_convention)]
-    fn to_device(mut self, device: &Device) -> Self {
-        self.exp_avg = self.exp_avg.to_device(device);
-        self.exp_avg_sq = self.exp_avg_sq.to_device(device);
-        self.exp_avg_diff = self.exp_avg_diff.to_device(device);
-        self.neg_pre_grad = self.neg_pre_grad.to_device(device);
-        self
-    }
-}
+impl<const D: usize> AdaptiveNesterovMomentumState<D> {}
 
 #[cfg(test)]
 mod tests {

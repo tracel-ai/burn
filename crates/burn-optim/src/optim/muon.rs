@@ -353,7 +353,7 @@ impl Muon {
 }
 
 /// Muon state.
-#[derive(RecordState, Clone, new)]
+#[derive(RecordState, Clone, new, crate::StateMappable)]
 pub struct MuonState<const D: usize> {
     /// Current momentum state
     pub momentum: MomentumState<D>,
@@ -420,9 +420,8 @@ impl Optimizer for Muon {
         (tensor - delta, Some(new_state))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.momentum = state.momentum.to_device(device);
-        state
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        super::precision::move_state(state, device)
     }
 }
 

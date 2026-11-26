@@ -16,10 +16,20 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use burn_core::tensor::{Device, TensorData};
+use burn_core::tensor::{DType, Device, Tensor, TensorData, kind::Basic};
 use burn_pack::Scalar;
+use core::ops::Bound::{Included, Unbounded};
 
-pub use burn_derive::RecordState;
+// A hyphen distinguishes this metadata from fields emitted by legacy RecordState derives.
+pub(super) const QUANTIZED_STORAGE_KEY: &str = "__precision.quantized-storage";
+
+#[derive(Clone, Copy, Debug, Default)]
+enum LoadPrecision {
+    #[default]
+    DeviceDefault,
+    DecodeQuantizedStorage,
+    Recorded,
+}
 
 /// Join a `prefix` and a `leaf` into a dot-separated path (`"prefix.leaf"`).
 ///
@@ -52,6 +62,15 @@ pub struct StateSink {
 }
 
 impl StateSink {
+    /// Record a present optional component, marking its presence if it emits no leaves.
+    pub fn push_present<T: RecordState>(&mut self, path: &str, value: &T) {
+        let leaves = self.tensors.len() + self.scalars.len();
+        value.state_flatten(path, self);
+        if self.tensors.len() + self.scalars.len() == leaves {
+            self.push_scalar("", path, true.into());
+        }
+    }
+
     /// Record a tensor leaf named `{prefix}.{leaf}`.
     pub fn push_tensor(&mut self, prefix: &str, leaf: &str, data: TensorData) {
         self.tensors.push((join_path(prefix, leaf), data));
@@ -69,6 +88,7 @@ impl StateSink {
 /// scalars are looked up by name and left in place.
 #[derive(Default, Debug)]
 pub struct StateSource {
+    precision: LoadPrecision,
     tensors: BTreeMap<String, TensorData>,
     scalars: BTreeMap<String, Scalar>,
 }
@@ -79,6 +99,7 @@ impl StateSource {
         Self {
             tensors: BTreeMap::new(),
             scalars,
+            precision: LoadPrecision::DeviceDefault,
         }
     }
 
@@ -87,9 +108,49 @@ impl StateSource {
         self.tensors.insert(name, data);
     }
 
+    /// Whether a component has a leaf or a presence marker at or below its path.
+    pub fn has_record(&self, path: &str) -> bool {
+        self.tensors.contains_key(path) || self.scalars.contains_key(path) || self.has_under(path)
+    }
+
     /// Take the tensor named `{prefix}.{leaf}`, if present.
     pub fn take_tensor(&mut self, prefix: &str, leaf: &str) -> Option<TensorData> {
         self.tensors.remove(&join_path(prefix, leaf))
+    }
+
+    pub(super) fn begin_parameter(&mut self, prefix: &str) {
+        self.precision = match self.take_scalar(prefix, QUANTIZED_STORAGE_KEY) {
+            Some(Scalar::Bool(true)) => LoadPrecision::DecodeQuantizedStorage,
+            _ => LoadPrecision::DeviceDefault,
+        };
+    }
+
+    pub(crate) fn with_recorded_dtypes<T>(&mut self, load: impl FnOnce(&mut Self) -> T) -> T {
+        let previous = core::mem::replace(&mut self.precision, LoadPrecision::Recorded);
+        let result = load(self);
+        self.precision = previous;
+        result
+    }
+
+    /// Reconstruct a tensor leaf in its recorded representation for a storage policy,
+    /// or with the ordinary device defaults. Ordinary quantized leaves retain their
+    /// scheme unless the checkpoint identifies them as encoded optimizer statistics.
+    pub fn read_tensor<const D: usize, K: Basic>(
+        &mut self,
+        prefix: &str,
+        leaf: &str,
+        device: &Device,
+    ) -> Option<Tensor<D, K>> {
+        let data = self.take_tensor(prefix, leaf)?;
+        let dtype = data.dtype();
+        Some(match self.precision {
+            LoadPrecision::Recorded => Tensor::from_data(data, (device, dtype)),
+            LoadPrecision::DecodeQuantizedStorage if matches!(dtype, DType::QFloat(_)) => {
+                let decoded = Tensor::<D>::from_data(data, device).dequantize();
+                Tensor::from_bridge(decoded.into_bridge())
+            }
+            _ => Tensor::from_data(data, device),
+        })
     }
 
     /// Read the scalar named `{prefix}.{leaf}`, if present.
@@ -103,9 +164,13 @@ impl StateSource {
     /// Used by the derive to tell an absent optional nested state (nothing recorded) apart from a
     /// present one whose leaves all happen to be optional.
     pub fn has_under(&self, prefix: &str) -> bool {
-        let pat = join_path(prefix, "");
-        self.tensors.keys().any(|k| k.starts_with(&pat))
-            || self.scalars.keys().any(|k| k.starts_with(&pat))
+        fn contains_prefix<V>(map: &BTreeMap<String, V>, prefix: &str) -> bool {
+            map.range::<str, _>((Included(prefix), Unbounded))
+                .next()
+                .is_some_and(|(key, _)| key.starts_with(prefix))
+        }
+        let prefix = join_path(prefix, "");
+        contains_prefix(&self.tensors, &prefix) || contains_prefix(&self.scalars, &prefix)
     }
 }
 
@@ -119,13 +184,24 @@ pub trait RecordState: Sized + Send + Sync + 'static {
 
     /// Rebuild a value from `src`, reading leaves named under `prefix`.
     ///
-    /// Returns `None` when a required leaf is absent. The derive uses [`StateSource::has_under`] to
-    /// presence-test optional nested states, so an `Option<Nested>` field is `None` exactly when
-    /// nothing was recorded under its path.
+    /// Returns `None` when a required leaf is absent. The derive uses [`StateSource::has_record`] to
+    /// restore optional nested states in older records. An explicit presence marker preserves
+    /// present nested states whose leaves are all absent.
     ///
     /// A scalar leaf that is present but holds an incompatible [`Scalar`] variant (e.g. a
     /// hand-edited or forward-version file) is treated the same as absent.
     fn state_unflatten(prefix: &str, src: &mut StateSource, device: &Device) -> Option<Self>;
+}
+
+/// A single tensor occupies the component's own record path.
+impl<const D: usize, K: Basic + 'static> RecordState for Tensor<D, K> {
+    fn state_flatten(&self, prefix: &str, out: &mut StateSink) {
+        out.push_tensor("", prefix, self.to_data());
+    }
+
+    fn state_unflatten(prefix: &str, src: &mut StateSource, device: &Device) -> Option<Self> {
+        src.read_tensor("", prefix, device)
+    }
 }
 
 /// The empty state — for stateless values (e.g. a constant learning rate scheduler).
@@ -142,6 +218,7 @@ mod tests {
     use super::*;
     use burn::tensor::Tensor;
     use burn_core as burn;
+    use burn_derive::RecordState;
 
     /// Flatten `state` then rebuild it from the produced tensors and scalars.
     fn round_trip<T: RecordState>(state: &T) -> Option<T> {
@@ -217,6 +294,22 @@ mod tests {
     }
 
     #[test]
+    fn ordinary_checkpoint_preserves_quantized_tensor_data() {
+        use burn::tensor::quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype};
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native)
+            .per_tensor(ScaleDtype::F32);
+        let state = Inner {
+            weight: tensor(&[1e-10, -2e-10]).quantize_dynamic(&scheme),
+            step: 1,
+        };
+        let expected = state.weight.to_data();
+        let restored = round_trip(&state).unwrap();
+        assert_eq!(restored.weight.to_data(), expected);
+    }
+
+    #[test]
     fn absent_optionals_round_trip_to_none() {
         let state = Full::<1> {
             t: tensor(&[1.0]),
@@ -260,17 +353,19 @@ mod tests {
     }
 
     #[test]
-    fn optional_all_optional_nested_present_with_content() {
+    fn optional_empty_nested_state_preserves_presence() {
         let state = OuterOpt::<1> {
-            inner: Some(AllOptional {
-                x: Some(tensor(&[1.0, 2.0])),
-                y: None,
-            }),
+            inner: Some(AllOptional { x: None, y: None }),
         };
-        let out = round_trip(&state).unwrap();
-        let inner = out.inner.expect("present because a leaf was recorded");
-        assert_eq!(data(&inner.x.unwrap()), vec![1.0, 2.0]);
-        assert!(inner.y.is_none());
+        assert!(round_trip(&state).unwrap().inner.is_some());
+    }
+
+    #[test]
+    fn legacy_nested_state_restores_from_leaves() {
+        let mut source = StateSource::default();
+        source.insert_tensor("p.inner.x".into(), TensorData::from([1.0_f32]));
+        let out = OuterOpt::<1>::state_unflatten("p", &mut source, &Device::default()).unwrap();
+        assert_eq!(data(&out.inner.unwrap().x.unwrap()), [1.0]);
     }
 
     #[test]

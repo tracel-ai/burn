@@ -138,6 +138,78 @@ optimizer type.
 Learning-rate schedulers support the same grouping model, so optimizer choice and learning-rate
 policy can be assigned independently. See [Learner](./learner.md#parameter-groups).
 
+## Optimizer Precision
+
+For an F16 model, Adam's second moment and its epsilon can both round to zero. Choose the
+dtype of the optimizer equation when building the per-parameter optimizer. Statistics use the
+same dtype by default. For example, this group evaluates AdamW in F32 and retains its moments
+in BF16 between updates.
+
+```rust,ignore
+use burn::optim::{AdamWConfig, ModuleOptimizer, OptimizerPrecision};
+use burn::tensor::FloatDType;
+
+let precision = OptimizerPrecision::new(FloatDType::F32)
+    .with_state_storage(FloatDType::BF16);
+let adamw = AdamWConfig::new().with_epsilon(1e-8).build();
+let mut optimizer = ModuleOptimizer::from(precision.wrap_with_master_weights(adamw));
+```
+
+Choose how a parameter receives updates:
+
+- `wrap(adamw)` starts each step from the model's current value. Updates too small to change
+  that value after rounding are lost.
+- `wrap_with_master_weights(adamw)` keeps the unrounded result for the next step when the model
+  and compute dtypes differ. The model receives a copy cast to its own dtype. This costs one
+  additional compute-dtype tensor per such parameter. Reset optimizer state if you replace the
+  model weights outside the optimizer.
+
+Both modes accept floating-point model parameters. The optimizer restores statistics to the
+compute dtype before evaluating the equation and encodes them after calculating the new weight.
+Integer counters retain their types. Each dtype must be supported on the update device.
+
+To select precision per parameter group, pass the wrapped optimizer to `with_group`. Supply
+clipping with `ModuleOptimizer::with_grad_clipping` or the group's clipping argument.
+For `step_multi`, gradients are accumulated across devices first. Gradient preparation and the
+cast to compute dtype precede clipping.
+
+### Choosing storage per statistic
+
+Adam and AdamW share `AdamMomentStorage`. Give it the codecs for the first and second moments.
+The AMSGrad maximum uses the second codec by default. Use `with_maximum` when it needs its own
+representation. This policy rounds only the first moment to BF16.
+
+```rust,ignore
+use burn::optim::{AdamConfig, AdamMomentStorage, AdamWConfig, OptimizerPrecision};
+use burn::tensor::FloatDType;
+
+let moments = AdamMomentStorage::new(FloatDType::BF16, FloatDType::F32);
+let precision = OptimizerPrecision::new(FloatDType::F32).with_state_storage(moments);
+let adam = precision.wrap(AdamConfig::new().build());
+let adamw = precision.wrap_with_master_weights(AdamWConfig::new().build());
+```
+
+To supply your own format, implement `StatisticCodec` for a type in your crate. Its
+`encode` method takes one floating-point tensor. Its `Encoded<D>` can be a tensor or a struct
+deriving `RecordState`, such as integer codes and a scale per block. Implement `decode` to recover
+the original shape in the requested compute dtype, and `to_device` to move all encoded leaves.
+Pass your codec directly to `AdamMomentStorage::new(my_codec, FloatDType::F32)`. Burn handles the
+step counter, optional maximum and checkpoint paths. Adam and AdamW use the same row-wise encoder
+in the [downstream codec example](https://github.com/tracel-ai/burn/blob/main/crates/burn-optim/tests/state_storage.rs).
+
+For other state layouts, an `OptimizerStateMapper` can select self-describing tensor formats by
+record path. Implement `OptimizerStateStorage<MyOptimizer>` to define a whole-record policy
+that delegates individual tensors to the same `StatisticCodec` implementations.
+
+Resume from a matching model checkpoint with the same group definitions and storage policy.
+Checkpoints persist the stored tensors in their actual dtypes and include any master weights.
+The load device must support these representations. Float and native quantized tensor mappers
+preserve the original record names, so an ordinary checkpoint can seed their statistics and
+the model can supply the initial master. When a bare optimizer imports a precision checkpoint
+with native quantized statistics, it decodes them in the load device's default float dtype.
+An ordinary custom optimizer loading its own quantized state retains the recorded scheme.
+A custom record determines its own schema compatibility.
+
 ## Optimizer State and Records
 
 State belongs to the optimizer and is stored per parameter. Adam, for example, records first- and
@@ -206,3 +278,10 @@ pub struct MomentumState<const D: usize> {
 
 The `step` method receives the previous state, if any, and returns the updated tensor and optional
 new state. `to_device` moves every tensor held by the state to the requested device.
+
+To use uniform or per-tensor storage in a custom optimizer, derive `RecordState` and `StateMappable`
+on its state, including nested structs. Dtype storage casts the floating-point statistics and
+preserves integer and boolean tensors. Implement `MappableOptimizer` and
+delegate `map_state` to `state.map_tensors(mapper)`. The wrapper calls `Optimizer::step` with the parameter,
+gradient and statistics in the selected compute dtype. An optimizer with a default promotion policy
+can disable it in `without_default_precision` when the wrapper is constructed.

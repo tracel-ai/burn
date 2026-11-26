@@ -50,7 +50,7 @@ pub struct Adam {
 }
 
 /// Adam state.
-#[derive(RecordState, Clone, new)]
+#[derive(RecordState, Clone, new, crate::StateMappable)]
 pub struct AdamState<const D: usize> {
     /// The current adaptive momentum.
     pub momentum: AdaptiveMomentumState<D>,
@@ -84,9 +84,8 @@ impl Optimizer for Adam {
         (tensor - delta, Some(state))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
-        state.momentum = state.momentum.to_device(device);
-        state
+    fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D> {
+        super::precision::move_state(state, device)
     }
 }
 
@@ -124,7 +123,7 @@ impl AdamConfig {
 }
 
 /// Adaptive momentum state.
-#[derive(RecordState, new, Clone)]
+#[derive(RecordState, new, Clone, crate::StateMappable)]
 pub struct AdaptiveMomentumState<const D: usize> {
     /// The number of iterations aggregated.
     pub time: usize,
@@ -221,11 +220,8 @@ impl<const D: usize> AdaptiveMomentumState<D> {
     /// # Returns
     ///
     /// Returns state moved to device.
-    pub fn to_device(mut self, device: &Device) -> Self {
-        self.moment_1 = self.moment_1.to_device(device);
-        self.moment_2 = self.moment_2.to_device(device);
-        self.max_moment_2 = self.max_moment_2.map(|tensor| tensor.to_device(device));
-        self
+    pub fn to_device(self, device: &Device) -> Self {
+        super::precision::move_state(self, device)
     }
 }
 
