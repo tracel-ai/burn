@@ -343,6 +343,11 @@ Reports also include the measured cost of a kernel launch.
   re-optimized hole: the repair now opens composed chunks and keeps only fused optimizations whole.
   ([#6570](https://github.com/tracel-ai/burn/pull/6570))
 
+- Fix operations after the first fused run of a segment executing unfused when the segment ends at
+  a sync (a read, or a collective on a sharded device): the rest of the segment is now searched for
+  fusions too.
+  ([#6646](https://github.com/tracel-ai/burn/pull/6646))
+
 - Fusion autotune copies only the handles of the tensors its queue maps, not every live tensor's, so
   a launch that is not yet tuned no longer costs a pass over every live handle.
 
@@ -647,6 +652,14 @@ whose tensors are split over `devices` (crate `burn-shard`).
   [#6062](https://github.com/tracel-ai/burn/pull/6062),
   [#6069](https://github.com/tracel-ai/burn/pull/6069))
 
+- Fix a dtype mismatch that caused `sort`, `sort_with_indices`, `argsort`, and their descending
+  variants to panic on `Flex32` tensors when using the host fallback. Sorted values retain the
+  `Flex32` dtype. ([#6624](https://github.com/tracel-ai/burn/pull/6624)) [@tandede](https://github.com/tandede)
+
+- On CubeCL backends, casting between `F32` and `Flex32` now returns the requested dtype in both
+  directions. ([#6647](https://github.com/tracel-ai/burn/pull/6647))
+  [@laggui](https://github.com/laggui)
+
 #### Grid sampling
 
 - Fix bilinear `grid_sample_2d` on CubeCL backends reading the wrong y coordinates when the grid's
@@ -692,6 +705,10 @@ whose tensors are split over `devices` (crate `burn-shard`).
 - Run quantized `argmax`, `argmin`, `gather` and `quantize_dynamic` on the backend's own
   implementations through device dispatch instead of dequantizing first.
   ([#6383](https://github.com/tracel-ai/burn/pull/6383))
+
+- Fix `quantize` on CubeCL backends reading flat scales along the wrong axes when the scheme's grid
+  of blocks has more than one axis, such as one scale per row: each row now quantizes under its own
+  scale. ([#6649](https://github.com/tracel-ai/burn/pull/6649))
 
 #### Random operation keys
 
@@ -1152,6 +1169,9 @@ Use `OnOptimizerStep::with(...)` to register standard metrics for optimizer upda
 See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics).
 
 #### Optimizers
+
+- Optimizer checkpoints restore each state tensor in its saved numeric dtype, so training can
+  resume when an optimizer's accumulator precision differs from the device default.
 
 - Custom optimizer and scheduler states can now derive `burn::optim::RecordState` in crates
   that depend only on `burn` with the `optim` feature enabled.

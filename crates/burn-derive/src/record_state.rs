@@ -7,10 +7,10 @@ use syn::{Data, DeriveInput, Fields, GenericArgument, PathArguments, Type};
 enum FieldKind {
     /// A `Tensor<D>` leaf.
     Tensor,
-    /// An `Option<Tensor<D>>` leaf (carrying the inner `Tensor<D>` type).
-    OptionTensor(Type),
-    /// A `Vec<Tensor<D>>` field (carrying the inner `Tensor<D>` type).
-    VecTensor(Type),
+    /// An `Option<Tensor<D>>` leaf.
+    OptionTensor,
+    /// A `Vec<Tensor<D>>` field.
+    VecTensor,
     /// A scalar leaf serialized via `burn_pack::Scalar`'s `From`/`TryFrom` conversions.
     Scalar,
     /// An `Option<scalar>` leaf (carrying the inner scalar type).
@@ -68,9 +68,7 @@ fn classify(ty: &Type) -> Result<FieldKind, syn::Error> {
     Ok(match head_ident(ty).as_deref() {
         Some("Tensor") => FieldKind::Tensor,
         Some("Vec") => match single_generic_arg(ty) {
-            Some(inner) if head_ident(&inner).as_deref() == Some("Tensor") => {
-                FieldKind::VecTensor(inner)
-            }
+            Some(inner) if head_ident(&inner).as_deref() == Some("Tensor") => FieldKind::VecTensor,
             _ => {
                 return Err(syn::Error::new_spanned(
                     ty,
@@ -80,7 +78,7 @@ fn classify(ty: &Type) -> Result<FieldKind, syn::Error> {
         },
         Some("Option") => match single_generic_arg(ty) {
             Some(inner) => match head_ident(&inner).as_deref() {
-                Some("Tensor") => FieldKind::OptionTensor(inner),
+                Some("Tensor") => FieldKind::OptionTensor,
                 Some(ident) if is_scalar(ident) => FieldKind::OptionScalar(inner),
                 _ => FieldKind::OptionNested(inner),
             },
@@ -131,29 +129,27 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
         let ty = &field.ty;
         ctor.push(quote! { #ident });
 
-        match classify(ty)? {
-            FieldKind::Tensor => {
-                flatten.push(quote! {
+        let (write, read) = match classify(ty)? {
+            FieldKind::Tensor => (
+                quote! {
                     out.push_tensor(prefix, #leaf, self.#ident.clone().into_data());
-                });
-                unflatten.push(quote! {
-                    let #ident = <#ty>::from_data(src.take_tensor(prefix, #leaf)?, device);
-                });
-            }
-            FieldKind::OptionTensor(inner) => {
-                flatten.push(quote! {
+                },
+                quote! {
+                    let #ident = src.restore_tensor(prefix, #leaf, device)?;
+                },
+            ),
+            FieldKind::OptionTensor => (
+                quote! {
                     if let Some(value) = &self.#ident {
                         out.push_tensor(prefix, #leaf, value.clone().into_data());
                     }
-                });
-                unflatten.push(quote! {
-                    let #ident = src
-                        .take_tensor(prefix, #leaf)
-                        .map(|data| <#inner>::from_data(data, device));
-                });
-            }
-            FieldKind::VecTensor(inner) => {
-                flatten.push(quote! {
+                },
+                quote! {
+                    let #ident = src.restore_tensor(prefix, #leaf, device);
+                },
+            ),
+            FieldKind::VecTensor => (
+                quote! {
                     out.push_scalar(
                         prefix,
                         concat!(#leaf, ".len"),
@@ -163,8 +159,8 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                         let __leaf = #optim::join_index(#leaf, __index);
                         out.push_tensor(prefix, &__leaf, __value.clone().into_data());
                     }
-                });
-                unflatten.push(quote! {
+                },
+                quote! {
                     let #ident = {
                         let __len = <usize as ::core::convert::TryFrom<_>>::try_from(
                             src.take_scalar(prefix, concat!(#leaf, ".len"))?,
@@ -173,60 +169,57 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                         let mut __items = <#ty>::with_capacity(__len);
                         for __index in 0..__len {
                             let __leaf = #optim::join_index(#leaf, __index);
-                            __items.push(<#inner>::from_data(
-                                src.take_tensor(prefix, &__leaf)?,
-                                device,
-                            ));
+                            __items.push(src.restore_tensor(prefix, &__leaf, device)?);
                         }
                         __items
                     };
-                });
-            }
-            FieldKind::Scalar => {
-                flatten.push(quote! {
+                },
+            ),
+            FieldKind::Scalar => (
+                quote! {
                     out.push_scalar(prefix, #leaf, ::core::convert::Into::into(self.#ident));
-                });
-                unflatten.push(quote! {
+                },
+                quote! {
                     let #ident = <#ty as ::core::convert::TryFrom<_>>::try_from(
                         src.take_scalar(prefix, #leaf)?,
                     )
                     .ok()?;
-                });
-            }
-            FieldKind::OptionScalar(inner) => {
-                flatten.push(quote! {
+                },
+            ),
+            FieldKind::OptionScalar(inner) => (
+                quote! {
                     if let Some(value) = self.#ident {
                         out.push_scalar(prefix, #leaf, ::core::convert::Into::into(value));
                     }
-                });
-                unflatten.push(quote! {
+                },
+                quote! {
                     let #ident: Option<#inner> = src.take_scalar(prefix, #leaf).and_then(|__s| {
                         <#inner as ::core::convert::TryFrom<_>>::try_from(__s).ok()
                     });
-                });
-            }
-            FieldKind::Nested => {
-                flatten.push(quote! {
+                },
+            ),
+            FieldKind::Nested => (
+                quote! {
                     {
                         let __path = #optim::join_path(prefix, #leaf);
                         #optim::RecordState::state_flatten(&self.#ident, &__path, out);
                     }
-                });
-                unflatten.push(quote! {
+                },
+                quote! {
                     let #ident = {
                         let __path = #optim::join_path(prefix, #leaf);
                         <#ty as #optim::RecordState>::state_unflatten(&__path, src, device)?
                     };
-                });
-            }
-            FieldKind::OptionNested(inner) => {
-                flatten.push(quote! {
+                },
+            ),
+            FieldKind::OptionNested(inner) => (
+                quote! {
                     if let Some(value) = &self.#ident {
                         let __path = #optim::join_path(prefix, #leaf);
                         #optim::RecordState::state_flatten(value, &__path, out);
                     }
-                });
-                unflatten.push(quote! {
+                },
+                quote! {
                     let #ident = {
                         let __path = #optim::join_path(prefix, #leaf);
                         if src.has_under(&__path) {
@@ -235,9 +228,11 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                             None
                         }
                     };
-                });
-            }
-        }
+                },
+            ),
+        };
+        flatten.push(write);
+        unflatten.push(read);
     }
 
     Ok(quote! {

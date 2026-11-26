@@ -96,18 +96,37 @@ impl<O: NumOperations> Explorer<O> {
             return ExplorationAction::Continue;
         }
 
-        let mut optimization = self.optimizer.optimize(operations);
+        let optimization = match mode {
+            ExecutionMode::Lazy => self.optimizer.optimize(operations),
+            ExecutionMode::Sync => self.optimize_to_end(operations),
+        };
         self.num_explorations += 1;
 
-        // At a sync the segment is final: fold the drained tail the search left for
-        // "the next round" into the plan as un-fused operations, so the cached plan
-        // covers the whole segment and can be matched by the policy on the next
-        // identical sync instead of re-exploring the same graph every time.
-        if let ExecutionMode::Sync = mode {
-            optimization.include_trailing(operations.len());
-        }
-
         ExplorationAction::Completed(optimization)
+    }
+
+    /// Optimize a segment no later operation will extend, as at a sync, into one plan covering
+    /// all of it. What a search leaves for the next round gets that round here, since no next
+    /// round comes, and the whole-segment plan is what the next identical sync matches.
+    fn optimize_to_end(&mut self, operations: &[OperationIr]) -> BlockOptimization<O> {
+        let mut optimization = self.optimizer.optimize(operations);
+        while optimization.ordering.len() < operations.len() {
+            let start = optimization.ordering.len();
+            let rest = &operations[start..];
+            self.reset(rest);
+            self.update(rest);
+            let mut tail = self.optimizer.optimize(rest);
+            // Only a fuser reporting an empty optimization covers nothing; the tail then runs
+            // unfused below rather than looping.
+            if tail.ordering.is_empty() {
+                break;
+            }
+            let positions: Vec<usize> = (start..operations.len()).collect();
+            tail.map_ordering(&positions);
+            optimization = optimization.followed_by(tail);
+        }
+        optimization.include_trailing(operations.len());
+        optimization
     }
 
     /// Number of optimizations built so far; a cached plan that is reused does not

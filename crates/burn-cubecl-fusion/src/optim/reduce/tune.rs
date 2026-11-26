@@ -14,7 +14,7 @@ use cubecl::{
     tile::Geometry,
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
-use cubek::reduce::kernels::{ReduceElements, ReduceKey, ReduceRoutineProblem};
+use cubek::reduce::kernels::{ReduceElements, ReduceKey, ReducePartials, ReduceRoutineProblem};
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 
@@ -106,7 +106,12 @@ fn reduce_key(info: &ReduceOptimizationInfo, tensors: &HashMap<TensorId, TensorI
             out: dtype_to_storage_type(out.dtype),
         },
     );
-    ReduceKey::from(&problem)
+    // The unfused reduce and the fused launch both give cubek scratch, which its key tells apart
+    // from a call given none.
+    ReduceKey::from(&ReduceRoutineProblem {
+        partials: Some(ReducePartials::default()),
+        ..problem
+    })
 }
 
 /// The reduce on its elected routine, through the trace's read block, then the write block; on the
