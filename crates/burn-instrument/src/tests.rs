@@ -425,6 +425,21 @@ fn a_lead_pricing_inside_another_keeps_what_the_enclosing_one_asked() {
     assert!(lead.priced(Some(Bounds::default())).is_some());
 }
 
+#[test]
+fn an_entry_made_by_hand_has_no_lead_floor() {
+    let seen = entered_at_lead(|| {
+        let observing = crate::observing().expect("the lead's pricing run observes this thread");
+        drop(observing.enter(crate::Declaration {
+            label: "by hand",
+            variant: None,
+            site: "test",
+            bounds: observing.prices().then(Bounds::default),
+        }));
+    });
+
+    assert_eq!(seen.events(), ["+by hand:-:-", "-"]);
+}
+
 /// They priced the device's work, which is not the lead's share of it.
 #[test]
 fn bounds_that_never_ask_for_the_leads_share_price_no_lead() {

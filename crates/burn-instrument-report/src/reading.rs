@@ -240,11 +240,12 @@ impl HostSplit {
             return Self::SeveralMembers;
         }
         let device = reading.device_time(&measurement.breakdown);
+        let busiest = slowest_member(measurement).max(device);
         if measurement.breakdown.timed_alone {
             Self::TimedAlone
         } else if device.is_zero() {
             Self::NothingTimed
-        } else if device > wall {
+        } else if busiest > wall {
             Self::ClocksDisagree
         } else {
             match schedule {
@@ -253,7 +254,7 @@ impl HostSplit {
                 },
                 Some(MemberSchedule::Concurrent) => Self::MembersAtOnce {
                     idle: wall - device,
-                    recoverable: wall.saturating_sub(slowest_member(measurement).max(device)),
+                    recoverable: wall - busiest,
                 },
                 None => Self::Measured {
                     host: wall - device,

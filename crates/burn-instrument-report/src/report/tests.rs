@@ -965,6 +965,16 @@ fn members_at_once_recover_no_more_waiting_than_the_slowest_member_leaves() {
     assert_eq!(ladder.host, Duration::from_micros(200));
 }
 
+#[test]
+fn members_at_once_whose_slowest_member_outlasts_the_clean_run_disagree() {
+    let mut measurement = at_once();
+    measurement.clean_wall = Some(Duration::from_micros(150));
+
+    let report = Report::new(&measurement);
+
+    assert_eq!(report.host_split(), HostSplit::ClocksDisagree);
+}
+
 /// Codex's case: nothing priced, so faster kernels win nothing, the other member's extra 100 µs
 /// included.
 #[test]

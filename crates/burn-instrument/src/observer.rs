@@ -94,6 +94,8 @@ std::thread_local! {
     static PRICING_LEAD: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
     /// Whether those bounds have asked [`pricing_lead`] since the share was set.
     static LEAD_ASKED: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+    /// Whether the bounds of the entry about to be made passed [`LeadPricing::priced`].
+    static LEAD_FLOOR: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
 }
 
 /// Whether the bounds being evaluated price the lead's share: the work of the first member of a
@@ -127,6 +129,14 @@ pub(crate) fn lead_share_priced() -> bool {
     false
 }
 
+/// Whether the entry being made has a lead floor, which only the next entry may claim.
+fn take_lead_floor() -> bool {
+    #[cfg(feature = "instrument")]
+    return LEAD_FLOOR.with(|floor| floor.replace(false));
+    #[cfg(not(feature = "instrument"))]
+    false
+}
+
 /// What `price` returns with the lead's share priced, as a component's bounds are in the lead's
 /// pricing run of a sharded compute device: how a floor's share at the lead is read outside an
 /// instrumented run, as a test of it does.
@@ -148,10 +158,14 @@ pub struct LeadPricing {
 }
 
 impl LeadPricing {
-    /// `bounds`, where their evaluation asked [`pricing_lead`].
+    /// `bounds`, where their evaluation asked [`pricing_lead`], as the floor of the next entry.
     pub fn priced(self, bounds: Option<Bounds>) -> Option<Bounds> {
         #[cfg(feature = "instrument")]
-        return bounds.filter(|_| LEAD_ASKED.with(core::cell::Cell::get));
+        return bounds.filter(|_| {
+            let asked = LEAD_ASKED.with(core::cell::Cell::get);
+            LEAD_FLOOR.with(|floor| floor.set(asked));
+            asked
+        });
         #[cfg(not(feature = "instrument"))]
         return bounds.and(None);
     }
@@ -236,9 +250,16 @@ pub struct Observing;
 impl Observing {
     /// Open a tag for the component being entered. It closes when the returned guard drops, so
     /// an early return cannot leave one open.
+    ///
+    /// In the lead's pricing run of a sharded compute device, `declared` keeps its bounds only
+    /// where `#[compute]` priced them at the lead's share: an entry made by hand has no lead floor.
     #[inline]
     pub fn enter(self, declared: Declaration<'_>) -> Tag {
-        Self::with_observer(|observer| observer.enter(declared));
+        Self::with_observer(|observer| {
+            let lead_floor = take_lead_floor();
+            let bounds = (declared.bounds).filter(|_| lead_floor || !observer.prices_lead());
+            observer.enter(Declaration { bounds, ..declared })
+        });
         Tag {
             _thread: core::marker::PhantomData,
         }

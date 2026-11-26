@@ -101,15 +101,19 @@ impl Projection {
     }
 
     /// Read the input and the weight once, write the output once.
-    fn bounds(&self, x: &Tensor<2>) -> Bounds {
-        let [rows, _] = tensor_dims(x);
-        let [input, output] = tensor_dims(&self.weight);
+    fn bounds(&self, x: &Tensor<2>) -> Option<Bounds> {
+        let [rows, input] = tensor_dims(x);
+        let [weight_input, output] = tensor_dims(&self.weight);
+        // Only one of them split along the contraction: the product cuts the other to match.
+        if input != weight_input {
+            return None;
+        }
         let element = x.dtype().size() as u64;
-        Bounds {
+        Some(Bounds {
             read: tensor_bytes(x) + tensor_bytes(&self.weight),
             write: (rows * output) as u64 * element,
             flops: 2 * (rows * input * output) as u64,
-        }
+        })
     }
 }
 ```
@@ -126,11 +130,10 @@ On a sharded compute device of several members, the run is priced twice: for the
 the lead, its first member, given how the operands are split. `tensor_dims` and `tensor_bytes`
 answer for the share being priced, a split operand reading as the lead's shard and a replicated
 one whole. They give what the lead holds as the component is entered, not what an operation
-inside redistributes: with the weight above split by rows, the product cuts the replicated input
-to the lead's half, which this floor still reads whole. A floor returns `None` where
-`pricing_lead()` is true and it cannot price the lead's share, and one that neither reads a shape
-through `tensor_dims` nor asks `pricing_lead()` leaves the component timed and not scored on the
-lead.
+inside redistributes, so the floor above returns `None` where the two contraction widths differ.
+A floor that cannot price the lead's share returns `None` there too, and one that neither reads a
+shape through `tensor_dims` nor asks `pricing_lead()` leaves the component timed and not scored
+on the lead.
 
 ## Measuring a model
 
@@ -163,7 +166,8 @@ output dropped inside the run lets the fuser skip the work that wrote it:
 - **clean wall**, the median of 10 clean runs (`.samples(n)`): what the report splits into device
   time and the time the device waited on the host. An instrumented run times every launch, so its
   own wall time describes the instrumentation, not the model.
-- **pricing**, one untimed run that evaluates component bounds, including any value readbacks.
+- **pricing**, one untimed run that evaluates component bounds, including any value readbacks,
+  and a second on a sharded compute device of several members, for its lead.
 - **the instrumented run**, whose breakdown the file holds.
 
 ### Replay requirements
