@@ -77,6 +77,11 @@ conflicts with it (E0119); delete the handwritten one.
 - Include the preceding `CompileOnly` pass's statistics in the following
   `CompileAndAutotune` pass on CubeCL backends, so deferred completions appear in its snapshot.
 
+- CubeCL autotuning orders its candidates by the time each kernel's estimate predicts on the
+  device's measured peaks, and stops a race once ten candidates were measured and ten more in a row
+  failed to beat the fastest, so large tables such as matmul and attention measure a fraction of
+  their candidates. Saved autotuning results are tuned again once.
+
 - Compile autotuning candidates in parallel, including CUDA binary assembly, to reduce startup time.
   ([#5996](https://github.com/tracel-ai/burn/pull/5996),
   [#6074](https://github.com/tracel-ai/burn/pull/6074))

@@ -224,11 +224,11 @@ burn-wgpu = { path = "crates/burn-wgpu", version = "0.23.0-pre.2", default-featu
 pytorch-reader = { path = "crates/pytorch-reader", version = "0.23.0-pre.2" }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7456cc3d489cd8e22e8da5381ff0632515e997f9" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7456cc3d489cd8e22e8da5381ff0632515e997f9" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7456cc3d489cd8e22e8da5381ff0632515e997f9" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7456cc3d489cd8e22e8da5381ff0632515e997f9" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "caf59f8dfc31f9fe2976f9a2fa139342b8b5b721" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "84210d218e0e47786237172b67d5c10e594c2b02" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "84210d218e0e47786237172b67d5c10e594c2b02" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "84210d218e0e47786237172b67d5c10e594c2b02" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "84210d218e0e47786237172b67d5c10e594c2b02" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "bdee72c6b5f48e97532b9601750477fe73601b60" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -244,46 +244,3 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
-
-# Local prototype only: the windowed-patience scheduler (cubecl branch autotune-patience-window).
-[patch."https://github.com/tracel-ai/cubecl"]
-cubecl = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl" }
-cubecl-common = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-common" }
-cubecl-core = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-core" }
-cubecl-cpp = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-cpp" }
-cubecl-cpu = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-cpu" }
-cubecl-cuda = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-cuda" }
-cubecl-environment = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-environment" }
-cubecl-hip = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-hip" }
-cubecl-ir = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-ir" }
-cubecl-llvm = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-llvm" }
-cubecl-macros = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-macros" }
-cubecl-macros-internal = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-macros-internal" }
-cubecl-metal = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-metal" }
-cubecl-monitoring = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-monitoring" }
-cubecl-opt = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-opt" }
-cubecl-runtime = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-runtime" }
-cubecl-server = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-server" }
-cubecl-spirv = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-spirv" }
-cubecl-std = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-std" }
-cubecl-tile = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-tile" }
-cubecl-wgpu = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-wgpu" }
-cubecl-zspace = { path = "/home/nathaniel/Projects/cubecl/.claude/worktrees/autotune-patience-window/crates/cubecl-zspace" }
-
-# Local prototype only: the estimate carrying reuse and shared-memory traffic (cubek branch estimate-reuse).
-[patch."https://github.com/tracel-ai/cubek"]
-cubek = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek" }
-cubek-attention = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-attention" }
-cubek-attention-backward = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-attention-backward" }
-cubek-convolution = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-convolution" }
-cubek-fft = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-fft" }
-cubek-interpolate = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-interpolate" }
-cubek-matmul = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-matmul" }
-cubek-microkernel = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-microkernel" }
-cubek-pool = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-pool" }
-cubek-quant = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-quant" }
-cubek-random = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-random" }
-cubek-reduce = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-reduce" }
-cubek-rms-norm = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-rms-norm" }
-cubek-std = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-std" }
-cubek-swiglu = { path = "/home/nathaniel/Projects/cubek/.claude/worktrees/estimate-reuse/crates/cubek-swiglu" }
