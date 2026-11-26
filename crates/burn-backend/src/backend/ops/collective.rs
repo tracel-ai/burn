@@ -6,7 +6,9 @@ use crate::{
 use alloc::{boxed::Box, vec, vec::Vec};
 use burn_std::{
     Bytes, DType, QuantScheme, QuantizedBytes, Shape, Slice, TensorData, global_scale_size,
-    params_shape, scale_size,
+    params_shape,
+    quantization::{BlockExtent, BlockSize},
+    scale_size,
 };
 use core::{marker::PhantomData, ops::Range};
 
@@ -447,9 +449,10 @@ impl DimSplit {
     /// its codes and scales cut without changing any of them, and, along the packed axis, whole
     /// packed words, which a device stores a quantized tensor in.
     pub fn cuts_whole_quantized_units(&self, scheme: &QuantScheme, rank: usize) -> bool {
-        let block = scheme
-            .block_size()
-            .map_or(1, |block| block.to_dim_vec(rank)[self.dim] as usize);
+        let block = match self.scale_extent(scheme, rank) {
+            BlockExtent::Values(values) => values.get() as usize,
+            BlockExtent::WholeAxis => 1,
+        };
         let packed = match scheme.packing_dim() {
             Some(packed_dim) if rank - 1 - packed_dim == self.dim => scheme.num_quants(),
             _ => 1,
@@ -458,6 +461,18 @@ impl DimSplit {
             1 => true,
             unit => self.len.is_multiple_of(self.members * unit),
         }
+    }
+
+    /// How far one scale of a tensor of `rank` dims quantized by `scheme` reaches along the split:
+    /// one over the whole axis is each chunk's too, and any other is cut with the values.
+    fn scale_extent(&self, scheme: &QuantScheme, rank: usize) -> BlockExtent {
+        let from_last = rank - 1 - self.dim;
+        (scheme
+            .finest()
+            .size
+            .extents_in_rank(rank)
+            .nth_back(from_last))
+        .expect("the split should be along one of the dims")
     }
 
     /// Each member's chunk of `data`, in member order, cut on the host. A quantized chunk keeps
@@ -506,8 +521,10 @@ impl DimSplit {
         );
         let (values, scales) = (parts.values.as_bytes(), parts.scales.as_bytes());
         let values_split = self.stored_split(&parts, &parts.values);
-        let scales_split =
-            (parts.scheme.block_size()).map(|_| self.stored_split(&parts, &parts.scales));
+        let scales_split = match self.scale_extent(&parts.scheme, data.shape().num_dims()) {
+            BlockExtent::Values(_) => Some(self.stored_split(&parts, &parts.scales)),
+            BlockExtent::WholeAxis => None,
+        };
         (0..self.members)
             .map(|member| {
                 let mut shape = data.shape().clone();
@@ -527,7 +544,8 @@ impl DimSplit {
 
     fn whole_quantized(self, chunks: &[TensorData]) -> Result<TensorData, ShardingError> {
         let parts: Vec<_> = chunks.iter().map(QuantizedParts::new).collect();
-        if let Some(shard) = parts.iter().position(|part| !part.joins(&parts[0])) {
+        let extent = self.scale_extent(&parts[0].scheme, chunks[0].shape().num_dims());
+        if let Some(shard) = (parts.iter()).position(|part| !part.joins(&parts[0], extent)) {
             return Err(ShardingError::QuantizedScales { shard });
         }
         // Chunks quantized each on their own can end inside a packed word, whose padding the
@@ -548,9 +566,9 @@ impl DimSplit {
             DimSplit { len, ..split }.whole_plain(&sections)
         };
         let values = joined(|part| &part.values);
-        let scales = match parts[0].scheme.block_size() {
-            None => parts[0].scales.clone(),
-            Some(_) => joined(|part| &part.scales),
+        let scales = match extent {
+            BlockExtent::WholeAxis => parts[0].scales.clone(),
+            BlockExtent::Values(_) => joined(|part| &part.scales),
         };
         let mut shape = chunks[0].shape().clone();
         shape[self.dim] = self.len;
@@ -579,9 +597,9 @@ impl DimSplit {
             })
             .unzip();
         let codes = self.whole_plain(&codes);
-        let scales = match scheme.block_size() {
-            None => scales[0].clone(),
-            Some(_) => {
+        let scales = match self.scale_extent(&scheme, codes.shape().num_dims()) {
+            BlockExtent::WholeAxis => scales[0].clone(),
+            BlockExtent::Values(_) => {
                 let len = scales.iter().map(|scale| scale.shape()[self.dim]).sum();
                 DimSplit { len, ..self }.whole_plain(&scales)
             }
@@ -722,11 +740,11 @@ impl QuantizedParts {
             }
             None => size_of::<i8>(),
         };
-        let scales_shape = match scheme.block_size() {
-            Some(_) => lay(params_shape(shape, &scheme)),
-            None => Shape::new([1]),
+        let scales_shape = match scheme.finest().size {
+            BlockSize::TENSOR => params_shape(shape, &scheme),
+            _ => lay(params_shape(shape, &scheme)),
         };
-        let scale_bytes = scale_size(scheme.scale_dtype());
+        let scale_bytes = scale_size(scheme.finest().dtype);
         let values_end = values_shape.num_elements() * value_bytes;
         let scales_end = values_end + scales_shape.num_elements() * scale_bytes;
         let section = |start: usize, end: usize| {
@@ -760,11 +778,12 @@ impl QuantizedParts {
         }
     }
 
-    /// Whether these parts and `first` share the scales a joined whole keeps once.
-    fn joins(&self, first: &Self) -> bool {
-        let per_tensor = self.scheme.block_size().is_none();
+    /// Whether these parts and `first` share the scales a whole joined along an axis they reach
+    /// `extent` of keeps once.
+    fn joins(&self, first: &Self, extent: BlockExtent) -> bool {
         self.global[..] == first.global[..]
-            && (!per_tensor || self.scales.as_bytes() == first.scales.as_bytes())
+            && (extent != BlockExtent::WholeAxis
+                || self.scales.as_bytes() == first.scales.as_bytes())
     }
 
     /// The quantized tensor of `shape` whose values and block scales are `pieces` end to end,
@@ -944,9 +963,9 @@ mod tests {
         .into_vec_i8();
         let codes = TensorData::new(codes, shape.clone());
         let block_scales = TensorData::new(scales.block, params_shape(&shape, &scheme));
-        let block_chunks: Vec<_> = match scheme.block_size() {
-            None => vec![block_scales; split.members],
-            Some(_) => DimSplit {
+        let block_chunks: Vec<_> = match split.scale_extent(&scheme, shape.num_dims()) {
+            BlockExtent::WholeAxis => vec![block_scales; split.members],
+            BlockExtent::Values(_) => DimSplit {
                 len: block_scales.shape()[split.dim],
                 ..split
             }
@@ -988,6 +1007,7 @@ mod tests {
                 .with_value(QuantValue::Q8S)
                 .with_store(QuantStore::Native)
                 .per_block([2], ScaleDtype::F32),
+            QuantScheme::fp8_per_row(),
             QuantScheme::default()
                 .with_value(QuantValue::Q4S)
                 .with_store(QuantStore::PackedU32(1)),

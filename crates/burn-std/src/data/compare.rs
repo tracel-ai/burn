@@ -3,9 +3,7 @@ use alloc::string::String;
 use num_traits::{Float, ToPrimitive};
 
 use super::TensorData;
-use crate::{
-    BoolStore, DType, Element, ElementOrdered, bf16, f16, quantization::global_scale_dtype,
-};
+use crate::{BoolStore, DType, Element, ElementOrdered, bf16, f16};
 
 /// The tolerance used to compare to floating point numbers.
 ///
@@ -261,8 +259,8 @@ impl TensorData {
 
                 // Data equality mostly depends on input quantization type, but we also check levels
                 if q.value == q_other.value
-                    && q.block_size() == q_other.block_size()
-                    && global_scale_dtype(&q) == global_scale_dtype(&q_other)
+                    && q.finest().size == q_other.finest().size
+                    && q.levels().skip(1).eq(q_other.levels().skip(1))
                 {
                     self.assert_eq_elem::<i8>(other)
                 } else {

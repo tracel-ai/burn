@@ -2,7 +2,7 @@ use super::tensor::GlobalTensor;
 use crate::engine::codegen::{DynElem, DynSize, DynVector};
 use burn_std::{
     BoolStore, DType, Shape, Strides, bf16, f16,
-    quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype, global_scale_dtype},
+    quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype},
     strides,
 };
 use core::fmt::Display;
@@ -962,8 +962,8 @@ impl FuseType {
     ///
     /// Same contract as [Self::from_scale_dtype]: callers must decline to fuse on `None`.
     pub fn from_quant_scheme(scheme: QuantScheme) -> Option<Self> {
-        // No fused kernel applies a per-tensor scale.
-        if global_scale_dtype(&scheme).is_some() {
+        // No fused kernel applies a coarser level's scale.
+        if scheme.levels().count() > 1 {
             return None;
         }
 

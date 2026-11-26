@@ -1,11 +1,14 @@
 use alloc::vec::Vec;
 pub use burn_std::{BlockLayout, QPARAM_ALIGN, params_shape};
-use burn_std::{FloatDType, QuantScheme, ScaleDtype, Shape, quantization::global_scale_dtype};
+use burn_std::{
+    FloatDType, QuantScheme, ScaleDtype, Shape,
+    quantization::{BlockSize, global_scale_dtype},
+};
 
 use super::{Calibration, QuantizationParametersPrimitive};
 use crate::{Backend, TensorMetadata, get_or_init_device_settings};
 
-/// One value per block: `tensor` viewed as `[n0, b0, n1, b1, ...]`, every block axis folded by
+/// One value per block: `tensor` viewed as `[n0, b0, n1, b1, ...]`, every block axis reduced by
 /// `reduce`, and the result shaped as the block scales are ([`params_shape`]).
 ///
 /// A block is a rectangle, not a run of elements: `[2, 2]` on a `[2, 4]` tensor holds
@@ -17,13 +20,9 @@ fn reduce_blocks<B: Backend>(
     reduce: impl Fn(B::FloatTensorPrimitive, usize) -> B::FloatTensorPrimitive,
 ) -> B::FloatTensorPrimitive {
     let shape = tensor.shape();
-    let block = scheme
-        .block_size()
-        .expect("only a block scheme has blocks to reduce");
-    let block = block.to_dim_vec(shape.num_dims());
+    let block = scheme.finest().size.values(shape.as_slice());
     let mut split = Vec::with_capacity(2 * shape.num_dims());
     for (&dim, &extent) in shape.iter().zip(&block) {
-        let extent = extent as usize;
         assert!(
             dim.is_multiple_of(extent),
             "Tensor {shape:?} must be evenly divisible by block size {block:?}"
@@ -47,9 +46,9 @@ pub fn compute_range<B: Backend>(
     calibration: &Calibration,
 ) -> (B::FloatTensorPrimitive, B::FloatTensorPrimitive) {
     match calibration {
-        Calibration::MinMax => match scheme.block_size() {
-            None => (B::float_min(tensor.clone()), B::float_max(tensor)),
-            Some(_) => (
+        Calibration::MinMax => match scheme.finest().size {
+            BlockSize::TENSOR => (B::float_min(tensor.clone()), B::float_max(tensor)),
+            _ => (
                 reduce_blocks::<B>(tensor.clone(), scheme, B::float_min_dim),
                 reduce_blocks::<B>(tensor, scheme, B::float_max_dim),
             ),
@@ -61,9 +60,9 @@ pub fn compute_range<B: Backend>(
                 "AbsMean calibration has no two-level form: BitNet's gamma is a mean over \
                  the whole tensor or block, which a per-tensor scale cannot decompose"
             );
-            let gamma = match scheme.block_size() {
-                None => B::float_mean(B::float_abs(tensor)),
-                Some(_) => reduce_blocks::<B>(B::float_abs(tensor), scheme, B::float_mean_dim),
+            let gamma = match scheme.finest().size {
+                BlockSize::TENSOR => B::float_mean(B::float_abs(tensor)),
+                _ => reduce_blocks::<B>(B::float_abs(tensor), scheme, B::float_mean_dim),
             };
             let neg_gamma = B::float_neg(gamma.clone());
             (neg_gamma, gamma)
@@ -95,7 +94,7 @@ pub fn compute_q_params<B: Backend>(
     let (scales, global) = match global_scale_dtype(scheme) {
         None => (scales, None),
         Some(_) => {
-            let (scales, global) = normalize_scales::<B>(scales, scheme.scale_dtype());
+            let (scales, global) = normalize_scales::<B>(scales, scheme.finest().dtype);
             (scales, Some(global))
         }
     };

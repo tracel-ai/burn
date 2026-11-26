@@ -361,7 +361,7 @@ fn a_race_runs_on_the_calls_buffers() {
     let raced = tunables.generate_inputs(&call.key(), &call);
     let memory = |input: &MatmulCallInput| match &input.tensor {
         StoredTensor::Plain(tensor) => tensor.binding.handle.memory.id(),
-        StoredTensor::Packed(_) => unreachable!("a float call"),
+        StoredTensor::Scaled(_) | StoredTensor::Packed(_) => unreachable!("a float call"),
     };
     assert_eq!(memory(&raced.lhs), memory(&call.lhs));
     assert_eq!(memory(&raced.rhs), memory(&call.rhs));

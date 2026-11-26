@@ -134,7 +134,7 @@ fn new_quantized(
         },
     };
 
-    let scales_dtype = match scheme.scale_dtype() {
+    let scales_dtype = match scheme.finest().dtype {
         ScaleDtype::F32 => DType::F32,
         ScaleDtype::F16 => DType::F16,
         ScaleDtype::BF16 => DType::BF16,
