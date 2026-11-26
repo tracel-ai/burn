@@ -212,9 +212,8 @@ impl TensorData {
         }
     }
 
-    /// Creates a quantized tensor data structure from parts already in the encoding `scheme`
-    /// stores them in, where [`TensorData::quantized`] takes them decoded: what
-    /// [`QuantizedBytes::from_parts`] assembles.
+    /// Creates a quantized tensor data structure from bytes already in the encoding of
+    /// `scheme` (unlike [`TensorData::quantized`] that takes unpacked values as plain Rust types).
     ///
     /// # Errors
     ///

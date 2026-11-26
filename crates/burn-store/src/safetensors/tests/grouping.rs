@@ -27,7 +27,7 @@ struct Model {
 const ROWS: usize = 32;
 const COLUMNS: usize = 64;
 
-/// A grouping as a DeepSeek-style release needs one: each `F8_E4M3` `<p>.weight` read with its
+/// A grouping as a DeepSeek-style release: each `F8_E4M3` `<p>.weight` read with its
 /// `<p>.scale`, one `ue8m0` scale per 32×32 block.
 struct WeightWithScale;
 

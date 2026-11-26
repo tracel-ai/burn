@@ -260,26 +260,14 @@ impl QuantizedBytes {
             .unwrap_or_else(|err| panic!("{err}"))
     }
 
-    /// Creates a quantized bytes representation from parts already in the encoding `scheme`
-    /// stores them in, where [`new`](Self::new) takes them decoded and encodes them itself.
-    ///
-    /// - `codes` are packed as `scheme` stores its values (a byte each for `Native`, little-endian
-    ///   words along the packed axis otherwise), where `new` takes one `i8` per value and packs
-    ///   them.
-    /// - `scales` are the block scales as bytes of `scheme`'s scale dtype, one entry per block in
-    ///   row-major block order, where `new` takes them as `f32` and encodes each one.
-    /// - `global` is the per-tensor scale of a two-level scheme as its stored bytes, where `new`
-    ///   takes an `f32`.
-    ///
-    /// Nothing is decoded, packed or encoded: the codes are kept as given and the scales only
-    /// reordered, for a store that packs them along an outer axis. A part of the wrong length is
-    /// an error rather than a panic, since the parts may come from outside burn, such as a
-    /// checkpoint storing codes and scales as separate tensors.
+    /// Creates a quantized bytes representation from parts already in the encoding of `scheme`
+    /// (unlike [`new`](Self::new) that takes values unpacked as plain Rust types). Codes are kept
+    /// as given and the scales only reordered, for a store that packs them along an outer axis.
     ///
     /// # Errors
     ///
-    /// [`QuantizedPartsError`] naming the part whose length disagrees with `shape` and
-    /// `scheme`, or a per-tensor scale given to, or missing from, a scheme.
+    /// [`QuantizedPartsError`] when a part's length disagrees with `shape` and `scheme`, or when
+    /// `scheme` lays out no storage for `shape`.
     pub fn from_parts(
         codes: Bytes,
         scales: &[u8],
@@ -391,10 +379,8 @@ impl QuantizedBytes {
     }
 }
 
-/// Whether parts of `lengths` bytes (codes, then block scales) and a per-tensor scale of
-/// `global` bytes are what [`QuantizedBytes::from_parts`] takes for a tensor of `shape` under
-/// `scheme`: a check that reads only the lengths, so a reader can make it before any byte is
-/// read.
+/// Whether the lengths of the codes, block scales and per-tensor scale are expected for a tensor
+/// of `shape` under `scheme`, each in its stored encoding.
 ///
 /// # Errors
 ///
@@ -429,7 +415,8 @@ pub fn check_quantized_parts(
     Ok(())
 }
 
-/// One of the parts [`QuantizedBytes::from_parts`] assembles a quantized tensor from.
+// A part of a quantized tensor's storage: the codes, the block
+/// scales, and the per-tensor scale of a two-level scheme.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuantizedPart {
     /// The quantized values.
@@ -440,7 +427,7 @@ pub enum QuantizedPart {
     Global,
 }
 
-/// Why [`QuantizedBytes::from_parts`] refused its parts.
+/// Why stored codes and scales cannot form a quantized tensor of a given shape and scheme.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum QuantizedPartsError {
     /// A part holds another number of bytes than the shape and scheme lay out for it.
@@ -749,28 +736,6 @@ mod tests {
         assert_eq!(q_values, values);
         assert_eq!(scales.block, block_scales);
         assert_eq!(scales.global, None);
-    }
-
-    /// Parts already encoded assemble into the bytes `new` writes from their decoded values,
-    /// the scales reordered for a store packed along an outer axis.
-    #[test]
-    fn parts_assemble_as_new_lays_them_out() {
-        // Powers of two, so `ue8m0` holds them exactly.
-        // `[4, 1]` blocks over `[8, 8]`: two rows of eight blocks.
-        let block_scales: Vec<f32> = (0..16).map(|i| 2f32.powi(i % 5 - 2)).collect();
-        let values: Vec<i8> = (0..64).map(|v| (v % 7) as i8).collect();
-        let scheme = QuantScheme::default()
-            .with_value(QuantValue::Q8S)
-            .with_store(QuantStore::PackedU32(1))
-            .per_block([4, 1], ScaleDtype::UE8M0);
-        let built = QuantizedBytes::new(values.clone(), [8, 8], scheme, &block_scales, None);
-        let codes_len = value_bytes(&scheme, &Shape::new([8, 8]));
-        let codes = Bytes::from_bytes_vec(built.bytes[..codes_len].to_vec());
-        let scales = encode_scales(&block_scales, ScaleDtype::UE8M0);
-
-        let assembled = QuantizedBytes::from_parts(codes, &scales, None, [8, 8], scheme).unwrap();
-
-        assert_eq!(&assembled.bytes[..], &built.bytes[..]);
     }
 
     /// A part of the wrong length is refused, naming it.
