@@ -9,13 +9,7 @@ updates:
       - dependency-name: "tracel-ai/github-actions*"
 
   - package-ecosystem: "cargo"
-    directories:
-      - "/"
-      - "crates/burn"
-      - "crates/burn-*"
-      - "crates/burn-import/*-tests"
-      - "examples/*"
-      - "xtask"
+    directory: "/"
     schedule:
       interval: "weekly"
 
