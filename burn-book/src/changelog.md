@@ -695,6 +695,10 @@ whose tensors are split over `devices` (crate `burn-shard`).
   implementations through device dispatch instead of dequantizing first.
   ([#6383](https://github.com/tracel-ai/burn/pull/6383))
 
+- Fix `quantize` on CubeCL backends reading flat scales along the wrong axes when the scheme's grid
+  of blocks has more than one axis, such as one scale per row: each row now quantizes under its own
+  scale.
+
 #### Random operation keys
 
 Random operations now reserve a `RandomKey` when requested, before shard, fusion, or remote queues

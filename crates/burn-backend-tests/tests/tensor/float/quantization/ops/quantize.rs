@@ -631,3 +631,28 @@ fn should_panic_when_reshape_splits_a_block_across_rows() {
         .dequantize()
         .into_data();
 }
+
+#[test]
+fn should_quantize_each_row_under_its_own_scale() {
+    let device = Default::default();
+    let row: Vec<f32> = (1..=8).map(|v| v as f32).collect();
+    let rows: Vec<f32> = [1.0f32, 2.0, 0.5]
+        .iter()
+        .flat_map(|scale| row.iter().map(move |v| v * scale))
+        .collect();
+    let tensor = TestTensor::<2>::from_data(TensorData::new(rows, [3, 8]), &device);
+    let qparams = QuantizationParameters {
+        scales: TestTensor::from_data([1.0, 2.0, 0.5], &device),
+        global: None,
+    };
+
+    let actual = tensor
+        .clone()
+        .quantize(&QuantScheme::fp8_per_row(), qparams)
+        .dequantize();
+
+    // Every value is its row's scale times an integer up to 8, which e4m3 holds exactly.
+    actual
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&tensor.into_data(), Tolerance::default());
+}
