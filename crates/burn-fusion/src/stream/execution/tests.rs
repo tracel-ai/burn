@@ -16,7 +16,7 @@ use burn_ir::{
 
 use crate::{
     FuserProperties, FuserStatus, NumOperations, OperationFuser,
-    search::BlockOptimization,
+    search::{BlockOptimization, testing::add},
     stream::store::{
         ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
     },
@@ -76,6 +76,16 @@ impl<O> ExecutionStrategy<O> {
 }
 
 impl ExecutionStrategy<TestOptimization> {
+    /// The strategy a search builds when `builder_id`'s builder fuses the operations at
+    /// `ordering`, scored as [TestOptimizationBuilder] scores it.
+    pub fn fused(builder_id: usize, ordering: Vec<usize>) -> Self {
+        Self::Optimization {
+            opt: TestOptimization::new(builder_id, ordering.len()),
+            score: ordering.len() as u64,
+            ordering: Arc::new(ordering),
+        }
+    }
+
     /// Only use it for testing, to easily create ordered strategies.
     pub fn optimization(opt: TestOptimization) -> Self {
         let ordering = Arc::new((0..opt.size).collect());
@@ -510,6 +520,93 @@ fn should_reuse_sync_plan_on_next_pass() {
     stream.assert_number_of_explorations(1);
 }
 
+/// At a sync the operations the first search leaves are searched again rather than run
+/// unfused, since no later round will pick them up: every fusable run after the head still
+/// fuses, and the plan is reused on the next identical sync.
+#[test]
+fn should_fuse_the_leftover_of_a_sync_segment() {
+    let plan_id = 0;
+    let pairs = [
+        [add(100, 101, 102), add(102, 103, 104)],
+        [add(104, 105, 106), add(106, 107, 108)],
+        [add(108, 109, 110), add(110, 111, 112)],
+    ];
+    let segment: Vec<OperationIr> = pairs.iter().flatten().cloned().collect();
+    // A builder that wants the whole segment and one op more stays open, which defers the
+    // segment until the sync.
+    let mut hungry = segment.clone();
+    hungry.push(add(300, 301, 302));
+    let mut stream = TestStream::new(vec![
+        Box::new(TestOptimizationBuilder::new(0, pairs[0].to_vec())),
+        Box::new(TestOptimizationBuilder::new(1, pairs[1].to_vec())),
+        Box::new(TestOptimizationBuilder::new(2, pairs[2].to_vec())),
+        Box::new(TestOptimizationBuilder::new(3, hungry)),
+    ]);
+
+    for operation in segment.iter().cloned() {
+        stream.add(operation);
+    }
+    stream.sync();
+    stream.assert_number_of_executions(1);
+    stream.assert_last_executed(plan_id);
+    stream.assert_optimization(
+        plan_id,
+        BlockOptimization {
+            strategy: ExecutionStrategy::Composed(vec![
+                Box::new(ExecutionStrategy::fused(0, vec![0, 1])),
+                Box::new(ExecutionStrategy::fused(1, vec![2, 3])),
+                Box::new(ExecutionStrategy::fused(2, vec![4, 5])),
+            ]),
+            ordering: vec![0, 1, 2, 3, 4, 5],
+        },
+    );
+
+    for operation in segment {
+        stream.add(operation);
+    }
+    stream.sync();
+    stream.assert_number_of_executions(2);
+    stream.assert_last_executed(plan_id);
+    stream.assert_number_of_explorations(1);
+}
+
+/// An operation no builder takes, inside the leftover of a sync segment, runs unfused on its
+/// own while the run after it still fuses.
+#[test]
+fn should_fuse_past_an_unfusable_operation_in_the_leftover_of_a_sync_segment() {
+    let plan_id = 0;
+    let head = vec![add(100, 101, 102), add(102, 103, 104)];
+    let tail = vec![add(201, 105, 106), add(106, 107, 108)];
+    // Each operation reads the previous one's output, so the segment is one block.
+    let segment = [head.clone(), vec![add(104, 200, 201)], tail.clone()].concat();
+    let mut hungry = segment.clone();
+    hungry.push(add(300, 301, 302));
+    let mut stream = TestStream::new(vec![
+        Box::new(TestOptimizationBuilder::new(0, head)),
+        Box::new(TestOptimizationBuilder::new(1, tail)),
+        Box::new(TestOptimizationBuilder::new(2, hungry)),
+    ]);
+
+    for operation in segment {
+        stream.add(operation);
+    }
+    stream.sync();
+    stream.assert_last_executed(plan_id);
+    stream.assert_optimization(
+        plan_id,
+        BlockOptimization {
+            strategy: ExecutionStrategy::Composed(vec![
+                Box::new(ExecutionStrategy::fused(0, vec![0, 1])),
+                Box::new(ExecutionStrategy::Operations {
+                    ordering: Arc::new(vec![2]),
+                }),
+                Box::new(ExecutionStrategy::fused(1, vec![3, 4])),
+            ]),
+            ordering: vec![0, 1, 2, 3, 4],
+        },
+    );
+}
+
 impl TestStream {
     /// Create a new stream with the given optimization builders.
     fn new(optimizations: Vec<Box<dyn OperationFuser<TestOptimization>>>) -> Self {
@@ -545,6 +642,17 @@ impl TestStream {
         let actual = self.store.get_unchecked(id);
         assert_eq!(actual.operations, expected.operations, "Same operations");
         assert_eq!(actual.triggers, expected.triggers, "Same triggers");
+    }
+
+    /// Assert how the plan runs its operations, which [assert_plan](Self::assert_plan) leaves out.
+    fn assert_optimization(
+        &self,
+        id: ExecutionPlanId,
+        expected: BlockOptimization<TestOptimization>,
+    ) {
+        let actual = &self.store.get_unchecked(id).optimization;
+        assert_eq!(actual.strategy, expected.strategy, "Same strategy");
+        assert_eq!(actual.ordering, expected.ordering, "Same ordering");
     }
 
     /// Assert that the given plan id has been the last executed.

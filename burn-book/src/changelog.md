@@ -337,6 +337,11 @@ Reports also include the measured cost of a kernel launch.
   re-optimized hole: the repair now opens composed chunks and keeps only fused optimizations whole.
   ([#6570](https://github.com/tracel-ai/burn/pull/6570))
 
+- Fix operations after the first fused run of a segment executing unfused when the segment ends at
+  a sync (a read, or a collective on a sharded device): the rest of the segment is now searched for
+  fusions too.
+  ([#6646](https://github.com/tracel-ai/burn/pull/6646))
+
 - Fusion autotune copies only the handles of the tensors its queue maps, not every live tensor's, so
   a launch that is not yet tuned no longer costs a pass over every live handle.
 
