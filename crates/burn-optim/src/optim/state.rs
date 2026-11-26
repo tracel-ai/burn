@@ -140,7 +140,7 @@ impl RecordState for () {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::tensor::Tensor;
+    use burn::tensor::{DType, FloatDType, Tensor};
     use burn_core as burn;
 
     /// Flatten `state` then rebuild it from the produced tensors and scalars.
@@ -184,10 +184,18 @@ mod tests {
 
     #[test]
     fn all_field_kinds_round_trip() {
+        let dtype = if Device::default().supports_dtype(FloatDType::F16) {
+            FloatDType::F16
+        } else {
+            FloatDType::F32
+        };
         let state = Full::<1> {
-            t: tensor(&[1.0, 2.0]),
-            opt_tensor: Some(tensor(&[3.0])),
-            history: vec![tensor(&[4.0]), tensor(&[5.0, 6.0])],
+            t: tensor(&[1.0, 2.0]).cast(dtype),
+            opt_tensor: Some(tensor(&[3.0]).cast(dtype)),
+            history: vec![
+                tensor(&[4.0]).cast(FloatDType::F32),
+                tensor(&[5.0, 6.0]).cast(dtype),
+            ],
             count: 7,
             opt_scalar: Some(8.5),
             nested: Inner {
@@ -202,9 +210,14 @@ mod tests {
 
         let out = round_trip(&state).unwrap();
 
+        assert_eq!(out.t.dtype(), DType::from(dtype));
         assert_eq!(data(&out.t), vec![1.0, 2.0]);
-        assert_eq!(data(&out.opt_tensor.unwrap()), vec![3.0]);
+        let opt_tensor = out.opt_tensor.unwrap();
+        assert_eq!(opt_tensor.dtype(), DType::from(dtype));
+        assert_eq!(data(&opt_tensor), vec![3.0]);
         assert_eq!(out.history.len(), 2);
+        assert_eq!(out.history[0].dtype(), DType::F32);
+        assert_eq!(out.history[1].dtype(), DType::from(dtype));
         assert_eq!(data(&out.history[0]), vec![4.0]);
         assert_eq!(data(&out.history[1]), vec![5.0, 6.0]);
         assert_eq!(out.count, 7);

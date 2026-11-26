@@ -98,6 +98,15 @@ pub(crate) fn derive_impl(ast: &DeriveInput) -> proc_macro::TokenStream {
     }
 }
 
+fn restore_tensor(ty: &Type, leaf: TokenStream) -> TokenStream {
+    quote! {
+        src.take_tensor(prefix, #leaf).map(|data| {
+            let dtype = data.dtype();
+            <#ty>::from_data(data, (device, dtype))
+        })
+    }
+}
+
 fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Error> {
     let (optim, device) = record_state_paths()?;
     let name = &ast.ident;
@@ -133,26 +142,27 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
 
         match classify(ty)? {
             FieldKind::Tensor => {
+                let restore = restore_tensor(ty, quote!(#leaf));
                 flatten.push(quote! {
                     out.push_tensor(prefix, #leaf, self.#ident.clone().into_data());
                 });
                 unflatten.push(quote! {
-                    let #ident = <#ty>::from_data(src.take_tensor(prefix, #leaf)?, device);
+                    let #ident = #restore?;
                 });
             }
             FieldKind::OptionTensor(inner) => {
+                let restore = restore_tensor(&inner, quote!(#leaf));
                 flatten.push(quote! {
                     if let Some(value) = &self.#ident {
                         out.push_tensor(prefix, #leaf, value.clone().into_data());
                     }
                 });
                 unflatten.push(quote! {
-                    let #ident = src
-                        .take_tensor(prefix, #leaf)
-                        .map(|data| <#inner>::from_data(data, device));
+                    let #ident = #restore;
                 });
             }
             FieldKind::VecTensor(inner) => {
+                let restore = restore_tensor(&inner, quote!(&__leaf));
                 flatten.push(quote! {
                     out.push_scalar(
                         prefix,
@@ -173,10 +183,7 @@ fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Er
                         let mut __items = <#ty>::with_capacity(__len);
                         for __index in 0..__len {
                             let __leaf = #optim::join_index(#leaf, __index);
-                            __items.push(<#inner>::from_data(
-                                src.take_tensor(prefix, &__leaf)?,
-                                device,
-                            ));
+                            __items.push(#restore?);
                         }
                         __items
                     };

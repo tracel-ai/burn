@@ -239,10 +239,9 @@ impl ModuleOptimizer {
 
     /// Load the optimizer state from an [`OptimizerRecord`].
     ///
-    /// State tensors are materialized on the default device; no device argument is needed because
-    /// each parameter's state is migrated to that parameter's (gradient's) device on the next
-    /// [`step`](ModuleOptimizer::step) — see the `to_device` call in the step path. The load device
-    /// is therefore irrelevant to correctness.
+    /// State tensors are materialized on the default device, which must support their recorded
+    /// numeric dtypes. The next [`step`](ModuleOptimizer::step) moves each parameter's state to
+    /// its gradient's device.
     pub fn load_record(mut self, record: OptimizerRecord) -> Self {
         let device = Device::default();
         let mut ranks: BTreeMap<u64, usize> = BTreeMap::new();
