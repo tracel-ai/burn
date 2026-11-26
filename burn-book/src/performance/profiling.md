@@ -104,8 +104,8 @@ impl Projection {
     fn bounds(&self, x: &Tensor<2>) -> Option<Bounds> {
         let [rows, input] = tensor_dims(x);
         let [weight_input, output] = tensor_dims(&self.weight);
-        // Only one of them split along the contraction: the product cuts the other to match.
-        if input != weight_input {
+        // Rows split, or one operand along the contraction: the product gathers or cuts first.
+        if rows != x.dims()[0] || input != weight_input {
             return None;
         }
         let element = x.dtype().size() as u64;
@@ -130,7 +130,8 @@ On a sharded compute device of several members, the run is priced twice: for the
 the lead, its first member, given how the operands are split. `tensor_dims` and `tensor_bytes`
 answer for the share being priced, a split operand reading as the lead's shard and a replicated
 one whole. They give what the lead holds as the component is entered, not what an operation
-inside redistributes, so the floor above returns `None` where the two contraction widths differ.
+inside redistributes, so the floor above returns `None` where the product gathers or cuts an
+operand first.
 A floor that cannot price the lead's share returns `None` there too, and one that neither reads a
 shape through `tensor_dims` nor asks `pricing_lead()` leaves the component timed and not scored
 on the lead.

@@ -284,7 +284,8 @@ Reports also include the measured cost of a kernel launch.
   `#[compute(bounds = ...)]` is priced for the lead's share too, where `tensor_dims` and
   `tensor_bytes` read the lead's shards (`pricing_lead` says which share is priced), and
   `Tensor::shard_dims` reads every member's. A report times each component on the lead and holds it
-  to its lead's floor; one whose bounds never ask for the lead's share is left unscored.
+  to its lead's floor; one whose bounds read no shape through `tensor_dims` and never call
+  `pricing_lead` is left unscored there.
   `tensor_bytes` counts a quantized tensor as its layout stores it, padded words and every scale
   included. Measurement files are version 8, and one of version 7 is refused: measure it again.
   ([#6651](https://github.com/tracel-ai/burn/pull/6651))
