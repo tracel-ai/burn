@@ -2,39 +2,40 @@
 //! ([`MatmulPackedTuneCandidate`]).
 
 use super::base::{MatmulProduct, RoutineIdentity};
-use crate::tune::{CandidateIdentity, CandidatePriority, TuneCandidate};
+use crate::tune::{Arithmetic, CandidateIdentity, CandidatePriority, Predictor, TuneCandidate};
 use cubek::matmul::kernels::plan::MatmulCall;
 use cubek::matmul::kernels::{
-    MatmulPackedCandidate, MatmulRoutine, MatmulTuneKey, PackedContraction,
+    MatmulPackedCandidate, MatmulRoutine, MatmulRoutineProblem, MatmulTuneKey,
 };
 use cubek::microkernel::matmul::MatmulMicrokernel;
-use cubek::std::Hardware;
 use cubek::std::routine::Routine;
 
 /// One routine at one of the settings it lists for a packed input, reading the packed inputs as
 /// stored.
 ///
-/// Its priority says little of the problem: a packed routine's plan reads how a packed input is
-/// stored and how its device loads it, which a key does not carry, so a packed key tries the
-/// settings in the order the routine lists them, and a float key last, where the routine declines
-/// it before compiling anything. What a key does say is its rows: at one, a setting on matrix
-/// instructions fills a single row of its fragments, the arithmetic of several rows for the bytes a
-/// setting in registers reads once, so it is tried after those rather than beside them.
+/// Its priority is the estimate of the launch it prepares for the packed problem a key describes
+/// ([`MatmulPackedCandidate::estimate`]), timed at the device's peaks
+/// ([`Predictor::priority_of`]); last on a float key, which the routine declines before compiling
+/// anything.
 #[derive(Debug, Clone)]
 pub(super) struct MatmulPackedTuneCandidate<R: Routine> {
     candidate: MatmulPackedCandidate<R>,
+    predictor: Predictor,
 }
 
 impl<R: Routine + Copy> MatmulPackedTuneCandidate<R> {
-    /// `routine` at each of `settings` on `hw`, in their order.
+    /// `routine` at each of `settings` on `predictor`'s device, in their order.
     pub(super) fn of(
         routine: R,
         settings: impl IntoIterator<Item = R::Settings>,
-        hw: &Hardware,
+        predictor: &Predictor,
     ) -> Vec<Self> {
-        MatmulPackedCandidate::of(routine, settings, hw)
+        MatmulPackedCandidate::of(routine, settings, predictor.hardware())
             .into_iter()
-            .map(|candidate| Self { candidate })
+            .map(|candidate| Self {
+                candidate,
+                predictor: predictor.clone(),
+            })
             .collect()
     }
 
@@ -80,9 +81,9 @@ impl<R: Routine + Copy> MatmulPackedTuneCandidate<R> {
     }
 }
 
-impl<R: Routine> TuneCandidate for MatmulPackedTuneCandidate<R>
+impl<R: Routine<Problem = MatmulRoutineProblem>> TuneCandidate for MatmulPackedTuneCandidate<R>
 where
-    R::Settings: core::fmt::Display + PackedContraction,
+    R::Settings: core::fmt::Display,
 {
     type Strategy = R::Settings;
     type Key = MatmulTuneKey;
@@ -92,11 +93,17 @@ where
         self.candidate.settings()
     }
 
+    /// Its estimate on the packed problem the key describes, timed at the device's peaks, on the
+    /// largest matrix instruction the device offers the product's element; first where the key
+    /// states no problem the estimate can be read off, there being nothing to claim against it.
     fn priority(&self, key: &MatmulTuneKey) -> CandidatePriority {
-        let one_row_on_fragments = key.m == 1 && self.candidate.settings().on_matrix_instructions();
-        match key.is_packed() && !one_row_on_fragments {
-            true => CandidatePriority::FIRST,
-            false => CandidatePriority::LAST,
+        if !key.is_packed() {
+            return CandidatePriority::LAST;
         }
+        let Some(estimate) = self.candidate.estimate(key) else {
+            return CandidatePriority::FIRST;
+        };
+        let arithmetic = Arithmetic::product(self.predictor.hardware(), key.shape().elem);
+        self.predictor.priority_of(Some(estimate), arithmetic)
     }
 }

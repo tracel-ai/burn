@@ -78,7 +78,7 @@ pub(super) fn candidates(predictor: Predictor, groups: MatmulAutotuneGroups) -> 
             MatmulPackedTuneCandidate::of(
                 CubeStagedMatmulRoutine,
                 CubeStagedMatmulRoutine.packed_settings(&hw),
-                &hw,
+                &predictor,
             ),
             RoutineIdentity::new,
             MatmulPackedTuneCandidate::launch,
@@ -88,7 +88,7 @@ pub(super) fn candidates(predictor: Predictor, groups: MatmulAutotuneGroups) -> 
             MatmulPackedTuneCandidate::of(
                 CubeStagedAsyncCopyMatmulRoutine,
                 CubeStagedAsyncCopyMatmulRoutine.packed_settings(&hw),
-                &hw,
+                &predictor,
             ),
             RoutineIdentity::new,
             MatmulPackedTuneCandidate::launch,
@@ -98,7 +98,7 @@ pub(super) fn candidates(predictor: Predictor, groups: MatmulAutotuneGroups) -> 
             MatmulPackedTuneCandidate::of(
                 CubeStagedTmaFillerMatmulRoutine,
                 CubeStagedTmaFillerMatmulRoutine.packed_settings(&hw),
-                &hw,
+                &predictor,
             ),
             RoutineIdentity::new,
             MatmulPackedTuneCandidate::launch,
@@ -109,7 +109,7 @@ pub(super) fn candidates(predictor: Predictor, groups: MatmulAutotuneGroups) -> 
             MatmulPackedTuneCandidate::of(
                 CubeStagedMatmulRoutine,
                 CubeStagedMatmulRoutine.packed_settings(&hw),
-                &hw,
+                &predictor,
             ),
             MatmulPackedTuneCandidate::activation_decoded_identity,
             MatmulPackedTuneCandidate::launch_activation_decoded,
@@ -119,7 +119,7 @@ pub(super) fn candidates(predictor: Predictor, groups: MatmulAutotuneGroups) -> 
             MatmulPackedTuneCandidate::of(
                 CubeStagedAsyncCopyMatmulRoutine,
                 CubeStagedAsyncCopyMatmulRoutine.packed_settings(&hw),
-                &hw,
+                &predictor,
             ),
             MatmulPackedTuneCandidate::activation_decoded_identity,
             MatmulPackedTuneCandidate::launch_activation_decoded,
@@ -129,7 +129,7 @@ pub(super) fn candidates(predictor: Predictor, groups: MatmulAutotuneGroups) -> 
             MatmulPackedTuneCandidate::of(
                 CubeStagedTmaFillerMatmulRoutine,
                 CubeStagedTmaFillerMatmulRoutine.packed_settings(&hw),
-                &hw,
+                &predictor,
             ),
             MatmulPackedTuneCandidate::activation_decoded_identity,
             MatmulPackedTuneCandidate::launch_activation_decoded,
@@ -141,7 +141,7 @@ pub(super) fn candidates(predictor: Predictor, groups: MatmulAutotuneGroups) -> 
             MatmulPackedTuneCandidate::of(
                 HypercubeLastArrivalMatmulRoutine,
                 HypercubeLastArrivalMatmulRoutine.packed_settings(&hw),
-                &hw,
+                &predictor,
             ),
             RoutineIdentity::new,
             MatmulPackedTuneCandidate::launch,

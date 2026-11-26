@@ -48,7 +48,7 @@ pub(super) fn candidates(predictor: Predictor, groups: MatmulAutotuneGroups) -> 
             MatmulPackedTuneCandidate::of(
                 PlaneShuffleMatmulRoutine,
                 PlaneShuffleMatmulRoutine::packed_settings(),
-                &hw,
+                &predictor,
             ),
             RoutineIdentity::new,
             MatmulPackedTuneCandidate::launch,
@@ -58,7 +58,7 @@ pub(super) fn candidates(predictor: Predictor, groups: MatmulAutotuneGroups) -> 
             MatmulPackedTuneCandidate::of(
                 CubeShuffleMatmulRoutine,
                 CubeShuffleMatmulRoutine::packed_settings(&hw),
-                &hw,
+                &predictor,
             ),
             RoutineIdentity::new,
             MatmulPackedTuneCandidate::launch,
@@ -71,7 +71,7 @@ pub(super) fn candidates(predictor: Predictor, groups: MatmulAutotuneGroups) -> 
             MatmulPackedTuneCandidate::of(
                 CubeStagedMatmulRoutine,
                 CubeStagedMatmulRoutine.packed_one_step_settings(),
-                &hw,
+                &predictor,
             ),
             RoutineIdentity::new,
             MatmulPackedTuneCandidate::launch,
@@ -82,7 +82,7 @@ pub(super) fn candidates(predictor: Predictor, groups: MatmulAutotuneGroups) -> 
             MatmulPackedTuneCandidate::of(
                 PlaneShuffleMatmulRoutine,
                 PlaneShuffleMatmulRoutine::packed_settings(),
-                &hw,
+                &predictor,
             ),
             MatmulPackedTuneCandidate::activation_decoded_identity,
             MatmulPackedTuneCandidate::launch_activation_decoded,
@@ -92,7 +92,7 @@ pub(super) fn candidates(predictor: Predictor, groups: MatmulAutotuneGroups) -> 
             MatmulPackedTuneCandidate::of(
                 CubeShuffleMatmulRoutine,
                 CubeShuffleMatmulRoutine::packed_settings(&hw),
-                &hw,
+                &predictor,
             ),
             MatmulPackedTuneCandidate::activation_decoded_identity,
             MatmulPackedTuneCandidate::launch_activation_decoded,
@@ -102,7 +102,7 @@ pub(super) fn candidates(predictor: Predictor, groups: MatmulAutotuneGroups) -> 
             MatmulPackedTuneCandidate::of(
                 CubeStagedMatmulRoutine,
                 CubeStagedMatmulRoutine.packed_one_step_settings(),
-                &hw,
+                &predictor,
             ),
             MatmulPackedTuneCandidate::activation_decoded_identity,
             MatmulPackedTuneCandidate::launch_activation_decoded,

@@ -13,7 +13,7 @@ use cubecl::tile::Dimension;
 use cubek::matmul::kernels::select::problem::OperandKind;
 use cubek::matmul::kernels::{
     CubeShuffleMatmulRoutine, CubeStagedMatmulRoutine, MatmulBatching, MatmulTuneKey, OperandKey,
-    PackedContraction, PlaneShuffleMatmulRoutine,
+    PlaneShuffleMatmulRoutine,
 };
 use cubek::std::matmul_dimensions::{K, N};
 use cubek::std::{Hardware, devices};
@@ -193,67 +193,70 @@ mod few_rows_candidates {
     }
 }
 
-/// At one row a packed key tries the settings in registers first and those on matrix
-/// instructions after them; past one row it tries every packed setting first. A float key
-/// tries them last.
+/// A packed key of `rows` rows of f16 against a `5120 × 5120` rhs stored as `rhs` says.
+fn packed_key(rows: usize, rhs: OperandKind) -> MatmulTuneKey {
+    MatmulTuneKey::new(
+        F16,
+        5120,
+        5120,
+        rows,
+        1,
+        OperandKey::float(Some(K), MatmulBatching::Shared),
+        OperandKey {
+            kind: rhs,
+            ..OperandKey::float(Some(K), MatmulBatching::Shared)
+        },
+    )
+}
+
+/// A q4 rhs packed along `K` in rows, sixteen values a scale.
+fn q4() -> OperandKind {
+    OperandKind::Quantized(
+        QuantScheme::default()
+            .with_value(QuantValue::E2M1)
+            .per_block([16, 1], ScaleDtype::F16)
+            .with_store(QuantStore::PackedU32(1)),
+    )
+}
+
+/// A packed setting is tried last on a float key, which it declines before compiling anything,
+/// and first on a packed one where there is no device to time it on.
 #[test]
-fn one_row_tries_the_registers_before_the_matrix_instructions() {
-    let scheme = QuantScheme::default()
-        .with_value(QuantValue::E2M1)
-        .per_block([16, 1], ScaleDtype::F16)
-        .with_store(QuantStore::PackedU32(1));
-    let key = |rows, rhs: OperandKind| {
-        MatmulTuneKey::new(
-            F16,
-            5120,
-            5120,
-            rows,
-            1,
-            OperandKey::float(Some(K), MatmulBatching::Shared),
-            OperandKey {
-                kind: rhs,
-                ..OperandKey::float(Some(K), MatmulBatching::Shared)
-            },
-        )
-    };
-    let packed = OperandKind::Quantized(scheme);
-    // The instruction a plane decodes a packed rhs into: f16 summed in f32, sixteen by eight.
-    let hw = devices::offering_mma(
-        devices::h100(),
-        [MmaConfig {
-            a_type: F16,
-            b_type: F16,
-            cd_type: F32,
-            m: 16,
-            n: 8,
-            k: 16,
-        }],
-    );
+fn a_packed_setting_is_last_on_a_float_key_and_first_without_a_device() {
+    let hw = devices::h100();
     let settings = CubeShuffleMatmulRoutine::packed_settings(&hw);
-    assert!(
-        settings
-            .iter()
-            .any(PackedContraction::on_matrix_instructions),
-        "the device lists settings on matrix instructions"
-    );
-    for candidate in MatmulPackedTuneCandidate::of(CubeShuffleMatmulRoutine, settings, &hw) {
-        let one_row = match candidate.strategy().on_matrix_instructions() {
-            true => CandidatePriority::LAST,
-            false => CandidatePriority::FIRST,
-        };
+    let predictor = Predictor::described(hw);
+    for candidate in MatmulPackedTuneCandidate::of(CubeShuffleMatmulRoutine, settings, &predictor) {
         let name = candidate.strategy();
-        assert_eq!(candidate.priority(&key(1, packed)), one_row, "{name}");
         assert_eq!(
-            candidate.priority(&key(8, packed)),
+            candidate.priority(&packed_key(8, q4())),
             CandidatePriority::FIRST,
             "{name}"
         );
         assert_eq!(
-            candidate.priority(&key(8, OperandKind::Float)),
+            candidate.priority(&packed_key(8, OperandKind::Float)),
             CandidatePriority::LAST,
             "{name}"
         );
     }
+}
+
+/// On a device, a packed setting is placed by the estimate of the launch it prepares for the
+/// packed problem a key describes: one at least of the settings the device lists prepares a
+/// decode step's q4 projection, and its prediction never puts it with the declines.
+#[test]
+fn a_packed_setting_is_placed_by_its_estimate_on_a_device() {
+    let client = crate::CubeDevice::default().client();
+    let predictor = Predictor::on_device(&client);
+    let settings = CubeShuffleMatmulRoutine::packed_settings(predictor.hardware());
+    let candidates = MatmulPackedTuneCandidate::of(CubeShuffleMatmulRoutine, settings, &predictor);
+    let key = packed_key(1, q4());
+    assert!(
+        candidates
+            .iter()
+            .any(|candidate| candidate.priority(&key) > CandidatePriority::LAST),
+        "a packed setting the device lists prepares the decode projection"
+    );
 }
 
 /// Every autotune on every device holds the candidates `autotunes.txt` records: as many, under the
