@@ -16,7 +16,10 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use burn_core::tensor::{Device, TensorData};
+use burn_core::tensor::{
+    DType, Device, Tensor, TensorData,
+    kind::{Basic, Kind},
+};
 use burn_pack::Scalar;
 
 pub use burn_derive::RecordState;
@@ -92,6 +95,31 @@ impl StateSource {
         self.tensors.remove(&join_path(prefix, leaf))
     }
 
+    /// Take a tensor leaf and restore it on `device`. Numeric fields keep their recorded
+    /// precision. If a field changed kind, use the device default for the new kind.
+    /// A packed quantized leaf can only be restored into a float field.
+    pub fn restore_tensor<const D: usize, K: Basic>(
+        &mut self,
+        prefix: &str,
+        leaf: &str,
+        device: &Device,
+    ) -> Option<Tensor<D, K>> {
+        let data = self.take_tensor(prefix, leaf)?;
+        let dtype = data.dtype();
+        let keep_dtype = match K::KIND {
+            Kind::Float => dtype.is_float() || matches!(dtype, DType::QFloat(_)),
+            Kind::Int => dtype.is_int() || dtype.is_uint(),
+            Kind::Bool => false, // Bool storage is device-specific.
+        };
+        if keep_dtype {
+            return Some(Tensor::from_data(data, (device, dtype)));
+        }
+        if matches!(dtype, DType::QFloat(_)) {
+            return None;
+        }
+        Some(Tensor::from_data(data, device))
+    }
+
     /// Read the scalar named `{prefix}.{leaf}`, if present.
     pub fn take_scalar(&mut self, prefix: &str, leaf: &str) -> Option<Scalar> {
         self.scalars.get(&join_path(prefix, leaf)).copied()
@@ -140,8 +168,7 @@ impl RecordState for () {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::tensor::{DType, FloatDType, Tensor};
-    use burn_core as burn;
+    use burn_core::tensor::{FloatDType, Int};
 
     /// Flatten `state` then rebuild it from the produced tensors and scalars.
     fn round_trip<T: RecordState>(state: &T) -> Option<T> {
@@ -291,5 +318,34 @@ mod tests {
         // A source with nothing recorded cannot rebuild a struct that has a required tensor leaf.
         let mut source = StateSource::new(BTreeMap::new());
         assert!(Inner::<1>::state_unflatten("p", &mut source, &Device::default()).is_none());
+    }
+
+    #[derive(RecordState)]
+    struct IntegerState {
+        value: Tensor<1, Int>,
+    }
+
+    #[test]
+    fn restore_tensor_converts_a_changed_field_kind() {
+        let device = Device::default();
+        let mut source = StateSource::default();
+        source.insert_tensor("p.value".into(), TensorData::from([7.0f32, -3.0]));
+
+        let state = IntegerState::state_unflatten("p", &mut source, &device).unwrap();
+
+        assert_eq!(
+            state.value.dtype(),
+            DType::from(device.settings().int_dtype)
+        );
+        assert_eq!(state.value.try_into_vec_as::<i32>().unwrap(), [7, -3]);
+    }
+
+    #[test]
+    fn restore_tensor_rejects_quantized_data_for_an_integer_field() {
+        let mut source = StateSource::default();
+        let data = TensorData::quantized(vec![1i8], [1], Default::default(), &[0.5], None);
+        source.insert_tensor("p.value".into(), data);
+
+        assert!(IntegerState::state_unflatten("p", &mut source, &Device::default()).is_none());
     }
 }

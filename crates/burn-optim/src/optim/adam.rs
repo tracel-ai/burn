@@ -3,8 +3,7 @@ use burn_core as burn;
 use crate::RecordState;
 
 use burn::config::Config;
-use burn::tensor::Device;
-use burn::tensor::Tensor;
+use burn::tensor::{DType, Device, Tensor};
 
 use super::{
     Optimizer,
@@ -151,7 +150,8 @@ impl AdaptiveMomentum {
         grad: Tensor<D>,
         momentum_state: Option<AdaptiveMomentumState<D>>,
     ) -> (Tensor<D>, AdaptiveMomentumState<D>) {
-        let state = if let Some(mut state) = momentum_state {
+        let state = if let Some(state) = momentum_state {
+            let mut state = state.for_gradient_dtype(grad.dtype());
             let factor = 1.0 - self.beta_1;
             state.moment_1 = state
                 .moment_1
@@ -212,6 +212,22 @@ impl AdaptiveMomentum {
 }
 
 impl<const D: usize> AdaptiveMomentumState<D> {
+    pub(crate) fn for_gradient_dtype(mut self, dtype: DType) -> Self {
+        // A restored model may have been cast since the moments were recorded.
+        let cast = |tensor: Tensor<D>| {
+            let source = tensor.dtype();
+            if source != dtype && source.is_float() && dtype.is_float() {
+                tensor.cast(dtype)
+            } else {
+                tensor
+            }
+        };
+        self.moment_1 = cast(self.moment_1);
+        self.moment_2 = cast(self.moment_2);
+        self.max_moment_2 = self.max_moment_2.map(cast);
+        self
+    }
+
     /// Move state to device.
     ///
     /// # Arguments

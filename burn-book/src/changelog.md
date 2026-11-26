@@ -1148,7 +1148,8 @@ See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics)
 #### Optimizers
 
 - Optimizer checkpoints restore each state tensor in its saved numeric dtype, so training can
-  resume when an optimizer's accumulator precision differs from the device default.
+  resume when an optimizer's accumulator precision differs from the device default. Adam and
+  AdamW adapt their moments to the gradient dtype if the model is loaded at a different precision.
 
 - Custom optimizer and scheduler states can now derive `burn::optim::RecordState` in crates
   that depend only on `burn` with the `optim` feature enabled.

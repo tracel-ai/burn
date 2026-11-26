@@ -163,7 +163,8 @@ impl AdaptiveMomentumW {
         let factor_1 = 1.0 - self.beta_1;
         let factor_2 = 1.0 - self.beta_2;
 
-        let state = if let Some(mut state) = state {
+        let state = if let Some(state) = state {
+            let mut state = state.for_gradient_dtype(grad.dtype());
             // Update first moment estimate.
             state.moment_1 = state
                 .moment_1
@@ -231,9 +232,8 @@ mod tests {
     use super::*;
     use crate::GradientsParams;
     use crate::optim::test_utils::assert_optimizer_resume;
-    use burn::module::Param;
-    use burn::tensor::Tolerance;
-    use burn::tensor::{Tensor, TensorData};
+    use burn::module::{Module, Param};
+    use burn::tensor::{DType, Tensor, TensorData, Tolerance};
     use burn_nn::{Linear, LinearConfig};
 
     type FT = f32;
@@ -252,6 +252,45 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn resume_amsgrad_after_casting_model_to_f32() {
+        let device = Device::default();
+        if !device.supports_dtype(DType::F16) {
+            return;
+        }
+        let training_device = device.clone().autodiff();
+        let make_param =
+            |dtype| Param::from_tensor(Tensor::<1>::ones([1], (&training_device, dtype)));
+        let config = AdamWConfig::new()
+            .with_beta_1(0.5)
+            .with_beta_2(0.5)
+            .with_epsilon(0.0)
+            .with_weight_decay(0.0)
+            .with_amsgrad(true);
+        let mut optim = config.init();
+        let param = make_param(DType::F16);
+        let mut grads = GradientsParams::new();
+        grads.register(
+            param.id,
+            Tensor::<1>::from_data([2.0], (&device, DType::F16)),
+        );
+        let param = optim.step(0.25, param, grads);
+
+        let param = make_param(DType::F32).load_record(param.into_record().cast_to_module_dtype());
+        let mut restored = config.init().load_record(optim.to_record());
+        let mut grads = GradientsParams::new();
+        grads.register(param.id, Tensor::<1>::zeros([1], (&device, DType::F32)));
+        let param = restored.step(0.25, param, grads);
+
+        // The first step leaves the weight at 0.75. On resuming, AMSGrad keeps its previous
+        // maximum of 2, giving a bias-corrected update of 1 / sqrt(6) for the zero gradient.
+        param.to_data().assert_approx_eq::<f32>(
+            &TensorData::from([0.75 - 0.25 / 6.0_f32.sqrt()]),
+            Tolerance::absolute(1e-6),
+        );
+    }
+
     #[test]
     fn test_adamw_optimizer_with_amsgrad_50_steps() {
         let device = Device::default().autodiff();
