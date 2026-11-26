@@ -1,3 +1,4 @@
+use super::{L2Norm, scale_gradient};
 use burn_core as burn;
 
 use burn::{
@@ -7,12 +8,16 @@ use burn::{
 
 /// Gradient Clipping provides a way to mitigate exploding gradients
 #[derive(Config, Debug)]
+#[non_exhaustive]
 pub enum GradientClippingConfig {
     /// Clip the gradient by value.
     Value(f32),
 
-    /// Clip the gradient by norm.
+    /// Limit the L2 norm of each gradient tensor independently.
     Norm(f32),
+
+    /// Limit the joint L2 norm of all parameter gradients in a module optimizer step.
+    GlobalNorm(f32),
 }
 
 impl GradientClippingConfig {
@@ -25,36 +30,51 @@ impl GradientClippingConfig {
         match self {
             GradientClippingConfig::Value(val) => GradientClipping::Value(*val),
             GradientClippingConfig::Norm(val) => GradientClipping::Norm(*val),
+            GradientClippingConfig::GlobalNorm(val) => GradientClipping::GlobalNorm(*val),
         }
     }
 }
 
 /// Gradient Clipping provides a way to mitigate exploding gradients
-/// by clipping every component of the gradient by value or by norm during
-/// backpropagation.
+/// before an optimizer update.
 #[derive(Clone)]
+#[non_exhaustive]
 pub enum GradientClipping {
     /// Clip the gradient by value.
     Value(f32),
 
-    /// Clip the gradient by norm.
+    /// Limit the L2 norm of each gradient tensor independently.
     Norm(f32),
+
+    /// Limit the joint L2 norm of all parameter gradients in a module optimizer step.
+    GlobalNorm(f32),
 }
 
 impl GradientClipping {
-    /// Clip the gradient.
+    /// Clip a single gradient. For a single tensor, the global norm equals its own L2 norm.
     ///
-    /// # Arguments
+    /// # Panics
     ///
-    /// * `grad` - The gradient to clip.
-    ///
-    /// # Returns
-    ///
-    /// The clipped gradient.
+    /// Panics if `GlobalNorm` receives a quantized gradient or a negative or NaN limit.
     pub fn clip_gradient<const D: usize>(&self, grad: Tensor<D>) -> Tensor<D> {
+        self.validate_global_limit();
         match self {
             GradientClipping::Value(threshold) => self.clip_by_value(grad, *threshold),
             GradientClipping::Norm(max_norm) => self.clip_by_norm(grad, *max_norm),
+            GradientClipping::GlobalNorm(max_norm) => {
+                let dtype = grad.dtype();
+                let sqrt_scale = L2Norm::of(grad.clone()).sqrt_scale(*max_norm);
+                scale_gradient(grad, sqrt_scale, dtype)
+            }
+        }
+    }
+
+    pub(crate) fn validate_global_limit(&self) {
+        if let Self::GlobalNorm(limit) = self {
+            assert!(
+                *limit >= 0.,
+                "GlobalNorm requires a nonnegative limit, got {limit}"
+            );
         }
     }
 
@@ -98,6 +118,31 @@ impl GradientClipping {
 mod tests {
     use super::*;
     use burn::tensor::Tensor;
+
+    #[test]
+    fn global_norm_clips_tiny_finite_gradients() {
+        let grad = Tensor::<1>::from_floats([3e-30, 4e-30], &Default::default());
+        let scaled = GradientClipping::GlobalNorm(1e-30).clip_gradient(grad) * 1e30;
+        let data = scaled.into_data();
+        data.assert_approx_eq::<f32>(
+            &burn::tensor::TensorData::from([0.6f32, 0.8]),
+            Default::default(),
+        );
+    }
+
+    #[test]
+    fn global_norm_infinite_limit_preserves_infinite_and_finite_values() {
+        let grad = Tensor::<1>::from_floats([f32::INFINITY, 3.], &Default::default());
+        let clipped = GradientClipping::GlobalNorm(f32::INFINITY).clip_gradient(grad.clone());
+        clipped.into_data().assert_eq(&grad.into_data(), true);
+    }
+
+    #[test]
+    #[should_panic(expected = "GlobalNorm requires a nonnegative limit")]
+    fn global_norm_rejects_negative_single_tensor_limit() {
+        let grad = Tensor::<1>::ones([1], &Default::default());
+        let _ = GradientClipping::GlobalNorm(-1.).clip_gradient(grad);
+    }
 
     #[test]
     fn test_clip_by_value() {

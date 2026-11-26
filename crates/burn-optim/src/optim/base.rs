@@ -1,7 +1,7 @@
 use burn_core::Tensor;
 
 use burn_core::module::ParamId;
-use burn_core::tensor::Device;
+use burn_core::tensor::{DType, Device};
 
 use super::GradientsParams;
 use alloc::vec::Vec;
@@ -20,7 +20,18 @@ impl MultiGradientsParams {
     /// a parameter id. The same parameter will be accumulated using the same device during
     /// all training.
     pub fn remove<const D: usize>(&mut self, id: ParamId) -> Option<(Tensor<D>, Device)> {
+        self.remove_with(id, |lhs, rhs| lhs + rhs)
+            .map(|(grad, device, _)| (grad, device))
+    }
+
+    /// Keep the first contribution's dtype so a widened sum can be rounded after clipping.
+    pub(crate) fn remove_with<const D: usize>(
+        &mut self,
+        id: ParamId,
+        add: impl Fn(Tensor<D>, Tensor<D>) -> Tensor<D>,
+    ) -> Option<(Tensor<D>, Device, DType)> {
         let (mut tensor, device, index) = self.select(id)?;
+        let dtype = tensor.dtype();
 
         for (i, (grads, _)) in self.grads.iter_mut().enumerate() {
             if i == index {
@@ -28,11 +39,11 @@ impl MultiGradientsParams {
             }
 
             if let Some(grad) = grads.remove::<D>(id) {
-                tensor = tensor + grad.to_device(&device);
+                tensor = add(tensor, grad.to_device(&device));
             }
         }
 
-        Some((tensor, device))
+        Some((tensor, device, dtype))
     }
 
     fn select<const D: usize>(&mut self, id: ParamId) -> Option<(Tensor<D>, Device, usize)> {

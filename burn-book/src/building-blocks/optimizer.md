@@ -135,6 +135,24 @@ parameter, the last group takes precedence. Adding a group after optimization ha
 existing state of parameters matched by that group, because their state may belong to a different
 optimizer type.
 
+Set `GlobalNorm` on the module optimizer to limit the L2 norm of the whole model's gradient.
+
+```rust, ignore
+use burn::optim::grad_clipping::GradientClipping;
+
+let optimizer = optimizer.with_grad_clipping(GradientClipping::GlobalNorm(1.0));
+```
+
+Both `step` and `step_multi` compute one scale from the accumulated gradients across all groups.
+If their joint norm exceeds the limit, every gradient is multiplied by that scale before any
+group-specific clipping or optimizer update. With `with_grad_clipping`, `Norm` limits each
+fallback parameter's gradient norm independently and `Value` clips its individual elements.
+Pass `Norm` or `Value` to `with_group` to clip gradients in that group.
+
+`GlobalNorm` accepts floating-point gradients, including adapter gradients when fine-tuning a
+frozen quantized model. A manually supplied quantized gradient causes the step to panic.
+For `step_multi`, each parameter's running sum must fit in F32 (F64 for F64 gradients).
+
 Learning-rate schedulers support the same grouping model, so optimizer choice and learning-rate
 policy can be assigned independently. See [Learner](./learner.md#parameter-groups).
 

@@ -1,6 +1,7 @@
 use burn_core as burn;
 use burn_core::module::ParamGroup;
 
+use super::global_norm::GlobalNorm;
 use super::{ModuleLearningRate, Optimizer, ParameterContext};
 use crate::{
     DynOptimizer, DynState, MultiGradientsParams, OptimizerRecord, RecordTensor, StateSink,
@@ -29,17 +30,17 @@ struct OptimizerGroup {
     grad_clipping: Option<GradientClipping>,
 }
 
-impl OptimizerGroup {
-    pub(crate) fn set_gradient_clipping(&mut self, gradient_clipping: GradientClipping) {
-        self.grad_clipping = Some(gradient_clipping)
-    }
+fn matching_group(groups: &[OptimizerGroup], id: ParamId, path: Option<&str>) -> usize {
+    groups
+        .iter()
+        .rposition(|g| g.group.matches(&id, path))
+        .expect("Should match at least one parameter group.")
 }
 
-/// Keep a reference to the optimizer to avoid matching every step.
 #[derive(Clone)]
 struct OptimizationContext {
-    optim: Arc<dyn DynOptimizer>,
-    grad_clipping: Option<GradientClipping>,
+    // Groups are append-only. Cache the match while using its current clipping configuration.
+    group_index: usize,
     path: Option<String>,
     state: DynState,
 }
@@ -83,8 +84,7 @@ impl ModuleOptimizer {
         self.optimizers.iter().any(|g| g.grad_clipping.is_some())
     }
 
-    /// Access the gradient clipping.
-    /// If there are multiple optimizers, returns the first optimizer's [GradientClipping].
+    /// Returns the clipping set by [`Self::with_grad_clipping`], including a module-wide norm limit.
     pub fn grad_clipping(&self) -> Option<&GradientClipping> {
         self.optimizers
             .first()
@@ -93,21 +93,17 @@ impl ModuleOptimizer {
             .as_ref()
     }
 
-    /// Sets the gradient clipping.
-    /// If there are multiple optimizers, assigns it to the first one.
+    /// Sets clipping for optimizer updates. [`GradientClipping::GlobalNorm`] limits the joint L2
+    /// norm across all parameter groups after gradient accumulation. Clipping configured with
+    /// [`with_group`](Self::with_group) then applies to the scaled gradients in that group.
+    /// [`GradientClipping::Norm`] and [`GradientClipping::Value`] apply only to the fallback group.
     ///
-    /// # Arguments
+    /// # Panics
     ///
-    /// * `gradient_clipping` - The gradient clipping.
-    ///
-    /// # Returns
-    ///
-    /// The optimizer.
+    /// Panics if the global norm limit is negative or NaN.
     pub fn with_grad_clipping(mut self, gradient_clipping: GradientClipping) -> Self {
-        self.optimizers
-            .first_mut()
-            .expect("Should have at least one optimizer")
-            .set_gradient_clipping(gradient_clipping);
+        gradient_clipping.validate_global_limit();
+        self.optimizers[0].grad_clipping = Some(gradient_clipping);
         self
     }
 
@@ -115,14 +111,23 @@ impl ModuleOptimizer {
         &mut self,
         lr_policy: ModuleLearningRate,
         module: M,
-        mut grads: GradAdaptor,
+        grads: GradAdaptor,
     ) -> M {
-        module.map(&mut ModuleOptimizerMapper::new(
-            self.optimizers.iter().collect(),
-            &mut self.param_context,
-            &mut grads,
-            lr_policy,
-        ))
+        let (mut grads, global_norm) = match self.grad_clipping() {
+            Some(GradientClipping::GlobalNorm(max_norm)) => {
+                let (grads, norm) = GlobalNorm::prepare(&module, grads, *max_norm);
+                (grads.into(), norm)
+            }
+            _ => (grads, None),
+        };
+        module.map(&mut ModuleOptimizerMapper {
+            path: Vec::new(),
+            optimizer_groups: &self.optimizers,
+            states: &mut self.param_context,
+            grads: &mut grads,
+            global_norm,
+            lr_module: lr_policy,
+        })
     }
 
     /// Adds an optimizer specific to a parameter group.
@@ -137,6 +142,11 @@ impl ModuleOptimizer {
     /// ### Side Effects
     /// * **State Reset:** Adding a new group will reset any existing optimizer states for parameters
     ///   that match the new group.
+    ///
+    /// # Panics
+    ///
+    /// Panics for [`GradientClipping::GlobalNorm`]. Set it with [`Self::with_grad_clipping`]
+    /// to include gradients from every group.
     pub fn with_group<O>(
         mut self,
         group: ParamGroup,
@@ -146,6 +156,10 @@ impl ModuleOptimizer {
     where
         O: DynOptimizer + 'static,
     {
+        assert!(
+            !matches!(grad_clipping, Some(GradientClipping::GlobalNorm(_))),
+            "Set GlobalNorm on the module optimizer with with_grad_clipping"
+        );
         self.optimizers.push(OptimizerGroup {
             group: group.clone(),
             optim: Arc::new(optim),
@@ -159,6 +173,10 @@ impl ModuleOptimizer {
 
 impl ModuleOptimizer {
     /// Update the `module` parameters with the given `gradients`, advancing the optimizer state.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `GlobalNorm` receives a quantized parameter gradient.
     pub fn step<M: Module>(
         &mut self,
         lr_module: impl Into<ModuleLearningRate>,
@@ -169,6 +187,13 @@ impl ModuleOptimizer {
     }
 
     /// Like [`step`](Self::step), but accumulating gradients sourced from multiple devices.
+    ///
+    /// With `GlobalNorm`, each parameter's running sum must fit the accumulation dtype (F64 for
+    /// F64 gradients, F32 otherwise). Clipping takes place after accumulation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `GlobalNorm` receives a quantized gradient contribution.
     pub fn step_multi<M: Module>(
         &mut self,
         lr_module: impl Into<ModuleLearningRate>,
@@ -176,22 +201,6 @@ impl ModuleOptimizer {
         grads: MultiGradientsParams,
     ) -> M {
         self.step_common(lr_module.into(), module, grads.into())
-    }
-
-    fn optim_from_param(
-        &self,
-        id: ParamId,
-        path: Option<&str>,
-    ) -> (&'_ Arc<dyn DynOptimizer>, Option<GradientClipping>) {
-        self.optimizers
-            .iter()
-            .filter_map(|val| {
-                val.group
-                    .matches(&id, path)
-                    .then_some((&val.optim, val.grad_clipping.clone()))
-            })
-            .next_back()
-            .expect("Should match at least one parameter group.")
     }
 
     /// Decompose the optimizer state into a serializable [`OptimizerRecord`].
@@ -203,7 +212,7 @@ impl ModuleOptimizer {
         for (id, param_state) in self.param_context.iter() {
             let prefix = id.val().to_string();
             let mut sink = StateSink::default();
-            param_state
+            self.optimizers[param_state.group_index]
                 .optim
                 .state_flatten(&prefix, &param_state.state, &mut sink);
 
@@ -282,18 +291,17 @@ impl ModuleOptimizer {
         for (id, rank) in ranks {
             let prefix = id.to_string();
             let path = paths.get(&id);
-            let (optim, grad_clipping) =
-                self.optim_from_param(id.into(), path.map(|path| path.as_str()));
+            let group_index = matching_group(&self.optimizers, id.into(), path.map(String::as_str));
+            let optim = &self.optimizers[group_index].optim;
             // Skip parameters whose state can't be reconstructed (truncated/foreign record); they
             // are re-initialized lazily on the next step rather than aborting the load.
             if let Some(state) = optim.state_unflatten(rank, &prefix, &mut source, &device) {
                 states.insert(
                     ParamId::from(id),
                     OptimizationContext {
-                        optim: optim.clone(),
+                        group_index,
                         path: path.cloned(),
                         state,
-                        grad_clipping,
                     },
                 );
             }
@@ -365,43 +373,11 @@ impl GradAdaptor {
 
 struct ModuleOptimizerMapper<'a> {
     path: Vec<String>,
-    optimizer_groups: Vec<&'a OptimizerGroup>,
+    optimizer_groups: &'a [OptimizerGroup],
+    global_norm: Option<GlobalNorm>,
     states: &'a mut HashMap<ParamId, OptimizationContext>,
     grads: &'a mut GradAdaptor,
     lr_module: ModuleLearningRate,
-}
-
-impl<'a> ModuleOptimizerMapper<'a> {
-    pub(crate) fn new(
-        optimizer_groups: Vec<&'a OptimizerGroup>,
-        states: &'a mut HashMap<ParamId, OptimizationContext>,
-        grads: &'a mut GradAdaptor,
-        lr_module: ModuleLearningRate,
-    ) -> Self {
-        Self {
-            path: vec![],
-            optimizer_groups,
-            states,
-            grads,
-            lr_module,
-        }
-    }
-
-    fn optimizer_from_param(
-        &self,
-        id: ParamId,
-        path: Option<&str>,
-    ) -> (Arc<dyn DynOptimizer>, Option<GradientClipping>) {
-        self.optimizer_groups
-            .iter()
-            .filter_map(|val| {
-                val.group
-                    .matches(&id, path)
-                    .then_some((val.optim.clone(), val.grad_clipping.clone()))
-            })
-            .next_back()
-            .expect("Should match at least one parameter group.")
-    }
 }
 
 impl ModuleMapper for ModuleOptimizerMapper<'_> {
@@ -415,13 +391,11 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
 
     fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
         let (id, tensor, mapper) = param.consume();
-        let grad = self.grads.remove(id);
+        let grad = self.grads.remove::<D>(id);
 
         let tensor = if let Some((grad, device)) = grad {
             let context = ParameterContext::capture(&tensor);
 
-            let entry = self.states.remove_entry(&id);
-            let key = entry.as_ref().map(|(k, _)| *k);
             let tensor = if tensor.device() != device {
                 tensor.to_device(&device)
             } else {
@@ -429,29 +403,25 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
             };
 
             let path = self.path.join(".");
-            let (optim, grad_clipping, existing_dyn_state) = match entry.map(|(_, s)| s) {
-                Some(OptimizationContext {
-                    optim,
-                    grad_clipping,
-                    state,
-                    ..
-                }) => (optim, grad_clipping, Some(state)),
-                None => {
-                    let (optim, grad_clipping) =
-                        self.optimizer_from_param(id, Some(path.as_str())).clone();
-                    (optim, grad_clipping, None)
-                }
+            let (group_index, existing_dyn_state) = match self.states.remove(&id) {
+                Some(context) => (context.group_index, Some(context.state)),
+                None => (matching_group(self.optimizer_groups, id, Some(&path)), None),
             };
+            let group = &self.optimizer_groups[group_index];
+            let optim = &group.optim;
 
             debug_assert_eq!(
                 grad.device(),
                 device,
                 "The gradient is on the provided device"
             );
-            let clipped_grad: Tensor<D> = if let Some(g_clipping) = grad_clipping.as_ref() {
-                g_clipping.clip_gradient(grad)
-            } else {
-                grad
+            let grad = match &self.global_norm {
+                Some(global_norm) => global_norm.clip(id, grad, &device),
+                None => grad,
+            };
+            let clipped_grad = match &group.grad_clipping {
+                Some(GradientClipping::GlobalNorm(_)) | None => grad,
+                Some(clipping) => clipping.clip_gradient(grad),
             };
 
             debug_assert_eq!(
@@ -471,12 +441,11 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
 
             if let Some(state) = state {
                 self.states.insert(
-                    key.unwrap_or(id),
+                    id,
                     OptimizationContext {
-                        optim,
+                        group_index,
                         path: Some(path),
                         state,
-                        grad_clipping,
                     },
                 );
             }
@@ -498,7 +467,7 @@ mod tests {
         lr_scheduler::module_lr_scheduler::ModuleLearningRate,
     };
     use burn::module::ParamGroup;
-    use burn::tensor::{Distribution, Tensor, Tolerance};
+    use burn::tensor::{DType, Distribution, Tensor, Tolerance};
     use burn_derive::Module;
     use burn_nn::{Linear, LinearConfig};
 
@@ -708,6 +677,210 @@ mod tests {
                 .iter::<f32>()
                 .any(|value| value.abs() > bound + eps),
             "layer_b uses the default optimizer and should not be clipped"
+        );
+    }
+
+    fn scalar_params(dtype: DType) -> [Param<Tensor<1>>; 2] {
+        let device = Device::default().autodiff();
+        core::array::from_fn(|_| Param::from_tensor(Tensor::zeros([1], (&device, dtype))))
+    }
+
+    fn scalar_grads(params: &[Param<Tensor<1>>; 2], values: [f32; 2]) -> GradientsParams {
+        let mut grads = GradientsParams::new();
+        for (param, value) in params.iter().zip(values) {
+            grads.register(
+                param.id,
+                Tensor::<1>::from_floats([value], &Device::default()).cast(param.val().dtype()),
+            );
+        }
+        grads
+    }
+
+    fn assert_params(params: &[Param<Tensor<1>>; 2], expected: [f32; 2]) {
+        for (param, value) in params.iter().zip(expected) {
+            let actual = param.val().into_scalar::<f32>();
+            assert!(
+                (actual - value).abs() < 1e-5,
+                "expected {value}, got {actual}"
+            );
+        }
+    }
+
+    #[test]
+    fn global_norm_spans_parameter_groups_before_group_clipping() {
+        let model = scalar_params(DType::F32);
+        for (group_clipping, expected) in [
+            (None, [-2.7, -3.6]),
+            (Some(GradientClipping::Value(3.0)), [-2.7, -3.0]),
+        ] {
+            let mut optim = sgd()
+                .with_grad_clipping(GradientClipping::GlobalNorm(4.5))
+                .with_group(
+                    ParamGroup::from_ids(vec![model[1].id]),
+                    SgdConfig::new().build(),
+                    group_clipping,
+                );
+            let updated = optim.step(1.0, model.clone(), scalar_grads(&model, [3.0, 4.0]));
+            assert_params(&updated, expected);
+        }
+    }
+
+    #[test]
+    fn global_norm_scales_gradients_before_momentum() {
+        let model = scalar_params(DType::F32);
+        let momentum = crate::momentum::MomentumConfig::new().with_momentum(0.5);
+        let mut optim = SgdConfig::new()
+            .with_momentum(Some(momentum))
+            .init()
+            .with_grad_clipping(GradientClipping::GlobalNorm(4.5));
+        let grads = scalar_grads(&model, [3.0, 4.0]);
+        let model = optim.step(0.0, model, grads);
+
+        // Suppress the new gradients so this update exposes only the previous velocity.
+        let grads = scalar_grads(&model, [10.0, 10.0]);
+        let model = optim
+            .with_grad_clipping(GradientClipping::Value(0.0))
+            .step(1.0, model, grads);
+        assert_params(&model, [-1.35, -1.8]);
+    }
+
+    #[test]
+    fn global_norm_uses_accumulated_gradients_in_step_multi() {
+        let model = scalar_params(DType::F32);
+        let mut optim = SgdConfig::new()
+            .with_gradient_clipping(Some(
+                crate::grad_clipping::GradientClippingConfig::GlobalNorm(4.5),
+            ))
+            .init();
+        let contributions = MultiGradientsParams {
+            grads: [[8.0, 1.0], [-5.0, 3.0]]
+                .map(|values| (scalar_grads(&model, values), Device::default()))
+                .into(),
+        };
+        let single = optim
+            .clone()
+            .step(1.0, model.clone(), scalar_grads(&model, [3.0, 4.0]));
+        let multi = optim.step_multi(1.0, model, contributions);
+        assert_params(&single, [-2.7, -3.6]);
+        assert_params(&multi, single.map(|p| p.val().into_scalar::<f32>()));
+    }
+
+    fn quantized_grad() -> Tensor<1> {
+        let device = Device::default();
+        let scheme = device.settings().quantization.scheme;
+        Tensor::from_floats([1., 2., 3., 4.], &device).quantize_dynamic(&scheme)
+    }
+
+    #[test]
+    #[should_panic(expected = "GlobalNorm requires floating-point gradients")]
+    fn global_norm_rejects_quantized_gradient_in_step() {
+        let device = Device::default().autodiff();
+        let param = Param::from_tensor(Tensor::<1>::zeros([4], &device));
+        let mut grads = GradientsParams::new();
+        grads.register(param.id, quantized_grad());
+        sgd()
+            .with_grad_clipping(GradientClipping::GlobalNorm(1.))
+            .step(1., param, grads);
+    }
+
+    #[test]
+    #[should_panic(expected = "GlobalNorm requires floating-point gradients")]
+    fn global_norm_rejects_quantized_contribution_before_accumulation() {
+        let device = Device::default();
+        let param = Param::from_tensor(Tensor::<1>::zeros([4], &device.clone().autodiff()));
+        let contributions = [Tensor::ones([4], &device), quantized_grad()].map(|grad| {
+            let mut grads = GradientsParams::new();
+            grads.register(param.id, grad);
+            (grads, device.clone())
+        });
+        sgd()
+            .with_grad_clipping(GradientClipping::GlobalNorm(1.))
+            .step_multi(
+                1.,
+                param,
+                MultiGradientsParams {
+                    grads: contributions.into(),
+                },
+            );
+    }
+
+    #[test]
+    fn global_norm_handles_zero_and_missing_gradients() {
+        let model = scalar_params(DType::F32);
+        let mut optim = sgd().with_grad_clipping(GradientClipping::GlobalNorm(0.0));
+        let mut grads = GradientsParams::new();
+        grads.register(model[0].id, Tensor::<1>::zeros([1], &Device::default()));
+        let updated = optim.step(1.0, model, grads);
+        assert_params(&updated, [0.0, 0.0]);
+        let paths = optim.to_record().paths;
+        assert_eq!(paths.len(), 1);
+        assert!(paths.contains_key(&updated[0].id.val().to_string()));
+        let updated = optim.step(1.0, updated, GradientsParams::new());
+        assert_params(&updated, [0.0, 0.0]);
+    }
+
+    #[test]
+    fn global_norm_counts_only_distinct_module_gradients() {
+        let params = scalar_params(DType::F32);
+        let mut grads = scalar_grads(&params, [3.0, 4.0]);
+        grads.register(
+            ParamId::new(),
+            Tensor::<1>::from_floats([100.0], &Device::default()),
+        );
+        let model = [params[0].clone(), params[0].clone(), params[1].clone()];
+        let updated = sgd()
+            .with_grad_clipping(GradientClipping::GlobalNorm(5.5))
+            .step(1.0, model, grads);
+        let [first, _, last] = updated;
+        assert_params(&[first, last], [-3.0, -4.0]);
+    }
+
+    #[test]
+    fn global_norm_squares_fp16_gradients_in_fp32() {
+        let model = scalar_params(DType::F16);
+        let grads = scalar_grads(&model, [300.0, 400.0]);
+        let updated = sgd()
+            .with_grad_clipping(GradientClipping::GlobalNorm(50.0))
+            .step(1.0, model, grads);
+        assert_params(&updated, [-30.0, -40.0]);
+        assert_eq!(updated[0].val().dtype(), DType::F16);
+    }
+
+    #[test]
+    fn global_norm_widens_contributions_before_accumulation() {
+        let model = scalar_params(DType::F16);
+        let grads = MultiGradientsParams {
+            grads: [[40_000., 20_000.]; 2]
+                .map(|values| (scalar_grads(&model, values), Device::default()))
+                .into(),
+        };
+        let mut optim = sgd().with_grad_clipping(GradientClipping::GlobalNorm(5f32.sqrt()));
+        let updated = optim.step_multi(1., model, grads);
+        assert_params(&updated, [-2., -1.]);
+        assert_eq!(updated[0].val().dtype(), DType::F16);
+    }
+
+    #[test]
+    fn global_norm_combines_large_finite_gradients() {
+        let model = scalar_params(DType::F32);
+        let grads = scalar_grads(&model, [3e20, 4e20]);
+        let mut optim = sgd().with_grad_clipping(GradientClipping::GlobalNorm(1.));
+        assert_params(&optim.step(1., model, grads), [-0.6, -0.8]);
+    }
+
+    #[test]
+    #[should_panic(expected = "GlobalNorm requires a nonnegative limit")]
+    fn global_norm_rejects_nan_limit() {
+        sgd().with_grad_clipping(GradientClipping::GlobalNorm(f32::NAN));
+    }
+
+    #[test]
+    #[should_panic(expected = "Set GlobalNorm on the module optimizer")]
+    fn global_norm_rejects_group_level_clipping() {
+        sgd().with_group(
+            ParamGroup::all(),
+            SgdConfig::new().build(),
+            Some(GradientClipping::GlobalNorm(1.)),
         );
     }
 
