@@ -212,15 +212,15 @@ impl TensorData {
         }
     }
 
-    /// Creates a quantized tensor data structure from its codes and scales already encoded, as a
-    /// checkpoint storing them as separate tensors holds them, without decoding either: what
+    /// Creates a quantized tensor data structure from parts already in the encoding `scheme`
+    /// stores them in, where [`TensorData::quantized`] takes them decoded: what
     /// [`QuantizedBytes::from_parts`] assembles.
     ///
     /// # Errors
     ///
     /// [`DataError::QuantizedParts`] when a part's length disagrees with `shape` and `scheme`.
     pub fn from_quantized_parts<S: Into<Shape>>(
-        codes: &[u8],
+        codes: Bytes,
         scales: &[u8],
         global: Option<&[u8]>,
         shape: S,

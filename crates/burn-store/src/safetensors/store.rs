@@ -1240,7 +1240,7 @@ where
         None,
         move || {
             TensorData::from_quantized_parts(
-                &source[codes.clone()],
+                burn_core::tensor::Bytes::from_bytes_vec(source[codes.clone()].to_vec()),
                 &source[scales.clone()],
                 global.clone().map(|global| &source[global]),
                 tensor_shape.clone(),

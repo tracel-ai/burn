@@ -228,27 +228,19 @@ impl QuantizedBytes {
         }
 
         let i8s: Vec<i8> = bytemuck::allocation::cast_vec(value);
-        let layout = ValueLayout::new(&scheme);
-        let mut bytes = match layout {
+        let codes = match ValueLayout::new(&scheme) {
             ValueLayout::Bytes => Bytes::from_elems(i8s),
             ValueLayout::Packed { packed_dim, word } => {
                 Bytes::from_elems(PackedOrder::new(shape.as_slice(), packed_dim).pack(&i8s, &word))
             }
         };
-
-        let scales = match (
-            scheme.block_size(),
-            layout.block_scale_order(&shape, &scheme),
-        ) {
-            (None, _) => scales[..1].to_vec(),
-            (Some(_), Some(order)) => order.to_stored(scales),
-            (Some(_), None) => scales.to_vec(),
+        let scales = match scheme.block_size() {
+            Some(_) => scales,
+            None => &scales[..1],
         };
-        let scale_bytes = encode_scales(&scales, scheme.scale_dtype());
-        bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), QPARAM_ALIGN);
+        let scales = encode_scales(scales, scheme.scale_dtype());
 
-        // Last, so a reader can peel it off the end before the block scales it normalizes.
-        match (global_scale_dtype(&scheme), global) {
+        let global = match (global_scale_dtype(&scheme), global) {
             (Some(dtype), Some(global)) => {
                 // Encoding the per-tensor scale narrower would round it, and the block scales were
                 // normalized against the unrounded one.
@@ -257,36 +249,39 @@ impl QuantizedBytes {
                     ScaleDtype::F32,
                     "a two-level scheme stores its per-tensor scale as f32, got {scheme:?}"
                 );
-                let global_bytes = encode_scales(&[global], dtype);
-                bytes.extend_from_byte_slice_aligned(global_bytes.as_slice(), QPARAM_ALIGN);
+                Some(encode_scales(&[global], dtype))
             }
             (Some(_), None) => panic!("{scheme:?} requires a per-tensor scale"),
             (None, Some(_)) => panic!("{scheme:?} does not take a per-tensor scale"),
-            (None, None) => {}
-        }
+            (None, None) => None,
+        };
 
-        Self {
-            bytes,
-            scheme,
-            shape,
-        }
+        Self::from_parts(codes, &scales, global.as_deref(), shape, scheme)
+            .unwrap_or_else(|err| panic!("{err}"))
     }
 
-    /// A quantized tensor from parts already encoded, as a checkpoint storing its codes and its
-    /// scales as separate tensors holds them, without decoding either.
+    /// Creates a quantized bytes representation from parts already in the encoding `scheme`
+    /// stores them in, where [`new`](Self::new) takes them decoded and encodes them itself.
     ///
-    /// `codes` are the values as `scheme` stores them: a byte each for `Native`, little-endian
-    /// words packed along the packed axis otherwise. `scales` are the block scales, one per
-    /// block in row-major block order, each `scale_size(scheme.scale_dtype())` bytes in the
-    /// dtype's own encoding, and `global` the per-tensor scale a two-level scheme carries. Only
-    /// the order of the block scales changes, for a store that packs them along an outer axis.
+    /// - `codes` are packed as `scheme` stores its values (a byte each for `Native`, little-endian
+    ///   words along the packed axis otherwise), where `new` takes one `i8` per value and packs
+    ///   them.
+    /// - `scales` are the block scales as bytes of `scheme`'s scale dtype, one entry per block in
+    ///   row-major block order, where `new` takes them as `f32` and encodes each one.
+    /// - `global` is the per-tensor scale of a two-level scheme as its stored bytes, where `new`
+    ///   takes an `f32`.
+    ///
+    /// Nothing is decoded, packed or encoded: the codes are kept as given and the scales only
+    /// reordered, for a store that packs them along an outer axis. A part of the wrong length is
+    /// an error rather than a panic, since the parts may come from outside burn, such as a
+    /// checkpoint storing codes and scales as separate tensors.
     ///
     /// # Errors
     ///
     /// [`QuantizedPartsError`] naming the part whose length disagrees with `shape` and
     /// `scheme`, or a per-tensor scale given to, or missing from, a scheme.
     pub fn from_parts(
-        codes: &[u8],
+        codes: Bytes,
         scales: &[u8],
         global: Option<&[u8]>,
         shape: impl Into<Shape>,
@@ -301,7 +296,7 @@ impl QuantizedBytes {
         )?;
         let width = scale_size(scheme.scale_dtype());
 
-        let mut bytes = Bytes::from_bytes_vec(codes.to_vec());
+        let mut bytes = codes;
         let order = match scheme.block_size() {
             Some(_) => ValueLayout::new(&scheme).block_scale_order(&shape, &scheme),
             None => None,
@@ -314,6 +309,7 @@ impl QuantizedBytes {
             None => scales.to_vec(),
         };
         bytes.extend_from_byte_slice_aligned(&stored, QPARAM_ALIGN);
+        // Last, so a reader can peel it off the end before the block scales it normalizes.
         if let Some(global) = global {
             bytes.extend_from_byte_slice_aligned(global, QPARAM_ALIGN);
         }
@@ -769,7 +765,7 @@ mod tests {
             .per_block([4, 1], ScaleDtype::UE8M0);
         let built = QuantizedBytes::new(values.clone(), [8, 8], scheme, &block_scales, None);
         let codes_len = value_bytes(&scheme, &Shape::new([8, 8]));
-        let codes = &built.bytes[..codes_len];
+        let codes = Bytes::from_bytes_vec(built.bytes[..codes_len].to_vec());
         let scales = encode_scales(&block_scales, ScaleDtype::UE8M0);
 
         let assembled = QuantizedBytes::from_parts(codes, &scales, None, [8, 8], scheme).unwrap();
@@ -785,7 +781,13 @@ mod tests {
             .with_store(QuantStore::Native)
             .per_block([32, 32], ScaleDtype::UE8M0);
 
-        let refused = QuantizedBytes::from_parts(&[0; 64 * 64], &[0; 3], None, [64, 64], scheme);
+        let refused = QuantizedBytes::from_parts(
+            Bytes::from_bytes_vec(alloc::vec![0; 64 * 64]),
+            &[0; 3],
+            None,
+            [64, 64],
+            scheme,
+        );
 
         assert!(matches!(
             refused,
