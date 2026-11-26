@@ -121,3 +121,74 @@ fn flattened_projection_fuses_its_residual_add() {
         );
     });
 }
+
+fn small_value(i: usize, modulo: usize) -> f32 {
+    ((i % modulo) as f32 - modulo as f32 / 2.0) / 8.0
+}
+
+/// `lhs [1, k] · rhs [k, n]`, a row, in `f32`.
+fn single_row_product(lhs: &[f32], rhs: &[f32], n: usize) -> Vec<f32> {
+    (0..n)
+        .map(|col| (0..lhs.len()).map(|c| lhs[c] * rhs[c * n + col]).sum())
+        .collect()
+}
+
+// A single-row product whose shape no plain matmul ever launches: the fused autotune sees its
+// key before the plain one is settled, then after. Every run must write the activated product,
+// whichever candidate the race elects.
+#[test]
+fn single_row_matmul_then_silu_should_compute_across_elections() {
+    test_stream().executes(|| {
+        let device = Default::default();
+        let [k, n] = [48, 40];
+        let lhs: Vec<f32> = (0..k).map(|i| small_value(i, 7)).collect();
+        let rhs: Vec<f32> = (0..k * n).map(|i| small_value(i, 5)).collect();
+        let expected: Vec<f32> = single_row_product(&lhs, &rhs, n)
+            .into_iter()
+            .map(|x| x / (1.0 + (-x).exp()))
+            .collect();
+        let expected = TensorData::new(expected, [1, n]);
+
+        for _ in 0..5 {
+            let lhs = TestTensor::<1>::from_floats(lhs.as_slice(), &device).reshape([1, k]);
+            let rhs = TestTensor::<1>::from_floats(rhs.as_slice(), &device).reshape([k, n]);
+            burn_tensor::activation::silu(lhs.matmul(rhs))
+                .into_data()
+                .assert_approx_eq::<FloatElem>(
+                    &expected,
+                    Tolerance::default().set_half_precision_absolute(1e-2),
+                );
+        }
+    });
+}
+
+// The same for a residual add, the other tail a projection fuses.
+#[test]
+fn single_row_matmul_then_residual_should_compute_across_elections() {
+    test_stream().executes(|| {
+        let device = Default::default();
+        let [k, n] = [56, 24];
+        let lhs: Vec<f32> = (0..k).map(|i| small_value(i, 7)).collect();
+        let rhs: Vec<f32> = (0..k * n).map(|i| small_value(i, 5)).collect();
+        let residual: Vec<f32> = (0..n).map(|i| small_value(i, 3)).collect();
+        let expected: Vec<f32> = single_row_product(&lhs, &rhs, n)
+            .into_iter()
+            .zip(&residual)
+            .map(|(x, r)| x + r)
+            .collect();
+        let expected = TensorData::new(expected, [1, n]);
+
+        for _ in 0..5 {
+            let lhs = TestTensor::<1>::from_floats(lhs.as_slice(), &device).reshape([1, k]);
+            let rhs = TestTensor::<1>::from_floats(rhs.as_slice(), &device).reshape([k, n]);
+            let residual =
+                TestTensor::<1>::from_floats(residual.as_slice(), &device).reshape([1, n]);
+            (lhs.matmul(rhs) + residual)
+                .into_data()
+                .assert_approx_eq::<FloatElem>(
+                    &expected,
+                    Tolerance::default().set_half_precision_absolute(1e-2),
+                );
+        }
+    });
+}

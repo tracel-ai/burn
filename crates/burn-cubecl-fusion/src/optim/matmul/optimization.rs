@@ -25,6 +25,10 @@ pub struct MatmulOptimizationTuneArg {
     /// The operations the fallback runs before the tail's trace: the matmul, then the reshapes of
     /// its product the fused run writes through.
     pub(crate) fallbacks: Vec<Box<dyn FallbackOperation>>,
+    /// The routine the plain matmul's race elected for this call, read once before the fused race
+    /// and keyed and launched from here; `None` while that race has not settled.
+    #[cfg(feature = "autotune")]
+    pub(crate) routine: Option<cubek::matmul::kernels::MatmulRoutineSettings>,
 }
 
 #[cfg(feature = "autotune")]
@@ -133,6 +137,8 @@ impl MatmulOptimization {
         let arg = MatmulOptimizationTuneArg {
             info: self.info.clone(),
             fallbacks,
+            #[cfg(feature = "autotune")]
+            routine: None,
         };
 
         // The fused product runs the routine the unfused one measured fastest, and races the
