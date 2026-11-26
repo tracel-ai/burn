@@ -627,7 +627,9 @@ whose tensors are split over `devices` (crate `burn-shard`).
   [#6062](https://github.com/tracel-ai/burn/pull/6062),
   [#6069](https://github.com/tracel-ai/burn/pull/6069))
 
-- Fix a panic when sorting Flex32 tensors on backends that sort on the host.
+- Fix a dtype mismatch that caused `sort`, `sort_with_indices`, `argsort`, and their descending
+  variants to panic on `Flex32` tensors when using the host fallback. Sorted values retain the
+  `Flex32` dtype. ([#6624](https://github.com/tracel-ai/burn/pull/6624)) [@tandede](https://github.com/tandede)
 
 #### Grid sampling
 
