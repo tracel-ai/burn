@@ -9,6 +9,7 @@ use super::{
     Optimizer,
     decay::{WeightDecay, WeightDecayConfig},
     module_optimizer::ModuleOptimizer,
+    state::cast_state_tensor,
 };
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
@@ -213,18 +214,11 @@ impl AdaptiveMomentum {
 
 impl<const D: usize> AdaptiveMomentumState<D> {
     pub(crate) fn for_gradient_dtype(mut self, dtype: DType) -> Self {
-        // A restored model may have been cast since the moments were recorded.
-        let cast = |tensor: Tensor<D>| {
-            let source = tensor.dtype();
-            if source != dtype && source.is_float() && dtype.is_float() {
-                tensor.cast(dtype)
-            } else {
-                tensor
-            }
-        };
-        self.moment_1 = cast(self.moment_1);
-        self.moment_2 = cast(self.moment_2);
-        self.max_moment_2 = self.max_moment_2.map(cast);
+        self.moment_1 = cast_state_tensor(self.moment_1, dtype);
+        self.moment_2 = cast_state_tensor(self.moment_2, dtype);
+        self.max_moment_2 = self
+            .max_moment_2
+            .map(|tensor| cast_state_tensor(tensor, dtype));
         self
     }
 

@@ -6,6 +6,7 @@ use super::{
     Optimizer,
     decay::{WeightDecay, WeightDecayConfig},
     module_optimizer::ModuleOptimizer,
+    state::cast_state_tensor,
 };
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
@@ -167,8 +168,7 @@ impl<const D: usize> SquareAvgState<D> {
     fn transform(alpha: f32, grad: Tensor<D>, state: Option<Self>) -> (Tensor<D>, Self) {
         match state {
             Some(state) => {
-                let square_avg = state
-                    .square_avg
+                let square_avg = cast_state_tensor(state.square_avg, grad.dtype())
                     .mul_scalar(alpha)
                     .add(grad.clone().square().mul_scalar(1. - alpha));
                 (grad, Self { square_avg })
@@ -219,7 +219,9 @@ impl<const D: usize> CenteredState<D> {
                 Some(state) => state
                     .grad_avg
                     .map_or(grad_avg_constant.clone(), move |grad_avg| {
-                        grad_avg.mul_scalar(alpha).add(grad_avg_constant)
+                        cast_state_tensor(grad_avg, grad_avg_constant.dtype())
+                            .mul_scalar(alpha)
+                            .add(grad_avg_constant)
                     }),
                 _ => grad_avg_constant,
             };
@@ -285,7 +287,9 @@ impl RmsPropMomentum {
 
         if self.momentum > 0. {
             let buf = match momentum_state {
-                Some(state) => state.buf.mul_scalar(self.momentum).add(grad),
+                Some(state) => cast_state_tensor(state.buf, grad.dtype())
+                    .mul_scalar(self.momentum)
+                    .add(grad),
                 _ => grad,
             };
             (

@@ -5,7 +5,7 @@ use burn::config::Config;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
 
-use super::{Optimizer, module_optimizer::ModuleOptimizer};
+use super::{Optimizer, module_optimizer::ModuleOptimizer, state::cast_state_tensor};
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
 #[cfg(not(feature = "std"))]
@@ -163,23 +163,21 @@ impl AdaptiveNesterovMomentum {
         state: Option<AdaptiveNesterovMomentumState<D>>,
     ) -> (Tensor<D>, AdaptiveNesterovMomentumState<D>) {
         let state = if let Some(mut state) = state {
-            let grad_diff = state.neg_pre_grad.clone().add(grad.clone());
+            let dtype = grad.dtype();
+            let grad_diff = cast_state_tensor(state.neg_pre_grad, dtype).add(grad.clone());
             let grad_diff_sq = grad_diff
                 .clone()
                 .mul_scalar(self.beta_2)
                 .add(grad.clone())
                 .square();
 
-            state.exp_avg = state
-                .exp_avg
+            state.exp_avg = cast_state_tensor(state.exp_avg, dtype)
                 .mul_scalar(self.beta_1)
                 .add(grad.clone().mul_scalar(1.0 - self.beta_1));
-            state.exp_avg_diff = state
-                .exp_avg_diff
+            state.exp_avg_diff = cast_state_tensor(state.exp_avg_diff, dtype)
                 .mul_scalar(self.beta_2)
                 .add(grad_diff.mul_scalar(1.0 - self.beta_2));
-            state.exp_avg_sq = state
-                .exp_avg_sq
+            state.exp_avg_sq = cast_state_tensor(state.exp_avg_sq, dtype)
                 .mul_scalar(self.beta_3)
                 .add(grad_diff_sq.mul_scalar(1.0 - self.beta_3));
             state.neg_pre_grad = grad.mul_scalar(-1.0);

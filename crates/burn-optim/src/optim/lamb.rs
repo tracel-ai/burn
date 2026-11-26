@@ -6,7 +6,7 @@ use burn::{
     tensor::{Device, FloatDType, Tensor},
 };
 
-use super::{Optimizer, module_optimizer::ModuleOptimizer};
+use super::{Optimizer, module_optimizer::ModuleOptimizer, state::cast_state_tensor};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -76,12 +76,11 @@ impl Optimizer for Lamb {
         let factor_2 = 1.0 - self.beta_2;
 
         let state = if let Some(mut state) = state {
-            state.moment_1 = state
-                .moment_1
+            let dtype = grad.dtype();
+            state.moment_1 = cast_state_tensor(state.moment_1, dtype)
                 .mul_scalar(self.beta_1)
                 .add(grad.clone().mul_scalar(factor_1));
-            state.moment_2 = state
-                .moment_2
+            state.moment_2 = cast_state_tensor(state.moment_2, dtype)
                 .mul_scalar(self.beta_2)
                 .add(grad.square().mul_scalar(factor_2));
             state.time += 1;

@@ -241,7 +241,7 @@ impl ModuleOptimizer {
     ///
     /// State tensors are materialized on the default device, which must support their recorded
     /// numeric dtypes. The next [`step`](ModuleOptimizer::step) moves each parameter's state to
-    /// its gradient's device.
+    /// its gradient's device, which must also support the saved dtypes.
     pub fn load_record(mut self, record: OptimizerRecord) -> Self {
         let device = Device::default();
         let mut ranks: BTreeMap<u64, usize> = BTreeMap::new();

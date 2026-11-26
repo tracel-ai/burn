@@ -156,6 +156,10 @@ tensor rank, and the parameter path used to restore parameter-group routing. Sta
 to the corresponding parameter device on the next step, so loading does not require a device
 argument. The `Learner` handles optimizer checkpoints automatically when checkpointers are enabled.
 
+Optimizer checkpoints restore numeric state tensors in their saved dtype. The load device and
+the training device must support that dtype. If you resume at a different precision, built-in
+optimizers cast floating-point accumulators as needed for the update.
+
 See [Record](./record.md) for the common save, load, and in-memory byte APIs.
 
 ## Implementing an Optimizer

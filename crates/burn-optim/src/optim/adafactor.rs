@@ -7,7 +7,7 @@ use burn::{
 
 use crate::{LearningRate, RecordState, grad_clipping::GradientClippingConfig};
 
-use super::{ModuleOptimizer, Optimizer};
+use super::{ModuleOptimizer, Optimizer, state::cast_state_tensor};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -167,15 +167,15 @@ impl Optimizer for Adafactor {
                 state.time += 1;
                 let new_weight = (state.time as f64).powf(self.decay_rate);
                 let old_weight = 1.0 - new_weight;
-                state.second_moment = state
-                    .second_moment
+                state.second_moment = cast_state_tensor(state.second_moment, second_moment.dtype())
                     .mul_scalar(old_weight)
                     .add(second_moment.mul_scalar(new_weight));
                 state.column_second_moment = column_second_moment.map(|column| {
-                    state
+                    let saved = state
                         .column_second_moment
                         .take()
-                        .expect("Factored Adafactor state must contain a column second moment")
+                        .expect("Factored Adafactor state must contain a column second moment");
+                    cast_state_tensor(saved, column.dtype())
                         .mul_scalar(old_weight)
                         .add(column.mul_scalar(new_weight))
                 });

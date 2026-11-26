@@ -10,6 +10,7 @@ use super::{
     Optimizer,
     decay::{WeightDecay, WeightDecayConfig},
     module_optimizer::ModuleOptimizer,
+    state::cast_state_tensor,
 };
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
@@ -124,7 +125,7 @@ impl LrDecay {
         lr_decay_state: Option<LrDecayState<D>>,
     ) -> (Tensor<D>, LrDecayState<D>) {
         let state = if let Some(mut state) = lr_decay_state {
-            state.sum = state.sum.add(grad.clone().square());
+            state.sum = cast_state_tensor(state.sum, grad.dtype()).add(grad.clone().square());
             state.time += 1;
             state
         } else {

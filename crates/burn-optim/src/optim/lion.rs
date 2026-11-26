@@ -4,7 +4,7 @@ use crate::{LearningRate, RecordState, grad_clipping::GradientClippingConfig};
 use burn::config::Config;
 use burn::tensor::{Device, Tensor};
 
-use super::{Optimizer, module_optimizer::ModuleOptimizer};
+use super::{Optimizer, module_optimizer::ModuleOptimizer, state::cast_state_tensor};
 
 /// Configuration for the [`Lion`] optimizer.
 #[derive(Config, Debug)]
@@ -83,14 +83,13 @@ impl Optimizer for Lion {
     ) -> (Tensor<D>, Option<Self::State<D>>) {
         let (update, momentum) = match state {
             Some(state) => {
-                let update = state
-                    .momentum
+                let momentum = cast_state_tensor(state.momentum, grad.dtype());
+                let update = momentum
                     .clone()
                     .mul_scalar(self.beta_1)
                     .add(grad.clone().mul_scalar(1.0 - self.beta_1))
                     .sign();
-                let momentum = state
-                    .momentum
+                let momentum = momentum
                     .mul_scalar(self.beta_2)
                     .add(grad.mul_scalar(1.0 - self.beta_2));
 

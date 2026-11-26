@@ -24,6 +24,16 @@ use burn_pack::Scalar;
 
 pub use burn_derive::RecordState;
 
+/// Cast floating-point state to the precision used by the current update.
+pub(super) fn cast_state_tensor<const D: usize>(state: Tensor<D>, dtype: DType) -> Tensor<D> {
+    let saved = state.dtype();
+    if saved != dtype && saved.is_float() && dtype.is_float() {
+        state.cast(dtype)
+    } else {
+        state
+    }
+}
+
 /// Join a `prefix` and a `leaf` into a dot-separated path (`"prefix.leaf"`).
 ///
 /// An empty prefix yields the leaf unchanged, so a top-level call can pass `""`.
