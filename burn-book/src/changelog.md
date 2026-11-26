@@ -81,6 +81,7 @@ conflicts with it (E0119); delete the handwritten one.
   device's measured peaks, and stops a race once ten candidates were measured and ten more in a row
   failed to beat the fastest, so large tables such as matmul and attention measure a fraction of
   their candidates. Saved autotuning results are tuned again once.
+  ([#6644](https://github.com/tracel-ai/burn/pull/6644))
 
 - Compile autotuning candidates in parallel, including CUDA binary assembly, to reduce startup time.
   ([#5996](https://github.com/tracel-ai/burn/pull/5996),
