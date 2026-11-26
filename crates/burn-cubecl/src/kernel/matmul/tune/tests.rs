@@ -12,8 +12,8 @@ use cubecl::quant::scheme::{QuantScheme, QuantStore, QuantValue, ScaleDtype};
 use cubecl::tile::Dimension;
 use cubek::matmul::kernels::select::problem::OperandKind;
 use cubek::matmul::kernels::{
-    CubeShuffleMatmulRoutine, CubeStagedMatmulRoutine, MatmulBatching, MatmulTuneKey, OperandKey,
-    PlaneShuffleMatmulRoutine,
+    CubeShuffleMatmulRoutine, CubeStagedMatmulRoutine, MatmulBatching, MatmulPackedCandidate,
+    MatmulTuneKey, OperandKey, PlaneShuffleMatmulRoutine,
 };
 use cubek::std::matmul_dimensions::{K, N};
 use cubek::std::{Hardware, devices};
@@ -220,26 +220,36 @@ fn q4() -> OperandKind {
     )
 }
 
-/// A packed setting is tried last on a float key, which it declines before compiling anything,
-/// and first on a packed one where there is no device to time it on.
+/// A packed setting is tried last on a float key, which it declines before compiling anything;
+/// on a packed one where there is no device to time it on, first where it prepares the problem
+/// and last where it declines it.
 #[test]
 fn a_packed_setting_is_last_on_a_float_key_and_first_without_a_device() {
     let hw = devices::h100();
     let settings = CubeShuffleMatmulRoutine::packed_settings(&hw);
+    let estimated = MatmulPackedCandidate::of(CubeShuffleMatmulRoutine, settings.clone(), &hw);
     let predictor = Predictor::described(hw);
-    for candidate in MatmulPackedTuneCandidate::of(CubeShuffleMatmulRoutine, settings, &predictor) {
+    let packed = packed_key(8, q4());
+    let candidates = MatmulPackedTuneCandidate::of(CubeShuffleMatmulRoutine, settings, &predictor);
+    for (candidate, estimated) in candidates.iter().zip(&estimated) {
         let name = candidate.strategy();
-        assert_eq!(
-            candidate.priority(&packed_key(8, q4())),
-            CandidatePriority::FIRST,
-            "{name}"
-        );
+        let expected = match estimated.estimate(&packed) {
+            Some(_) => CandidatePriority::FIRST,
+            None => CandidatePriority::LAST,
+        };
+        assert_eq!(candidate.priority(&packed), expected, "{name}");
         assert_eq!(
             candidate.priority(&packed_key(8, OperandKind::Float)),
             CandidatePriority::LAST,
             "{name}"
         );
     }
+    assert!(
+        estimated
+            .iter()
+            .any(|candidate| candidate.estimate(&packed).is_some()),
+        "a packed setting the device lists prepares the projection"
+    );
 }
 
 /// On a device, a packed setting is placed by the estimate of the launch it prepares for the

@@ -94,14 +94,19 @@ where
     }
 
     /// Its estimate on the packed problem the key describes, timed at the device's peaks, on the
-    /// largest matrix instruction the device offers the product's element; first where the key
-    /// states no problem the estimate can be read off, there being nothing to claim against it.
+    /// largest matrix instruction the device offers the product's element. Last where the
+    /// routine declines that problem, which it then does at launch before compiling anything;
+    /// first where the key states no packed problem a read takes, nothing about the launch being
+    /// known before it runs.
     fn priority(&self, key: &MatmulTuneKey) -> CandidatePriority {
         if !key.is_packed() {
             return CandidatePriority::LAST;
         }
-        let Some(estimate) = self.candidate.estimate(key) else {
+        if key.packed_problem(self.predictor.hardware()).is_none() {
             return CandidatePriority::FIRST;
+        }
+        let Some(estimate) = self.candidate.estimate(key) else {
+            return CandidatePriority::LAST;
         };
         let arithmetic = Arithmetic::product(self.predictor.hardware(), key.shape().elem);
         self.predictor.priority_of(Some(estimate), arithmetic)

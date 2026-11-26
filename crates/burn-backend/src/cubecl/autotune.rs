@@ -1,5 +1,5 @@
 //! What every cubecl-backed autotune table shares, decided in one place: the roofline bounds a
-//! level settles for, and how far down its candidates a round goes ([`PATIENCE`]).
+//! level settles for, and how far down its candidates a round goes ([`configured_patience`]).
 
 use alloc::{sync::Arc, vec::Vec};
 use core::time::Duration;
@@ -29,14 +29,26 @@ pub const PATIENCE: Patience = Patience {
 pub const RACED_PRIORITY: i8 = 0;
 
 /// The group a table built on a [`TunableSet`] directly races its candidates in: one group at
-/// one priority, its members measured in the order they are added, with the [`PATIENCE`] every
-/// table shares. A member joins it at [`RACED_PRIORITY`].
+/// one priority, its members measured in the order they are added, with the patience the
+/// configured level gives every table ([`configured_patience`]). A member joins it at
+/// [`RACED_PRIORITY`].
 pub fn raced_group<K: AutotuneKey>(name: &str) -> TuneGroup<K> {
     TuneGroup::ordered(
         name,
         |_key| RACED_PRIORITY,
-        OrderedSettings::default().with_patience(PATIENCE),
+        OrderedSettings {
+            patience: configured_patience(),
+        },
     )
+}
+
+/// When a round stops measuring a group at the configured level: [`PATIENCE`], or never at
+/// [`AutotuneLevel::Full`], which races every candidate.
+///
+/// Read when a group is built, so a level changed through [`RuntimeConfig::set`] afterwards
+/// reaches only the groups built after it.
+pub fn configured_patience() -> Option<Patience> {
+    configured_thresholds().map(|_| PATIENCE)
 }
 
 /// Registers `bounds`, which states a problem's roofline, on `set`, so a round ends at the first

@@ -54,7 +54,8 @@ impl Predictor {
     /// Where `R` at `settings` goes in a round for `problem`, computing on `arithmetic`: how far
     /// the time its estimate predicts at the device's peaks sits above the problem's roofline
     /// ([`Peaks::priority_of`]). Last where the routine declines the problem, which it then does
-    /// at launch before compiling anything; first where there is no device to probe.
+    /// at launch before compiling anything; first where there is no device to probe; below every
+    /// timed candidate where its time cannot be predicted ([`CandidatePriority::UNPREDICTED`]).
     pub fn predict_priority<R: Routine>(
         &self,
         problem: &R::Problem,
@@ -71,7 +72,9 @@ impl Predictor {
     /// Where a candidate whose launch `estimate` describes goes in a round, computing on
     /// `arithmetic`: how far its predicted time sits above the roofline of the demand it states
     /// ([`Peaks::priority_of`]). Last where there is no estimate, its routine declining the
-    /// problem; first where there is no device to probe, or the estimate states no demand.
+    /// problem; [`UNPREDICTED`](CandidatePriority::UNPREDICTED) where the estimate states no
+    /// demand to place it against; otherwise as
+    /// [`priority_of_launches`](Self::priority_of_launches) places its one launch.
     pub fn priority_of(
         &self,
         estimate: Option<KernelEstimate>,
@@ -81,7 +84,7 @@ impl Predictor {
             return CandidatePriority::LAST;
         };
         let Some(demand) = estimate.demand else {
-            return CandidatePriority::FIRST;
+            return CandidatePriority::UNPREDICTED;
         };
         self.priority_of_launches(&[estimate], demand, arithmetic)
     }
@@ -90,7 +93,9 @@ impl Predictor {
     /// a round for a problem of `demand`, computing on `arithmetic`: how far their predicted
     /// times added up sit above the problem's roofline ([`CandidatePriority::above_floor`]), each
     /// launch timed at the peaks its own estimate reads. Last where there is no launch; first
-    /// where there is no device to probe, or a launch's time cannot be predicted.
+    /// where there is no device to probe, every candidate then being alike; below every timed
+    /// candidate where a launch's time or the floor cannot be predicted
+    /// ([`CandidatePriority::UNPREDICTED`]).
     pub fn priority_of_launches(
         &self,
         estimates: &[KernelEstimate],
@@ -114,7 +119,7 @@ impl Predictor {
             });
         match (predicted, peaks(first).floor_of(demand)) {
             (Some(predicted), Some(floor)) => CandidatePriority::above_floor(predicted, floor),
-            _ => CandidatePriority::FIRST,
+            _ => CandidatePriority::UNPREDICTED,
         }
     }
 

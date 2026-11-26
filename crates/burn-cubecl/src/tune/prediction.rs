@@ -32,7 +32,7 @@ use cubecl::std::throughput::{
 use cubecl::throughput::{CmmaDims, MemoryAccess, ResourceBound, ThroughputKey};
 use cubecl::tune::Work;
 use cubek::std::microkernel::{ArithmeticInstruction, GlobalStream, KernelEstimate};
-use cubek::std::{Hardware, Instructions};
+use cubek::std::{Hardware, Instructions, manual_mma};
 
 /// The instructions a family's kernels compute on: what their arithmetic is measured against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,7 +54,8 @@ impl Arithmetic {
 
     /// The arithmetic of a product of `element`s accumulated in `f32` on `hw`: plain arithmetic
     /// in `f32`, and the largest matrix instruction the device offers for it, where it offers
-    /// one.
+    /// one — a cooperative one or one a plane issues by hand ([`manual_mma`]), both of which a
+    /// routine states as matrix work.
     pub fn product(hw: &Hardware, element: ElemType) -> Self {
         let accumulate = ElemType::Float(FloatKind::F32);
         let matrix = hw
@@ -64,6 +65,7 @@ impl Arithmetic {
             .cmma
             .iter()
             .copied()
+            .chain(manual_mma(hw))
             .for_triple(element, element, accumulate)
             .largest()
             .map(|instruction| CmmaDims {
@@ -192,7 +194,8 @@ impl Peaks {
 
     /// Where the kernel `estimate` describes goes in a round for a problem of `demand` on `hw`:
     /// how far its predicted time sits above the problem's floor
-    /// ([`CandidatePriority::above_floor`]), or first where either cannot be predicted. The
+    /// ([`CandidatePriority::above_floor`]), or [`CandidatePriority::UNPREDICTED`], below every
+    /// timed candidate, where either cannot be predicted. The
     /// estimate's own demand, where it states one, is the floor's.
     pub fn priority_of(
         &self,
@@ -203,7 +206,7 @@ impl Peaks {
         let demand = estimate.demand.unwrap_or(demand);
         match (self.time_of(estimate, demand, hw), self.floor_of(demand)) {
             (Some(predicted), Some(floor)) => CandidatePriority::above_floor(predicted, floor),
-            _ => CandidatePriority::FIRST,
+            _ => CandidatePriority::UNPREDICTED,
         }
     }
 }
@@ -749,8 +752,9 @@ mod tests {
         assert_eq!(PEAKS.predict(&matrix, ANY_DEMAND, &hw, Some(LIMITS)), None);
     }
 
+    /// A peak the device did not measure places the candidate below every timed one.
     #[test]
-    fn an_unmeasured_peak_predicts_first() {
+    fn an_unmeasured_peak_is_unpredicted() {
         let hw = devices::strix_halo();
         let unmeasured = Peaks {
             memory_bytes_per_s: 0.0,
@@ -767,7 +771,7 @@ mod tests {
         };
         assert_eq!(
             unmeasured.priority_of(&reading(1, 1024), demand, &hw),
-            CandidatePriority::FIRST
+            CandidatePriority::UNPREDICTED
         );
     }
 

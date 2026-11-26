@@ -53,6 +53,7 @@
 
 use super::roofline::{Bounded, ReadCold};
 use super::{CandidatePriority, GroupPriority, Roofline, TuneCandidate, priority_of};
+use burn_backend::cubecl::autotune::configured_patience;
 use core::fmt::Display;
 use cubecl::tune::{
     AutotuneKey, CloneInputGenerator, InputGenerator, KeyGenerator, OrderedSettings, Patience,
@@ -152,13 +153,15 @@ impl<K: AutotuneKey, I: TuneInputs, O: 'static, Id: Identity> Autotune<K, I, O, 
         input_gen: impl InputGenerator<K, I>,
         measured: Option<&'static str>,
     ) -> Self {
+        let layout = GroupLayout {
+            groups: Vec::new(),
+            measured,
+            patience: configured_patience(),
+        };
         Self {
             set: TunableSet::new(key_gen, input_gen),
-            layout: GroupLayout {
-                groups: Vec::new(),
-                measured,
-            },
-            floor: GroupLayout::priority_group("floor", GroupPriority::FALLBACK),
+            floor: layout.priority_group("floor", GroupPriority::FALLBACK),
+            layout,
         }
     }
 
@@ -166,7 +169,7 @@ impl<K: AutotuneKey, I: TuneInputs, O: 'static, Id: Identity> Autotune<K, I, O, 
     /// take the handle its candidates join.
     pub fn group(&mut self, name: &'static str, priority: GroupPriority) -> TuneGroup<K> {
         self.layout.groups.push((name, priority));
-        GroupLayout::priority_group(name, priority)
+        self.layout.priority_group(name, priority)
     }
 
     /// Add a candidate to `group`, tried with the highest-priority candidates
@@ -368,7 +371,9 @@ impl<K: AutotuneKey, I: TuneInputs, O: 'static, Id: Identity> Autotune<K, I, O, 
     /// The candidate sits in a group cubecl never plans (the `GroupPriority`
     /// below every planned one), so it costs a string and no measurement.
     pub fn finish(self) -> TunableSet<K, I, O, Id> {
-        let unplanned = GroupLayout::priority_group("group-layout", GroupPriority::UNPLANNED);
+        let unplanned = self
+            .layout
+            .priority_group("group-layout", GroupPriority::UNPLANNED);
         self.set.with(
             Id::named(&self.layout.to_string(), |_| {
                 Err::<O, String>("the group layout is a name, not a kernel".to_string())
@@ -387,21 +392,23 @@ struct GroupLayout {
     /// — named in the layout tunable for the reason
     /// [`measured_on`](Autotune::measured_on) gives.
     measured: Option<&'static str>,
+    /// When a round stops measuring each group, read from the configured level when the
+    /// autotune is built ([`configured_patience`]); `None` races every candidate.
+    patience: Option<Patience>,
 }
 
 impl GroupLayout {
-    /// When a round stops measuring a group: the patience every table shares.
-    const PATIENCE: Patience = burn_backend::cubecl::autotune::PATIENCE;
-
     /// A group at a fixed priority, whatever the key. Ordered: its candidates'
-    /// priorities say what to try first, and [`PATIENCE`](Self::PATIENCE) how far down that
+    /// priorities say what to try first, and the layout's patience how far down that
     /// order the round goes.
-    fn priority_group<K: AutotuneKey>(name: &str, priority: GroupPriority) -> TuneGroup<K> {
+    fn priority_group<K: AutotuneKey>(&self, name: &str, priority: GroupPriority) -> TuneGroup<K> {
         let priority = priority.get();
         TuneGroup::ordered(
             name,
             move |_key| priority,
-            OrderedSettings::default().with_patience(Self::PATIENCE),
+            OrderedSettings {
+                patience: self.patience,
+            },
         )
     }
 
@@ -423,13 +430,16 @@ impl Display for GroupLayout {
             write!(f, "-measured-{inputs}")?;
         }
         // How far a round goes decides its winner as the priorities do, so a winner chosen
-        // under another patience is not an answer to this autotune.
-        let patience = Self::PATIENCE;
-        write!(
-            f,
-            "-patience{}x{}",
-            patience.min_measured, patience.max_misses
-        )
+        // under another patience is not an answer to this autotune. A round without one races
+        // every candidate, as layouts named before patience did.
+        match self.patience {
+            Some(patience) => write!(
+                f,
+                "-patience{}x{}",
+                patience.min_measured, patience.max_misses
+            ),
+            None => Ok(()),
+        }
     }
 }
 
@@ -507,13 +517,15 @@ mod tests {
         let raced = GroupLayout {
             groups: vec![("tile", shipped), ("cubek", shipped)],
             measured: None,
+            patience: None,
         }
         .to_string();
         assert_ne!(
             raced,
             GroupLayout {
                 groups: vec![("tile", shipped), ("cubek", GroupPriority::UNPLANNED)],
-                measured: None
+                measured: None,
+                patience: None,
             }
             .to_string()
         );
@@ -524,19 +536,22 @@ mod tests {
             raced,
             GroupLayout {
                 groups: vec![("tile", shipped)],
-                measured: None
+                measured: None,
+                patience: None,
             }
             .to_string()
         );
         assert_ne!(
             GroupLayout {
                 groups: vec![("tile", shipped)],
-                measured: None
+                measured: None,
+                patience: None,
             }
             .to_string(),
             GroupLayout {
                 groups: vec![("cubek", shipped)],
-                measured: None
+                measured: None,
+                patience: None,
             }
             .to_string()
         );
@@ -546,7 +561,19 @@ mod tests {
             raced,
             GroupLayout {
                 groups: vec![("tile", shipped), ("cubek", shipped)],
-                measured: Some("at-capacity")
+                measured: Some("at-capacity"),
+                patience: None,
+            }
+            .to_string()
+        );
+        // A winner raced under patience may be one the whole race would have beaten, so it is
+        // no answer to a layout raced at `Full`.
+        assert_ne!(
+            raced,
+            GroupLayout {
+                groups: vec![("tile", shipped), ("cubek", shipped)],
+                measured: None,
+                patience: Some(burn_backend::cubecl::autotune::PATIENCE),
             }
             .to_string()
         );
