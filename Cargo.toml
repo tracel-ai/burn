@@ -218,7 +218,6 @@ burn-signal = { path = "crates/burn-signal", version = "0.23.0-pre.2", default-f
 burn-std = { path = "crates/burn-std", version = "0.23.0-pre.2", default-features = false }
 burn-store = { path = "crates/burn-store", version = "0.23.0-pre.2", default-features = false }
 burn-tensor = { path = "crates/burn-tensor", version = "0.23.0-pre.2", default-features = false }
-burn-tensor-testgen = { path = "crates/burn-tensor-testgen", version = "0.23.0-pre.2", default-features = false }
 burn-train = { path = "crates/burn-train", version = "0.23.0-pre.2", default-features = false }
 burn-vision = { path = "crates/burn-vision", version = "0.23.0-pre.2", default-features = false }
 burn-wgpu = { path = "crates/burn-wgpu", version = "0.23.0-pre.2", default-features = false }
