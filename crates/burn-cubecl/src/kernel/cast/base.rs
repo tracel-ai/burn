@@ -35,7 +35,7 @@ pub fn cast(input: CubeTensor, dtype: DType) -> CubeTensor {
     };
 
     if dtype_input == dtype_output {
-        return input;
+        return CubeTensor { dtype, ..input };
     }
 
     // Walked in the input's memory order, like the unary kernels: a channels-last tensor is then

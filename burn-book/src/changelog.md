@@ -645,6 +645,10 @@ whose tensors are split over `devices` (crate `burn-shard`).
   variants to panic on `Flex32` tensors when using the host fallback. Sorted values retain the
   `Flex32` dtype. ([#6624](https://github.com/tracel-ai/burn/pull/6624)) [@tandede](https://github.com/tandede)
 
+- On CubeCL backends, casting between `F32` and `Flex32` now returns the requested dtype in both
+  directions. ([#6647](https://github.com/tracel-ai/burn/pull/6647))
+  [@laggui](https://github.com/laggui)
+
 #### Grid sampling
 
 - Fix bilinear `grid_sample_2d` on CubeCL backends reading the wrong y coordinates when the grid's
