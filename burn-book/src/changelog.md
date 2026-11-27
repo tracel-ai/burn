@@ -1259,6 +1259,8 @@ let pack_tensor = tensor.into_pack();
 - Add `PytorchReader::from_bytes` for loading checkpoints from memory.
   ([#5755](https://github.com/tracel-ai/burn/pull/5755))
 
+- Fix loading ZIP64 checkpoints affected by ZIP archive offset detection.
+
 #### SafeTensors loading
 
 - Avoid repeated SafeTensors header parsing when loading models with many tensors.
