@@ -1278,12 +1278,22 @@ mod tests {
     }
 
     #[test]
-    fn try_from_bytes_rejects_a_coarser_level_by_row() {
-        let coarser_rows = QuantScheme::mxfp4_row_factored();
+    fn try_from_bytes_takes_a_coarser_level_by_row_at_its_length() {
+        let scheme = QuantScheme::mxfp4_row_factored();
+        let whole = TensorData::quantized(
+            vec![0i8; 2 * 32],
+            [2, 32],
+            scheme,
+            &[1.0, 1.0],
+            Some(&[1.0, 1.0]),
+        );
+        let bytes = whole.as_bytes().to_vec();
+        let short = bytes[..bytes.len() - 1].to_vec();
 
+        assert!(TensorData::try_from_bytes_vec(bytes, [2, 32], DType::QFloat(scheme)).is_ok());
         assert!(matches!(
-            TensorData::try_from_bytes_vec(vec![0; 8], [1], DType::QFloat(coarser_rows)),
-            Err(DataError::InvalidQuantizedLayout { .. })
+            TensorData::try_from_bytes_vec(short, [2, 32], DType::QFloat(scheme)),
+            Err(DataError::InvalidByteLength { .. })
         ));
     }
 
