@@ -19,7 +19,7 @@ pub mod activation;
 
 /// The container module.
 pub mod container {
-    pub use burn_std::tensor::container::TensorContainer;
+    pub use burn_std::tensor::container::{TensorContainer, TensorContainerError};
 }
 
 /// The grid module.
