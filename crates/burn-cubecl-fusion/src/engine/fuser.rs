@@ -305,11 +305,11 @@ impl TraceOperationFuser {
 
     /// Tag the [tensor](TensorIr) as received from a previous block.
     ///
-    /// This will avoid reading the input again and instead use le local version when possible.
+    /// This will avoid reading the input again and instead use the local version when possible.
     ///
     /// # Returns
     ///
-    /// `None` when the tensor has no value of its own in that block
+    /// `None` when that block has no local value for the tensor
     /// ([`TraceFuser::block_local_input`](crate::engine::trace::TraceFuser::block_local_input)).
     pub fn block_local_input(
         &mut self,

@@ -342,9 +342,9 @@ Reports also include the measured cost of a kernel launch.
   fusions too.
   ([#6646](https://github.com/tracel-ai/burn/pull/6646))
 
-- Fix a fusion panic when a reduction reads a tensor that the preceding fused operations only read
-  through `select` or `gather`, such as `x.select(0, perm)` beside `x.sum_dim(1)`: that reduction
-  now runs apart. [@kongxinjun](https://github.com/kongxinjun)
+- Fix a fusion panic when a reduction's input is read by the preceding fused operations only through
+  `select` or `gather`, such as `x.select(0, perm)` and `x.sum_dim(1)` in the same segment.
+  [@kongxinjun](https://github.com/kongxinjun)
 
 - Fusion autotune copies only the handles of the tensors its queue maps, not every live tensor's, so
   a launch that is not yet tuned no longer costs a pass over every live handle.
