@@ -15,7 +15,7 @@ regex = { workspace = true }
 strum = { workspace = true }
 cargo_metadata = "0.23.1"
 
-tracel-xtask = { version = "=5.0.0", features = ["bump", "check", "compile", "coverage", "doc", "dependencies", "fix", "publish", "vulnerabilities", "build", "test", "validate", "utils-helpers", "utils-time"] }
+tracel-xtask = { version = "=5.3.0", features = ["bump", "check", "compile", "coverage", "doc", "dependencies", "fix", "publish", "vulnerabilities", "build", "test", "validate", "utils-helpers", "utils-time"] }
 # ### For local development. ###
 # tracel-xtask = { path = "../xtask/crates/tracel-xtask", default-features = false }
 
