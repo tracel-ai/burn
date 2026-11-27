@@ -32,7 +32,8 @@ pub struct Report<'a> {
     reading: TimeReading,
     /// Whether the run splits into the device's time and the host's.
     host_split: HostSplit,
-    /// Every kernel's device time, summed once: what every share is of.
+    /// Every kernel's device time, the lead's part where it is read at the lead, summed once:
+    /// what every share is of.
     device_time: Duration,
 }
 
@@ -54,8 +55,8 @@ impl<'a> Report<'a> {
             findings: peaks.findings(),
             roofline: Roofline::new(&measurement.breakdown, peaks.trusted(), reading),
             reading,
-            host_split: HostSplit::new(measurement),
-            device_time: measurement.breakdown.total_time(),
+            host_split: HostSplit::new(measurement, reading),
+            device_time: reading.device_time(&measurement.breakdown),
         }
     }
 
@@ -67,26 +68,29 @@ impl<'a> Report<'a> {
     /// What the run took: the clean run's wall time where it was measured,
     /// and the instrumented run's device time otherwise.
     pub fn wall(&self) -> Duration {
-        self.measurement
-            .clean_wall
-            .unwrap_or_else(|| self.measurement.breakdown.total_time())
+        self.measurement.clean_wall.unwrap_or(self.device_time)
     }
 
     /// The ladder for this run: what it took, what faster kernels reach, and
     /// what perfect fusion inside each component reaches past that.
     pub fn ladder(&self) -> Ladder {
         let tree = &self.measurement.breakdown.tree;
+        let host = self.host_split.recoverable().unwrap_or_default();
+        // The slowest member's time past the lead's: no lever below reads the other members.
+        let imbalance = self.host_split.idle().unwrap_or_default() - host;
         Ladder {
             measured: self.wall(),
-            host: self.host_split.idle().unwrap_or_default(),
-            kernels: tree
-                .iter()
-                .map(|component| self.roofline.deepest_floor(component))
-                .sum(),
-            fused: tree
-                .iter()
-                .map(|component| self.roofline.outermost_floor(component))
-                .sum(),
+            host,
+            kernels: imbalance
+                + tree
+                    .iter()
+                    .map(|component| self.roofline.deepest_floor(component))
+                    .sum::<Duration>(),
+            fused: imbalance
+                + tree
+                    .iter()
+                    .map(|component| self.roofline.outermost_floor(component))
+                    .sum::<Duration>(),
         }
     }
 

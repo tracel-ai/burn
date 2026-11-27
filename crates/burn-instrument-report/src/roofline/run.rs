@@ -9,7 +9,7 @@ use burn_instrument::{
 };
 
 use super::{Floor, Score};
-use crate::reading::TimeReading;
+use crate::reading::{HeldBounds, TimeReading};
 
 /// The roofline of one run: every component held against its device's peaks — its floor and
 /// its score — and the floors of the ladder's two rungs below it.
@@ -18,6 +18,8 @@ pub(crate) struct Roofline<'a> {
     peaks: Peaks,
     /// What the work no floor prices stands at.
     reading: TimeReading,
+    /// Which declared bounds each component is held to.
+    held_bounds: HeldBounds,
     /// The components whose work ran in a fused kernel recorded elsewhere: all of it, and their
     /// floors are set aside, or part of it, and they are not scored. See
     /// [`fused_elsewhere`](Self::fused_elsewhere).
@@ -29,13 +31,24 @@ impl<'a> Roofline<'a> {
         Self {
             peaks,
             reading,
-            fused_elsewhere: breakdown.fused_elsewhere(),
+            held_bounds: HeldBounds::new(breakdown, reading),
+            fused_elsewhere: match reading {
+                TimeReading::Lead => breakdown.fused_elsewhere_on_lead(),
+                TimeReading::InPlace
+                | TimeReading::ApportionedOnto { .. }
+                | TimeReading::Serialized => breakdown.fused_elsewhere(),
+            },
         }
     }
 
     /// The peaks the run is scored against, with any impossible reading dropped.
     pub(crate) fn peaks(&self) -> &Peaks {
         &self.peaks
+    }
+
+    /// Which declared bounds each component is held to.
+    pub(crate) fn held_bounds(&self) -> HeldBounds {
+        self.held_bounds
     }
 
     /// The components whose work ran in a fused kernel recorded elsewhere — on a
@@ -83,7 +96,7 @@ impl<'a> Roofline<'a> {
         component
             .children
             .iter()
-            .any(|child| child.bounds.is_some() || self.composite(child))
+            .any(|child| self.held_bounds.bounds(child).is_some() || self.composite(child))
     }
 
     /// The floor of the finest-grained declarations under `component` — every
@@ -146,7 +159,7 @@ impl<'a> Roofline<'a> {
     fn priced(&self, component: &Component) -> Option<Bounds> {
         match self.fused_elsewhere.share(component) {
             Some(FusedShare::All) => None,
-            Some(FusedShare::Part) | None => Self::held(component),
+            Some(FusedShare::Part) | None => self.held(component),
         }
     }
 
@@ -158,10 +171,9 @@ impl<'a> Roofline<'a> {
     /// restate every operator's formula — still has every multiply-add beneath
     /// it to do. Everything a component is scored against goes through here, so its
     /// floor and its percentage cannot be of two different bounds.
-    fn held(component: &Component) -> Option<Bounds> {
-        let own = component.bounds?;
-        let flops = component
-            .parts_bounds()
+    fn held(&self, component: &Component) -> Option<Bounds> {
+        let own = self.held_bounds.bounds(component)?;
+        let flops = (self.held_bounds.parts_bounds(component))
             .map_or(own.flops, |parts| own.flops.max(parts.flops));
         Some(Bounds { flops, ..own })
     }
@@ -195,7 +207,7 @@ impl<'a> Roofline<'a> {
                     || kernel.fuses_own
                     || !kernel.fuses.iter().all(|path| priced.contains(path))
             })
-            .map(|kernel| kernel.total)
+            .map(|kernel| self.reading.kernel_time(kernel))
             .sum()
     }
 }

@@ -21,7 +21,7 @@ const FORMAT_BEFORE_VERSION_3: &str = "burn-instrument pass";
 ///
 /// Every change to what a file serializes as (a field added, removed, renamed or re-encoded) is a
 /// new version, so a saved measurement is read back as it was taken or not at all.
-pub const MEASUREMENT_FILE_VERSION: u32 = 7;
+pub const MEASUREMENT_FILE_VERSION: u32 = 8;
 
 /// An instrumented run and what it is scored against: what a measurement file holds.
 ///
@@ -209,13 +209,13 @@ mod tests {
         assert_eq!(read.clean_wall, None);
     }
 
-    /// The format version 7 is, field for field. A change that fails this test is a new
+    /// The format version 8 is, field for field. A change that fails this test is a new
     /// [`MEASUREMENT_FILE_VERSION`], not an edit to the expected text.
     #[test]
-    fn version_seven_is_pinned() {
+    fn version_eight_is_pinned() {
         let expected = r#"{
   "format": "burn-instrument measurement",
-  "version": 7,
+  "version": 8,
   "device": "Rocm(0)",
   "peaks": {
     "copy_bytes_per_s": 161000000000.0,
@@ -246,6 +246,11 @@ mod tests {
           "write": 16,
           "flops": 128
         },
+        "lead_bounds": {
+          "read": 40,
+          "write": 16,
+          "flops": 64
+        },
         "entries": 2,
         "children": [],
         "kernels": [
@@ -253,6 +258,14 @@ mod tests {
             "name": "matmul",
             "launches": 2,
             "total": 1500,
+            "members": [
+              900,
+              600
+            ],
+            "member_launches": [
+              1,
+              1
+            ],
             "fuses": [
               [
                 "query"
@@ -285,6 +298,7 @@ mod tests {
           "idle": 340
         }
       ],
+      "member_count": 2,
       "schedule": "Concurrent",
       "off_members": 25,
       "collectives": [
@@ -314,7 +328,7 @@ mod tests {
 }"#;
         assert_eq!(written(&measurement()), expected);
         assert_eq!(
-            Measurement::read(expected.as_bytes()).expect("version 7 reads"),
+            Measurement::read(expected.as_bytes()).expect("version 8 reads"),
             measurement(),
             "and reads back as the measurement it pins"
         );
@@ -420,6 +434,11 @@ mod tests {
                         write: 16,
                         flops: 128,
                     }),
+                    lead_bounds: Some(Bounds {
+                        read: 40,
+                        write: 16,
+                        flops: 64,
+                    }),
                     entries: 2,
                     children: Vec::new(),
                     kernels: vec![Kernel {
@@ -428,6 +447,8 @@ mod tests {
                         total: Duration::from_nanos(1_500),
                         fuses: vec![ComponentPath::new(["query"])],
                         fuses_own: true,
+                        members: vec![Duration::from_nanos(900), Duration::from_nanos(600)],
+                        member_launches: vec![1, 1],
                     }],
                     own_wait: Duration::from_nanos(20),
                 }],
@@ -449,6 +470,7 @@ mod tests {
                             idle: Duration::from_nanos(340),
                         },
                     ],
+                    member_count: 2,
                     schedule: MemberSchedule::Concurrent,
                     off_members: Duration::from_nanos(25),
                     collectives: vec![CollectiveTime {

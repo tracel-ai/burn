@@ -16,6 +16,7 @@ use burn_instrument::{Component, ComponentPath, FusedShare, Measurement};
 
 use crate::Report;
 use crate::millis::Millis;
+use crate::reading::TimeReading;
 use crate::served_by::ServedBy;
 
 /// A measurement beside the one it is being held against: what [`Report::against`] returns.
@@ -107,6 +108,12 @@ impl<'a> Comparison<'a> {
                 was_measured: was.clean_wall.is_some(),
             });
         }
+        let at_lead = |report: &Report<'_>| report.reading() == TimeReading::Lead;
+        if at_lead(&self.now) != at_lead(&self.was) {
+            mismatches.push(Mismatch::Reading {
+                was_at_lead: at_lead(&self.was),
+            });
+        }
         mismatches
     }
 }
@@ -123,6 +130,10 @@ enum Mismatch<'a> {
     /// One measured a clean run and the other did not, so one side's milliseconds are that run's
     /// and the other's the instrumented run's own; `was_measured` is the saved measurement's.
     CleanRun { was_measured: bool },
+    /// One read its components at the lead and the other across every kernel, so one side's
+    /// milliseconds are one member's and the other's every member's; `was_at_lead` is the saved
+    /// measurement's.
+    Reading { was_at_lead: bool },
 }
 
 impl Display for Mismatch<'_> {
@@ -138,6 +149,10 @@ impl Display for Mismatch<'_> {
         let measured = |measured: bool| match measured {
             true => "measured",
             false => "not measured",
+        };
+        let read = |at_lead: bool| match at_lead {
+            true => "at the lead",
+            false => "across every kernel",
         };
         match *self {
             Mismatch::Device { was, now } => write!(f, "device was {was}, now {now}"),
@@ -158,6 +173,12 @@ impl Display for Mismatch<'_> {
                 "clean run was {}, now {}",
                 measured(was_measured),
                 measured(!was_measured)
+            ),
+            Mismatch::Reading { was_at_lead } => write!(
+                f,
+                "components were read {}, now {}",
+                read(was_at_lead),
+                read(!was_at_lead)
             ),
         }
     }
@@ -284,7 +305,9 @@ impl Display for Comparison<'_> {
 mod tests {
     use std::time::Duration;
 
-    use burn_instrument::{Breakdown, Kernel, Unplaced, Variant};
+    use burn_instrument::{
+        Breakdown, Kernel, MemberSchedule, MemberTime, PerMember, Unplaced, Variant,
+    };
 
     use super::*;
 
@@ -316,6 +339,7 @@ mod tests {
             variants: Vec::new(),
             sites: Vec::new(),
             bounds: None,
+            lead_bounds: None,
             entries: 1,
             children,
             kernels: match micros {
@@ -333,6 +357,8 @@ mod tests {
             total: Duration::from_micros(micros),
             fuses,
             fuses_own: false,
+            members: Vec::new(),
+            member_launches: Vec::new(),
         }
     }
 
@@ -440,6 +466,30 @@ mod tests {
         assert!(table.contains("DIFFERENT"), "{table}");
         assert!(
             table.contains("clean run was not measured, now measured"),
+            "{table}"
+        );
+    }
+
+    /// One side read at the lead is one member's time, and the other, which lost a timing,
+    /// every member's: the same work reads twice as long.
+    #[test]
+    fn a_change_of_reading_at_the_lead_is_named() {
+        let mut now = measurement(vec![component("norm", 100, Vec::new())]);
+        now.breakdown.tree[0].kernels[0].members = vec![Duration::from_micros(100)];
+        now.breakdown.tree[0].kernels[0].member_launches = vec![1];
+        now.breakdown.per_member = Some(PerMember {
+            members: vec![MemberTime::default(); 2],
+            member_count: 2,
+            schedule: MemberSchedule::Concurrent,
+            ..PerMember::default()
+        });
+        let mut was = now.clone();
+        was.breakdown.unplaced.timings = 1;
+
+        let table = Report::new(&now).against(&was).to_string();
+        assert!(table.contains("DIFFERENT"), "{table}");
+        assert!(
+            table.contains("components were read across every kernel, now at the lead"),
             "{table}"
         );
     }

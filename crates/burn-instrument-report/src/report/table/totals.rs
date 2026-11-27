@@ -28,12 +28,12 @@ impl Display for Totals<'_, '_> {
         let measurement = self.report.measurement();
         let width = self.width;
         let text = self.report.reading().text();
-        let kernels = measurement.breakdown.kernels().count();
-        let launches: usize = measurement
-            .breakdown
-            .kernels()
-            .map(|kernel| kernel.launches)
-            .sum();
+        let launches: Vec<usize> = (measurement.breakdown.kernels())
+            .map(|kernel| self.report.reading().kernel_launches(kernel))
+            .filter(|launches| *launches > 0)
+            .collect();
+        let kernels = launches.len();
+        let launches: usize = launches.iter().sum();
         if let Some(wall) = measurement.clean_wall {
             writeln!(
                 f,
@@ -50,7 +50,7 @@ impl Display for Totals<'_, '_> {
                 true => "on device (SOME HOST-TIMED)",
                 false => "on device",
             },
-            Millis(measurement.breakdown.total_time()),
+            Millis(self.report.reading().device_time(&measurement.breakdown)),
             text.on_device,
         )?;
         if measurement.breakdown.host_timed {

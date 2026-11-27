@@ -80,7 +80,9 @@ impl Worklist {
                 .share(component.own_wait)
                 .filter(|host| !host.is_zero())
             {
-                let launches: usize = component.kernels.iter().map(|kernel| kernel.launches).sum();
+                let launches: usize = (component.kernels.iter())
+                    .map(|kernel| report.reading().kernel_launches(kernel))
+                    .sum();
                 // A wait before a single launch is the host's work ahead of it,
                 // which no launch can be taken away from.
                 let (lever, against) = match launches {
