@@ -1191,6 +1191,12 @@ See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics)
 - Optimizer checkpoints restore each state tensor in its saved numeric dtype, so training can
   resume when an optimizer's accumulator precision differs from the device default.
 
+- Add `GradientClipping::GlobalNorm(max_norm)` to limit the joint L2 norm of accumulated
+  floating-point gradients across all parameter groups before optimizer updates. When using
+  `GlobalNorm`, pass `None` for clipping in each `with_group` call.
+  **Breaking:** `GradientClipping` and `GradientClippingConfig` are now non-exhaustive.
+  Add a wildcard arm to downstream matches and handle `GlobalNorm(_)` explicitly when needed.
+
 - Custom optimizer and scheduler states can now derive `burn::optim::RecordState` in crates
   that depend only on `burn` with the `optim` feature enabled.
 
