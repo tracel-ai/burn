@@ -22,7 +22,11 @@ impl Display for Report<'_> {
         write!(f, "{}", Totals::new(self, components.width()))?;
         write!(f, "{}", Members::new(self, components.width()))?;
         write!(f, "{}", RooflineNote::new(self))?;
-        write!(f, "{}", Recoverable::new(self.ladder()))?;
+        write!(
+            f,
+            "{}",
+            Recoverable::new(self.ladder(), self.host_split().never_idle())
+        )?;
         write!(f, "{}", MergeNotes::new(self))?;
         write!(f, "{}", Worklist::new(self))
     }

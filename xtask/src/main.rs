@@ -17,6 +17,7 @@ const NO_STD_CRATES: &[&str] = &[
     "burn-dispatch",
     "burn-einsum",
     "burn-linalg",
+    "burn-optim",
     "burn-signal",
     "burn-std",
     "burn-backend",

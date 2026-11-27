@@ -42,6 +42,13 @@ backend-specific code.
 
 ## CI suites
 
+The macOS and dedicated GPU runners run the CubeCL autotune tests with their backend feature.
+The standard Linux and Windows jobs run the host-only cases. For a local CUDA device, run
+
+```sh
+cargo test -p burn-cubecl --lib --features cuda tune::
+```
+
 Linux and Windows standard tests use four shards:
 
 | Shard | Validation |

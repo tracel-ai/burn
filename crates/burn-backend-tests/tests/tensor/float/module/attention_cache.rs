@@ -47,6 +47,11 @@ impl CacheCall {
         TestTensorInt::<1>::from_data(TensorData::new(lengths, [count]), &Default::default())
     }
 
+    /// The deepest any sequence attends.
+    fn depth(&self) -> usize {
+        self.lengths.iter().copied().max().unwrap_or(0)
+    }
+
     fn attend(&self, options: AttentionModuleOptions) -> TestTensor<4> {
         self.attend_masked(None, options)
     }
@@ -62,7 +67,7 @@ impl CacheCall {
             self.value.clone(),
             mask,
             None,
-            Some(AttentionCache::new(self.lengths())),
+            Some(AttentionCache::new(self.lengths(), self.depth())),
             options,
         )
     }
@@ -168,7 +173,7 @@ fn test_attention_cache_paged_matches_contiguous() {
         value,
         None,
         None,
-        Some(AttentionCache::paged(call.lengths(), pages)),
+        Some(AttentionCache::paged(call.lengths(), pages, call.depth())),
         options,
     );
 

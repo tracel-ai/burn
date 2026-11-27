@@ -34,13 +34,15 @@
 //! cannot host co-located collective / same-host-transfer participants (the single thread would
 //! stall on the blocking tasks above). Ordinary compute is unaffected.
 
+use burn_backend::ops::ReadFuture;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use burn_backend::PeakError;
 use burn_backend::tensor::FloatTensor;
 use burn_ir::{BackendIr, GraphBindings, GraphId, HandleKind, TensorError, TensorId, TensorIr};
 use burn_router::{Graph, TensorInterpreter};
-use burn_std::{DType, ExecutionError, id::StreamId};
+use burn_std::{DType, ExecutionError, future::DynFut, id::StreamId};
 use serde_bytes::ByteBuf;
 #[cfg(not(target_family = "wasm"))]
 use std::{
@@ -53,6 +55,7 @@ use tokio::sync::mpsc;
 
 use crate::server::DeviceQueries;
 use crate::server::ServerStreams;
+use crate::server::link_probe::LinkPuller;
 use crate::server::local_comm::LocalCommService;
 use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
 use crate::server::transfer::TensorTransfer;
@@ -96,6 +99,8 @@ where
     streams: ServerStreams,
     response_sender: mpsc::Sender<TaskResponse>,
     response_tasks: ResponseTasks,
+    /// The reads still copying to the host, which a capture waits for.
+    read_tasks: ResponseTasks,
     transfer: Arc<T>,
     local_comm: Arc<LocalCommService<B>>,
     /// Cache of client-registered reusable op-graphs, keyed by id (see
@@ -139,6 +144,7 @@ where
             streams: ServerStreams::default(),
             response_sender,
             response_tasks: ResponseTasks::default(),
+            read_tasks: ResponseTasks::default(),
             transfer,
             local_comm,
             graphs: Mutex::new(HashMap::new()),
@@ -186,6 +192,7 @@ where
     #[cfg(not(target_family = "wasm"))]
     fn abort_responses_after_panic(&mut self, payload: Box<dyn Any + Send>) {
         self.response_tasks.abort_all();
+        self.read_tasks.abort_all();
         let reason = payload
             .downcast_ref::<&str>()
             .copied()
@@ -266,9 +273,7 @@ where
     /// Sync work runs [on the server stream](Self::on_stream) of the client stream the task names,
     /// so work the client ordered on one stream stays ordered on one stream here.
     /// Response-producing tasks carry their own [`RequestId`] for routing the response back to the
-    /// right pending callback on the client. Async work (data-service transfers,
-    /// `read_tensor_async`) runs without a stream context — the relevant stream id is captured into
-    /// the future at construction time via `executes`.
+    /// right pending callback on the client.
     async fn process_task(&mut self, task: Task) -> Result<(), String> {
         match task {
             Task::RegisterOperation(stream_id, op) => {
@@ -436,11 +441,17 @@ where
                 target,
             } => {
                 log::trace!("Exposing tensor (transfer {capability:?})");
-                // The sync part of `read_tensor_async` runs in order to preserve stream ordering, but the readback + expose are detached so a
-                // cross-server hand-off doesn't stall this session's op registration on a
-                // GPU→host copy. A target that downloads before the expose lands simply blocks on
-                // the data service's `new_tensor_notify`, so there is no race.
-                let fut = self.on_stream(stream_id, |runner| runner.read_tensor_async(tensor));
+                // The readback and the expose are detached so a cross-server hand-off doesn't
+                // stall this session's op registration on a GPU→host copy. A target that
+                // downloads before the expose lands simply blocks on the data service's
+                // `new_tensor_notify`, so there is no race.
+                let read =
+                    self.read_on_stream(stream_id, |runner| runner.read_tensor_async(tensor));
+                // A session task, so that a capture opening on the stream waits for the read.
+                let (read_done, read_back) = tokio::sync::oneshot::channel();
+                self.read_tasks.spawn(async move {
+                    let _ = read_done.send(read.await);
+                });
                 let transfer = self.transfer.clone();
                 let probe = self.probe.clone();
                 let session_id = self.session_id;
@@ -452,7 +463,12 @@ where
                     phase: TransferPhase::Started,
                 });
                 spawn_detached(async move {
-                    match fut.await {
+                    let read = read_back.await.unwrap_or_else(|_| {
+                        Err(ExecutionError::generic(
+                            "the session ended before the tensor was read",
+                        ))
+                    });
+                    match read {
                         Ok(data) => {
                             transfer.expose_data(data, count, capability, target).await;
                             probe.emit(|| TelemetryEvent::Transfer {
@@ -529,12 +545,27 @@ where
                 Ok(())
             }
             Task::CapturePrepare(request_id, stream_id) => {
+                // A read still copying on the stream would be recorded with the capture.
+                self.read_tasks.settle().await;
                 let stream = self.streams.of(stream_id);
                 let res = self.captures.prepare(&self.runner, stream);
                 self.send_response(request_id, TaskResponseContent::Capture(res))
                     .await
             }
+            Task::CaptureEndRun(request_id, stream_id) => {
+                let stream = self.streams.of(stream_id);
+                let res = self.captures.end_run(&self.runner, stream);
+                self.send_response(request_id, TaskResponseContent::CaptureEndRun(res))
+                    .await
+            }
+            Task::CaptureStartRun(request_id, stream_id) => {
+                let stream = self.streams.of(stream_id);
+                let res = self.captures.start_run(&self.runner, stream);
+                self.send_response(request_id, TaskResponseContent::Capture(res))
+                    .await
+            }
             Task::CaptureStart(request_id, stream_id) => {
+                self.read_tasks.settle().await;
                 let stream = self.streams.of(stream_id);
                 let res = self.captures.start(&self.runner, stream);
                 self.send_response(request_id, TaskResponseContent::Capture(res))
@@ -637,6 +668,36 @@ where
                 self.send_response(request_id, TaskResponseContent::Peaks(peaks))
                     .await
             }
+            Task::GrantLink(request_id, capability) => {
+                let device = self.runner.device();
+                self.local_comm
+                    .grant_link(self.session_id, capability, device)
+                    .await;
+                self.send_response(request_id, TaskResponseContent::LinkGranted)
+                    .await
+            }
+            Task::MeasureLinkLocal(request_id, capability, sizes) => {
+                let link = match self.local_comm.take_link(capability).await {
+                    Some(to) => self.runner.measure_link(&to, &sizes),
+                    None => vec![Err(PeakError::Unsupported); sizes.len()],
+                };
+                self.send_response(request_id, TaskResponseContent::Link(link))
+                    .await
+            }
+            Task::ExposeLinkPull(request_id, target, pull) => {
+                let exposed = LinkPuller::new(&*self.transfer).expose(target, &pull).await;
+                self.send_response(request_id, TaskResponseContent::LinkExposed(exposed))
+                    .await
+            }
+            Task::MeasureLinkPull(request_id, source, pull) => {
+                let peak = LinkPuller::new(&*self.transfer).time(&source, &pull).await;
+                self.send_response(request_id, TaskResponseContent::LinkPulled(peak))
+                    .await
+            }
+            Task::WithdrawLinkPull(capability) => {
+                self.transfer.withdraw(capability).await;
+                Ok(())
+            }
         }
     }
 
@@ -707,6 +768,21 @@ where
         stream.executes(|| f(&mut self.runner))
     }
 
+    /// [`on_stream`](Self::on_stream) for a read, which the backend submits as it is made, so the
+    /// worker never waits for it. A panic awaiting it is the read's error.
+    fn read_on_stream<Data: Send + 'static>(
+        &mut self,
+        stream: StreamId,
+        f: impl FnOnce(&mut TensorInterpreter<B>) -> DynFut<Result<Data, ExecutionError>>,
+    ) -> impl ReadFuture<Data> + 'static {
+        let read = self.on_stream(stream, f);
+        async move {
+            CatchPanic::from_boxed(read)
+                .await
+                .unwrap_or_else(|message| Err(server_panicked(&message)))
+        }
+    }
+
     /// Take `tensors` on the client's `stream`, in stream order, and answer `request_id` with
     /// their data once the host readback completes, without the worker waiting on it.
     ///
@@ -718,7 +794,7 @@ where
             session: self.session_id,
             request: request_id,
         });
-        let read = self.on_stream(stream, |runner| runner.read_tensors_async(&tensors));
+        let read = self.read_on_stream(stream, |runner| runner.read_tensors_async(&tensors));
         let failure = self.take_replay_failure(stream);
         let answer = async move {
             let data = read.await;
@@ -727,7 +803,8 @@ where
                 None => data,
             }
         };
-        self.answer_when_ready(request_id, answer, TaskResponseContent::ReadTensors);
+        let answer = self.answer(request_id, answer, TaskResponseContent::ReadTensors);
+        self.read_tasks.spawn(answer);
     }
 
     /// The replay on the client's `stream` that failed since its last read or sync.
@@ -736,21 +813,30 @@ where
         self.captures.take_replay_failure(stream)
     }
 
-    /// Sends the answer once `ready` resolves, without holding up the ops after it. A panic is
-    /// answered as an error, so the client is never left waiting.
+    /// [`answer`](Self::answer) without holding up the ops after it.
     fn answer_when_ready<Value: Send + 'static>(
         &mut self,
         request_id: RequestId,
-        ready: impl Future<Output = Result<Value, ExecutionError>> + Send + 'static,
+        ready: impl ReadFuture<Value> + 'static,
         into_content: fn(Result<Value, ExecutionError>) -> TaskResponseContent,
     ) {
+        let answer = self.answer(request_id, ready, into_content);
+        self.response_tasks.spawn(answer);
+    }
+
+    /// Sends the answer once `ready` resolves. A panic is answered as an error, so the client is
+    /// never left waiting.
+    fn answer<Value: Send + 'static>(
+        &self,
+        request_id: RequestId,
+        ready: impl ReadFuture<Value> + 'static,
+        into_content: fn(Result<Value, ExecutionError>) -> TaskResponseContent,
+    ) -> impl Future<Output = ()> + Send + 'static {
         let sender = self.response_sender.clone();
-        self.response_tasks.spawn(async move {
-            let answer = CatchPanic::new(ready).await.unwrap_or_else(|message| {
-                Err(ExecutionError::generic(format!(
-                    "The server panicked: {message}"
-                )))
-            });
+        async move {
+            let answer = CatchPanic::new(ready)
+                .await
+                .unwrap_or_else(|message| Err(server_panicked(&message)));
             let response = TaskResponse {
                 content: into_content(answer),
                 id: request_id,
@@ -758,7 +844,7 @@ where
             if sender.send(response).await.is_err() {
                 log::warn!("Response receiver dropped before answering request {request_id}");
             }
-        });
+        }
     }
 
     async fn send_response(
@@ -818,6 +904,10 @@ where
     }
 }
 
+fn server_panicked(message: &str) -> ExecutionError {
+    ExecutionError::generic(format!("The server panicked: {message}"))
+}
+
 #[cfg(all(test, not(target_family = "wasm")))]
 mod tests {
     use super::*;
@@ -840,6 +930,8 @@ mod tests {
         }
 
         async fn fail(&self, _: TransferCapability, _: PeerId, _: String) {}
+
+        async fn withdraw(&self, _: TransferCapability) {}
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1210,6 +1302,7 @@ mod tests {
                 streams: ServerStreams::default(),
                 response_sender,
                 response_tasks: ResponseTasks::default(),
+                read_tasks: ResponseTasks::default(),
                 transfer: Arc::new(NoTransfer),
                 local_comm: Arc::new(LocalCommService::<Flex>::new(1)),
                 graphs: Mutex::new(HashMap::new()),

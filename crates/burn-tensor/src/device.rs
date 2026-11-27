@@ -8,9 +8,9 @@ pub use burn_backend::cubecl::{
 };
 use burn_backend::{Backend, DeviceOps};
 pub use burn_backend::{
-    DeviceDescription, DeviceTelemetry, HardwareKind, MatmulTile, MemoryAccess, MemoryPoolUsage,
-    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileTicks,
-    SlicedPoolReport, TimingMethod,
+    DeviceDescription, DeviceTelemetry, HardwareKind, HostTransfer, MatmulTile, MemoryAccess,
+    MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
+    ProfileTicks, SlicedPoolReport, TimingMethod,
 };
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
@@ -828,6 +828,30 @@ impl Device {
     /// runs for a while, so measure once and keep the answer.
     pub fn measure_peaks(&self, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
         Dispatch::measure_peaks(self.as_dispatch(), keys)
+    }
+
+    /// The peak throughput of the link from this device to `to` for each of `sizes`, in order, in
+    /// bytes per second when one transfer moves that many bytes: the peak, or why the link has
+    /// none. Every size is [unsupported](PeakError::Unsupported) between a device and itself,
+    /// between devices of two backends, and from a backend that runs no link probe. A probe moves
+    /// data between the two for a while, so measure once and keep the answer.
+    pub fn measure_link(&self, to: &Device, sizes: &[u64]) -> Vec<Result<Peak, PeakError>> {
+        Dispatch::measure_link(self.as_dispatch(), to.as_dispatch(), sizes)
+    }
+
+    /// The peak throughput of the link between the calling process and this device for each of
+    /// `sizes`, in order, in bytes per second when one transfer moves that many bytes the way
+    /// `transfer` names: the peak, or why the link has none. A remote device answers for this
+    /// process's network, timed until the server holds an upload on its device, from a native
+    /// client only; a browser client and a local backend report every size
+    /// [unsupported](PeakError::Unsupported) for now. A probe moves data for a while, so measure
+    /// once and keep the answer.
+    pub fn measure_host_link(
+        &self,
+        transfer: HostTransfer,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        Dispatch::measure_host_link(self.as_dispatch(), transfer, sizes)
     }
 
     /// Prepares the given data for transfer between the CPU and accelerator devices such as GPUs.

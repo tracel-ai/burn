@@ -24,3 +24,7 @@ burn = { workspace = true, features = ["flex"] }
 burn-flex = { workspace = true }
 
 burn-store = { workspace = true, features = ["safetensors"] }
+
+[dev-dependencies]
+# Only host tests need optimizer and autodiff support.
+burn = { workspace = true, features = ["flex", "optim"] }

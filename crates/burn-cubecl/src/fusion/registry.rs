@@ -1,4 +1,6 @@
+use super::elector::ELECTOR;
 use crate::CubeDevice;
+use burn_cubecl_fusion::RoutineElector;
 use burn_cubecl_fusion::optim::elemwise::{self, ElementWiseFuser, ElemwiseOptimization};
 use burn_cubecl_fusion::optim::matmul::{self, MatmulFuser, MatmulOptimization};
 use burn_cubecl_fusion::optim::nhwc_relayout::{self, NHWCRelayoutFuser, NHWCRelayoutOptimization};
@@ -215,6 +217,7 @@ pub fn remove(name: &str) -> Result<(), RegistryError> {
 /// Restore the optimization described by `state` through its provider's
 /// [`restore`](OptimizationProvider::restore).
 pub(crate) fn restore(device: &CubeDevice, state: CubeOptimizationState) -> CubeOptimization {
+    ELECTOR.install();
     let registry = registry().lock().unwrap();
     registry
         .provider(&state.name)
@@ -233,6 +236,7 @@ pub(crate) fn restore(device: &CubeDevice, state: CubeOptimizationState) -> Cube
 /// the registry — streams only exist once the fusion service runs, and later
 /// registrations could not apply to the streams already built.
 pub(crate) fn fusers(device: &CubeDevice) -> Vec<Box<dyn OperationFuser<CubeOptimization>>> {
+    ELECTOR.install();
     let mut registry = registry().lock().unwrap();
     registry
         .start()

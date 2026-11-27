@@ -1,15 +1,13 @@
 use alloc::vec::Vec;
-use burn_backend::{
-    ExecutionError,
-    ops::{TransactionOps, TransactionPrimitive, TransactionPrimitiveData},
-};
+use burn_backend::ops::ReadFuture;
+use burn_backend::ops::{TransactionOps, TransactionPrimitive, TransactionPrimitiveData};
 
 use crate::Dispatch;
 
 impl TransactionOps<Self> for Dispatch {
-    async fn tr_execute(
+    fn tr_execute(
         transaction: TransactionPrimitive<Self>,
-    ) -> Result<TransactionPrimitiveData, ExecutionError> {
+    ) -> impl ReadFuture<TransactionPrimitiveData> {
         let first_tensor = transaction
             .read_floats
             .first()
@@ -20,7 +18,11 @@ impl TransactionOps<Self> for Dispatch {
             Some(tensor) => {
                 transaction_op!(transaction, tensor)
             }
-            None => Ok(TransactionPrimitiveData::default()),
+            None => {
+                let read: crate::backend::BoxedRead<TransactionPrimitiveData> =
+                    alloc::boxed::Box::pin(async { Ok(TransactionPrimitiveData::default()) });
+                read
+            }
         }
     }
 }

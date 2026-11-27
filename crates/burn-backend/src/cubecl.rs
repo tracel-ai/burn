@@ -18,7 +18,8 @@ mod device;
 mod execution;
 
 pub use cubecl::throughput::{
-    MemoryAccess, ThroughputError, ThroughputKey, ThroughputMode, ThroughputValue,
+    LinkKey, LinkRoute, MemoryAccess, ThroughputError, ThroughputKey, ThroughputMode,
+    ThroughputValue,
 };
 
 /// The device of every cubecl runtime, re-exported so a crate routing through
@@ -29,7 +30,9 @@ pub use cubecl::Device;
 /// subset of the devices.
 pub use cubecl::RuntimeId;
 pub use cubecl::ir::{AdapterLuid, DeviceIdentity, PciAddress, PciVendor, PhysicalDevice};
-pub use cubecl::std::throughput::measure_peak_throughput;
+pub use cubecl::std::throughput::{
+    measure_link_throughput, measure_peak_throughput, transfer_route,
+};
 
 /// What a cubecl device can do, as its runtime states it once the device is
 /// open: the features, limits and memory it reports, its identity, and the

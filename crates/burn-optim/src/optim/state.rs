@@ -16,7 +16,10 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use burn_core::tensor::{Device, TensorData};
+use burn_core::tensor::{
+    Device, Tensor, TensorData,
+    kind::{Basic, Kind},
+};
 use burn_pack::Scalar;
 
 pub use burn_derive::RecordState;
@@ -92,6 +95,27 @@ impl StateSource {
         self.tensors.remove(&join_path(prefix, leaf))
     }
 
+    /// Restore a tensor leaf on `device`, preserving its numeric dtype when it fits the field.
+    pub fn restore_tensor<const D: usize, K: Basic>(
+        &mut self,
+        prefix: &str,
+        leaf: &str,
+        device: &Device,
+    ) -> Option<Tensor<D, K>> {
+        let data = self.take_tensor(prefix, leaf)?;
+        let dtype = data.dtype();
+        let keep_dtype = match K::KIND {
+            Kind::Float => dtype.is_float(),
+            Kind::Int => dtype.is_int() || dtype.is_uint(),
+            Kind::Bool => false, // Bool storage is device-specific.
+        };
+        Some(if keep_dtype {
+            Tensor::from_data(data, (device, dtype))
+        } else {
+            Tensor::from_data(data, device)
+        })
+    }
+
     /// Read the scalar named `{prefix}.{leaf}`, if present.
     pub fn take_scalar(&mut self, prefix: &str, leaf: &str) -> Option<Scalar> {
         self.scalars.get(&join_path(prefix, leaf)).copied()
@@ -140,8 +164,7 @@ impl RecordState for () {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::tensor::Tensor;
-    use burn_core as burn;
+    use burn_core::tensor::{DType, FloatDType, Int};
 
     /// Flatten `state` then rebuild it from the produced tensors and scalars.
     fn round_trip<T: RecordState>(state: &T) -> Option<T> {
@@ -184,10 +207,18 @@ mod tests {
 
     #[test]
     fn all_field_kinds_round_trip() {
+        let dtype = if Device::default().supports_dtype(FloatDType::F16) {
+            FloatDType::F16
+        } else {
+            FloatDType::F32
+        };
         let state = Full::<1> {
-            t: tensor(&[1.0, 2.0]),
-            opt_tensor: Some(tensor(&[3.0])),
-            history: vec![tensor(&[4.0]), tensor(&[5.0, 6.0])],
+            t: tensor(&[1.0, 2.0]).cast(dtype),
+            opt_tensor: Some(tensor(&[3.0]).cast(dtype)),
+            history: vec![
+                tensor(&[4.0]).cast(FloatDType::F32),
+                tensor(&[5.0, 6.0]).cast(dtype),
+            ],
             count: 7,
             opt_scalar: Some(8.5),
             nested: Inner {
@@ -202,9 +233,14 @@ mod tests {
 
         let out = round_trip(&state).unwrap();
 
+        assert_eq!(out.t.dtype(), DType::from(dtype));
         assert_eq!(data(&out.t), vec![1.0, 2.0]);
-        assert_eq!(data(&out.opt_tensor.unwrap()), vec![3.0]);
+        let opt_tensor = out.opt_tensor.unwrap();
+        assert_eq!(opt_tensor.dtype(), DType::from(dtype));
+        assert_eq!(data(&opt_tensor), vec![3.0]);
         assert_eq!(out.history.len(), 2);
+        assert_eq!(out.history[0].dtype(), DType::F32);
+        assert_eq!(out.history[1].dtype(), DType::from(dtype));
         assert_eq!(data(&out.history[0]), vec![4.0]);
         assert_eq!(data(&out.history[1]), vec![5.0, 6.0]);
         assert_eq!(out.count, 7);
@@ -278,5 +314,21 @@ mod tests {
         // A source with nothing recorded cannot rebuild a struct that has a required tensor leaf.
         let mut source = StateSource::new(BTreeMap::new());
         assert!(Inner::<1>::state_unflatten("p", &mut source, &Device::default()).is_none());
+    }
+
+    #[test]
+    fn restore_tensor_preserves_unsigned_dtype() {
+        let device = Device::default();
+        if !device.supports_dtype(DType::U32) {
+            return;
+        }
+        let mut source = StateSource::default();
+        source.insert_tensor("p.value".into(), TensorData::from([u32::MAX]));
+
+        let value = source
+            .restore_tensor::<1, Int>("p", "value", &device)
+            .unwrap();
+        assert_eq!(value.dtype(), DType::U32);
+        assert_eq!(value.try_into_vec_as::<u32>().unwrap(), [u32::MAX]);
     }
 }

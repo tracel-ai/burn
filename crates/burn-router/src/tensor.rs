@@ -6,6 +6,7 @@ use alloc::{sync::Arc, vec::Vec};
 use super::RouterClient;
 use burn_backend::{DType, Shape, TensorData, TensorMetadata, backend::ExecutionError};
 use burn_ir::{TensorId, TensorIr, TensorStatus};
+use burn_std::future::DynFut;
 
 /// Tensor primitive for the [router backend](crate::BackendRouter).
 pub struct RouterTensor<C: RouterClient> {
@@ -59,13 +60,13 @@ impl<C: RouterClient> RouterTensor<C> {
         }
     }
 
-    pub(crate) async fn into_data(self) -> Result<TensorData, ExecutionError> {
+    pub(crate) fn into_data(self) -> DynFut<Result<TensorData, ExecutionError>> {
         // `into_ir` gives up this handle before the read is registered. Held, it keeps another
         // thread that drops the last other handle in between from registering the drop first.
         let held = self.clone();
         let read = self.client.clone().read_tensor_async(self.into_ir());
         drop(held);
-        read.await
+        read
     }
 
     /// Get the ir for this tensor
@@ -244,6 +245,20 @@ mod tests {
         fn execute_graph(&self, _graph_id: GraphId, _bindings: GraphBindings) {}
 
         fn register_alias(&self, _new_id: TensorId, _src_id: TensorId) {}
+    }
+
+    #[test]
+    fn a_read_is_registered_before_it_is_awaited() {
+        let client = DropOnRead::default();
+        let id = TensorId::new(7);
+        let tensor = RouterTensor::new(id, Shape::from([1]), DType::F32, client.clone());
+
+        let _read = tensor.into_data();
+
+        assert_eq!(
+            client.events.lock().unwrap().first(),
+            Some(&Event::Read(id))
+        );
     }
 
     #[test]

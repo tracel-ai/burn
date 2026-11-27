@@ -4,7 +4,9 @@ use burn_tensor::{
     Shards, ShardsError, Tensor, TensorData, Tolerance, activation,
     kind::Autodiff,
     module,
-    quantization::{QuantScheme, ScaleDtype},
+    quantization::{
+        Calibration, QuantScheme, QuantValue, ScaleDtype, compute_q_params, compute_range,
+    },
     s,
     shard::{DimSplit, ShardError},
 };
@@ -240,14 +242,16 @@ fn check_cached_attention_on_the_heads(
     pages: Option<TensorData>,
 ) {
     let query = values([2, 4, 1, 4], 1);
+    let depth = lengths.iter::<i64>().max().unwrap_or(0) as usize;
     let cache = |device: &Device| {
         let lengths = Tensor::<1, Int>::from_data(lengths.clone(), device);
         match &pages {
             Some(pages) => module::AttentionCache::paged(
                 lengths,
                 Tensor::<2, Int>::from_data(pages.clone(), device),
+                depth,
             ),
-            None => module::AttentionCache::new(lengths),
+            None => module::AttentionCache::new(lengths, depth),
         }
     };
     let flex = Device::flex();
@@ -481,6 +485,106 @@ fn a_quantized_tensor_on_a_sharded_compute_device_reports_its_sharding() {
         .quantize_dynamic(&QuantScheme::default());
 
     assert_eq!(quantized.sharding(), Some(Replicated));
+}
+
+#[test]
+fn a_tensor_split_by_whole_blocks_quantizes_on_each_member() {
+    let scheme = QuantScheme::default().per_block([4], ScaleDtype::F32);
+    let data = values([4, 8], 1);
+    let expected = Tensor::<2>::from_data(data.clone(), &one_member())
+        .quantize_dynamic(&scheme)
+        .into_data();
+
+    for sharding in [Split { dim: 0 }, Split { dim: 1 }] {
+        let quantized =
+            sharded::<2>(data.clone(), &sharded_compute(2), sharding).quantize_dynamic(&scheme);
+
+        assert_eq!(quantized.sharding(), Some(sharding));
+        assert_eq!(quantized.into_data(), expected, "{sharding:?}");
+    }
+}
+
+#[test]
+fn a_split_tensor_quantizes_on_each_member_by_one_shared_scale() {
+    let data = values([4, 8], 1);
+    let expected = Tensor::<2>::from_data(data.clone(), &one_member())
+        .quantize_dynamic(&QuantScheme::default())
+        .into_data();
+
+    let quantized = sharded::<2>(data, &sharded_compute(2), Split { dim: 0 })
+        .quantize_dynamic(&QuantScheme::default());
+
+    assert_eq!(quantized.sharding(), Some(Split { dim: 0 }));
+    assert_eq!(quantized.into_data(), expected);
+}
+
+/// Scales calibrated on a `[1, 16]` tensor have the shape `[1, 4]`, not the `[2, 2]` grid of the
+/// tensor they quantize, which reads them in block order: a split of the columns cannot follow.
+/// CubeK reads scales by the grid's strides, so only Flex takes scales of another shape.
+#[cfg(not(any(feature = "test-cuda", feature = "test-mixed-runtimes")))]
+#[test]
+fn a_tensor_quantized_by_scales_of_another_grid_matches_one_device() {
+    let scheme = QuantScheme::default().per_block([4], ScaleDtype::F32);
+    let data = values([2, 8], 1);
+    let quantize = |device: &Device, tensor: Tensor<2>| {
+        let calibrated = Tensor::<2>::from_data(values([1, 16], 3), device);
+        let range = compute_range(&scheme, &calibrated, &Calibration::MinMax);
+        tensor
+            .quantize(&scheme, compute_q_params(&scheme, range))
+            .into_data()
+    };
+    let member = one_member();
+    let expected = quantize(&member, Tensor::from_data(data.clone(), &member));
+    let device = sharded_compute(2);
+
+    let quantized = quantize(&device, sharded::<2>(data, &device, Split { dim: 1 }));
+
+    assert_eq!(quantized, expected);
+}
+
+/// A member's select requantizes, and the global scale it would draw from its own columns is
+/// a quarter of the other's.
+#[test]
+fn a_select_of_a_split_tensor_with_a_global_scale_lands_whole() {
+    let scheme = QuantScheme::default()
+        .with_value(QuantValue::Q8S)
+        .per_block([4], ScaleDtype::F16)
+        .per_tensor(ScaleDtype::F32);
+    let values: Vec<f32> = (0..32)
+        .map(|i| ((i * 7) as f32 * 0.37).sin() * if i % 8 < 4 { 1.0 } else { 4.0 })
+        .collect();
+    let member = one_member();
+    let quantized = Tensor::<2>::from_data(TensorData::new(values, [4, 8]), &member)
+        .quantize_dynamic(&scheme)
+        .into_data();
+    let rows = TensorData::from([3i64, 0]);
+    let expected = Tensor::<2>::from_data(quantized.clone(), &member)
+        .select(0, Tensor::<1, Int>::from_data(rows.clone(), &member))
+        .into_data();
+    let device = sharded_compute(2);
+
+    let picked = sharded::<2>(quantized, &device, Split { dim: 1 })
+        .select(0, Tensor::<1, Int>::from_data(rows, &device));
+
+    assert_eq!(picked.sharding(), Some(Replicated));
+    assert_eq!(picked.into_data(), expected);
+}
+
+#[test]
+fn a_split_quantized_tensor_stays_split_through_a_select_of_another_dim() {
+    let weight = block_quantized(values([4, 8], 2));
+    let rows = TensorData::from([3i64, 0]);
+    let member = one_member();
+    let expected = Tensor::<2>::from_data(weight.clone(), &member)
+        .select(0, Tensor::<1, Int>::from_data(rows.clone(), &member))
+        .into_data();
+    let device = sharded_compute(2);
+
+    let picked = sharded::<2>(weight, &device, Split { dim: 1 })
+        .select(0, Tensor::<1, Int>::from_data(rows, &device));
+
+    assert_eq!(picked.sharding(), Some(Split { dim: 1 }));
+    assert_eq!(picked.into_data(), expected);
 }
 
 #[test]
@@ -723,6 +827,11 @@ fn member_devices() -> Vec<Device> {
 #[cfg(not(any(feature = "test-cuda", feature = "test-mixed-runtimes")))]
 fn member_devices() -> Vec<Device> {
     vec![Device::flex()]
+}
+
+/// The first member's device, which computes a reference on the backend under test.
+fn one_member() -> Device {
+    member_devices().remove(0)
 }
 
 fn sharded<const D: usize>(data: TensorData, device: &Device, sharding: Sharding) -> Tensor<D> {

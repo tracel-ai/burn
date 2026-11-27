@@ -11,6 +11,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
+use burn_backend::ops::ReadFuture;
 use burn_backend::{
     Backend, BackendGraph, DType, DeviceDescription, DeviceOps, DeviceTelemetry, EnvironmentBundle,
     EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary, ExecutionError,
@@ -2127,13 +2128,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         .attn_bias
                         .as_ref()
                         .map(|ab| handles.get_float_tensor::<B>(ab));
-                    let cache =
-                        desc.lengths
-                            .as_ref()
-                            .map(|lengths| burn_backend::ops::AttentionCache {
-                                lengths: handles.get_int_tensor::<B>(lengths),
-                                pages: desc.pages.as_ref().map(|p| handles.get_int_tensor::<B>(p)),
-                            });
+                    let cache = desc
+                        .lengths
+                        .as_ref()
+                        .zip(desc.depth)
+                        .map(|(lengths, depth)| burn_backend::ops::AttentionCache {
+                            lengths: handles.get_int_tensor::<B>(lengths),
+                            pages: desc.pages.as_ref().map(|p| handles.get_int_tensor::<B>(p)),
+                            depth,
+                        });
 
                     let output = B::attention(
                         query,
@@ -2399,7 +2402,10 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 let error = ExecutionError::from(error);
                 Box::pin(async move { Err(error) })
             }
-            None => self.take_for_read(&tensor).into_data(),
+            None => {
+                let read = self.take_for_read(&tensor);
+                submitted(|| read.into_data())
+            }
         }
     }
 
@@ -2426,7 +2432,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 let error = ExecutionError::from(error);
                 Box::pin(async move { Err(error) })
             }
-            None => Box::pin(batch.execute()),
+            None => submitted(|| Box::pin(batch.execute())),
         }
     }
 
@@ -2610,9 +2616,36 @@ impl<B: BackendIr> TensorInterpreter<B> {
         B::measure_peaks(&self.device, keys)
     }
 
-    /// Prepare the backend for a graph capture.
+    /// What the link from the interpreter's device to `to` delivers across transfer sizes.
+    pub fn measure_link(&self, to: &B::Device, sizes: &[u64]) -> Vec<Result<Peak, PeakError>> {
+        B::measure_link(&self.device, to, sizes)
+    }
+
+    /// Prepare the backend for a graph capture and start planning its work.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::graph_prepare`].
     pub fn graph_prepare(&self) -> Result<(), ExecutionError> {
         B::graph_prepare(&self.device)
+    }
+
+    /// End one planning run of the work, and answer whether it settled.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::graph_end_run`].
+    pub fn graph_end_run(&self) -> Result<bool, ExecutionError> {
+        B::graph_end_run(&self.device)
+    }
+
+    /// Start the next planning run of the work, once the last one ended.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::graph_start_run`].
+    pub fn graph_start_run(&self) -> Result<(), ExecutionError> {
+        B::graph_start_run(&self.device)
     }
 
     /// Start recording the backend's launches on the calling stream into a graph.
@@ -2655,6 +2688,23 @@ impl<B: Backend> ReadPrimitive<B> {
     }
 }
 
+/// Makes a read with `submit`. A panic of the backend's while submitting is raised when the read
+/// is awaited, so it fails that read rather than whatever made it.
+fn submitted<T: 'static>(submit: impl FnOnce() -> DynFut<T>) -> DynFut<T> {
+    #[cfg(feature = "std")]
+    match std::panic::catch_unwind(core::panic::AssertUnwindSafe(submit)) {
+        Ok(read) => read,
+        Err(payload) => Box::pin(raise(payload)),
+    }
+    #[cfg(not(feature = "std"))]
+    submit()
+}
+
+#[cfg(feature = "std")]
+async fn raise<T>(payload: Box<dyn core::any::Any + Send>) -> T {
+    std::panic::resume_unwind(payload)
+}
+
 /// The tensors of one read, the quantized ones kept out of the backend transaction because a
 /// fused backend's transaction cannot read them.
 #[derive(Default)]
@@ -2690,17 +2740,29 @@ impl<B: Backend> ReadBatch<B> {
         self.len += 1;
     }
 
-    async fn execute(self) -> Result<Vec<TensorData>, ExecutionError> {
+    /// Submits every read of the batch, then waits for them.
+    fn execute(self) -> impl ReadFuture<Vec<TensorData>> {
         // Some backends' transactions cannot run without a tensor to find their device from.
-        let mut data = if self.transaction_holds_tensors() {
-            self.transaction.execute_async().await?
+        let transaction = if self.transaction_holds_tensors() {
+            Some(self.transaction.execute_async())
         } else {
-            Vec::with_capacity(self.len)
+            None
         };
+        let mut quantized = Vec::with_capacity(self.quantized.len());
         for read in self.quantized {
-            data.insert(read.position, B::q_into_data(read.tensor).await?);
+            quantized.push((read.position, B::q_into_data(read.tensor)));
         }
-        Ok(data)
+        let len = self.len;
+        async move {
+            let mut data = match transaction {
+                Some(read) => read.await?,
+                None => Vec::with_capacity(len),
+            };
+            for (position, read) in quantized {
+                data.insert(position, read.await?);
+            }
+            Ok(data)
+        }
     }
 }
 
@@ -2710,6 +2772,17 @@ mod tests {
     use burn_backend::quantization::{QuantScheme, QuantStore, QuantValue};
     use burn_flex::Flex;
     use burn_ir::{CastOpIr, MatmulOpIr};
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_panic_submitting_a_read_is_raised_when_it_is_awaited() {
+        let read = submitted::<()>(|| panic!("the backend refused the read"));
+
+        let awaited = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
+            burn_std::future::block_on(read)
+        }));
+        assert!(awaited.is_err());
+    }
 
     #[test]
     fn a_quantized_matmul_yields_the_dtype_the_client_recorded() {

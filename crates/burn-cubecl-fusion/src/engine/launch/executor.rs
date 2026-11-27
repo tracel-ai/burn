@@ -1,12 +1,12 @@
 use super::{HandleInput, HandleOutput, LaunchPlan, ReferenceSelection};
-use crate::engine::launch::layout::permuted_innermost_axis;
 use crate::engine::launch::runner::TraceRunner;
 use crate::engine::trace::{FuseResources, TensorView, TraceError, TuneOutput, block::FuseBlock};
 use crate::{
     CubeFusionHandle,
     engine::{
         codegen::ir::{
-            FuseBlockConfig, FuseOp, FuseType, GlobalArgsLaunch, RefLayout, VirtualLayout,
+            ConcatArgsLaunch, FuseArg, FuseBlockConfig, FuseOp, FuseType, GlobalArgsLaunch,
+            RefLayout, VirtualLayout,
         },
         codegen::tensor::GlobalTensorArg,
     },
@@ -106,18 +106,44 @@ impl<'a> LaunchPlanExecutor<'a> {
         let mut configs = Vec::with_capacity(plan.blocks.len());
 
         for (block_plan, block) in plan.blocks.into_iter().zip(self.blocks) {
-            // Which axis a vector runs along. Only a concrete reference can be
-            // permuted; the virtual ones are indexed through a transform written
-            // against the last dimension. The vectorization planner picks a tensor's
-            // axis by the same rule, so the axis a vector is sized along and the one
-            // it is stepped along are the same.
-            let vector_axis = match &block_plan.reference {
-                ReferenceSelection::Concrete { shape, strides, .. } => {
-                    permuted_innermost_axis(shape, strides)
+            let vector_axis = block_plan
+                .vector_axis
+                .unwrap_or(plan.rank.saturating_sub(1));
+
+            let mut ops = Vec::<FuseOp>::new();
+
+            for read_ops in block_plan.reads.into_values() {
+                for op in read_ops {
+                    ops.push(op);
                 }
-                _ => None,
             }
-            .unwrap_or(plan.rank.saturating_sub(1));
+
+            let concat_args_offset = inputs.concats.values.len();
+            for op in &block.ops {
+                if let FuseOp::Cat {
+                    inputs: tensors,
+                    dim,
+                    ..
+                } = op
+                {
+                    let args = concat_args(
+                        &inputs,
+                        tensors,
+                        *dim,
+                        vector_axis,
+                        block_plan.width,
+                        &block_plan.reference,
+                    );
+                    inputs.concats.push(args);
+                }
+                ops.push(op.clone());
+            }
+
+            for opsw in block_plan.writes.into_values() {
+                for op in opsw {
+                    ops.push(op);
+                }
+            }
 
             let reference = match block_plan.reference {
                 ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
@@ -142,28 +168,11 @@ impl<'a> LaunchPlanExecutor<'a> {
                 }
             };
 
-            let mut ops = Vec::<FuseOp>::new();
-
-            for read_ops in block_plan.reads.into_values() {
-                for op in read_ops {
-                    ops.push(op);
-                }
-            }
-
-            for op in block.ops.iter() {
-                ops.push(op.clone());
-            }
-
-            for opsw in block_plan.writes.into_values() {
-                for op in opsw {
-                    ops.push(op);
-                }
-            }
-
             let config = FuseBlockConfig {
                 rank: plan.rank,
                 ref_layout: reference,
                 ops,
+                concat_args_offset,
                 width: block_plan.width,
                 vector_axis,
             };
@@ -179,6 +188,43 @@ impl<'a> LaunchPlanExecutor<'a> {
         })?;
 
         Ok(tune_output)
+    }
+}
+
+fn concat_args(
+    inputs: &GlobalArgsLaunch,
+    tensors: &[FuseArg],
+    dim: usize,
+    vector_axis: usize,
+    width: usize,
+    reference: &ReferenceSelection,
+) -> ConcatArgsLaunch {
+    let mut contiguous = match reference {
+        ReferenceSelection::Concrete { shape, strides, .. } => {
+            burn_std::is_contiguous(shape, strides)
+        }
+        ReferenceSelection::VirtualShape { .. }
+        | ReferenceSelection::Reshaped { .. }
+        | ReferenceSelection::SwapDims { .. } => true,
+        ReferenceSelection::Runtime { .. } | ReferenceSelection::Searching => false,
+    };
+    let mut boundaries = cubecl::prelude::SequenceArg::new();
+    let mut end = 0;
+    let mut whole_vectors = true;
+    for (i, tensor) in tensors.iter().enumerate() {
+        let arg = inputs.resolve_arg(tensor);
+        contiguous = contiguous && burn_std::is_contiguous(arg.shape(), arg.strides());
+        end += arg.shape()[dim];
+        // Only interior boundaries can split a vector between two inputs.
+        if i + 1 < tensors.len() {
+            boundaries.push(end);
+            whole_vectors &= dim != vector_axis || end.is_multiple_of(width);
+        }
+    }
+    ConcatArgsLaunch {
+        boundaries,
+        whole_vectors,
+        contiguous,
     }
 }
 

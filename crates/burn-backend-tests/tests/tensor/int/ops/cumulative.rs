@@ -132,3 +132,23 @@ fn test_cummax_int_negative_dim() {
         .into_data()
         .assert_eq(&TensorData::from([[3, 3, 4], [1, 5, 5]]), false);
 }
+
+#[test]
+fn should_wrap_i32_cumsum_on_overflow() {
+    let tensor = TestTensorInt::<1>::from([i32::MAX, 1, 1]);
+
+    tensor
+        .cumsum(0)
+        .into_data()
+        .assert_eq(&TensorData::from([i32::MAX, i32::MIN, i32::MIN + 1]), false);
+}
+
+#[test]
+fn should_wrap_i32_cumprod_on_overflow() {
+    let tensor = TestTensorInt::<1>::from([i32::MAX, 2, 1]);
+
+    tensor
+        .cumprod(0)
+        .into_data()
+        .assert_eq(&TensorData::from([i32::MAX, -2, -2]), false);
+}

@@ -22,7 +22,6 @@ doc = [
     "burn-core/doc",
 ]
 std = ["burn-core/std", "burn-pack/std", "num-traits/std", "serde/std", "log"]
-tracing = ["burn-core/tracing"]
 
 # collective = ["burn-collective"]
 

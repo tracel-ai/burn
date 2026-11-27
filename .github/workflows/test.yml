@@ -86,8 +86,7 @@ jobs:
         run: cargo xtask check format
       # --------------------------------------------------------------------------------
       - name: Lint
-        # Cover opt-in backend instrumentation; regular tests exercise tracing-disabled builds.
-        run: cargo xtask check --features burn/tracing lint
+        run: cargo xtask check lint
       # --------------------------------------------------------------------------------
       - name: Typos
         uses: tracel-ai/github-actions/check-typos@v12
@@ -156,7 +155,7 @@ jobs:
         run: |
           # Interrupted processes can leave empty profiles that LLVM cannot merge.
           find ./target/coverage/profiles -type f -name '*.profraw' -empty -delete
-          grcov ./target/coverage/profiles --binary-path ./target/debug/deps/ \
+          grcov ./target/coverage/profiles --binary-path ./target/debug/ \
             -s . -t lcov -o lcov.info --branch --ignore-not-existing --keep-only "crates/*"
           # grcov can exit successfully even when profile merging fails.
           if ! grep -q '^SF:crates/' lcov.info; then

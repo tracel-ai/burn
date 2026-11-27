@@ -4,9 +4,9 @@ use burn_backend::RandomKey;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceTelemetry,
     EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
-    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
-    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
-    SaveOptions, profile_with_tokens,
+    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, HostTransfer,
+    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
+    PruneOptions, Pruned, SaveOptions, profile_with_tokens,
 };
 use core::marker::PhantomData;
 
@@ -186,6 +186,22 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
         get_client::<R>(device).measure_peaks(keys)
     }
 
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        get_client::<R>(from).measure_link(to, sizes)
+    }
+
+    fn measure_host_link(
+        device: &Self::Device,
+        transfer: HostTransfer,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        get_client::<R>(device).measure_host_link(transfer, sizes)
+    }
+
     fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
         let client = get_client::<R>(device);
         client.dtype_usage(dtype)
@@ -204,6 +220,16 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = get_client::<R>(device);
         client.graph_prepare()
+    }
+
+    fn graph_end_run(device: &Self::Device) -> Result<bool, ExecutionError> {
+        let client = get_client::<R>(device);
+        client.graph_end_run()
+    }
+
+    fn graph_start_run(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = get_client::<R>(device);
+        client.graph_start_run()
     }
 
     // The interpreter records the graph on its own backend, so the capture opens and closes

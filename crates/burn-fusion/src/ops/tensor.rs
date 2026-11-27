@@ -6,6 +6,7 @@ use crate::{
     unary_float_ops,
 };
 use burn_backend::RandomKey;
+use burn_backend::ops::ReadFuture;
 use burn_backend::{
     BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
     TensorData,
@@ -54,11 +55,6 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(
-        level="trace",
-        skip(data),
-        fields(shape = ?data.shape(), dtype = ?data.dtype())
-    ))]
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         let client = get_client::<B>(device);
         let dtype = data.dtype();
@@ -223,28 +219,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(
-        level="trace",
-        skip(tensor),
-        fields(
-            from = ?tensor.client.device(),
-            shape = ?tensor.shape,
-            dtype = ?tensor.dtype
-        )
-    ))]
-    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
-        tensor.into_data::<B>().await
+    fn float_into_data(tensor: FloatTensor<Self>) -> impl ReadFuture<TensorData> {
+        tensor.into_data::<B>()
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(
-        level="trace",
-        skip(tensor),
-        fields(
-            from = ?tensor.client.device(),
-            shape = ?tensor.shape,
-            dtype = ?tensor.dtype,
-        )
-    ))]
     fn float_to_device(tensor: FloatTensor<Self>, device_dst: &Device<Self>) -> FloatTensor<Self> {
         let device_src: &B::Device = tensor.client.device();
 

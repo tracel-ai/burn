@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use burn_backend::RandomKey;
 use burn_backend::{
-    BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
+    BoolDType, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::{FloatTensorOps, PadMode},
     tensor::{BoolTensor, FloatTensor, IndexingUpdateOp, IntTensor},
 };
@@ -36,8 +36,10 @@ impl FloatTensorOps<Self> for Dispatch {
         B::float_random(shape, distribution, device, dtype, key)
     }
 
-    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
-        B::float_into_data(tensor).await
+    // A concrete type, so that a build with no backend, whose body is never reached, still has one.
+    #[allow(refining_impl_trait)]
+    fn float_into_data(tensor: FloatTensor<Self>) -> crate::backend::BoxedRead<TensorData> {
+        alloc::boxed::Box::pin(B::float_into_data(tensor))
     }
 
     #[backend_dispatch(skip)]

@@ -2,6 +2,8 @@ pub use super::*;
 
 mod cat;
 #[cfg(feature = "cube")]
+mod conv_transpose;
+#[cfg(feature = "cube")]
 mod dequantize;
 mod fusion_f16_broadcast;
 mod fusion_f16_write_vectorization;
@@ -20,6 +22,8 @@ mod matmul_epilogue_view;
 mod nhwc_relayout;
 #[cfg(feature = "cube")]
 mod padded_layout;
+#[cfg(feature = "cube")]
+mod pair_extrema;
 mod reduce_broadcasted;
 mod reduce_logical;
 mod select;

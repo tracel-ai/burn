@@ -6,11 +6,11 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use burn_ir::TensorIr;
 use burn_std::{DType, quantization::QParamTensor};
-use cubecl::{prelude::TensorBinding, tile::Axis, zspace::metadata::Metadata};
+use cubecl::{prelude::TensorBinding, tile::Dimension, zspace::metadata::Metadata};
 use cubek::matmul::kernels::{
     plan::MatmulCallInput,
     select::problem::OperandKind,
-    tensor::{PackedTensor, PlainTensor, StoredTensor},
+    tensor::{PlainTensor, StoredTensor},
 };
 
 /// One operand of a fused product: the tensor the trace names, and the handle it lies in.
@@ -39,11 +39,11 @@ impl<'a> TraceOperand<'a> {
         (self.handle.metadata(self.tensor.shape.clone()), kind)
     }
 
-    /// It as one matrix over `axes`, bound as it is stored where its handle lies: plain, or,
-    /// quantized, packed under its scales ([`PackedTensor::of_quantized`]).
+    /// It as one matrix over `dimensions`, bound as it is stored where its handle lies: plain, or,
+    /// quantized, under its scales ([`StoredTensor::of_quantized`]).
     pub(super) fn call_input(
         &self,
-        axes: [Axis; 2],
+        dimensions: [Dimension; 2],
     ) -> Result<MatmulCallInput, TileFusedMatmulError> {
         let (tensor, handle) = (self.tensor, self.handle);
         let meta = handle.metadata(tensor.shape.clone());
@@ -58,17 +58,17 @@ impl<'a> TraceOperand<'a> {
             .expect("a quantized operand holds its scales");
         let block_scales = self.param(&qparams.scales);
         let global_scale = qparams.global.as_ref().map(|scale| self.param(scale));
-        let packed = PackedTensor::of_quantized(
+        let stored = StoredTensor::of_quantized(
             &handle.client,
             values,
             scheme,
             block_scales,
             global_scale,
-            axes,
+            dimensions,
         )
         .map_err(TileFusedMatmulError::Operand)?;
         Ok(MatmulCallInput {
-            tensor: StoredTensor::Packed(packed),
+            tensor: stored,
             meta,
             framework_dequantize: None,
         })

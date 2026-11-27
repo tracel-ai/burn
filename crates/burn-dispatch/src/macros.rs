@@ -95,6 +95,41 @@ macro_rules! dispatch_device_arms {
     };
 }
 
+/// Match arm generator for `dispatch_device_pair`.
+macro_rules! dispatch_device_pair_arms {
+    (
+        $from:expr, $to:expr,
+        |$a:ident, $b:ident| $body:expr, $otherwise:expr;
+        $([$Backend:ident, $cfg:meta]),*
+    ) => {
+        match ($from, $to) {
+            $(
+                #[cfg($cfg)]
+                ($crate::DispatchDevice::$Backend($a), $crate::DispatchDevice::$Backend($b)) => {
+                    type B = $crate::backends::$Backend;
+                    $body
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            _ => $otherwise,
+        }
+    };
+}
+
+/// Dispatches an operation over two devices of one backend, or answers `$otherwise` for two
+/// devices of different backends.
+macro_rules! dispatch_device_pair {
+    ($from:expr, $to:expr, |$a:ident, $b:ident| $body:expr, $otherwise:expr) => {
+        backend_list!(
+            dispatch_device_pair_arms,
+            $from,
+            $to,
+            |$a, $b| $body,
+            $otherwise
+        )
+    };
+}
+
 /// Dispatches an operation body based on the provided device.
 macro_rules! dispatch_device {
     ($device:expr, |$inner:ident| $body:expr) => {
@@ -482,7 +517,9 @@ macro_rules! transaction_op_arms {
                         // Not supported
                         let qfloats = $tx.read_qfloats.into_iter().map(|_t| todo!("Quantization not supported yet")).collect();
 
-                        B::tr_execute(TransactionPrimitive::new(floats, qfloats, ints, bools)).await
+                        let read: $crate::backend::BoxedRead<TransactionPrimitiveData> =
+                            alloc::boxed::Box::pin(B::tr_execute(TransactionPrimitive::new(floats, qfloats, ints, bools)));
+                        read
                     }
                 )*
                     $crate::DispatchTensorKind::Autodiff(..) => unreachable!("Autodiff should not wrap an autodiff tensor.")
@@ -501,7 +538,9 @@ macro_rules! transaction_op_arms {
                     // Not supported
                     let qfloats = $tx.read_qfloats.into_iter().map(|_t| todo!("Quantization not supported yet")).collect();
 
-                    B::tr_execute(TransactionPrimitive::new(floats, qfloats, ints, bools)).await
+                    let read: $crate::backend::BoxedRead<TransactionPrimitiveData> =
+                        alloc::boxed::Box::pin(B::tr_execute(TransactionPrimitive::new(floats, qfloats, ints, bools)));
+                    read
                 }
             )*
         }

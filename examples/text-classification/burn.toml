@@ -4,9 +4,6 @@ logger = { file = "/tmp/fusion.log", level = "disabled" }
 [cubecl.environment]
 path = "target"
 
-[cubecl.profiling]
-logger = { log = "info", level = "disabled" }
-
 [cubecl.autotune]
 level = "balanced"
 logger = { log = "info", level = "disabled" }
@@ -21,4 +18,4 @@ logger = { level = "disabled", file = "/tmp/memory.log" }
 persistent_memory = "enabled"
 
 [cubecl.streaming]
-max_streams = 8
+max_stream_count = 8

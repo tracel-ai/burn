@@ -1,9 +1,10 @@
-//! Attention's forward pass through cubek's autotune over its tile-DSL routines
+//! Attention's forward pass through the autotune over cubek's tile-DSL routines
 //! ([`launch_tuned`]), for the attentions [`forward_serves`] admits.
 
 use core::num::NonZeroUsize;
 
-use super::kept_arrivals;
+use super::{kept_arrivals, launch_tuned};
+use crate::tune::GroupPriority;
 use crate::{
     CubeBackend,
     kernel::cast,
@@ -15,11 +16,10 @@ use burn_backend::{DType, Shape, cubecl::dtype_to_storage_type};
 use cubecl::features::TypeUsage;
 use cubecl::prelude::InputScalar;
 use cubek::attention::kernels::select::problem::QueryPositions;
-use cubek::attention::kernels::tune::{AttentionTuneInputs, launch_tuned};
 use cubek::attention::kernels::{
-    AttentionScoring, AttentionTensors, AttentionVisibility, QueryPlacement, ScoreScale,
+    AttentionScoring, AttentionTensors, AttentionTuneInputs, AttentionVisibility, QueryPlacement,
+    ScoreScale,
 };
-use cubek::std::autotune::GroupPriority;
 
 /// Whether the tile routines take `query`, `key` and `value` as operands: one element, which they
 /// are verified on and the device runs, and query heads that split evenly over the key heads.
@@ -105,7 +105,7 @@ pub fn forward_serves(
         && visibility_serves(options, query.meta.shape()[2], key.meta.shape()[2])
 }
 
-/// Executes attention through cubek's autotune over its tile-DSL routines, over a key/value
+/// Executes attention through the autotune over cubek's tile-DSL routines, over a key/value
 /// `cache` when one is given. Without one, every position of `key` and `value` is attended; with
 /// one, each sequence attends its first `lengths[b]` positions, a single query among the routines
 /// that serve one, counting in at counters kept for its device and stream.
@@ -132,7 +132,11 @@ pub fn attention_autotune(
     let scoring = scoring(&options, head_dim);
     let (query, key, value) = (query.plain(), key.plain(), value.plain());
     let inputs = match cache {
-        Some(AttentionCache { lengths, pages }) => {
+        Some(AttentionCache {
+            lengths,
+            pages,
+            depth,
+        }) => {
             assert!(
                 mask.is_none(),
                 "the tile-DSL attention takes no mask over a cache"
@@ -146,6 +150,7 @@ pub fn attention_autotune(
                 value,
                 pages.map(|pages| cast(pages, DType::U32).plain()),
                 cast(lengths, DType::U32).plain(),
+                depth,
                 arrivals.map(CubeTensor::plain),
                 scoring,
             )
@@ -168,22 +173,25 @@ pub fn attention_autotune(
                 value,
                 None,
                 lengths.plain(),
+                // burn's key and value are the call's own, every position attended.
+                seq_kv,
                 None,
                 scoring,
             )
             .unwrap_or_else(|why| {
                 panic!("no tile-DSL attention routine serves these operands: {why:?}")
             })
-            // burn's key and value are the call's own, every position attended: the autotune key
-            // holds their extent rather than standing for a cache's.
-            .attending_every_position()
         }
     };
     // A mask broadcast over the batch or the heads is read at stride zero there, never copied.
     let inputs = match mask {
         Some(mask) => {
             let scores = Shape::new([batch, heads, seq_q, seq_kv]);
-            inputs.with_mask(expand(mask, scores).plain())
+            inputs
+                .with_mask(expand(mask, scores).plain())
+                .unwrap_or_else(|why| {
+                    panic!("no tile-DSL attention routine serves this mask: {why:?}")
+                })
         }
         None => inputs,
     };

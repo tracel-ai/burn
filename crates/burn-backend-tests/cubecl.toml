@@ -1,6 +1,3 @@
-[profiling]
-logger = { file = "target/profiling.log", level = "disabled" }
-
 [autotune]
 logger = { file = "target/autotune.log", level = "disabled" }
 
@@ -12,4 +9,4 @@ logger = { file = "target/compilation.log", level = "full" }
 logger = { file = "target/memory.log", level = "disabled" }
 
 [streaming]
-max_streams = 4
+max_stream_count = 4

@@ -1,5 +1,5 @@
 use burn_backend::{
-    ExecutionError, FloatDType, IntDType, Shape, Slice, TensorData, TensorPrimitive,
+    FloatDType, IntDType, Shape, Slice, TensorData, TensorPrimitive,
     ops::QTensorOps,
     quantization::{QuantScheme, QuantizationParametersPrimitive},
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
@@ -246,8 +246,10 @@ impl QTensorOps<Self> for Dispatch {
         B::q_reshape(tensor, shape)
     }
 
-    async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
-        B::q_into_data(tensor).await
+    // A concrete type, so that a build with no backend, whose body is never reached, still has one.
+    #[allow(refining_impl_trait)]
+    fn q_into_data(tensor: QuantizedTensor<Self>) -> crate::backend::BoxedRead<TensorData> {
+        alloc::boxed::Box::pin(B::q_into_data(tensor))
     }
 
     fn q_expand(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {

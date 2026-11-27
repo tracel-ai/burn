@@ -1,7 +1,10 @@
 use crate::execution::OPEN_MODES;
 use crate::{CubeDevice, tensor::CubeTensor};
 use burn_backend::RandomKey;
-use burn_backend::cubecl::{ThroughputKey, dtype_to_storage_type, measure_peak_throughput};
+use burn_backend::cubecl::{
+    LinkKey, LinkRoute, ThroughputKey, dtype_to_storage_type, measure_link_throughput,
+    measure_peak_throughput, transfer_route,
+};
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceDescription,
     DeviceTelemetry, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
@@ -40,7 +43,7 @@ fn qfloat_params_usable(client: &Client, dtype: DType) -> bool {
     quantizable(&scheme)
         && client
             .properties()
-            .type_usage(ElemType::from_scale_dtype(scheme.scale_dtype()))
+            .type_usage(ElemType::from_scale_dtype(scheme.finest().dtype))
             .is_superset(TypeUsage::Buffer | TypeUsage::Conversion)
 }
 
@@ -311,6 +314,16 @@ impl Backend for CubeBackend {
         client.graph_prepare().map_err(graph_err)
     }
 
+    fn graph_end_run(device: &Self::Device) -> Result<bool, ExecutionError> {
+        let client = device.client();
+        client.graph_end_run().map_err(graph_err)
+    }
+
+    fn graph_start_run(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = device.client();
+        client.graph_start_run().map_err(graph_err)
+    }
+
     fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = device.client();
         client.start_capture().map_err(graph_err)
@@ -411,18 +424,18 @@ impl Backend for CubeBackend {
                 };
                 Some(SlicedPoolReport {
                     page_size,
-                    pages: pool.pages,
-                    pages_peak: pool.pages_peak,
-                    largest_alloc: pool.largest_alloc,
+                    pages: pool.page_count,
+                    pages_peak: pool.peak_page_count,
+                    largest_alloc: pool.largest_alloc_bytes,
                 })
             })
             .collect();
         Some(MemoryReport {
             usage: MemoryPoolUsage {
-                number_allocs: usage.number_allocs,
-                bytes_in_use: usage.bytes_in_use,
-                bytes_padding: usage.bytes_padding,
-                bytes_reserved: usage.bytes_reserved,
+                number_allocs: usage.allocation_count,
+                bytes_in_use: usage.in_use_bytes,
+                bytes_padding: usage.padding_bytes,
+                bytes_reserved: usage.reserved_bytes,
             },
             pools,
         })
@@ -441,6 +454,32 @@ impl Backend for CubeBackend {
                     _ => value.ops_per_s(),
                 };
                 Ok(Peak { per_second })
+            })
+            .collect()
+    }
+
+    /// Runs cubecl's link probe over the route a transfer between the two takes.
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        if from == to {
+            return sizes.iter().map(|_| Err(PeakError::Unsupported)).collect();
+        }
+        let members = [from.client(), to.client()];
+        let route = LinkRoute::Transfer(transfer_route(&members[0], &members[1]));
+        sizes
+            .iter()
+            .map(|&bytes| {
+                // cubecl's probe sizes its buffers in `usize`, which a 32-bit target would wrap.
+                if usize::try_from(bytes).is_err() {
+                    return Err(PeakError::Unsupported);
+                }
+                let value = measure_link_throughput(&members, LinkKey { route, bytes })?;
+                Ok(Peak {
+                    per_second: value.ops_per_s(),
+                })
             })
             .collect()
     }

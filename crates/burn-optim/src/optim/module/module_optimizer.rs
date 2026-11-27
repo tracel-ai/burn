@@ -1,17 +1,16 @@
 use burn_core as burn;
 use burn_core::module::ParamGroup;
 
-use super::{Optimizer, ParameterContext};
-use crate::lr_scheduler::module_lr_scheduler::ModuleLearningRate;
+use super::{ModuleLearningRate, Optimizer, ParameterContext};
 use crate::{
     DynOptimizer, DynState, MultiGradientsParams, OptimizerRecord, RecordTensor, StateSink,
     StateSource, grad_clipping::GradientClipping, optim::GradientsParams, optim::state::join_path,
 };
 
 use alloc::collections::BTreeMap;
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
 use alloc::sync::Arc;
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use burn::module::{Module, ModuleMapper, Param, ParamId};
 use burn::store::RecordError;
 use burn::tensor::{Bytes, Device, Tensor};
@@ -240,10 +239,9 @@ impl ModuleOptimizer {
 
     /// Load the optimizer state from an [`OptimizerRecord`].
     ///
-    /// State tensors are materialized on the default device; no device argument is needed because
-    /// each parameter's state is migrated to that parameter's (gradient's) device on the next
-    /// [`step`](ModuleOptimizer::step) — see the `to_device` call in the step path. The load device
-    /// is therefore irrelevant to correctness.
+    /// State tensors are materialized on the default device, which must support their recorded
+    /// numeric dtypes. The next [`step`](ModuleOptimizer::step) moves each parameter's state to
+    /// its gradient's device, which must also support the saved dtypes.
     pub fn load_record(mut self, record: OptimizerRecord) -> Self {
         let device = Device::default();
         let mut ranks: BTreeMap<u64, usize> = BTreeMap::new();

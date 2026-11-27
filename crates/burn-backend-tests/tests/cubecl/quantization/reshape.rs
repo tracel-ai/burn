@@ -2,13 +2,13 @@ use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{
     Shape,
-    quantization::{BlockSize, QuantScheme, QuantStore, QuantValue, ScaleDtype},
+    quantization::{BlockExtent, BlockSize, QuantScheme, QuantStore, QuantValue, ScaleDtype},
 };
 
 fn scheme_for(block: Option<BlockSize>, value: QuantValue, store: QuantStore) -> QuantScheme {
     let scheme = QuantScheme::default().with_value(value).with_store(store);
     match block {
-        Some(block) => scheme.per_block(block.as_slice(), ScaleDtype::F32),
+        Some(block) => scheme.per_block(block, ScaleDtype::F32),
         None => scheme,
     }
 }
@@ -42,6 +42,35 @@ fn should_quantize_dequantize_per_block_arange_reshaped<const D1: usize, const D
     let output = input.dequantize().into_data();
 
     output.assert_approx_eq::<FloatElem>(&output_ref, Tolerance::permissive());
+}
+
+#[test]
+fn should_quantize_dequantize_per_row_reshaped_outer_axes() {
+    should_quantize_dequantize_per_block_arange_reshaped(
+        Some(BlockSize::with_rest(
+            &[BlockExtent::WholeAxis],
+            BlockExtent::VALUE,
+        )),
+        QuantValue::Q8S,
+        QuantStore::PackedU32(0),
+        [6, 16],
+        [2, 3, 16],
+    )
+}
+
+#[test]
+#[should_panic(expected = "not yet supported")]
+fn should_refuse_to_reshape_the_axis_a_scale_covers() {
+    should_quantize_dequantize_per_block_arange_reshaped(
+        Some(BlockSize::with_rest(
+            &[BlockExtent::WholeAxis],
+            BlockExtent::VALUE,
+        )),
+        QuantValue::Q8S,
+        QuantStore::PackedU32(0),
+        [6, 16],
+        [12, 8],
+    )
 }
 
 #[test]

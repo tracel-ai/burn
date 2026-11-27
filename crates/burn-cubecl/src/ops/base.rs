@@ -2,9 +2,10 @@ use crate::{
     CubeBackend, CubeDevice, kernel, ops::numeric::empty_device_dtype, tensor::CubeTensor,
 };
 use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::ops::ReadFuture;
 use burn_backend::{
-    DType, ExecutionError, Shape, TensorData,
-    quantization::{QuantStore, params_shape},
+    DType, Shape, TensorData,
+    quantization::{BlockExtent, BlockSize, QuantStore, params_shape},
 };
 use burn_backend::{TensorMetadata, ops::QTensorOps, ops::unfold::calculate_unfold_shape};
 use burn_std::{
@@ -34,10 +35,11 @@ pub(crate) fn from_data(data: TensorData, device: &CubeDevice) -> CubeTensor {
     )
 }
 
-pub(crate) async fn into_data(tensor: CubeTensor) -> Result<TensorData, ExecutionError> {
+pub(crate) fn into_data(tensor: CubeTensor) -> impl ReadFuture<TensorData> {
     let tensor = kernel::into_contiguous_aligned(tensor);
 
     let elem_size = tensor.elem_size();
+    let dtype = tensor.dtype;
     let shape = tensor.meta.shape().clone();
     let strides = tensor.meta.strides().clone();
     // Under an async runtime (e.g. a remote server), a lazy read defers the device→host
@@ -47,21 +49,31 @@ pub(crate) async fn into_data(tensor: CubeTensor) -> Result<TensorData, Executio
     // handle until its bytes are read, so no in-place kernel writes the buffer first.
     let read = match burn_std::runtime_kind() {
         burn_std::RuntimeKind::Async => {
-            let binding = CopyDescriptor::new(tensor.handle.binding(), shape, strides, elem_size);
-            tensor.client.read_one_tensor_async(binding).await
+            let binding =
+                CopyDescriptor::new(tensor.handle.binding(), shape.clone(), strides, elem_size);
+            Read::Eager(tensor.client.read_one_tensor_async(binding))
         }
         _ => {
-            let source = CopyDescriptor::new(tensor.handle.clone(), shape, strides, elem_size);
-            tensor.client.read_lazy_async(source).await
+            let source =
+                CopyDescriptor::new(tensor.handle.clone(), shape.clone(), strides, elem_size);
+            Read::Lazy(tensor.client.read_lazy_async(source))
         }
     };
-    let bytes = read.map_err(crate::backend::server_err)?;
 
-    Ok(TensorData::from_bytes(
-        bytes,
-        tensor.meta.shape.clone(),
-        tensor.dtype,
-    ))
+    async move {
+        let bytes = match read {
+            Read::Eager(read) => read.await,
+            Read::Lazy(read) => read.await,
+        };
+        let bytes = bytes.map_err(crate::backend::server_err)?;
+        Ok(TensorData::from_bytes(bytes, shape, dtype))
+    }
+}
+
+/// Either kind of read, started at the call and awaited later, without boxing it.
+enum Read<E, L> {
+    Eager(E),
+    Lazy(L),
 }
 
 /// Read data from a `CubeTensor` synchronously
@@ -70,10 +82,6 @@ pub fn into_data_sync(tensor: CubeTensor) -> TensorData {
     burn_std::future::block_on(into_data(tensor)).unwrap()
 }
 
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(level = "trace", skip(tensor, device))
-)]
 pub(crate) fn to_device(tensor: CubeTensor, device: &CubeDevice) -> CubeTensor {
     if &tensor.device == device {
         return tensor;
@@ -153,7 +161,7 @@ pub(crate) fn swap_dims(tensor: CubeTensor, dim1: usize, dim2: usize) -> CubeTen
     tensor.meta.swap(dim1, dim2);
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
-        && scheme.block_size().is_some()
+        && scheme.finest().size != BlockSize::TENSOR
     {
         let rank = tensor.meta.num_dims();
         scheme.swap_block_dims(rank, dim1, dim2);
@@ -184,10 +192,9 @@ pub fn permute(tensor: CubeTensor, axes: &[usize]) -> CubeTensor {
     tensor.meta.permute(axes).unwrap();
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
-        && scheme.block_size().is_some()
+        && scheme.finest().size != BlockSize::TENSOR
     {
-        let rank = tensor.meta.num_dims();
-        scheme.permute_block_dims(rank, axes);
+        scheme.permute_block_dims(axes);
 
         let qparams = tensor.qparams.as_mut().unwrap();
         qparams.scales.metadata.permute(axes).unwrap();
@@ -261,7 +268,7 @@ pub(crate) fn expand(tensor: CubeTensor, target_shape: Shape) -> CubeTensor {
     let shape = tensor.shape();
 
     // Extra check to ensure block scales must be properly handled once they're added
-    if tensor.qparams.is_some() && tensor.scheme().block_size().is_some() {
+    if tensor.qparams.is_some() && tensor.scheme().finest().size != BlockSize::TENSOR {
         todo!()
     }
 
@@ -369,6 +376,16 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
     };
 
     let (values, scales) = tensor.quantized_handles().unwrap();
+    let size = scheme.finest().size;
+    // Blocks that reach past one value along the last axis alone.
+    let lined = size == BlockSize::with_rest(&size.extents[..1], BlockExtent::VALUE);
+    let shape_last = *shape.last().unwrap();
+    // Blocks in which a reshape that moves their axes would mix values of several scales.
+    let moves_blocks = match size.extents[0] {
+        _ if size == BlockSize::TENSOR => false,
+        BlockExtent::WholeAxis => !lined || curr_shape.last() != Some(&shape_last),
+        BlockExtent::Values(_) => !lined,
+    };
     let analysis_values = reshape_analysis(
         values.meta.shape(),
         Some(values.meta.strides()),
@@ -384,10 +401,7 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
     if let ReshapeAction::UpdateStrides { .. } = &action_values {
         match analysis_values {
             ReshapeAnalysis::IsContiguous => {
-                if let Some(block_size) = scheme.block_size()
-                    && block_size.len() > 1
-                    && !is_unsqueeze
-                {
+                if moves_blocks && !is_unsqueeze {
                     // General reshape (e.g. [32, 4] -> [16, 8]): only valid if
                     // reshaped dimension is aligned with the block boundaries.
                     unimplemented!("Reshape of ND block-quantized tensor is not yet supported.");
@@ -395,9 +409,7 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
             }
             ReshapeAnalysis::Broadcasted => {} // only preprends unit dims
             ReshapeAnalysis::Split => {
-                if let Some(block_size) = scheme.block_size()
-                    && block_size.len() > 1
-                {
+                if moves_blocks {
                     // Split reshape (e.g. [32, 4] -> [32, 2, 2]): only valid if
                     // reshaped dimension is aligned with the block boundaries.
                     unimplemented!(
@@ -409,12 +421,10 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
         }
     }
 
-    let shape_last = *shape.last().unwrap();
-
     // The per-tensor scale is a scalar in its own region, so only the block grid moves.
-    let shape_scales = match scheme.block_size() {
-        None => scales.meta.shape().clone(), // always [1], invariant under reshape
-        Some(block_size) if block_size.len() == 1 && shape_last < (block_size[0] as usize) => {
+    let shape_scales = match size.extents[0] {
+        _ if size == BlockSize::TENSOR => scales.meta.shape().clone(), // always [1], invariant under reshape
+        BlockExtent::Values(values) if lined && shape_last < values.get() as usize => {
             // If the new last dimension is smaller than the block size,
             // it means a single block now spans across multiple rows.
             if scales.meta.shape().num_elements() > 1 {
@@ -424,12 +434,12 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
             // several rows the per-row block index points past the one scale.
             if shape.num_elements() > shape_last {
                 unimplemented!(
-                    "Cannot reshape block-quantized tensor to {shape:?}: not a whole number of {block_size:?} blocks"
+                    "Cannot reshape block-quantized tensor to {shape:?}: not a whole number of blocks of {values}"
                 );
             }
             scales.meta.shape().clone()
         }
-        Some(_) => {
+        _ => {
             // ND blocks: derive scales shape from the new tensor shape
             params_shape(&shape, &scheme)
         }
@@ -477,7 +487,7 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
                 )
             }
 
-            if scheme.block_size().is_some() && shape_scales.num_elements() > 1 {
+            if size != BlockSize::TENSOR && shape_scales.num_elements() > 1 {
                 // Original block boundaries no longer align with the layout, would have to be recomputed
                 unimplemented!(
                     "Cannot reshape a block-quantized tensor when the reshape requires recomputing the buffer."

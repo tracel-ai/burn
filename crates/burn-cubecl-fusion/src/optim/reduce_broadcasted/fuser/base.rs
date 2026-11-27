@@ -3,11 +3,7 @@ use crate::optim::{
     reduce::{ReduceFuser, ReduceFuserInfo, ReduceSettings},
     reduce_broadcasted::{
         ReduceBlockOptimInfo, ReduceBroadcastedOptimization, ReduceBroadcastedOptimizationInfo,
-        fuser::{
-            block::{ReduceBlockFuser, ReduceBlockFusionAnalysis, ReduceBroadcastedStatus},
-            full::ReduceBroadcastedFullFuser,
-            full_analyzer::FullFuserAnalyzer,
-        },
+        fuser::block::{ReduceBlockFuser, ReduceBlockFusionAnalysis, ReduceBroadcastedStatus},
     },
 };
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
@@ -20,7 +16,6 @@ pub struct ReduceBroadcastedFuser {
     fuser_default: ReduceFuser,
     num_ops: usize,
     state: ReduceBroadcastedStatus,
-    max_bindings: u32,
     /// Whether nothing was fused or finished since the last reset, so a reset has nothing to undo.
     /// The stream resets every fuser after each block it executes, and rebuilding the blocks
     /// clones the default reduce fuser.
@@ -34,7 +29,6 @@ impl Clone for ReduceBroadcastedFuser {
             fuser_default: self.fuser_default.clone(),
             num_ops: self.num_ops,
             state: self.state.clone(),
-            max_bindings: self.max_bindings,
             fresh: self.fresh,
         }
     }
@@ -43,7 +37,6 @@ impl Clone for ReduceBroadcastedFuser {
 impl ReduceBroadcastedFuser {
     pub fn new(device: cubecl::Device) -> Self {
         let fuser = ReduceFuser::new(device, ReduceSettings::Always);
-        let max_bindings = fuser.fuser.max_bindings;
         let block = ReduceBlockFuser::new(fuser.clone());
 
         Self {
@@ -51,49 +44,31 @@ impl ReduceBroadcastedFuser {
             fuser_default: fuser,
             num_ops: 0,
             state: ReduceBroadcastedStatus::Starting,
-            max_bindings,
             fresh: true,
         }
     }
 
-    /// Checks whether the full fuser and all fallback blocks together account for every
-    /// operation that has been registered across all blocks.
-    ///
-    /// This is a dry-run consistency check: it simulates finishing all blocks without
-    /// mutating any state, then verifies two invariants:
-    ///
-    /// 1. **Full fuser coverage** — the number of operations absorbed by the
-    ///    [`ReduceBroadcastedFullFuser`] matches the total operation count.
-    /// 2. **Fallback coverage** — the sum of operations across all fallback
-    ///    [`ReduceBlockOptimInfo`] entries also matches the total operation count.
-    ///
-    /// If either invariant fails, the fuser's state should be marked as
-    /// [`ReduceBroadcastedStatus::Abort`] because the optimization would produce
-    /// incorrect results.
+    /// Whether the blocks, finished, account for every operation registered across them: a
+    /// dry run that mutates nothing. Where they don't, the optimization would drop operations, so
+    /// the fuser closes instead.
     fn is_consistent(&self) -> bool {
-        let analyzer = FullFuserAnalyzer::new(&self.blocks);
-        let mut full = ReduceBroadcastedFullFuser::new(self.max_bindings, analyzer);
         let mut num_ops = 0;
-        let fallbacks = self
+        let blocks = self
             .blocks
             .clone()
             .iter_mut()
-            .map(|block| block.finish(&mut num_ops, &mut full))
+            .map(|block| block.finish(&mut num_ops))
             .collect::<Vec<_>>();
 
-        let mut num_ops_fallback = 0;
-
-        for f in fallbacks.iter() {
-            num_ops_fallback += match f {
+        let num_ops_blocks: usize = blocks
+            .iter()
+            .map(|block| match block {
                 ReduceBlockOptimInfo::Reduce(info) => info.len,
                 ReduceBlockOptimInfo::Elemwise(info) => info.num_ops_fused(),
-            };
-        }
+            })
+            .sum();
 
-        let full_fuser_covers_all = full.num_ops_fused() == num_ops;
-        let fallbacks_cover_all = num_ops_fallback == num_ops;
-
-        full_fuser_covers_all && fallbacks_cover_all
+        num_ops_blocks == num_ops
     }
 
     /// Fuses without checking consistency and the current state.
@@ -168,20 +143,14 @@ impl OperationFuser<CubeOptimization> for ReduceBroadcastedFuser {
 
     fn finish(&mut self) -> CubeOptimization {
         self.fresh = false;
-        let analyzer = FullFuserAnalyzer::new(&self.blocks);
-        let mut full = ReduceBroadcastedFullFuser::new(self.max_bindings, analyzer);
         let mut num_ops = 0;
-        let fallbacks = self
+        let blocks = self
             .blocks
             .iter_mut()
-            .map(|block| block.finish(&mut num_ops, &mut full))
+            .map(|block| block.finish(&mut num_ops))
             .collect::<Vec<_>>();
 
-        let broadcasted = Arc::new(full.finish());
-        let info = Arc::new(ReduceBroadcastedOptimizationInfo {
-            fallbacks,
-            broadcasted,
-        });
+        let info = Arc::new(ReduceBroadcastedOptimizationInfo { blocks });
         CubeOptimization::new(ReduceBroadcastedOptimization { info, num_ops })
     }
 

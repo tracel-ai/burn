@@ -268,6 +268,16 @@ fn run_crate_unit_tests(packages: &[&str], args: &TestCmdArgs) -> anyhow::Result
     base_commands::test::run_unit(&Target::Crates, &selected)
 }
 
+fn run_gpu_autotune_tests(runtime: &str, release: bool) -> anyhow::Result<()> {
+    build_helpers::custom_crates_tests(
+        vec!["burn-cubecl"],
+        handle_test_args(&["--lib", "--features", runtime, "tune::"], release),
+        None,
+        None,
+        "GPU autotune tests",
+    )
+}
+
 /// Compile compatible Metal suites together instead of rebuilding their shared GPU stack
 /// for every package. Keep defaults out of the non-fusion group: the WGPU, core, and
 /// vision defaults enable fusion transitively.
@@ -552,7 +562,7 @@ pub(crate) fn handle_command(
             let no_std_test_crates: Vec<&str> = NO_STD_CRATES
                 .iter()
                 .copied()
-                .filter(|&c| c != "burn-flex")
+                .filter(|&c| c != "burn-flex" && c != "burn-optim")
                 .collect();
             ["Default"].iter().try_for_each(|test_target| {
                 let mut test_args = vec!["--no-default-features"];
@@ -607,9 +617,11 @@ pub(crate) fn handle_command(
                     )?;
                 }
                 CiTestType::GithubMacRunner => {
+                    run_gpu_autotune_tests("wgpu-msl", args.release)?;
                     handle_macos_tests(args.release)?;
                 }
                 CiTestType::GcpCudaRunner => {
+                    run_gpu_autotune_tests("cuda", args.release)?;
                     handle_backend_tests(
                         args.clone().try_into().unwrap(),
                         TestBackend::Cuda,
@@ -617,6 +629,7 @@ pub(crate) fn handle_command(
                     )?;
                 }
                 CiTestType::GcpVulkanRunner => {
+                    run_gpu_autotune_tests("vulkan", args.release)?;
                     handle_backend_tests(
                         args.clone().try_into().unwrap(),
                         TestBackend::Vulkan,
@@ -640,6 +653,7 @@ pub(crate) fn handle_command(
                     run_crate_unit_tests(&["burn-optim", "burn-nn"], &args_vulkan)?;
                 }
                 CiTestType::GcpWgpuRunner => {
+                    run_gpu_autotune_tests("wgpu", args.release)?;
                     handle_backend_tests(
                         args.clone().try_into().unwrap(),
                         TestBackend::Wgpu,

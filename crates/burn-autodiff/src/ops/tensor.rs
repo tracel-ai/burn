@@ -1,5 +1,6 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 use burn_backend::RandomKey;
+use burn_backend::ops::ReadFuture;
 use core::marker::PhantomData;
 
 #[cfg(not(feature = "std"))]
@@ -21,7 +22,7 @@ use crate::{
 };
 
 use burn_backend::{
-    Backend, ExecutionError, TensorData, TensorMetadata, get_or_init_device_settings,
+    Backend, TensorData, TensorMetadata, get_or_init_device_settings,
     ops::FloatTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
@@ -108,11 +109,6 @@ fn prod_backward<B: Backend>(
 }
 
 impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> {
-    #[cfg_attr(feature = "tracing", tracing::instrument(
-        level="trace",
-        skip(data),
-        fields(shape = ?data.shape(), dtype = ?data.dtype())
-    ))]
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         AutodiffTensor::new(B::float_from_data(data, device))
     }
@@ -135,28 +131,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         AutodiffTensor::new(B::float_ones(shape, device, dtype))
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(
-        level="trace",
-        skip(tensor),
-        fields(
-            from = ?tensor.node,
-            shape = ?tensor.shape(),
-            dtype = ?tensor.dtype(),
-        )
-    ))]
-    async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
-        B::float_into_data(tensor.primitive).await
+    fn float_into_data(tensor: FloatTensor<Self>) -> impl ReadFuture<TensorData> {
+        B::float_into_data(tensor.primitive)
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(
-        level="trace",
-        skip(tensor),
-        fields(
-            from = ?tensor.node,
-            shape = ?tensor.shape(),
-            dtype = ?tensor.dtype(),
-        )
-    ))]
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct ToDevice;
@@ -2517,7 +2495,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         struct MaskFill;
 
         impl<B: Backend> Backward<B, 1> for MaskFill {
-            type State = BoolTensor<B>;
+            type State = (BoolTensor<B>, Shape);
 
             fn backward(
                 self,
@@ -2525,8 +2503,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
             ) {
+                let (mask, shape) = ops.state;
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    B::float_mask_fill(grad, ops.state, 0f32.into())
+                    let grad = B::float_mask_fill(grad, mask, 0f32.into());
+                    broadcast_shape::<B>(grad, &shape)
                 });
             }
         }
@@ -2537,7 +2517,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
-                mask.clone(),
+                (mask.clone(), tensor.primitive.shape()),
                 B::float_mask_fill(tensor.primitive, mask, value),
             ),
             OpsKind::UnTracked(prep) => {

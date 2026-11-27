@@ -25,14 +25,14 @@ use crate::{
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 14;
+pub const PROTOCOL_VERSION: u16 = 16;
 
 /// Routing id for a task whose result is fetched back.
 ///
 /// Only the result-producing tasks ([`Task::ReadTensors`], [`Task::SyncBackend`],
 /// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`], [`Task::CapturePrepare`],
-/// [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`], the execution-mode,
-/// environment, description and measurement tasks) carry a
+/// [`Task::CaptureEndRun`], [`Task::CaptureStartRun`], [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`],
+/// the execution-mode, environment, description and measurement tasks) carry a
 /// `RequestId`; the server echoes it on its [`TaskResponse`] so the client demultiplexes results
 /// back to the right pending callback. Fire-and-forget tasks have no id because no result ever
 /// comes back.
@@ -111,7 +111,7 @@ impl LocalAllReducePart {
 pub struct TransferCapability([u8; 32]);
 
 impl TransferCapability {
-    #[cfg(feature = "client")]
+    #[cfg(any(feature = "client", test))]
     pub fn random() -> Self {
         Self(rand::random())
     }
@@ -266,6 +266,33 @@ pub struct TensorRemote {
     pub peer: PeerAddr,
 }
 
+/// One transfer size of a link probe between two servers: the source exposes a buffer of `bytes`
+/// under `capability` for the target to download up to `downloads` times.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct LinkPull {
+    pub bytes: u64,
+    pub downloads: u32,
+    pub capability: TransferCapability,
+}
+
+impl LinkPull {
+    /// The largest buffer a server exposes for a link probe.
+    pub const MAX_BYTES: u64 = 64 << 20;
+    /// The most downloads a target makes of one size, the first of which is not timed.
+    pub const MAX_DOWNLOADS: u32 = 11;
+
+    /// Whether a server serves this pull: no more than a client sends, and a warmup and one timed
+    /// download at least.
+    pub fn is_bounded(&self) -> bool {
+        Self::serves_bytes(self.bytes) && (2..=Self::MAX_DOWNLOADS).contains(&self.downloads)
+    }
+
+    /// Whether a server serves a pull of `bytes`, whatever its downloads.
+    pub fn serves_bytes(bytes: u64) -> bool {
+        (1..=Self::MAX_BYTES).contains(&bytes)
+    }
+}
+
 #[allow(missing_docs, clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Task {
@@ -376,11 +403,19 @@ pub enum Task {
     /// something for as long as it stays open, so the client says so rather
     /// than leaving it.
     ProfileAbandon(StreamId, ProfileToken),
-    /// Prepare the server's backend for a graph capture where `stream_id` stands.
+    /// Prepare the server's backend for a graph capture where `stream_id` stands, and start
+    /// planning its work.
     ///
     /// The session holds its device's capture from here until the capture ends, or the session
     /// does: another session's capture on the device is refused meanwhile.
     CapturePrepare(RequestId, StreamId),
+    /// End one planning run of the work on `stream_id`, after every earlier task, and answer
+    /// whether it settled — see
+    /// [`Backend::graph_end_run`](burn_backend::Backend::graph_end_run).
+    CaptureEndRun(RequestId, StreamId),
+    /// Start the next planning run of the work on `stream_id`, after every earlier task — see
+    /// [`Backend::graph_start_run`](burn_backend::Backend::graph_start_run).
+    CaptureStartRun(RequestId, StreamId),
     /// Start recording the server backend's launches on `stream_id` into a graph, after every
     /// earlier task. Answered, since a backend that cannot record one, or a device another
     /// session is capturing on, says so here and the client falls back to re-running.
@@ -434,6 +469,18 @@ pub enum Task {
     MeasureMemory(RequestId, StreamId),
     /// The peak throughput of the session's device for each key.
     MeasurePeaks(RequestId, Vec<PeakKey>),
+    /// Grant the session's device to the same-server link probe that presents the capability.
+    GrantLink(RequestId, TransferCapability),
+    /// The peak throughput of the link from the session's device to the device another session of
+    /// the same server granted under the capability, for each size in bytes.
+    MeasureLinkLocal(RequestId, TransferCapability, Vec<u64>),
+    /// Expose the pull's buffer for `PeerId` to download, answering once it is exposed.
+    ExposeLinkPull(RequestId, PeerId, LinkPull),
+    /// What the link from the server at `PeerAddr` to the session's server delivers at the pull's
+    /// size, timed by downloading the buffer its source exposed.
+    MeasureLinkPull(RequestId, PeerAddr, LinkPull),
+    /// Stop serving the pull's buffer, whatever downloads it has left.
+    WithdrawLinkPull(TransferCapability),
 }
 
 /// The id a server registers a device query under, and a client asks it by.
@@ -507,9 +554,12 @@ pub enum TaskResponseContent {
     /// measurement.
     ProfileEnd(Result<Option<Duration>, ExecutionError>),
     /// The answer to [`CapturePrepare`](Task::CapturePrepare),
-    /// [`CaptureStart`](Task::CaptureStart) and
+    /// [`CaptureStartRun`](Task::CaptureStartRun), [`CaptureStart`](Task::CaptureStart) and
     /// [`CaptureStop`](Task::CaptureStop).
     Capture(Result<(), ExecutionError>),
+    /// The answer to [`CaptureEndRun`](Task::CaptureEndRun): whether the planning run
+    /// settled.
+    CaptureEndRun(Result<bool, ExecutionError>),
     /// The answer to [`DeviceQuery`](Task::DeviceQuery).
     DeviceQuery(Result<serde_bytes::ByteBuf, DeviceQueryFailure>),
     /// The answer to [`ExecutionModeOpen`](Task::ExecutionModeOpen): `None` when the server's
@@ -538,6 +588,14 @@ pub enum TaskResponseContent {
     Memory(Option<MemoryReport>),
     /// The answer to [`MeasurePeaks`](Task::MeasurePeaks), one per key in order.
     Peaks(Vec<Result<Peak, PeakError>>),
+    /// The answer to [`GrantLink`](Task::GrantLink), once the grant is registered.
+    LinkGranted,
+    /// The answer to [`MeasureLinkLocal`](Task::MeasureLinkLocal), one per size in order.
+    Link(Vec<Result<Peak, PeakError>>),
+    /// The answer to [`ExposeLinkPull`](Task::ExposeLinkPull): whether the buffer is exposed.
+    LinkExposed(bool),
+    /// The answer to [`MeasureLinkPull`](Task::MeasureLinkPull).
+    LinkPulled(Result<Peak, PeakError>),
     /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init),
     /// before it closes the session.
     InitRefused(SessionRefusal),
@@ -546,6 +604,21 @@ pub enum TaskResponseContent {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_pull_past_what_a_client_sends_is_not_served() {
+        let pull = |bytes, downloads| LinkPull {
+            bytes,
+            downloads,
+            capability: TransferCapability([0; 32]),
+        };
+
+        assert!(pull(LinkPull::MAX_BYTES, LinkPull::MAX_DOWNLOADS).is_bounded());
+        assert!(!pull(LinkPull::MAX_BYTES + 1, 2).is_bounded());
+        assert!(!pull(4096, LinkPull::MAX_DOWNLOADS + 1).is_bounded());
+        assert!(!pull(0, 2).is_bounded());
+        assert!(!pull(4096, 1).is_bounded());
+    }
 
     #[test]
     fn an_incompatible_protocol_refusal_keeps_its_wire_encoding() {

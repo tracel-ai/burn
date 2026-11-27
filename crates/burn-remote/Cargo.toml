@@ -17,13 +17,6 @@ workspace = true
 [features]
 default = ["client", "server", "iroh", "websocket"]
 doc = []
-tracing = [
-    "burn-communication?/tracing",
-    "burn-ir/tracing",
-    "burn-router/tracing",
-    "burn-std/tracing",
-    "burn-backend/tracing",
-]
 
 client = ["tokio/sync", "tokio/rt"]
 # Cache recurring op-groups on the server and invoke them by id. Wraps `RemoteBackend` in `Fusion`.
@@ -43,7 +36,6 @@ websocket = [
     "burn-communication/data-service",
     "tokio/net",
 ]
-
 
 [dependencies]
 burn-ir = { workspace = true, features = ["default"] }

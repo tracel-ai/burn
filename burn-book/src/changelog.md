@@ -45,9 +45,32 @@ conflicts with it (E0119); delete the handwritten one.
   so each member runs the op's own handler on its shards: an op that runs per head, or has
   several outputs, stays split without a collective handler. `ShardedComputeDevice::num_members`
   counts its members whichever backend they run.
+  ([#6404](https://github.com/tracel-ai/burn/pull/6404))
 
 - `cat` along a dim its inputs are not split on keeps their split on a sharded compute device, and
   partial sums stay partial, instead of gathering every input.
+  ([#6404](https://github.com/tracel-ai/burn/pull/6404))
+
+- `select` along a dim its input is not split on keeps the split on a sharded compute device,
+  instead of gathering the input.
+  ([#6572](https://github.com/tracel-ai/burn/pull/6572),
+  [#6577](https://github.com/tracel-ai/burn/pull/6577))
+
+- On a sharded compute device, `flip`, `pad`, `unfold`, `cross`, `grid_sample_2d` and the sort,
+  top-k and max/min-dim ops that return indices keep their first input's split of a dim they do
+  not read whole, instead of gathering their inputs. `gather` and `scatter` keep a split of any
+  input along a dim they do not index, where every input has the same length, and `select_assign`
+  one of its tensor or values. `gather_nd` and `scatter_nd` keep a split of a dim the index tuples
+  do not address. Module ops other than attention still gather.
+  ([#6576](https://github.com/tracel-ai/burn/pull/6576))
+
+- On a sharded compute device, a quantized tensor whose scales are all per block stays split
+  through `reshape`, `swap_dims`, `permute`, `flip`, `gather`, `select`, `slice` and `expand`
+  wherever the split gives each member whole blocks and packed words, instead of landing whole.
+  `quantize` keeps its input's split when its scales have exactly the block grid's shape, each
+  member quantizing its own blocks. Those ops still land a tensor with a per-tensor or global
+  scale whole, as do other ops with a quantized output.
+  ([#6577](https://github.com/tracel-ai/burn/pull/6577))
 
 #### Compilation and autotuning
 
@@ -158,6 +181,20 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   backends without a reported capacity return `None`. ([#6250](https://github.com/tracel-ai/burn/pull/6250))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- `Device::measure_link(&to, &sizes)` measures the peak throughput of the link from one device to
+  another for each transfer size, as `measure_peaks` does for a device's own peaks. Two devices of
+  one server run their backend's link probe there; between two servers, the target times its
+  downloads from the source. `PeakError::Transfer` reports a transfer the probe lost.
+  ([#6551](https://github.com/tracel-ai/burn/pull/6551))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- `Device::measure_host_link(transfer, &sizes)` measures the peak throughput of the link between
+  the calling process and a device for each transfer size, as a `HostTransfer::Upload` or a
+  `HostTransfer::Download`. A remote device's client times it over the network, until the server
+  holds an upload on its device; local backends report it unsupported for now.
+  ([#6560](https://github.com/tracel-ai/burn/pull/6560))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 #### Device transfers
 
 - Fix concurrent CUDA transfers between devices returning another transfer's data or deadlocking.
@@ -227,9 +264,18 @@ Reports also include the measured cost of a kernel launch.
 - `PerMember::collectives` counts the collectives a sharded compute device ran, by operation, path
   and size, with each member's part time and exposed time (`CollectiveTime`). Kernels are placed on
   the member whose device ran them, so a sharded compute device whose members do not fuse is timed
-  per member too; `DispatchDevice::shard_member_ids` names the members' devices. Measurement files
+  per member too; `DispatchDevice::member_ids` names the members' devices. Measurement files
   are version 6.
   ([#6527](https://github.com/tracel-ai/burn/pull/6527))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- `Instrument::for_devices` times work that runs on several devices in turn, such as a model split
+  by layers, with each device a member of `Breakdown::per_member`. `PerMember::schedule` says
+  whether members worked at once or in turn, and the report sums members in turn.
+  `DispatchDevice::shard_member_ids` is replaced by `member_ids`, which also yields a cubecl
+  device's own id. Measurement files are version 7, and one of version 6 is refused: measure it
+  again.
+  ([#6632](https://github.com/tracel-ai/burn/pull/6632))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Flex SIMD operations
@@ -263,6 +309,11 @@ Reports also include the measured cost of a kernel launch.
 
 #### Fusion
 
+- Speed up fused concatenation on CubeCL backends by selecting inputs from precomputed segment
+  boundaries and reading aligned output vectors from a single input.
+  ([#6618](https://github.com/tracel-ai/burn/pull/6618)) [@laggui](https://github.com/laggui),
+  [@EthanAlmloff](https://github.com/EthanAlmloff).
+
 - Reduce fusion's CPU overhead by skipping unnecessary reduction-fuser resets.
   ([#6036](https://github.com/tracel-ai/burn/pull/6036)) [@louisfd](https://github.com/louisfd)
 
@@ -273,10 +324,26 @@ Reports also include the measured cost of a kernel launch.
   [#6091](https://github.com/tracel-ai/burn/pull/6091),
   [#6076](https://github.com/tracel-ai/burn/pull/6076))
 
+- Fix a kernel compilation failure in fused reductions over the last dimension of channels-last
+  tensors whose spatial dimensions have size one, such as the output of global pooling.
+  ([#6556](https://github.com/tracel-ai/burn/pull/6556)) [@kongxinjun](https://github.com/kongxinjun)
+
 - Fix fusion failures when tensors are dropped on another thread, and report failed transaction
   reads as errors instead of panicking. ([#6086](https://github.com/tracel-ai/burn/pull/6086),
   [#5970](https://github.com/tracel-ai/burn/pull/5970),
   [#5986](https://github.com/tracel-ai/burn/pull/5986))
+
+- Fix a fused segment running entirely unfused when its chunks formed an ordering cycle through a
+  re-optimized hole: the repair now opens composed chunks and keeps only fused optimizations whole.
+  ([#6570](https://github.com/tracel-ai/burn/pull/6570))
+
+- Fix operations after the first fused run of a segment executing unfused when the segment ends at
+  a sync (a read, or a collective on a sharded device): the rest of the segment is now searched for
+  fusions too.
+  ([#6646](https://github.com/tracel-ai/burn/pull/6646))
+
+- Fusion autotune copies only the handles of the tensors its queue maps, not every live tensor's, so
+  a launch that is not yet tuned no longer costs a pass over every live handle.
 
 #### Graph capture
 
@@ -289,13 +356,22 @@ Reports also include the measured cost of a kernel launch.
 
 - `capture` on a remote device records and replays the graph on the server's device. One session
   captures per server device at a time. A replay that fails is the error of the next read or sync
-  on its stream. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+  on its stream, and a read after a replay returns what that replay wrote.
+  ([#6308](https://github.com/tracel-ai/burn/pull/6308))
 
 - `capture` works on a sharded compute device: each member records its own graph, collectives
   included, and a replay launches every member's at once. ([#6429](https://github.com/tracel-ai/burn/pull/6429))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- A capture no longer falls back to re-running its closure when an op wrote in place in one run
+  and not the next: CubeCL writes nothing in place while a capture plans or records.
+  ([#6579](https://github.com/tracel-ai/burn/pull/6579))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 #### Matrix multiplication
+
+- Flex matrix multiplication now preserves empty batch dimensions when broadcasting against a batch
+  of size one.
 
 - Enable CUDA tensor-core acceleration on Blackwell and Blackwell Ultra GPUs, including B300.
   ([#6161](https://github.com/tracel-ai/burn/pull/6161))
@@ -459,6 +535,16 @@ included.
   `no entry found for key`. ([#6405](https://github.com/tracel-ai/burn/pull/6405))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- A remote server queues a read in order with the work before it and takes its next request
+  without waiting for the copy, so a replayed graph queued after a read starts while the read is in
+  flight. A read after a replay returns what that replay wrote.
+  ([#6598](https://github.com/tracel-ai/burn/pull/6598))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- A backend panic while a router or remote server submits a read fails that read instead of ending
+  the session. ([#6598](https://github.com/tracel-ai/burn/pull/6598))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 #### Sharded compute devices
 
 Experimental: with the `shard` feature, `Device::shard_options(&devices).init()` makes one device
@@ -492,6 +578,10 @@ whose tensors are split over `devices` (crate `burn-shard`).
   their input's split or partial sum where the math allows, instead of gathering it.
   ([#6387](https://github.com/tracel-ai/burn/pull/6387))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+- `repeat_dim` on a sharded compute device keeps a split of any dim other than the repeated one,
+  instead of gathering its input, so key heads split by member and repeated to the value heads
+  they serve stay on their member. ([#6559](https://github.com/tracel-ai/burn/pull/6559))
 
 - A quantized tensor splits over a sharded compute device, its codes and scales cut as they are,
   so a quantized model's weights split for tensor parallelism. A split must give every member whole
@@ -556,11 +646,38 @@ whose tensors are split over `devices` (crate `burn-shard`).
   [#6062](https://github.com/tracel-ai/burn/pull/6062),
   [#6069](https://github.com/tracel-ai/burn/pull/6069))
 
+- Fix a dtype mismatch that caused `sort`, `sort_with_indices`, `argsort`, and their descending
+  variants to panic on `Flex32` tensors when using the host fallback. Sorted values retain the
+  `Flex32` dtype. ([#6624](https://github.com/tracel-ai/burn/pull/6624)) [@tandede](https://github.com/tandede)
+
+- On CubeCL backends, casting between `F32` and `Flex32` now returns the requested dtype in both
+  directions. ([#6647](https://github.com/tracel-ai/burn/pull/6647))
+  [@laggui](https://github.com/laggui)
+
+#### Grid sampling
+
+- Fix bilinear `grid_sample_2d` on CubeCL backends reading the wrong y coordinates when the grid's
+  last dimension is not contiguous, such as a `[N, 2, H, W]` flow field permuted to `[N, H, W, 2]`.
+
 #### Integer arithmetic overflow
 
-- Wrap `i64` and `u64` `add`, `sub` and `mul` (and their scalar forms) on overflow on Flex, as
-  release builds and CubeCL backends already did. Debug builds used to panic.
-  ([#6455](https://github.com/tracel-ai/burn/pull/6455))
+- Wrap integer arithmetic on overflow on Flex, as release builds and CubeCL backends already did.
+  Debug builds used to panic. This covers `i64` and `u64` `add`, `sub` and `mul` (and their scalar
+  forms), `sum`, `sum_dim`, `prod`, `prod_dim` and `mean_dim`; `i64` `mean`, since Flex's `mean`
+  accepts only signed integer types; and `cumsum` and `cumprod` for every integer type.
+  ([#6455](https://github.com/tracel-ai/burn/pull/6455), [#6481](https://github.com/tracel-ai/burn/pull/6481))
+
+#### Mask filling
+
+- Fix `mask_fill` gradients not being reduced to the input shape when the input is broadcast to a
+  larger mask.
+
+#### Pairwise extrema
+
+- `max_pair` and `min_pair` propagate NaN from either operand, including quantized values that
+  dequantize to NaN. CubeCL fusion can evaluate each pairwise operation in a single kernel.
+  ([#6279](https://github.com/tracel-ai/burn/pull/6279),
+  [@b84330808](https://github.com/b84330808))
 
 #### Quantization
 
@@ -582,6 +699,10 @@ whose tensors are split over `devices` (crate `burn-shard`).
 - Run quantized `argmax`, `argmin`, `gather` and `quantize_dynamic` on the backend's own
   implementations through device dispatch instead of dequantizing first.
   ([#6383](https://github.com/tracel-ai/burn/pull/6383))
+
+- Fix `quantize` on CubeCL backends reading flat scales along the wrong axes when the scheme's grid
+  of blocks has more than one axis, such as one scale per row: each row now quantizes under its own
+  scale. ([#6649](https://github.com/tracel-ai/burn/pull/6649))
 
 #### Random operation keys
 
@@ -655,6 +776,10 @@ own a random generator.
 
 - Fix f16 min/max and top-k operations with indices failing during autotuning on CubeCL backends.
   ([#6428](https://github.com/tracel-ai/burn/pull/6428)) [@laggui](https://github.com/laggui)
+
+- Add `nan_max`, `nan_min`, `nan_max_dim` and `nan_min_dim` for float tensors. They ignore NaN and
+  return NaN only for all-NaN inputs, like NumPy's `nanmax` and `nanmin`.
+  ([#6278](https://github.com/tracel-ai/burn/pull/6278)) [@HarpeLm](https://github.com/HarpeLm)
 
 #### Tensor remainder
 
@@ -770,6 +895,12 @@ backends do). Autodiff composes it from tensor operations.
 `lengths` and `pages`, so remote clients and servers must be upgraded together (protocol
 version 14).
 
+#### Batch normalization without `std`
+
+- Training a `BatchNorm` no longer panics on no_std targets ("Current thread id is not
+  available"); without `std`, running statistics assume a single thread.
+  ([#6508](https://github.com/tracel-ai/burn/pull/6508)) [@HarpeLm](https://github.com/HarpeLm)
+
 #### Config derivation
 
 - Add opt-in `#[config(into)]` fields to accept convertible values in generated constructors and
@@ -782,6 +913,10 @@ version 14).
   single-pass accumulation for FP16/BF16 to avoid intermediate overflow.
   ([#6173](https://github.com/tracel-ai/burn/pull/6173))
   [@EthanAlmloff](https://github.com/EthanAlmloff)
+
+- Extend CubeCL FP32 bias-gradient autotuning to 1D, 3D, and transposed convolutions, including
+  with fusion. Lower-precision gradients use a single reduction to avoid intermediate overflow.
+  ([#6394](https://github.com/tracel-ai/burn/pull/6394)) [@EthanAlmloff](https://github.com/EthanAlmloff)
 
 - Speed up CubeCL `conv_transpose3d` and reduce Flex `conv2d` memory use and layout conversions.
   ([#5793](https://github.com/tracel-ai/burn/pull/5793),
@@ -858,6 +993,11 @@ for configuration and backend limitations.
   `lazy_shape` and `lazy_device`: the default for its kind on the device it will initialize on,
   which `Param::uninitialized` now documents its initializer creates the value at.
   `Parameter` gains `dtype` and `default_dtype`.
+
+#### Linear layer initialization
+
+- Column-major linear layers now use the same Kaiming initialization scale as row-major layers,
+  based on `d_input` in fan-in mode and `d_output` in fan-out mode.
 
 #### Linear-algebra layers behind `linalg`
 
@@ -1027,6 +1167,18 @@ and parameter group, including partial accumulation windows. Custom strategies m
 Use `OnOptimizerStep::with(...)` to register standard metrics for optimizer updates.
 See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics).
 
+#### Optimizers
+
+- Optimizer checkpoints restore each state tensor in its saved numeric dtype, so training can
+  resume when an optimizer's accumulator precision differs from the device default.
+
+- Custom optimizer and scheduler states can now derive `burn::optim::RecordState` in crates
+  that depend only on `burn` with the `optim` feature enabled.
+
+- Build `burn-optim` without the `std` feature again. `ModuleOptimizer` no longer depends on the
+  standard-library-only learning-rate scheduler module, so fixed learning rates work in `no_std`.
+  ([#6475](https://github.com/tracel-ai/burn/issues/6475))
+
 #### Regression metrics
 
 - Add regression evaluation metrics (`MseMetric`, `MaeMetric`, `R2ScoreMetric`) to
@@ -1035,6 +1187,11 @@ See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics)
   ([#6390](https://github.com/tracel-ai/burn/pull/6390),
   [#6042](https://github.com/tracel-ai/burn/pull/6042))
   [@divakantpandey](https://github.com/divakantpandey), [@Infinty-ux](https://github.com/Infinty-ux)
+
+#### System metrics
+
+- Fix `burn-train` failing to build with systemstat 0.2.8, which new projects resolve to, and the
+  `CpuTemperature` metric reading NaN after its first reading with that version.
 
 #### Text generation metrics
 
@@ -1120,6 +1277,13 @@ Complex inverse FFT (`ifft`) is also available.
 ([#5840](https://github.com/tracel-ai/burn/pull/5840),
 [#5757](https://github.com/tracel-ai/burn/pull/5757))
 
+##### Inverse STFT length
+
+- Fix `istft` with `center = true` filling the end of the signal with zeros when `length` reaches
+  past the trimmed overlap-add output, as happens when the signal length is not a multiple of
+  `hop_length`. Those samples are now reconstructed, matching `torch.istft`.
+  ([#6532](https://github.com/tracel-ai/burn/pull/6532))
+
 #### Vision (`burn-vision`)
 
 ##### Connected components
@@ -1136,6 +1300,11 @@ Complex inverse FFT (`ifft`) is also available.
   specify `Tensor::<4>` on float constructors if their kind was previously inferred from these calls.
   ([#6219](https://github.com/tracel-ai/burn/pull/6219))
   [@Mikyx-1](https://github.com/Mikyx-1)
+
+##### Morphology
+
+- Prevent CPU morphology from reading or writing past row buffers when processing 64-bit tensors
+  with scalar dispatch. ([#6411](https://github.com/tracel-ai/burn/issues/6411))
 
 ##### Non-maximum suppression
 

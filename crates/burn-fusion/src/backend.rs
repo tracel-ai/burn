@@ -7,9 +7,9 @@ use burn_backend::RandomKey;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceOps, DeviceTelemetry,
     EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
-    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
-    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, PruneOptions, Pruned,
-    SaveOptions, Shape, profile_with_tokens,
+    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, HostTransfer,
+    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
+    PruneOptions, Pruned, SaveOptions, Shape, profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -307,6 +307,22 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         B::measure_peaks(device, keys)
     }
 
+    fn measure_link(
+        from: &Self::Device,
+        to: &Self::Device,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        B::measure_link(from, to, sizes)
+    }
+
+    fn measure_host_link(
+        device: &Self::Device,
+        transfer: HostTransfer,
+        sizes: &[u64],
+    ) -> Vec<Result<Peak, PeakError>> {
+        B::measure_host_link(device, transfer, sizes)
+    }
+
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
     where
         Iter: Iterator<Item = &'a mut burn_backend::TensorData>,
@@ -337,9 +353,26 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
-        // `client.sync` drains the lazy queue and runs the closure without a
-        // device sync — the inner backend then arms persistent allocation.
+        // `client.sync` drains the lazy queue first, so the operations before the planning run
+        // as they are and the planning run starts from the next one.
         client.sync(move || B::graph_prepare(&device))
+    }
+
+    fn graph_end_run(device: &Self::Device) -> Result<bool, ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        // Drain the run's fused operations first: they launch, and release the handles they
+        // consumed, only when the queue drains, and a temporary still held when the run ends
+        // would be taken for an output.
+        client.sync(move || B::graph_end_run(&device))
+    }
+
+    fn graph_start_run(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        // Drain the operations registered between the runs first, so they run as they are and
+        // the next planning run starts from the operation after them.
+        client.sync(move || B::graph_start_run(&device))
     }
 
     fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {

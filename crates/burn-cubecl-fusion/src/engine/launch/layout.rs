@@ -25,22 +25,15 @@ pub use burn_std::tensor::layout::{DimOrder, dim_order, is_contiguous_order, nes
 /// `None` when the tensor is in logical dimension order, is not dense, or has no
 /// axis to run along.
 ///
-/// Everything written before a block could choose its layout takes a vector to run
-/// along the last dimension, and for logical dimension order it does — including
-/// across trailing degenerate dimensions, which a contiguous layout gives stride
-/// one. Answering `None` there rather than an axis of our own leaves every such
-/// block behaving exactly as it did, and keeps the two callers — the
-/// [vector_axis](crate::engine::codegen::ir::FuseBlockConfig::vector_axis) a kernel
-/// steps by and the axis the vectorization pass sizes against — from disagreeing
-/// about what a vector is.
+/// When [dim_order] returns the logical dimension order, `None` keeps the
+/// default vector axis on the last dimension, including a trailing size-one
+/// dimension.
 ///
-/// For a permuted order it is the innermost dimension of [dim_order], except that
-/// degenerate dimensions are skipped. Their position in the order is arbitrary —
-/// nothing distinguishes them, since density says nothing about their stride —
-/// and their stride is arbitrary with it: a broadcast dimension carries stride
-/// zero, so a vector stepping it would read the same element `width` times. Even a
-/// benign stride of one costs the block its vectorization, because an extent of
-/// one reads as broadcast to every access measured against it.
+/// For a permuted order, use the innermost dimension with extent greater than
+/// one. A size-one dimension can appear anywhere in [dim_order] because density
+/// places no constraint on its stride. With stride zero, stepping along it
+/// would read the same element in every lane. Even with stride one, its extent
+/// makes the vectorization planner treat that input axis as broadcast.
 pub fn permuted_innermost_axis(shape: &[usize], strides: &[usize]) -> Option<usize> {
     let order = dim_order(shape, strides)?;
 
@@ -136,6 +129,14 @@ mod tests {
         let strides = [16 * 16 * 48, 1, 16 * 48, 48];
 
         assert_eq!(permuted_innermost_axis(&shape, &strides), Some(1));
+    }
+
+    #[test]
+    fn a_permuted_layout_can_advance_along_axis_two() {
+        let shape = [2, 4, 8, 16];
+        let strides = [512, 8, 1, 32];
+
+        assert_eq!(permuted_innermost_axis(&shape, &strides), Some(2));
     }
 
     #[test]

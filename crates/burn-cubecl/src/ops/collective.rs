@@ -1067,7 +1067,7 @@ mod observed_parts {
     struct Issued(Mutex<Vec<Execution>>);
 
     impl ExecutionObserver for Issued {
-        fn issued(&self, execution: &Execution) {
+        fn observe(&self, execution: &Execution) {
             self.0.lock().unwrap().push(execution.clone());
         }
     }

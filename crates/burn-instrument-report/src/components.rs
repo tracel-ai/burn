@@ -158,11 +158,11 @@ impl<'a> KernelReading<'a> {
     /// a long name. So `Short` is used only where it stays unambiguous *within the
     /// list*, and the fuller form serves the rest.
     pub(crate) fn list(report: &Report<'a>, kernels: &'a [Kernel]) -> Vec<Self> {
-        use cubecl::config::{TypeNameFormatLevel, type_name_format};
+        use cubecl::config::TypeNameFormatLevel;
 
         let short: Vec<String> = kernels
             .iter()
-            .map(|kernel| type_name_format(&kernel.name, TypeNameFormatLevel::Short))
+            .map(|kernel| TypeNameFormatLevel::Short.format(&kernel.name))
             .collect();
         let distinct = short.iter().collect::<std::collections::HashSet<_>>().len();
         let level = match distinct == kernels.len() {
@@ -173,7 +173,7 @@ impl<'a> KernelReading<'a> {
             .iter()
             .map(|kernel| Self {
                 kernel,
-                name: type_name_format(&kernel.name, level),
+                name: level.format(&kernel.name),
                 time: report.reading().apportion(kernel.total),
                 share: report.share(kernel.total),
             })

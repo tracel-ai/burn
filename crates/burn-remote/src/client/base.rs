@@ -38,6 +38,16 @@ impl RemoteClient {
             .expect("Service call failed")
     }
 
+    /// Whether the session is open, connecting it first: a device a listing named but never
+    /// connected may still be refused.
+    pub(crate) fn admitted(&self) -> bool {
+        self.device.session_error().is_none()
+            && self
+                .handle
+                .submit_blocking(|s| s.try_connect().is_ok())
+                .unwrap_or(false)
+    }
+
     /// Establish the session asynchronously, the way the browser requires.
     ///
     /// The connect + handshake cannot block the single browser thread, so it runs off the device

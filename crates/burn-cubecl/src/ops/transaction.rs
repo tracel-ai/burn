@@ -1,6 +1,6 @@
+use burn_backend::ops::ReadFuture;
 use burn_backend::{
     DType, TensorData,
-    backend::ExecutionError,
     ops::{TransactionOps, TransactionPrimitive, TransactionPrimitiveData},
 };
 use burn_std::{Shape, Strides};
@@ -9,9 +9,9 @@ use cubecl::server::{CopyDescriptor, Handle};
 use crate::CubeBackend;
 
 impl TransactionOps<Self> for CubeBackend {
-    async fn tr_execute(
+    fn tr_execute(
         transaction: TransactionPrimitive<Self>,
-    ) -> Result<TransactionPrimitiveData, ExecutionError> {
+    ) -> impl ReadFuture<TransactionPrimitiveData> {
         let mut client = None;
 
         enum Kind {
@@ -103,33 +103,36 @@ impl TransactionOps<Self> for CubeBackend {
             })
             .collect();
 
-        let mut data: Vec<Option<_>> = client
-            .read_tensor_async(bindings)
-            .await
-            .map_err(crate::backend::server_err)?
-            .into_iter()
-            .map(Some)
-            .collect::<Vec<Option<_>>>();
+        let read = client.read_tensor_async(bindings);
 
-        let mut result = TransactionPrimitiveData::default();
+        async move {
+            let mut data: Vec<Option<_>> = read
+                .await
+                .map_err(crate::backend::server_err)?
+                .into_iter()
+                .map(Some)
+                .collect::<Vec<Option<_>>>();
 
-        for binding in kinds {
-            let bytes = data.get_mut(binding.index).unwrap().take().unwrap();
-            let t_data = TensorData::from_bytes(bytes, binding.shape, binding.dtype);
+            let mut result = TransactionPrimitiveData::default();
 
-            match binding.kind {
-                Kind::Float => {
-                    result.read_floats.push(t_data);
-                }
-                Kind::Int => {
-                    result.read_ints.push(t_data);
-                }
-                Kind::Bool => {
-                    result.read_bools.push(t_data);
+            for binding in kinds {
+                let bytes = data.get_mut(binding.index).unwrap().take().unwrap();
+                let t_data = TensorData::from_bytes(bytes, binding.shape, binding.dtype);
+
+                match binding.kind {
+                    Kind::Float => {
+                        result.read_floats.push(t_data);
+                    }
+                    Kind::Int => {
+                        result.read_ints.push(t_data);
+                    }
+                    Kind::Bool => {
+                        result.read_bools.push(t_data);
+                    }
                 }
             }
-        }
 
-        Ok(result)
+            Ok(result)
+        }
     }
 }

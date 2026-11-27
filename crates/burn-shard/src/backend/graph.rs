@@ -24,21 +24,63 @@ impl<B: BackendIr> Default for MemberGraphs<B> {
 }
 
 impl<B: BackendIr> MemberGraphs<B> {
-    /// Prepares every member for a capture, and returns the first member's error.
+    /// Prepares every member for a capture and starts planning, and returns the first
+    /// member's error.
+    ///
+    /// A member that refuses ends the captures its predecessors prepared, since a prepared member
+    /// discards its launches.
     pub fn prepare(&self, members: &[TensorInterpreter<B>]) -> Result<(), ExecutionError> {
-        members
-            .iter()
-            .try_for_each(TensorInterpreter::graph_prepare)
+        for (index, member) in members.iter().enumerate() {
+            if let Err(error) = member.graph_prepare() {
+                stop_every(&members[..index]);
+                return Err(error);
+            }
+        }
+        Ok(())
+    }
+
+    /// Ends one planning run on every member, and answers whether every member's settled. Every
+    /// member's run is ended whichever answers first, since a run left open spans the next one.
+    ///
+    /// A member that fails to end its run ends its own capture (see
+    /// [`Backend::graph_end_run`](burn_backend::Backend::graph_end_run)), so the others' are
+    /// ended too, and the work runs on every member again.
+    pub fn end_run(&self, members: &[TensorInterpreter<B>]) -> Result<bool, ExecutionError> {
+        // Every member's run ends, whichever fails first: no short-circuit.
+        let mut settled = Ok(true);
+        for member in members {
+            let answer = member.graph_end_run();
+            settled = settled.and_then(|settled| Ok(settled & answer?));
+        }
+        if settled.is_err() {
+            stop_every(members);
+        }
+        settled
+    }
+
+    /// Starts the next planning run on every member, or ends every capture: a member whose run
+    /// failed to start ended its own capture (see
+    /// [`Backend::graph_start_run`](burn_backend::Backend::graph_start_run)), and the others
+    /// would plan a run it no longer does.
+    pub fn start_run(&self, members: &[TensorInterpreter<B>]) -> Result<(), ExecutionError> {
+        for member in members {
+            if let Err(error) = member.graph_start_run() {
+                stop_every(members);
+                return Err(error);
+            }
+        }
+        Ok(())
     }
 
     /// Opens a window on every member, or none: a member that refuses closes the windows its
     /// predecessors opened, discarding what they hold.
     pub fn start(&self, members: &[TensorInterpreter<B>]) -> Result<(), ExecutionError> {
         for (index, member) in members.iter().enumerate() {
+            // A member that refuses ends its own capture; the others, recording or still
+            // prepared, are ended with it, since a prepared member discards its launches.
             if let Err(error) = member.graph_start_capture() {
-                members[..index].iter().for_each(|opened| {
-                    let _ = opened.graph_stop_capture();
-                });
+                stop_every(&members[..index]);
+                stop_every(&members[index + 1..]);
                 return Err(error);
             }
         }
@@ -100,5 +142,13 @@ impl<B: BackendIr> MemberGraphs<B> {
     /// Frees every member's graph of `id`.
     pub fn release(&mut self, id: CapturedGraphId) {
         self.graphs.remove(&id);
+    }
+}
+
+/// End the capture of every one of `members`, recording or prepared, whatever it holds: a member
+/// left prepared discards its launches.
+fn stop_every<B: BackendIr>(members: &[TensorInterpreter<B>]) {
+    for member in members {
+        let _ = member.graph_stop_capture();
     }
 }

@@ -18,6 +18,16 @@ impl AlongDimRule {
         Self { sharding }
     }
 
+    /// Padding reads whole every dim it pads, and a partial sum gathers, as each member would add
+    /// a constant pad.
+    pub fn pad(input: Sharding, padding: &[(usize, usize)]) -> Self {
+        let sharding = match input.split_dim() {
+            Some(split) if padding.get(split).is_none_or(|pad| *pad == (0, 0)) => input,
+            _ => Sharding::Replicated,
+        };
+        Self { sharding }
+    }
+
     pub fn sharding(&self) -> OpSharding {
         OpSharding {
             inputs: smallvec![self.sharding],
@@ -48,6 +58,28 @@ mod tests {
         assert_eq!(
             AlongDimRule::new(PartialSum, 1).sharding().inputs[..],
             [Replicated]
+        );
+    }
+
+    #[test]
+    fn padding_keeps_a_split_of_a_dim_it_does_not_pad() {
+        let padding = [(0, 0), (1, 2)];
+
+        assert_eq!(
+            AlongDimRule::pad(Split { dim: 0 }, &padding)
+                .sharding()
+                .output,
+            Split { dim: 0 }
+        );
+        assert_eq!(
+            AlongDimRule::pad(Split { dim: 1 }, &padding)
+                .sharding()
+                .output,
+            Replicated
+        );
+        assert_eq!(
+            AlongDimRule::pad(PartialSum, &padding).sharding().output,
+            Replicated
         );
     }
 
