@@ -4,15 +4,20 @@ use crate::{
     renderer::tui::{TuiSplit, TuiTag},
 };
 use ratatui::{
-    style::Style,
+    buffer::Buffer,
+    layout::Rect,
+    style::{Color, Style},
     symbols,
-    widgets::{Bar, Dataset, GraphType},
+    widgets::{
+        Bar, Dataset, Widget,
+        canvas::{Canvas, Context, Line, Points},
+    },
 };
 use std::collections::BTreeMap;
 
 /// A plot that shows the full history at a reduced resolution.
 pub(crate) struct FullHistoryPlot {
-    pub(crate) axes: PlotAxes,
+    axes: PlotAxes,
     points: BTreeMap<TuiTag, FullHistoryPoints>,
     max_samples: usize,
     max_samples_ratio: BTreeMap<TuiSplit, f64>,
@@ -108,28 +113,6 @@ impl FullHistoryPlot {
         }
     }
 
-    pub(crate) fn datasets(&self) -> Vec<Dataset<'_>> {
-        let mut datasets = Vec::new();
-
-        for (tag, points) in &self.points {
-            let style = Style::default().fg(tag.split.color()).bold();
-            for (index, segment) in points.segments().enumerate() {
-                let dataset = Dataset::default()
-                    .marker(symbols::Marker::Braille)
-                    .style(style)
-                    .graph_type(GraphType::Line)
-                    .data(segment);
-                datasets.push(if index == 0 {
-                    dataset.name(tag.to_string())
-                } else {
-                    dataset
-                });
-            }
-        }
-
-        datasets
-    }
-
     pub(crate) fn bars(&self, max: u64, bar_width: &mut usize) -> Vec<Bar<'_>> {
         let mut bars = Vec::new();
 
@@ -155,6 +138,34 @@ impl FullHistoryPlot {
         }
 
         self.axes.update_bounds((x_min, x_max), (y_min, y_max));
+    }
+}
+
+impl Widget for &FullHistoryPlot {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        Canvas::default()
+            .marker(symbols::Marker::Braille)
+            .x_bounds(self.axes.bounds_x)
+            .y_bounds(self.axes.bounds_y)
+            .paint(|ctx| {
+                for (tag, points) in &self.points {
+                    points.draw(ctx, tag.split.color());
+                    // Composite all runs of a tag together so they share their Braille dots.
+                    ctx.layer();
+                }
+            })
+            .render(self.axes.graph_area(area), buf);
+
+        let legend = self
+            .points
+            .keys()
+            .map(|tag| {
+                Dataset::default()
+                    .name(tag.to_string())
+                    .style(Style::default().fg(tag.split.color()).bold())
+            })
+            .collect();
+        self.axes.chart(legend).render(area, buf);
     }
 }
 
@@ -273,6 +284,18 @@ impl FullHistoryPoints {
         let end = self.points.len();
         if end > self.segment_ends.last().copied().unwrap_or(0) {
             self.segment_ends.push(end);
+        }
+    }
+
+    fn draw(&self, ctx: &mut Context<'_>, color: Color) {
+        ctx.draw(&Points {
+            coords: &self.points,
+            color,
+        });
+        for segment in self.segments() {
+            for &[(x1, y1), (x2, y2)] in segment.array_windows() {
+                ctx.draw(&Line::new(x1, y1, x2, y2, color));
+            }
         }
     }
 
@@ -396,13 +419,46 @@ mod tests {
     }
 
     #[test]
-    fn legend_lists_each_series_once_including_an_empty_series() {
-        use ratatui::{
-            buffer::Buffer,
-            layout::Rect,
-            widgets::{Chart, Widget},
-        };
+    fn validation_end_keeps_training_points_connected() {
+        let mut chart = FullHistoryPlot::new(10);
+        let train = TuiTag::new(TuiSplit::Train, TuiGroup::Default);
+        let valid = TuiTag::new(TuiSplit::Valid, TuiGroup::Default);
+        chart.push(train.clone(), Some(NumericEntry::Value(4.0)));
+        chart.push(valid, Some(NumericEntry::Value(1.0)));
+        chart.end_split(TuiSplit::Valid);
+        chart.push(train.clone(), Some(NumericEntry::Value(2.0)));
 
+        let segments: Vec<_> = chart.points[&train].segments().collect();
+        assert_eq!(segments, [&[(0.0, 4.0), (2.0, 2.0)]]);
+    }
+
+    #[test]
+    fn separate_runs_keep_their_dots_in_a_shared_braille_cell() {
+        let mut chart = FullHistoryPlot::new(40);
+        let valid = TuiTag::new(TuiSplit::Valid, TuiGroup::Default);
+        chart.push(valid.clone(), Some(NumericEntry::Value(1.0)));
+        chart.end_split(TuiSplit::Valid);
+        chart.push(valid.clone(), Some(NumericEntry::Value(1.0)));
+        chart.end_split(TuiSplit::Valid);
+        for _ in 2..20 {
+            chart.push(valid.clone(), None);
+        }
+        chart.push(valid.clone(), Some(NumericEntry::Value(2.0)));
+        for _ in 21..39 {
+            chart.push(valid.clone(), None);
+        }
+        chart.push(valid, Some(NumericEntry::Value(2.0)));
+
+        // The 4-character y labels and axis leave a 20-by-5 plotting area.
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 25, 7));
+        (&chart).render(buffer.area, &mut buffer);
+        assert_eq!(buffer[(5, 4)].symbol(), "⣀"); // x=0 and x=1
+        assert_eq!(buffer[(10, 2)].symbol(), " "); // gap between runs
+        assert_eq!(buffer[(20, 0)].symbol(), "⠉"); // line within the last run
+    }
+
+    #[test]
+    fn legend_lists_each_series_once_including_an_empty_series() {
         let mut chart = FullHistoryPlot::new(10);
         let valid = TuiTag::new(TuiSplit::Valid, TuiGroup::Default);
         chart.push(TuiTag::new(TuiSplit::Train, TuiGroup::Default), None);
@@ -411,10 +467,8 @@ mod tests {
         chart.push(valid, Some(NumericEntry::Value(0.4)));
         chart.end_split(TuiSplit::Valid);
 
-        let datasets = chart.datasets();
-        assert_eq!(datasets.len(), 3);
         let mut buffer = Buffer::empty(Rect::new(0, 0, 60, 24));
-        Chart::new(datasets).render(buffer.area, &mut buffer);
+        (&chart).render(buffer.area, &mut buffer);
         let text: String = buffer.content().iter().map(|cell| cell.symbol()).collect();
         assert_eq!(text.matches("Train").count(), 1);
         assert_eq!(text.matches("Valid").count(), 1);

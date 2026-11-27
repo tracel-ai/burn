@@ -12,10 +12,7 @@ use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout, Position, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::Line,
-    widgets::{
-        Axis, BarChart, BarGroup, Block, Borders, Chart, LegendPosition, Padding, Paragraph, Tabs,
-        Widget,
-    },
+    widgets::{BarChart, BarGroup, Block, Borders, Chart, Padding, Paragraph, Tabs, Widget},
 };
 use std::collections::BTreeMap;
 use unicode_width::UnicodeWidthStr;
@@ -159,9 +156,16 @@ impl NumericMetricsState {
         if self.names.is_empty() {
             return NumericMetricView::None;
         }
+        let (recent, full) = &self.data[&self.names[self.selected]];
         match self.kind {
+            PlotKind::Full => NumericMetricView::FullHistory {
+                titles: &self.names,
+                selected: self.selected,
+                plot: full,
+                strip: &mut self.strip,
+            },
             PlotKind::Summary => {
-                let chart = Self::bar_chart(&self.names, &self.data, self.selected);
+                let chart = Self::bar_chart(full);
                 NumericMetricView::BarPlots {
                     titles: &self.names,
                     selected: self.selected,
@@ -169,13 +173,12 @@ impl NumericMetricsState {
                     strip: &mut self.strip,
                 }
             }
-            kind => {
-                let chart = Self::line_chart(&self.names, &self.data, self.selected, kind);
-                NumericMetricView::LinePlots {
+            PlotKind::Recent => {
+                let chart = recent.axes.chart(recent.datasets());
+                NumericMetricView::RecentHistory {
                     titles: &self.names,
                     selected: self.selected,
                     chart,
-                    kind,
                     strip: &mut self.strip,
                 }
             }
@@ -283,45 +286,7 @@ impl NumericMetricsState {
         }
     }
 
-    fn line_chart<'a>(
-        names: &'a [MetricName],
-        data: &'a BTreeMap<MetricName, (RecentHistoryPlot, FullHistoryPlot)>,
-        selected: usize,
-        kind: PlotKind,
-    ) -> Chart<'a> {
-        let name = names.get(selected).unwrap();
-        let (recent, full) = data.get(name).unwrap();
-
-        let (datasets, axes) = match kind {
-            PlotKind::Full => (full.datasets(), &full.axes),
-            PlotKind::Recent => (recent.datasets(), &recent.axes),
-            _ => unreachable!(),
-        };
-
-        Chart::<'a>::new(datasets)
-            .block(Block::default())
-            .x_axis(
-                Axis::default()
-                    .style(Style::default().fg(Color::DarkGray))
-                    .labels(axes.labels_x.clone().into_iter().map(|s| s.bold()))
-                    .bounds(axes.bounds_x),
-            )
-            .y_axis(
-                Axis::default()
-                    .style(Style::default().fg(Color::DarkGray))
-                    .labels(axes.labels_y.clone().into_iter().map(|s| s.bold()))
-                    .bounds(axes.bounds_y),
-            )
-            .legend_position(Some(LegendPosition::Right))
-    }
-
-    fn bar_chart<'a>(
-        names: &'a [MetricName],
-        data: &'a BTreeMap<MetricName, (RecentHistoryPlot, FullHistoryPlot)>,
-        selected: usize,
-    ) -> BarChart<'a> {
-        let name = names.get(selected).unwrap();
-        let (_recent, full) = data.get(name).unwrap();
+    fn bar_chart(full: &FullHistoryPlot) -> BarChart<'_> {
         let mut bar_width = 0;
         let bars = full.bars(100, &mut bar_width);
 
@@ -336,11 +301,16 @@ impl NumericMetricsState {
 
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum NumericMetricView<'a> {
-    LinePlots {
+    FullHistory {
+        titles: &'a [MetricName],
+        selected: usize,
+        plot: &'a FullHistoryPlot,
+        strip: &'a mut TabStripState,
+    },
+    RecentHistory {
         titles: &'a [MetricName],
         selected: usize,
         chart: Chart<'a>,
-        kind: PlotKind,
         strip: &'a mut TabStripState,
     },
     BarPlots {
@@ -355,20 +325,38 @@ pub(crate) enum NumericMetricView<'a> {
 impl NumericMetricView<'_> {
     pub(crate) fn render(self, frame: &mut TerminalFrame<'_>, size: Rect) {
         match self {
-            Self::LinePlots {
+            Self::FullHistory {
+                titles,
+                selected,
+                plot,
+                strip,
+            } => {
+                render_plot_panel(
+                    frame,
+                    size,
+                    "Plots",
+                    "Full History",
+                    titles,
+                    selected,
+                    strip,
+                    plot,
+                );
+            }
+            Self::RecentHistory {
                 titles,
                 selected,
                 chart,
-                kind,
                 strip,
             } => {
-                let plot_title = match kind {
-                    PlotKind::Full => "Full History",
-                    PlotKind::Recent => "Recent History",
-                    _ => unreachable!(),
-                };
                 render_plot_panel(
-                    frame, size, "Plots", plot_title, titles, selected, strip, chart,
+                    frame,
+                    size,
+                    "Plots",
+                    "Recent History",
+                    titles,
+                    selected,
+                    strip,
+                    chart,
                 );
             }
             Self::BarPlots {
