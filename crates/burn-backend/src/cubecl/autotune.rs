@@ -6,8 +6,8 @@ use core::time::Duration;
 use cubecl::{
     config::{CubeClRuntimeConfig, RuntimeConfig, autotune::AutotuneLevel},
     tune::{
-        AutotuneKey, Bounds, BoundsGenerator, OrderedSettings, Patience, Thresholds, TunableSet,
-        TuneGroup, TuneInputs,
+        AutotuneKeyable, Bounds, BoundsGenerator, OrderedSettings, Patience, Thresholds,
+        TunableSet, TuneGroup, TuneInputs,
     },
 };
 
@@ -19,7 +19,7 @@ pub const RACED_PRIORITY: i8 = 0;
 /// one priority, its members measured in the order they are added, with the patience the
 /// configured level gives every table ([`Patience::for_level`]), read when the group is built.
 /// A member joins it at [`RACED_PRIORITY`].
-pub fn raced_group<K: AutotuneKey>(name: &str) -> TuneGroup<K> {
+pub fn raced_group<K: AutotuneKeyable>(name: &str) -> TuneGroup<K> {
     TuneGroup::ordered(
         name,
         |_key| RACED_PRIORITY,
@@ -42,7 +42,7 @@ pub fn with_roofline_bounds<K, I, Out, F>(
     bounds: F,
 ) -> TunableSet<K, I, Out>
 where
-    K: AutotuneKey,
+    K: AutotuneKeyable,
     I: TuneInputs,
     Out: 'static,
     F: for<'a> Fn(&K, &I::At<'a>, Thresholds) -> Bounds + Send + Sync + 'static,

@@ -21,7 +21,7 @@ mod worker;
 
 pub use base::*;
 #[cfg(feature = "autotune-checks")]
-pub(crate) use checks::assert_equivalent;
+pub(crate) use checks::check_equivalent;
 pub use group::*;
 pub use prediction::{Arithmetic, Peaks, Prediction};
 pub use predictor::Predictor;

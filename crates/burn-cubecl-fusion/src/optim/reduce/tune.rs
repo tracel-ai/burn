@@ -10,7 +10,7 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::{
-    AutotuneKey, CubeTuneId,
+    AutotuneKeyable, CubeTuneId,
     tile::Geometry,
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 
 /// Autotune key for standard fused reduction operations: the reduce's own key, as the backend's reduce
 /// autotune states it, beside what the trace fuses around it.
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKeyable)]
 pub struct FusedReduceAutotuneKey {
     reduce_key: ReduceKey,
     #[autotune(anchor)]

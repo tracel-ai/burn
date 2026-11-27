@@ -217,9 +217,9 @@ impl TuneOutput {
     }
 }
 
-impl cubecl::tune::AutotuneOutput for TuneOutput {
+impl cubecl::tune::AutotuneCheckable for TuneOutput {
     #[cfg(feature = "autotune-checks")]
-    fn check_equivalence(&self, other: Self) {
+    fn check_equivalence(&self, other: Self) -> Result<(), String> {
         use burn_backend::Tolerance;
         use burn_std::DType;
 
@@ -267,17 +267,17 @@ impl cubecl::tune::AutotuneOutput for TuneOutput {
 
                     match handle.dtype {
                         DType::F64 => {
-                            data_ref.assert_approx_eq::<f64>(&data_other, Tolerance::permissive())
+                            data_ref.check_approx_eq::<f64>(&data_other, Tolerance::permissive())
                         }
                         DType::F32 => {
-                            data_ref.assert_approx_eq::<f32>(&data_other, Tolerance::permissive())
+                            data_ref.check_approx_eq::<f32>(&data_other, Tolerance::permissive())
                         }
                         DType::F16 => data_ref
-                            .assert_approx_eq::<half::f16>(&data_other, Tolerance::permissive()),
+                            .check_approx_eq::<half::f16>(&data_other, Tolerance::permissive()),
                         DType::BF16 => data_ref
-                            .assert_approx_eq::<half::bf16>(&data_other, Tolerance::permissive()),
-                        _ => data_ref.assert_eq(&data_other, true),
-                    }
+                            .check_approx_eq::<half::bf16>(&data_other, Tolerance::permissive()),
+                        _ => data_ref.check_eq(&data_other, true),
+                    }?;
                     num_checked += 1;
                 } else {
                     // Debug info for the tests.
@@ -292,10 +292,13 @@ impl cubecl::tune::AutotuneOutput for TuneOutput {
             //
             // An optimization might not create outputs if its dead code detection is triggered,
             // therefore avoiding useless computation.
-            if num_handles > 0 {
-                assert!(num_checked >= 1);
+            if num_handles > 0 && num_checked == 0 {
+                return Err(format!(
+                    "none of the {num_handles} outputs was found in the other candidate's"
+                ));
             }
         }
+        Ok(())
     }
 }
 

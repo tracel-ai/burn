@@ -5,14 +5,14 @@ use crate::{CubeTuneId, tensor::CubeTensor};
 use burn_backend::DType;
 use burn_backend::cubecl::autotune::{RACED_PRIORITY, raced_group};
 use cubecl::{
-    AutotuneKey,
-    tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
+    AutotuneKeyable,
+    tune::{Anchor, LocalTuner, Tunable, TunableSet, local_tuner},
 };
 use cubek::reduce::ReduceOperation;
 use serde::{Deserialize, Serialize};
 
 /// Anchors shapes and strides to reuse plan choices across nearby workloads.
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKeyable)]
 struct ReduceDimsPlanAutotuneKey {
     shape: Vec<usize>,
     strides: Vec<usize>,
@@ -32,11 +32,11 @@ impl ReduceDimsPlanAutotuneKey {
         Self::new(
             shape
                 .iter()
-                .map(|&size| anchor(size, None, None, None))
+                .map(|&size| Anchor::default().round(size))
                 .collect(),
             strides
                 .iter()
-                .map(|&stride| anchor(stride, None, None, None))
+                .map(|&stride| Anchor::default().round(stride))
                 .collect(),
             dims.to_vec(),
             dtype,

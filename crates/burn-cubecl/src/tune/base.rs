@@ -56,8 +56,8 @@ use super::{CandidatePriority, GroupPriority, Roofline, TuneCandidate, priority_
 use core::fmt::Display;
 use cubecl::config::{CubeClRuntimeConfig, RuntimeConfig};
 use cubecl::tune::{
-    AutotuneKey, CloneInputGenerator, InputGenerator, KeyGenerator, OrderedSettings, Patience,
-    Tunable, TunableSet, TuneGroup, TuneInputs,
+    AutotuneKeyable, InputGenerator, KeyGenerator, OrderedSettings, Patience, Tunable, TunableSet,
+    TuneGroup, TuneInputs,
 };
 use std::sync::Arc;
 
@@ -74,7 +74,7 @@ use std::sync::Arc;
 ///
 /// `Id` is what its candidates are identified by ([`Identity`]): `()` for an autotune whose winner is
 /// only ever run again.
-pub struct Autotune<K: AutotuneKey, I: TuneInputs, O: 'static, Id = ()> {
+pub struct Autotune<K: AutotuneKeyable, I: TuneInputs, O: 'static, Id = ()> {
     set: TunableSet<K, I, O, Id>,
     /// The groups a file can name, and what the candidates are measured on.
     layout: GroupLayout,
@@ -111,7 +111,7 @@ impl Identity for () {
     }
 }
 
-impl<K: AutotuneKey, I: TuneInputs, O: 'static, Id: Identity> Autotune<K, I, O, Id> {
+impl<K: AutotuneKeyable, I: TuneInputs, O: 'static, Id: Identity> Autotune<K, I, O, Id> {
     /// An empty autotune keyed by `key_gen`.
     ///
     /// Candidates are measured against clones of the real call inputs, which is
@@ -121,7 +121,7 @@ impl<K: AutotuneKey, I: TuneInputs, O: 'static, Id: Identity> Autotune<K, I, O, 
     /// this way, since every sample would land in the caller's state: the
     /// cache write measures on inputs of its own ([`measured_on`](Self::measured_on)).
     pub fn new(key_gen: impl KeyGenerator<K, I>) -> Self {
-        Self::with_inputs(key_gen, CloneInputGenerator, None)
+        Self::with_set(TunableSet::new_cloning_inputs(key_gen), None)
     }
 
     /// [`new`](Self::new), measured on what `input_gen` makes of the call
@@ -145,21 +145,17 @@ impl<K: AutotuneKey, I: TuneInputs, O: 'static, Id: Identity> Autotune<K, I, O, 
         inputs: &'static str,
         input_gen: impl InputGenerator<K, I>,
     ) -> Self {
-        Self::with_inputs(key_gen, input_gen, Some(inputs))
+        Self::with_set(TunableSet::new(key_gen, input_gen), Some(inputs))
     }
 
-    fn with_inputs(
-        key_gen: impl KeyGenerator<K, I>,
-        input_gen: impl InputGenerator<K, I>,
-        measured: Option<&'static str>,
-    ) -> Self {
+    fn with_set(set: TunableSet<K, I, O, Id>, measured: Option<&'static str>) -> Self {
         let layout = GroupLayout {
             groups: Vec::new(),
             measured,
             patience: Patience::for_level(&CubeClRuntimeConfig::get().autotune.level),
         };
         Self {
-            set: TunableSet::new(key_gen, input_gen),
+            set,
             floor: layout.priority_group("floor", GroupPriority::FALLBACK),
             layout,
         }
@@ -317,7 +313,7 @@ impl<K: AutotuneKey, I: TuneInputs, O: 'static, Id: Identity> Autotune<K, I, O, 
             set: self
                 .set
                 .with_bounds(Arc::new(Bounded(roofline.clone())))
-                .with_eviction(Arc::new(ReadCold(roofline))),
+                .with_evictor(Arc::new(ReadCold(roofline))),
             ..self
         }
     }
@@ -341,7 +337,7 @@ impl<K: AutotuneKey, I: TuneInputs, O: 'static, Id: Identity> Autotune<K, I, O, 
         Self {
             set: self
                 .set
-                .with_eviction(Arc::new(ReadCold(Arc::new(roofline)))),
+                .with_evictor(Arc::new(ReadCold(Arc::new(roofline)))),
             ..self
         }
     }
@@ -401,7 +397,11 @@ impl GroupLayout {
     /// A group at a fixed priority, whatever the key. Ordered: its candidates'
     /// priorities say what to try first, and the layout's patience how far down that
     /// order the round goes.
-    fn priority_group<K: AutotuneKey>(&self, name: &str, priority: GroupPriority) -> TuneGroup<K> {
+    fn priority_group<K: AutotuneKeyable>(
+        &self,
+        name: &str,
+        priority: GroupPriority,
+    ) -> TuneGroup<K> {
         let priority = priority.get();
         TuneGroup::ordered(
             name,
@@ -436,7 +436,7 @@ impl Display for GroupLayout {
             Some(patience) => write!(
                 f,
                 "-patience{}x{}",
-                patience.min_measured, patience.max_misses
+                patience.min_measured_count, patience.max_miss_count
             ),
             None => Ok(()),
         }

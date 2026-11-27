@@ -11,7 +11,7 @@ use cubecl::client::Client;
 use cubecl::ir::{ElemType, FloatKind};
 use cubecl::std::tensor::TensorHandle;
 use cubecl::tile::launch::Decline;
-use cubecl::tune::{AutotuneOutput, LocalTuner, TunableSet, local_tuner};
+use cubecl::tune::{AutotuneCheckable, LocalTuner, TunableSet, local_tuner};
 use cubecl::{CubeTuneId, Device};
 use cubek::matmul::kernels::tensor::LhsOutput;
 use cubek::std::Hardware;
@@ -40,10 +40,10 @@ struct SwigluOutput {
     pub handle: TensorHandle,
 }
 
-impl AutotuneOutput for SwigluOutput {
+impl AutotuneCheckable for SwigluOutput {
     #[cfg(feature = "autotune-checks")]
-    fn check_equivalence(&self, other: Self) {
-        crate::tune::assert_equivalent(&self.client, self.handle.clone(), other.handle);
+    fn check_equivalence(&self, other: Self) -> Result<(), String> {
+        crate::tune::check_equivalent(&self.client, self.handle.clone(), other.handle)
     }
 }
 

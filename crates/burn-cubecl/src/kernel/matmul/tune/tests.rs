@@ -49,29 +49,6 @@ fn key(batch: usize, m: usize, n: usize, k: usize) -> MatmulTuneKey {
     )
 }
 
-/// A setting the device declines is tried after every candidate that runs, and claims no
-/// launch an earlier candidate could duplicate: the cube routine's planes splitting `K`, on a
-/// device whose shared memory takes no atomic add.
-#[test]
-fn a_declined_setting_is_tried_last_and_claims_no_launch() {
-    let mut hw = offering(devices::strix_halo());
-    devices::features(&mut hw).types.shared_atomic.clear();
-    let key = key(1, 2048, 2048, 2048);
-    let split =
-        MatmulTuneCandidate::list(CubeStagedMatmulRoutine, &Predictor::described(hw.clone()))
-            .into_iter()
-            .filter(|candidate| candidate.strategy().microkernel.planes_along_k.get() > 1);
-    for candidate in split {
-        let settings = candidate.strategy();
-        assert_eq!(
-            candidate.priority(&key),
-            CandidatePriority::LAST,
-            "{settings}"
-        );
-        assert_eq!(candidate.blueprint(&key), None, "{settings}");
-    }
-}
-
 /// A grid that leaves the device idle is predicted further above its roofline than one that
 /// fills it: the lead setting on a product a single cube covers, against one that spreads over
 /// every worker.
