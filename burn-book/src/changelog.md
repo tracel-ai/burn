@@ -1084,7 +1084,8 @@ See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics)
 #### Terminal metrics chart
 
 - The full-history chart draws separate lines for successive validation runs, including when a
-  metric is recorded only during validation. Downsampling preserves the breaks between runs.
+  metric is recorded only during validation. Downsampling preserves these breaks, and training curves
+  stay connected across epochs.
   ([#6614](https://github.com/tracel-ai/burn/pull/6614))
 
 #### Text generation metrics

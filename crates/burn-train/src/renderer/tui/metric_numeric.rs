@@ -12,7 +12,10 @@ use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout, Position, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::Line,
-    widgets::{BarChart, BarGroup, Block, Borders, Chart, Padding, Paragraph, Tabs, Widget},
+    widgets::{
+        Axis, BarChart, BarGroup, Block, Borders, Chart, LegendPosition, Padding, Paragraph, Tabs,
+        Widget,
+    },
 };
 use std::collections::BTreeMap;
 use unicode_width::UnicodeWidthStr;
@@ -95,8 +98,10 @@ impl NumericMetricsState {
     }
 
     pub(crate) fn end_split(&mut self, split: TuiSplit) {
-        for (_, full) in self.data.values_mut() {
-            full.end_split(split);
+        if split == TuiSplit::Valid {
+            for (_, full) in self.data.values_mut() {
+                full.end_validation();
+            }
         }
     }
 
@@ -156,16 +161,9 @@ impl NumericMetricsState {
         if self.names.is_empty() {
             return NumericMetricView::None;
         }
-        let (recent, full) = &self.data[&self.names[self.selected]];
         match self.kind {
-            PlotKind::Full => NumericMetricView::FullHistory {
-                titles: &self.names,
-                selected: self.selected,
-                plot: full,
-                strip: &mut self.strip,
-            },
             PlotKind::Summary => {
-                let chart = Self::bar_chart(full);
+                let chart = Self::bar_chart(&self.names, &self.data, self.selected);
                 NumericMetricView::BarPlots {
                     titles: &self.names,
                     selected: self.selected,
@@ -173,12 +171,13 @@ impl NumericMetricsState {
                     strip: &mut self.strip,
                 }
             }
-            PlotKind::Recent => {
-                let chart = recent.axes.chart(recent.datasets());
-                NumericMetricView::RecentHistory {
+            kind => {
+                let chart = Self::line_chart(&self.names, &self.data, self.selected, kind);
+                NumericMetricView::LinePlots {
                     titles: &self.names,
                     selected: self.selected,
                     chart,
+                    kind,
                     strip: &mut self.strip,
                 }
             }
@@ -286,7 +285,45 @@ impl NumericMetricsState {
         }
     }
 
-    fn bar_chart(full: &FullHistoryPlot) -> BarChart<'_> {
+    fn line_chart<'a>(
+        names: &'a [MetricName],
+        data: &'a BTreeMap<MetricName, (RecentHistoryPlot, FullHistoryPlot)>,
+        selected: usize,
+        kind: PlotKind,
+    ) -> Chart<'a> {
+        let name = names.get(selected).unwrap();
+        let (recent, full) = data.get(name).unwrap();
+
+        let (datasets, axes) = match kind {
+            PlotKind::Full => (full.datasets(), &full.axes),
+            PlotKind::Recent => (recent.datasets(), &recent.axes),
+            _ => unreachable!(),
+        };
+
+        Chart::<'a>::new(datasets)
+            .block(Block::default())
+            .x_axis(
+                Axis::default()
+                    .style(Style::default().fg(Color::DarkGray))
+                    .labels(axes.labels_x.clone().into_iter().map(|s| s.bold()))
+                    .bounds(axes.bounds_x),
+            )
+            .y_axis(
+                Axis::default()
+                    .style(Style::default().fg(Color::DarkGray))
+                    .labels(axes.labels_y.clone().into_iter().map(|s| s.bold()))
+                    .bounds(axes.bounds_y),
+            )
+            .legend_position(Some(LegendPosition::Right))
+    }
+
+    fn bar_chart<'a>(
+        names: &'a [MetricName],
+        data: &'a BTreeMap<MetricName, (RecentHistoryPlot, FullHistoryPlot)>,
+        selected: usize,
+    ) -> BarChart<'a> {
+        let name = names.get(selected).unwrap();
+        let (_recent, full) = data.get(name).unwrap();
         let mut bar_width = 0;
         let bars = full.bars(100, &mut bar_width);
 
@@ -301,16 +338,11 @@ impl NumericMetricsState {
 
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum NumericMetricView<'a> {
-    FullHistory {
-        titles: &'a [MetricName],
-        selected: usize,
-        plot: &'a FullHistoryPlot,
-        strip: &'a mut TabStripState,
-    },
-    RecentHistory {
+    LinePlots {
         titles: &'a [MetricName],
         selected: usize,
         chart: Chart<'a>,
+        kind: PlotKind,
         strip: &'a mut TabStripState,
     },
     BarPlots {
@@ -325,38 +357,20 @@ pub(crate) enum NumericMetricView<'a> {
 impl NumericMetricView<'_> {
     pub(crate) fn render(self, frame: &mut TerminalFrame<'_>, size: Rect) {
         match self {
-            Self::FullHistory {
-                titles,
-                selected,
-                plot,
-                strip,
-            } => {
-                render_plot_panel(
-                    frame,
-                    size,
-                    "Plots",
-                    "Full History",
-                    titles,
-                    selected,
-                    strip,
-                    plot,
-                );
-            }
-            Self::RecentHistory {
+            Self::LinePlots {
                 titles,
                 selected,
                 chart,
+                kind,
                 strip,
             } => {
+                let plot_title = match kind {
+                    PlotKind::Full => "Full History",
+                    PlotKind::Recent => "Recent History",
+                    _ => unreachable!(),
+                };
                 render_plot_panel(
-                    frame,
-                    size,
-                    "Plots",
-                    "Recent History",
-                    titles,
-                    selected,
-                    strip,
-                    chart,
+                    frame, size, "Plots", plot_title, titles, selected, strip, chart,
                 );
             }
             Self::BarPlots {
@@ -573,6 +587,35 @@ mod tests {
             row,
             modifiers: KeyModifiers::NONE,
         })
+    }
+
+    #[test]
+    fn only_validation_history_breaks_between_epochs() {
+        use crate::renderer::tui::TuiGroup;
+
+        let mut state = NumericMetricsState::default();
+        let train = TuiTag::new(TuiSplit::Train, TuiGroup::Default);
+        let valid = TuiTag::new(TuiSplit::Valid, TuiGroup::Default);
+        let train_metric = name("Training score");
+        let valid_metric = name("Validation score");
+
+        for score in [0.7, 0.9] {
+            state.push(
+                train.clone(),
+                train_metric.clone(),
+                Some(NumericEntry::Value(score)),
+            );
+            state.end_split(TuiSplit::Train);
+            state.push(
+                valid.clone(),
+                valid_metric.clone(),
+                Some(NumericEntry::Value(score)),
+            );
+            state.end_split(TuiSplit::Valid);
+        }
+
+        assert_eq!(state.data[&train_metric].1.datasets().len(), 1);
+        assert_eq!(state.data[&valid_metric].1.datasets().len(), 2);
     }
 
     #[test]
