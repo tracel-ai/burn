@@ -15,7 +15,7 @@ on:
       - "!LICENSE-APACHE"
       - "!LICENSE-MIT"
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]
     branches:
       - main
     paths:
@@ -50,8 +50,8 @@ concurrency:
 
 jobs:
   prepare-checks:
-    # Closing a PR only cancels its previous run. All other jobs depend on this one.
-    if: github.event.action != 'closed'
+    # Draft and closed PR events can still cancel previous runs through concurrency.
+    if: github.event_name != 'pull_request' || (github.event.action != 'closed' && !github.event.pull_request.draft)
     runs-on: ubuntu-latest
     outputs:
       rust-prev-version: ${{ env.RUST_PREVIOUS_VERSION }}
