@@ -16,6 +16,7 @@ use burn_std::environment::EnvironmentError as StorageError;
 pub use burn_std::environment::{
     AutotuneAnswer, BuildStamp, EnvironmentBundle, EnvironmentId, EnvironmentOrigin,
     EnvironmentSummary, PruneOptions, PruneTally, Pruned, RecordPruning, SaveOptions,
+    TuneTableName, TunedTable,
 };
 
 /// Why a compute environment could not be created, activated or saved.

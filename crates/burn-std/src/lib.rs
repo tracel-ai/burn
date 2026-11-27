@@ -122,8 +122,9 @@ pub mod environment {
     pub use cubecl_environment::environment::{
         AutotuneAnswer, BuildStamp, EnvironmentBundle, EnvironmentError, EnvironmentId,
         EnvironmentOrigin, EnvironmentSummary, PruneOptions, PruneTally, Pruned, RecordPruning,
-        SaveOptions,
+        SaveOptions, TunedTable,
     };
+    pub use cubecl_environment::persistence::TuneTableName;
 
     native_persistence! {
         pub use cubecl_environment::environment::BundleDescription;

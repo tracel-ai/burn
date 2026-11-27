@@ -22,7 +22,7 @@ mod backend;
 use backend::*;
 use burn_tensor::{
     AutotuneAnswer, Bytes, ComputeEnvironment, Device, EnvironmentBundle, EnvironmentError,
-    EnvironmentSummary, PruneOptions, RecordPruning, TensorData,
+    EnvironmentSummary, PruneOptions, RecordPruning, TensorData, TuneTableName, TunedTable,
 };
 use serial_test::serial;
 
@@ -286,8 +286,8 @@ fn answers_brought_into_an_environment_are_loaded_and_given_back() {
     assert!(!answers.is_empty());
     #[cfg(feature = "cube")]
     for hardware in device.hardware_identities() {
-        for answer in &answers {
-            assert!(answer.table.contains(&hardware), "{hardware}: {answer:?}");
+        for tuned in &answers {
+            assert_eq!(tuned.table.hardware, hardware, "{tuned:?}");
         }
     }
 
@@ -302,7 +302,7 @@ fn answers_brought_into_an_environment_are_loaded_and_given_back() {
 
     assert_eq!(unused, [], "held, and not used yet");
     assert_eq!(autotune.measured, 0, "{autotune:?}");
-    assert_eq!(autotune.loaded, answers.len() as u64, "{autotune:?}");
+    assert_eq!(autotune.loaded, answer_count(&answers), "{autotune:?}");
     assert_product_of_ones(product, shape, &device);
     assert_eq!(brought.save().unwrap().used_answers().unwrap(), answers);
 }
@@ -318,7 +318,7 @@ fn an_answer_past_the_end_of_its_candidates_is_measured() {
     let shape = [67, 23, 29];
     let (measured, _) = built(&device, "answers-valid", shape);
     let mut answers = measured.save().unwrap().used_answers().unwrap();
-    for answer in &mut answers {
+    for answer in answers.iter_mut().flat_map(|tuned| &mut tuned.answers) {
         answer.fastest_index = usize::MAX;
     }
 
@@ -331,7 +331,7 @@ fn an_answer_past_the_end_of_its_candidates_is_measured() {
     previous.activate(&device).unwrap();
 
     assert_eq!(autotune.loaded, 0, "{autotune:?}");
-    assert_eq!(autotune.measured, answers.len() as u64, "{autotune:?}");
+    assert_eq!(autotune.measured, answer_count(&answers), "{autotune:?}");
     assert_product_of_ones(product, shape, &device);
 }
 
@@ -343,10 +343,15 @@ fn an_answer_of_another_versions_table_is_left_out() {
     let environment = ComputeEnvironment::new(&device, "answers-foreign").unwrap();
 
     environment
-        .merge_answers(vec![AutotuneAnswer {
-            table: "autotune/0.0.0/layout-v1/hardware/tuner".into(),
-            key: Bytes::from_bytes_vec(b"key".to_vec()),
-            fastest_index: 0,
+        .merge_answers(vec![TunedTable {
+            table: TuneTableName {
+                version: "0.0.0".into(),
+                ..TuneTableName::current("hardware", "tuner")
+            },
+            answers: vec![AutotuneAnswer {
+                key: Bytes::from_bytes_vec(b"key".to_vec()),
+                fastest_index: 0,
+            }],
         }])
         .unwrap();
 
@@ -367,7 +372,7 @@ fn answers_brought_before_a_bundle_win_over_its_own() {
     let (measured, _) = built(&device, "answers-own", [71, 17, 41]);
     let bundle = measured.save().unwrap();
     let mut shared = bundle.used_answers().unwrap();
-    for answer in &mut shared {
+    for answer in shared.iter_mut().flat_map(|tuned| &mut tuned.answers) {
         answer.fastest_index += 1;
     }
 
@@ -402,7 +407,7 @@ fn a_prune_removes_the_answers_the_work_did_not_use() {
     let answers = pruned.prune(PruneOptions::default()).unwrap().answers;
     previous.activate(&device).unwrap();
 
-    let kept = used.len() as u64;
+    let kept = answer_count(&used);
     assert_eq!(answers.kept, kept, "{answers:?}");
     assert_eq!(answers.removed, held - kept, "{answers:?}");
     assert!(answers.removed > 0, "{answers:?}");
@@ -554,6 +559,12 @@ fn product_of_ones(device: &Device, [m, k, n]: [usize; 3]) -> TestTensor<2> {
 fn assert_product_of_ones(product: TensorData, [m, k, n]: [usize; 3], device: &Device) {
     let expected = TestTensor::<2>::full([m, n], k as f32, device);
     product.assert_eq(&expected.into_data(), false);
+}
+
+/// How many answers `tables` hold together.
+#[cfg(feature = "persistence")]
+fn answer_count(tables: &[TunedTable]) -> u64 {
+    tables.iter().map(|tuned| tuned.answers.len() as u64).sum()
 }
 
 /// Whether the runtime keeps the kernels it compiles, so an environment holds

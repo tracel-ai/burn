@@ -4,7 +4,7 @@ mod common;
 
 use burn_backend::{
     AutotuneAnswer, Backend, EnvironmentError, EnvironmentId, EnvironmentOrigin, PruneOptions,
-    distributed::ReduceOperation, ops::CollectiveOps,
+    TuneTableName, TunedTable, distributed::ReduceOperation, ops::CollectiveOps,
 };
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_flex::Flex;
@@ -1340,10 +1340,12 @@ fn a_merge_of_answers_is_answered_by_the_servers_backend() {
         name: "merged".into(),
         location: String::new(),
     };
-    let answers = EnvironmentOrigin::Answers(vec![AutotuneAnswer {
-        table: "table".into(),
-        key: Bytes::from_bytes_vec(b"key".to_vec()),
-        fastest_index: 0,
+    let answers = EnvironmentOrigin::Answers(vec![TunedTable {
+        table: TuneTableName::current("hardware", "tuner"),
+        answers: vec![AutotuneAnswer {
+            key: Bytes::from_bytes_vec(b"key".to_vec()),
+            fastest_index: 0,
+        }],
     }]);
 
     let answer = Dispatch::environment_merge(device.as_dispatch(), id.clone(), answers.clone());

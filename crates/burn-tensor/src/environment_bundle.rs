@@ -1,4 +1,4 @@
-use crate::{AutotuneAnswer, BuildStamp, EnvironmentBundle, EnvironmentError, EnvironmentSummary};
+use crate::{BuildStamp, EnvironmentBundle, EnvironmentError, EnvironmentSummary, TunedTable};
 use alloc::string::String;
 use alloc::vec::Vec;
 use std::path::Path;
@@ -41,8 +41,8 @@ pub trait ReadBundle: Sized {
     fn describe(&self) -> Result<BundleDescription, EnvironmentError>;
 
     /// The autotune answers the work of the executable that
-    /// [saved](Self::saved_by) the bundle used, loaded or measured, each
-    /// trimmed to its pick, for
+    /// [saved](Self::saved_by) the bundle used, loaded or measured, by table
+    /// and each trimmed to its pick, for
     /// [`merge_answers`](crate::ComputeEnvironment::merge_answers) to bring into
     /// another environment. An answer the bundle holds that its work never
     /// used is not one of them.
@@ -50,7 +50,7 @@ pub trait ReadBundle: Sized {
     /// # Errors
     ///
     /// As [`describe`](Self::describe).
-    fn used_answers(&self) -> Result<Vec<AutotuneAnswer>, EnvironmentError>;
+    fn used_answers(&self) -> Result<Vec<TunedTable>, EnvironmentError>;
 
     /// The name the bundle's manifest gives it, as
     /// [`save_named`](crate::ComputeEnvironment::save_named) set it.
@@ -101,7 +101,7 @@ impl ReadBundle for EnvironmentBundle {
         Ok(self.read_description()?)
     }
 
-    fn used_answers(&self) -> Result<Vec<AutotuneAnswer>, EnvironmentError> {
+    fn used_answers(&self) -> Result<Vec<TunedTable>, EnvironmentError> {
         Ok(self.read_used_answers()?)
     }
 }

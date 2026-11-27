@@ -1,6 +1,6 @@
 pub use burn_backend::{
     AutotuneAnswer, BuildStamp, EnvironmentBundle, EnvironmentError, EnvironmentSummary,
-    PruneOptions, PruneTally, Pruned, RecordPruning,
+    PruneOptions, PruneTally, Pruned, RecordPruning, TuneTableName, TunedTable,
 };
 
 use crate::Device;
@@ -193,13 +193,13 @@ impl ComputeEnvironment {
         self.merge_from(EnvironmentOrigin::Bundle(bundle))
     }
 
-    /// Bring `answers` into this environment, as [`merge`](Self::merge) brings
-    /// another environment's entries: the work runs by them instead of
-    /// measuring its candidates again. They are what another environment's
-    /// work used, as its saved bundle gives them back
-    /// (`ReadBundle::used_answers`, with the `persistence` feature). An answer
-    /// this version's tuners do not read is left out, and the first of two to
-    /// one key is held.
+    /// Bring the answers of `tables` into this environment, as
+    /// [`merge`](Self::merge) brings another environment's entries: the work
+    /// runs by them instead of measuring its candidates again. They are what
+    /// another environment's work used, as its saved bundle gives them back
+    /// (`ReadBundle::used_answers`, with the `persistence` feature). A table
+    /// this version's tuners do not read is left out, and the first of two
+    /// answers to one key of one table is held.
     ///
     /// Brought into a [new](Self::new) environment before a
     /// [bundle](Self::merge_bundle), they win over the bundle's own.
@@ -207,8 +207,8 @@ impl ComputeEnvironment {
     /// # Errors
     ///
     /// The storage refused the write, or the device could not be reached.
-    pub fn merge_answers(&self, answers: Vec<AutotuneAnswer>) -> Result<(), EnvironmentError> {
-        self.merge_from(EnvironmentOrigin::Answers(answers))
+    pub fn merge_answers(&self, tables: Vec<TunedTable>) -> Result<(), EnvironmentError> {
+        self.merge_from(EnvironmentOrigin::Answers(tables))
     }
 
     /// Remove what the work never used, after every operation registered so
