@@ -178,7 +178,7 @@ fn coarser_block_in_grid(finest: &BlockScale, coarser: &BlockScale, grid: &Shape
         .map(|((finest, coarser), &cells)| match (finest, coarser) {
             (_, BlockExtent::WholeAxis) => cells,
             (BlockExtent::Values(finest), BlockExtent::Values(coarser)) => {
-                (coarser.get() / finest.get()) as usize
+                (coarser.get() / finest) as usize
             }
             // A coarser block covers whole finest blocks, so a whole-axis finest block has a
             // whole-axis coarser one over it.
