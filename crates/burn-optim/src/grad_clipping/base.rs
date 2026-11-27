@@ -63,8 +63,8 @@ impl GradientClipping {
             GradientClipping::Norm(max_norm) => self.clip_by_norm(grad, *max_norm),
             GradientClipping::GlobalNorm(max_norm) => {
                 let dtype = grad.dtype();
-                let sqrt_scale = L2Norm::of(grad.clone()).sqrt_scale(*max_norm);
-                scale_gradient(grad, sqrt_scale, dtype)
+                let coefficient = L2Norm::compute(grad.clone()).clip_coefficient(*max_norm);
+                scale_gradient(grad, coefficient, dtype)
             }
         }
     }
@@ -128,6 +128,28 @@ mod tests {
             &burn::tensor::TensorData::from([0.6f32, 0.8]),
             Default::default(),
         );
+    }
+
+    #[test]
+    fn global_norm_preserves_small_components_when_clipping() {
+        let large = 2.0_f32.powi(60);
+        let small = 2.0_f32.powi(-100);
+        let grad = Tensor::<1>::from_data([large, small], (&Default::default(), DType::F32));
+        let clipped = GradientClipping::GlobalNorm(large / 2.).clip_gradient(grad);
+        clipped.into_data().assert_eq(
+            &burn::tensor::TensorData::from([large / 2., small / 2.]),
+            true,
+        );
+    }
+
+    #[test]
+    fn global_norm_rounds_subnormal_gradients_once() {
+        let x = f32::from_bits(1);
+        let grad = Tensor::<1>::from_data([x; 9], (&Default::default(), DType::F32));
+        let clipped = GradientClipping::GlobalNorm(x).clip_gradient(grad);
+        clipped
+            .into_data()
+            .assert_eq(&burn::tensor::TensorData::from([0f32; 9]), true);
     }
 
     #[test]

@@ -232,6 +232,8 @@ pub(crate) fn handle_backend_tests(
                     "autodiff_signal",
                     "--test",
                     "training_pipeline",
+                    "--test",
+                    "optimizer_clipping",
                 ],
                 args.release,
             ),

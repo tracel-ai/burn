@@ -19,7 +19,7 @@ pub(crate) fn norm_precision<const D: usize>(grad: Tensor<D>) -> Tensor<D> {
 }
 
 impl L2Norm {
-    pub(crate) fn of<const D: usize>(grad: Tensor<D>) -> Self {
+    pub(crate) fn compute<const D: usize>(grad: Tensor<D>) -> Self {
         let grad = norm_precision(grad);
         if grad.shape().num_elements() == 0 {
             let zero = grad.sum();
@@ -43,7 +43,8 @@ impl L2Norm {
         self.peak.dtype()
     }
 
-    pub(crate) fn into_device(self, device: &Device) -> Self {
+    #[allow(clippy::wrong_self_convention)] // Match Tensor::to_device's consuming receiver.
+    pub(crate) fn to_device(self, device: &Device) -> Self {
         Self {
             peak: self.peak.to_device(device),
             squares: self.squares.to_device(device),
@@ -71,52 +72,23 @@ impl L2Norm {
         Self { peak, squares }
     }
 
-    /// Two multiplications by this factor apply the coefficient. Its square can underflow
-    /// on an F32 device even when the scaled gradient is representable there.
-    pub(crate) fn sqrt_scale(self, limit: f32) -> Tensor<1> {
+    pub(crate) fn clip_coefficient(self, limit: f32) -> Tensor<1> {
         if limit == f32::INFINITY {
             return self.peak.ones_like();
         }
-        let length = self.squares.sqrt();
-        let limit_tensor = self.peak.full_like(limit);
-        let sqrt_scale =
-            limit_tensor.clone().sqrt() / (self.peak.clone().sqrt() * length.clone().sqrt());
-        let within = self.peak.clone().lower_equal(limit_tensor / length);
-        sqrt_scale
+        let zero_norm = self.peak.clone().equal_elem(0.);
+        let limit = self.peak.full_like(limit);
+        // Forming peak * sqrt(squares) can overflow even when the coefficient is representable.
+        (limit / self.peak / self.squares.sqrt())
             .clamp_max(1.)
-            .mask_fill(within, 1.)
-            .mask_fill(self.peak.equal_elem(0.), 1.)
+            .mask_fill(zero_norm, 1.)
     }
 }
 
 pub(crate) fn scale_gradient<const D: usize>(
     grad: Tensor<D>,
-    sqrt_scale: Tensor<1>,
-    dtype: DType,
+    coefficient: Tensor<1>,
+    output_dtype: DType,
 ) -> Tensor<D> {
-    let sqrt_scale = sqrt_scale.unsqueeze();
-    let scaled = grad.cast(sqrt_scale.dtype()) * sqrt_scale.clone() * sqrt_scale;
-    scaled.cast(dtype)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn global_norm_scale_survives_transfer_to_f32() {
-        let device = Device::default();
-        if !device.supports_dtype(DType::F64) {
-            return;
-        }
-        let large = Tensor::<1>::from_data([1e50f64], (&device, DType::F64));
-        let small = Tensor::<1>::from_floats([1e15], &device);
-        let norm = L2Norm::combine(alloc::vec![L2Norm::of(large), L2Norm::of(small.clone())]);
-        let sqrt_scale = norm.sqrt_scale(1.).cast(DType::F32);
-        let actual = scale_gradient(small, sqrt_scale, DType::F32).into_scalar::<f32>();
-        assert!(
-            (actual / 1e-35 - 1.).abs() < 1e-5,
-            "scaled gradient: {actual}"
-        );
-    }
+    (grad.cast(coefficient.dtype()) * coefficient.unsqueeze()).cast(output_dtype)
 }

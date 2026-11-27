@@ -144,8 +144,8 @@ let optimizer = optimizer.with_grad_clipping(GradientClipping::GlobalNorm(1.0));
 ```
 
 Both `step` and `step_multi` compute one scale from the accumulated gradients across all groups.
-If their joint norm exceeds the limit, every gradient is multiplied by that scale before the
-optimizer update. Pass `None` for clipping in each `with_group` call when using `GlobalNorm`.
+If the joint norm exceeds the limit, every gradient is multiplied once by `limit / joint_norm`
+before the optimizer update. Pass `None` for clipping in each `with_group` call when using `GlobalNorm`.
 Combining it with explicit group clipping panics during configuration in either builder order.
 
 For per-parameter clipping, `Norm` limits each gradient tensor's norm independently and `Value`

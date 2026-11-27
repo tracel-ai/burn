@@ -36,7 +36,7 @@ impl ModuleVisitor for NormCollector {
         if grad.dtype() != dtype {
             self.original_dtypes.insert(param.id, dtype);
         }
-        let norm = L2Norm::of(grad.clone());
+        let norm = L2Norm::compute(grad.clone());
         if let Some((_, norms)) = self.norms.iter_mut().find(|(d, _)| *d == device) {
             norms.push(norm);
         } else {
@@ -91,19 +91,19 @@ impl GlobalNorm {
                 let norm = if device == root {
                     norm
                 } else {
-                    norm.into_device(&root)
+                    norm.to_device(&root)
                 };
                 ((device, dtype), norm)
             })
             .unzip();
-        let sqrt_scale = L2Norm::combine(partials).sqrt_scale(limit);
+        let coefficient = L2Norm::combine(partials).clip_coefficient(limit);
         let scales = devices
             .into_iter()
             .map(|(device, dtype)| {
                 let scale = if device == root {
-                    sqrt_scale.clone()
+                    coefficient.clone()
                 } else {
-                    sqrt_scale.clone().cast(dtype).to_device(&device)
+                    coefficient.clone().cast(dtype).to_device(&device)
                 };
                 (device, scale)
             })
@@ -120,7 +120,7 @@ impl GlobalNorm {
         grad: Tensor<D>,
         device: &Device,
     ) -> Tensor<D> {
-        let (_, sqrt_scale) = self
+        let (_, scale) = self
             .scales
             .iter()
             .find(|(d, _)| d == device)
@@ -130,6 +130,6 @@ impl GlobalNorm {
             .get(&id)
             .copied()
             .unwrap_or_else(|| grad.dtype());
-        scale_gradient(grad, sqrt_scale.clone(), dtype)
+        scale_gradient(grad, scale.clone(), dtype)
     }
 }
