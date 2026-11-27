@@ -97,6 +97,14 @@ impl NumericMetricsState {
         full.push(tag, data);
     }
 
+    pub(crate) fn end_split(&mut self, split: TuiSplit) {
+        if split == TuiSplit::Valid {
+            for (_, full) in self.data.values_mut() {
+                full.end_validation();
+            }
+        }
+    }
+
     /// Update the state with the training progress.
     pub(crate) fn update_progress_train(&mut self, progress: &ProgressSnapshot) {
         self.epoch = progress.global.items_processed;
@@ -579,6 +587,35 @@ mod tests {
             row,
             modifiers: KeyModifiers::NONE,
         })
+    }
+
+    #[test]
+    fn only_validation_history_breaks_between_epochs() {
+        use crate::renderer::tui::TuiGroup;
+
+        let mut state = NumericMetricsState::default();
+        let train = TuiTag::new(TuiSplit::Train, TuiGroup::Default);
+        let valid = TuiTag::new(TuiSplit::Valid, TuiGroup::Default);
+        let train_metric = name("Training score");
+        let valid_metric = name("Validation score");
+
+        for score in [0.7, 0.9] {
+            state.push(
+                train.clone(),
+                train_metric.clone(),
+                Some(NumericEntry::Value(score)),
+            );
+            state.end_split(TuiSplit::Train);
+            state.push(
+                valid.clone(),
+                valid_metric.clone(),
+                Some(NumericEntry::Value(score)),
+            );
+            state.end_split(TuiSplit::Valid);
+        }
+
+        assert_eq!(state.data[&train_metric].1.datasets().len(), 1);
+        assert_eq!(state.data[&valid_metric].1.datasets().len(), 2);
     }
 
     #[test]

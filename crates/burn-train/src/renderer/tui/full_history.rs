@@ -4,7 +4,7 @@ use crate::{
     renderer::tui::{TuiSplit, TuiTag},
 };
 use ratatui::{
-    style::{Color, Style},
+    style::Style,
     symbols,
     widgets::{Bar, Dataset, GraphType},
 };
@@ -27,6 +27,8 @@ struct FullHistoryPoints {
     avg_sum: f64,
     avg_counter: f64,
     points: Vec<(f64, f64)>,
+    /// Exclusive end indices of completed, nonempty runs in the retained points.
+    segment_ends: Vec<usize>,
     max_samples: usize,
     step_size: usize,
 }
@@ -98,11 +100,31 @@ impl FullHistoryPlot {
         self.update_bounds();
     }
 
-    pub(crate) fn datasets(&self) -> Vec<Dataset<'_>> {
-        let mut datasets = Vec::with_capacity(2);
+    pub(crate) fn end_validation(&mut self) {
+        for (tag, points) in &mut self.points {
+            if tag.split == TuiSplit::Valid {
+                points.end_segment();
+            }
+        }
+    }
 
-        for (tag, points) in self.points.iter() {
-            datasets.push(points.dataset(format!("{tag}"), tag.split.color()));
+    pub(crate) fn datasets(&self) -> Vec<Dataset<'_>> {
+        let mut datasets = Vec::new();
+
+        for (tag, points) in &self.points {
+            let style = Style::default().fg(tag.split.color()).bold();
+            for (index, segment) in points.segments().enumerate() {
+                let dataset = Dataset::default()
+                    .marker(symbols::Marker::Braille)
+                    .style(style)
+                    .graph_type(GraphType::Line)
+                    .data(segment);
+                datasets.push(if index == 0 {
+                    dataset.name(tag.to_string())
+                } else {
+                    dataset
+                });
+            }
         }
 
         datasets
@@ -146,6 +168,7 @@ impl FullHistoryPoints {
             avg_sum: 0.0,
             avg_counter: 0.0,
             points: Vec::with_capacity(max_samples),
+            segment_ends: Vec::new(),
             max_samples,
             step_size: 1,
         }
@@ -233,6 +256,11 @@ impl FullHistoryPoints {
         }
 
         self.points = points;
+        // Keeping the even indices retains ceil(end / 2) points before each boundary.
+        for end in &mut self.segment_ends {
+            *end = end.div_ceil(2);
+        }
+        self.segment_ends.dedup();
         self.step_size *= 2;
 
         self.min_x = min_x;
@@ -241,13 +269,26 @@ impl FullHistoryPoints {
         self.max_y = max_y;
     }
 
-    fn dataset<'a>(&'a self, name: String, color: Color) -> Dataset<'a> {
-        Dataset::default()
-            .name(name)
-            .marker(symbols::Marker::Braille)
-            .style(Style::default().fg(color).bold())
-            .graph_type(GraphType::Line)
-            .data(&self.points)
+    fn end_segment(&mut self) {
+        let end = self.points.len();
+        if end > self.segment_ends.last().copied().unwrap_or(0) {
+            self.segment_ends.push(end);
+        }
+    }
+
+    fn segments(&self) -> impl Iterator<Item = &[(f64, f64)]> {
+        let len = self.points.len();
+        let mut start = 0;
+        self.segment_ends
+            .iter()
+            .copied()
+            .take_while(move |&end| end < len)
+            .chain(std::iter::once(len))
+            .map(move |end| {
+                let segment = &self.points[start..end];
+                start = end;
+                segment
+            })
     }
 
     fn bar<'a>(&'a self, tag: &TuiTag, max: u64) -> Option<(Bar<'a>, usize)> {
@@ -314,6 +355,69 @@ mod tests {
             expected_valid,
             "Expected valid data points"
         );
+    }
+
+    #[test]
+    fn validation_only_runs_stay_separate_after_downsampling() {
+        let mut chart = FullHistoryPlot::new(3);
+        let valid = TuiTag::new(TuiSplit::Valid, TuiGroup::Default);
+
+        // The next run starts at x=1, which is discarded when x=3 triggers a resize.
+        chart.push(valid.clone(), Some(NumericEntry::Value(8.0)));
+        chart.end_validation();
+        for value in [7.0, 5.0, 4.0] {
+            chart.push(valid.clone(), Some(NumericEntry::Value(value)));
+        }
+        chart.end_validation();
+
+        // An empty run and a skipped first sample must preserve the next boundary.
+        chart.end_validation();
+        chart.push(valid.clone(), None);
+        chart.push(valid.clone(), Some(NumericEntry::Value(3.0)));
+        chart.push(valid.clone(), Some(NumericEntry::Value(1.0)));
+
+        let segments: Vec<_> = chart.points[&valid].segments().collect();
+        assert_eq!(segments, [&[(0.0, 8.0)], &[(2.0, 5.0)], &[(6.0, 1.0)]]);
+    }
+
+    #[test]
+    fn downsampling_keeps_an_uninterrupted_run_connected() {
+        let mut chart = FullHistoryPlot::new(3);
+        let train = TuiTag::new(TuiSplit::Train, TuiGroup::Default);
+        let valid = TuiTag::new(TuiSplit::Valid, TuiGroup::Default);
+
+        chart.push(train, Some(NumericEntry::Value(9.0)));
+        for value in [8.0, 7.0, 6.0, 5.0, 4.0, 3.0] {
+            chart.push(valid.clone(), Some(NumericEntry::Value(value)));
+        }
+
+        let segments: Vec<_> = chart.points[&valid].segments().collect();
+        assert_eq!(segments, [&[(1.0, 8.0), (3.0, 6.0), (6.0, 3.0)]]);
+    }
+
+    #[test]
+    fn legend_lists_each_series_once_including_an_empty_series() {
+        use ratatui::{
+            buffer::Buffer,
+            layout::Rect,
+            widgets::{Chart, Widget},
+        };
+
+        let mut chart = FullHistoryPlot::new(10);
+        let valid = TuiTag::new(TuiSplit::Valid, TuiGroup::Default);
+        chart.push(TuiTag::new(TuiSplit::Train, TuiGroup::Default), None);
+        chart.push(valid.clone(), Some(NumericEntry::Value(0.8)));
+        chart.end_validation();
+        chart.push(valid, Some(NumericEntry::Value(0.4)));
+        chart.end_validation();
+
+        let datasets = chart.datasets();
+        assert_eq!(datasets.len(), 3);
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 60, 24));
+        Chart::new(datasets).render(buffer.area, &mut buffer);
+        let text: String = buffer.content().iter().map(|cell| cell.symbol()).collect();
+        assert_eq!(text.matches("Train").count(), 1);
+        assert_eq!(text.matches("Valid").count(), 1);
     }
 
     #[test]
