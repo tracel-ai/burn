@@ -12,10 +12,7 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::ops::{AttentionCache, AttentionModuleOptions, CausalAlignment};
-use burn_backend::{
-    DType, Shape,
-    cubecl::{dtype_to_storage_type, dtype_to_tile_storage_type},
-};
+use burn_backend::{DType, Shape, cubecl::dtype_to_storage_type};
 use cubecl::features::TypeUsage;
 use cubecl::prelude::InputScalar;
 use cubek::attention::kernels::select::problem::QueryPositions;
@@ -28,7 +25,7 @@ use cubek::attention::kernels::{
 /// are verified on and the device runs, and query heads that split evenly over the key heads.
 pub(crate) fn routines_take(query: &CubeTensor, key: &CubeTensor, value: &CubeTensor) -> bool {
     let (q_shape, k_shape) = (query.meta.shape(), key.meta.shape());
-    let element = dtype_to_tile_storage_type(query.dtype);
+    let element = dtype_to_storage_type(query.dtype);
     let elements = key.dtype == query.dtype
         && value.dtype == query.dtype
         && AttentionTensors::VERIFIED.contains(&element)
