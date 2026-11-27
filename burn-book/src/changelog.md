@@ -704,12 +704,22 @@ whose tensors are split over `devices` (crate `burn-shard`).
   of blocks has more than one axis, such as one scale per row: each row now quantizes under its own
   scale. ([#6649](https://github.com/tracel-ai/burn/pull/6649))
 
-- A two-level scheme's coarser level may be any block, not only one scale for the whole tensor:
-  `QuantScheme::coarser_per_block` sets it, such as one `f32` scale a row over MXFP4's `ue8m0`
-  block scales (`QuantScheme::mxfp4_row_factored`). Quantizing, dequantizing, saving, loading,
-  transposing, reshaping and splitting a quantized tensor carry its grid of coarser scales.
+- A two-level scheme's coarser level may be any block, not only one scale for the whole tensor,
+  such as one `f32` scale a row over MXFP4's `ue8m0` block scales
+  (`QuantScheme::mxfp4_row_factored`). Quantizing, dequantizing, saving, loading, transposing,
+  reshaping and splitting a quantized tensor carry its grid of coarser scales.
   **Breaking:** the second level of `QuantizationParameters` and of the parameter types behind
   it is renamed `global` to `coarser`, and holds that grid. ([#6668](https://github.com/tracel-ai/burn/pull/6668))
+
+- **Breaking:** a `QuantScheme` states its scale levels in four slots, the innermost first
+  (`levels`), and is built with `with_levels([..])`, every level at once:
+  `.per_block(size, dtype).per_tensor(F32)` becomes
+  `.with_levels([BlockScale::per_block(size, dtype), BlockScale::per_tensor(F32)])`. `per_block`,
+  `per_tensor`, `coarser_per_block` and `finest()` are gone; `inner_level` reads the level a
+  quantized tensor's scales lie beside. `QuantMode` is gone too: a lookup scheme is an index
+  format of its value (`QuantValue::Index4`), and `QuantValue` also names `F32`, `F16` and
+  `BF16`, which no quantized tensor holds (`quantizable` refuses them). Saved schemes read back
+  unchanged. ([#6668](https://github.com/tracel-ai/burn/pull/6668))
 
 #### Random operation keys
 
