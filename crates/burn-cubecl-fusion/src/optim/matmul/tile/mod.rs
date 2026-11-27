@@ -20,6 +20,7 @@ use crate::{
     },
     tune::{FusionInputGen, TuneInput},
 };
+use burn_backend::cubecl::autotune::{RACED_PRIORITY, raced_group};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use cubecl::{
@@ -105,9 +106,13 @@ pub(crate) fn execute(mut arg: MatmulOptimizationTuneArg, context: &mut Context<
     let tune_id = CubeTuneId::new(&client, &arg.info.device);
     let tunables = TUNER.init(&tune_id, || {
         // The fallback first: it always runs.
+        let raced = raced_group("kernels");
         TunableSet::new(create_autotune_key, FusionInputGen)
-            .with(Tunable::new("fused_matmul_fallback", tune_fallback))
-            .with(Tunable::new("fused_matmul_tile", tune_fused))
+            .with(
+                Tunable::new("fused_matmul_fallback", tune_fallback)
+                    .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(Tunable::new("fused_matmul_tile", tune_fused).group(&raced, |_| RACED_PRIORITY))
     });
 
     TUNER.execute(&tune_id, &client, tunables, TuneInput::new(context, arg));

@@ -3,6 +3,7 @@
 //! ([`TuneCandidate`]), and the one rule that takes a candidate out of a round ([`priority_of`]).
 
 use core::fmt::Display;
+use core::time::Duration;
 
 /// Where a candidate goes in a round **for one problem**: the candidates a
 /// problem suits best are tried first, and a bound can end the round before the
@@ -26,6 +27,17 @@ impl CandidatePriority {
     /// candidate whose launch it can argue against without a clock.
     pub const LAST: Self = Self(0);
 
+    /// Tried after every candidate whose time was predicted, and before the ones at
+    /// [`LAST`](Self::LAST): what a family says of a candidate that prepares but whose time the
+    /// model cannot predict on this device — a peak the device did not measure, an estimate that
+    /// leaves its grid unstated. Untimed candidates keep their list's order among themselves.
+    pub const UNPREDICTED: Self = Self(1);
+
+    /// The lowest a predicted time places a candidate: one level above
+    /// [`UNPREDICTED`](Self::UNPREDICTED), so a prediction, however slow, is tried before no
+    /// prediction.
+    const SLOWEST_PREDICTED: Self = Self(Self::UNPREDICTED.0 + 1);
+
     /// This priority, `levels` lower — saturating at [`LAST`](Self::LAST).
     pub fn lowered(self, levels: u32) -> Self {
         Self(
@@ -33,6 +45,27 @@ impl CandidatePriority {
                 .unwrap_or(Self::LAST.0)
                 .max(Self::LAST.0),
         )
+    }
+
+    /// How much slower than predicted one level lower is: a candidate predicted within this of
+    /// another sits at its level, where no prediction tells them apart and the list's order does.
+    pub const LEVEL_RATIO: f64 = 1.1;
+
+    /// The priority of a candidate predicted to take `predicted` on a problem no kernel runs
+    /// under `floor`: [`FIRST`](Self::FIRST), lowered a level for each
+    /// [`LEVEL_RATIO`](Self::LEVEL_RATIO) its prediction sits above the floor, saturating one
+    /// level above [`UNPREDICTED`](Self::UNPREDICTED). A prediction under the floor, or a floor of
+    /// nothing, is first.
+    pub fn above_floor(predicted: Duration, floor: Duration) -> Self {
+        if floor.is_zero() {
+            return Self::FIRST;
+        }
+        let ratio = predicted.as_secs_f64() / floor.as_secs_f64();
+        let levels = ratio.ln() / Self::LEVEL_RATIO.ln();
+        // A `NaN` or negative level casts to zero, an infinite one saturates.
+        Self::FIRST
+            .lowered(levels.round() as u32)
+            .max(Self::SLOWEST_PREDICTED)
     }
 
     /// The priority as cubecl's tuner reads it: a group or candidate priority, never negative,
@@ -154,6 +187,22 @@ pub fn priority_of<C: TuneCandidate>(
     (!repeats_an_earlier_candidate).then(|| candidate.priority(key))
 }
 
+/// Whether the device the tests run on timed every one of `priorities`, so a test of how the
+/// prediction orders them has something to compare: a launch is
+/// [`UNPREDICTED`](CandidatePriority::UNPREDICTED) on a device that does not say how many workers
+/// it has, as Vulkan and Metal through wgpu do not, and [`LAST`](CandidatePriority::LAST) where the
+/// device declines it.
+#[cfg(test)]
+pub(crate) fn predicted_on_device(priorities: &[CandidatePriority]) -> bool {
+    let predicted = priorities.iter().all(|priority| {
+        ![CandidatePriority::UNPREDICTED, CandidatePriority::LAST].contains(priority)
+    });
+    if !predicted {
+        std::eprintln!("skipped: the device does not time these launches: {priorities:?}");
+    }
+    predicted
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,5 +272,40 @@ mod tests {
             CandidatePriority::LAST
         );
         assert!(CandidatePriority::LAST.get() >= 0);
+    }
+
+    /// A prediction a level's ratio over the floor is a level lower; two levels' ratio, two.
+    #[test]
+    fn each_level_ratio_above_the_floor_is_a_level_lower() {
+        let floor = Duration::from_micros(100);
+        let at = |ratio: f64| CandidatePriority::above_floor(floor.mul_f64(ratio), floor);
+        assert_eq!(at(1.0), CandidatePriority::FIRST);
+        assert_eq!(at(1.1), CandidatePriority::FIRST.lowered(1));
+        assert_eq!(at(1.1 * 1.1), CandidatePriority::FIRST.lowered(2));
+    }
+
+    /// A prediction however far above the floor is tried before a candidate whose time was not
+    /// predicted, which is tried before one its routine declines.
+    #[test]
+    fn a_slow_prediction_is_tried_before_no_prediction() {
+        let floor = Duration::from_micros(100);
+        let slowest = CandidatePriority::above_floor(floor.mul_f64(1e6), floor);
+        assert!(slowest > CandidatePriority::UNPREDICTED, "{slowest:?}");
+        assert!(CandidatePriority::UNPREDICTED > CandidatePriority::LAST);
+    }
+
+    /// A prediction the model puts under the floor, or a floor of nothing, says nothing against
+    /// the candidate: it is first.
+    #[test]
+    fn a_prediction_under_the_floor_is_first() {
+        let floor = Duration::from_micros(100);
+        assert_eq!(
+            CandidatePriority::above_floor(floor / 2, floor),
+            CandidatePriority::FIRST
+        );
+        assert_eq!(
+            CandidatePriority::above_floor(floor, Duration::ZERO),
+            CandidatePriority::FIRST
+        );
     }
 }

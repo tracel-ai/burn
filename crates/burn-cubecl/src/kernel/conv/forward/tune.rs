@@ -1,3 +1,4 @@
+use burn_backend::cubecl::autotune::{RACED_PRIORITY, raced_group};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::ConvOptions;
 use cubecl::{
@@ -61,11 +62,14 @@ pub fn conv_autotune<const N: usize>(
 
     let tune_id = CubeTuneId::new(&input.client, &input.device);
     let tunables = TUNER.init(&tune_id, || {
+        let raced = raced_group("kernels");
         TunableSet::new(create_key::<N>, create_conv_input::<N>)
-            .with(Tunable::new(
-                "conv_direct",
-                |(input, weight, bias, options)| conv_direct::<N>(input, weight, bias, options),
-            ))
+            .with(
+                Tunable::new("conv_direct", |(input, weight, bias, options)| {
+                    conv_direct::<N>(input, weight, bias, options)
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
             // Declines with `NotDepthwise` on anything that is not one filter per channel, so
             // each of these costs a dense shape nothing but the setup call that rejects it.
             //
@@ -74,44 +78,60 @@ pub fn conv_autotune<const N: usize>(
             // which one wins swings with the window's depth and the block's width in a way the
             // shape does not predict. The routine's own default is the fallback when no tuning
             // has run; these are what let a run that does tune land on the right one.
-            .with(Tunable::new(
-                "conv_depthwise",
-                |(input, weight, bias, options)| {
+            .with(
+                Tunable::new("conv_depthwise", |(input, weight, bias, options)| {
                     conv_depthwise::<N>(input, weight, bias, options, DepthwiseStrategy::Routine)
-                },
-            ))
-            .with(Tunable::new(
-                "conv_depthwise_8x4_lined",
-                |(input, weight, bias, options)| {
-                    conv_depthwise::<N>(input, weight, bias, options, DEPTHWISE_8X4_LINED)
-                },
-            ))
-            .with(Tunable::new(
-                "conv_depthwise_2x4_scalar",
-                |(input, weight, bias, options)| {
-                    conv_depthwise::<N>(input, weight, bias, options, DEPTHWISE_2X4_SCALAR)
-                },
-            ))
-            .with(Tunable::new(
-                "conv_depthwise_8x2_lined",
-                |(input, weight, bias, options)| {
-                    conv_depthwise::<N>(input, weight, bias, options, DEPTHWISE_8X2_LINED)
-                },
-            ))
-            .with(Tunable::new(
-                "conv_depthwise_4x2_scalar",
-                |(input, weight, bias, options)| {
-                    conv_depthwise::<N>(input, weight, bias, options, DEPTHWISE_4X2_SCALAR)
-                },
-            ))
-            .with(Tunable::new(
-                "conv_im2col_1x1",
-                |(input, weight, bias, options)| conv_im2col_1x1::<N>(input, weight, bias, options),
-            ))
-            .with(Tunable::new(
-                "conv_im2col_gather",
-                |(input, weight, bias, options)| conv_im2col::<N>(input, weight, bias, options),
-            ))
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new(
+                    "conv_depthwise_8x4_lined",
+                    |(input, weight, bias, options)| {
+                        conv_depthwise::<N>(input, weight, bias, options, DEPTHWISE_8X4_LINED)
+                    },
+                )
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new(
+                    "conv_depthwise_2x4_scalar",
+                    |(input, weight, bias, options)| {
+                        conv_depthwise::<N>(input, weight, bias, options, DEPTHWISE_2X4_SCALAR)
+                    },
+                )
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new(
+                    "conv_depthwise_8x2_lined",
+                    |(input, weight, bias, options)| {
+                        conv_depthwise::<N>(input, weight, bias, options, DEPTHWISE_8X2_LINED)
+                    },
+                )
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new(
+                    "conv_depthwise_4x2_scalar",
+                    |(input, weight, bias, options)| {
+                        conv_depthwise::<N>(input, weight, bias, options, DEPTHWISE_4X2_SCALAR)
+                    },
+                )
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("conv_im2col_1x1", |(input, weight, bias, options)| {
+                    conv_im2col_1x1::<N>(input, weight, bias, options)
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("conv_im2col_gather", |(input, weight, bias, options)| {
+                    conv_im2col::<N>(input, weight, bias, options)
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
             // One forced register tiling per matmul regime a dense forward lands
             // in: few output channels (narrow N), a moderate or wide output
             // (balanced/wide N), a long `C_in * taps` reduction on a short map
@@ -119,9 +139,8 @@ pub fn conv_autotune<const N: usize>(
             // Each declines on devices with no F32 unit path and otherwise lets
             // a tuned run match the shape instead of only the two dense shapes
             // the tilings were first measured on.
-            .with(Tunable::new(
-                "conv_unit_narrow",
-                |(input, weight, bias, options)| {
+            .with(
+                Tunable::new("conv_unit_narrow", |(input, weight, bias, options)| {
                     conv_unit(
                         input,
                         weight,
@@ -129,11 +148,11 @@ pub fn conv_autotune<const N: usize>(
                         options,
                         UnitStrategy::Fixed(UnitTiling::NARROW),
                     )
-                },
-            ))
-            .with(Tunable::new(
-                "conv_unit_balanced",
-                |(input, weight, bias, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("conv_unit_balanced", |(input, weight, bias, options)| {
                     conv_unit(
                         input,
                         weight,
@@ -141,11 +160,11 @@ pub fn conv_autotune<const N: usize>(
                         options,
                         UnitStrategy::Fixed(UnitTiling::BALANCED),
                     )
-                },
-            ))
-            .with(Tunable::new(
-                "conv_unit_wide",
-                |(input, weight, bias, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("conv_unit_wide", |(input, weight, bias, options)| {
                     conv_unit(
                         input,
                         weight,
@@ -153,11 +172,11 @@ pub fn conv_autotune<const N: usize>(
                         options,
                         UnitStrategy::Fixed(UnitTiling::WIDE),
                     )
-                },
-            ))
-            .with(Tunable::new(
-                "conv_unit_deep",
-                |(input, weight, bias, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("conv_unit_deep", |(input, weight, bias, options)| {
                     conv_unit(
                         input,
                         weight,
@@ -165,11 +184,11 @@ pub fn conv_autotune<const N: usize>(
                         options,
                         UnitStrategy::Fixed(UnitTiling::DEEP),
                     )
-                },
-            ))
-            .with(Tunable::new(
-                "conv_unit_tall",
-                |(input, weight, bias, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("conv_unit_tall", |(input, weight, bias, options)| {
                     conv_unit(
                         input,
                         weight,
@@ -177,44 +196,45 @@ pub fn conv_autotune<const N: usize>(
                         options,
                         UnitStrategy::Fixed(UnitTiling::TALL),
                     )
-                },
-            ))
-            .with(Tunable::new(
-                "simple_sync_cmma",
-                |(input, weight, bias, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("simple_sync_cmma", |(input, weight, bias, options)| {
                     conv_gemm_simple_sync(input, weight, bias, options, AcceleratedTileKind::Cmma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_sync_mma",
-                |(input, weight, bias, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("simple_sync_mma", |(input, weight, bias, options)| {
                     conv_gemm_simple_sync(input, weight, bias, options, AcceleratedTileKind::Mma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_async_cmma",
-                |(input, weight, bias, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("simple_async_cmma", |(input, weight, bias, options)| {
                     conv_gemm_simple_async(input, weight, bias, options, AcceleratedTileKind::Cmma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_async_mma",
-                |(input, weight, bias, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("simple_async_mma", |(input, weight, bias, options)| {
                     conv_gemm_simple_async(input, weight, bias, options, AcceleratedTileKind::Mma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_tma_cmma",
-                |(input, weight, bias, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("simple_tma_cmma", |(input, weight, bias, options)| {
                     conv_gemm_simple_tma(input, weight, bias, options, AcceleratedTileKind::Cmma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_tma_mma",
-                |(input, weight, bias, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("simple_tma_mma", |(input, weight, bias, options)| {
                     conv_gemm_simple_tma(input, weight, bias, options, AcceleratedTileKind::Mma)
-                },
-            ))
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
     });
 
     TUNER.execute(&tune_id, &client, tunables, (input, weight, bias, options))
