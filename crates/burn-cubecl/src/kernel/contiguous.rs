@@ -149,13 +149,13 @@ fn into_contiguous_quantized(tensor: CubeTensor, strategy: MemoryLayoutStrategy)
         dtype_to_storage_type(dtype_scales),
     );
 
-    if let (Some(global), Some(out_global)) = (tensor.global(), output.global()) {
-        let dtype_global = global.dtype;
+    if let (Some(coarser), Some(out_coarser)) = (tensor.coarser(), output.coarser()) {
+        let dtype_coarser = coarser.dtype;
         cubecl::std::tensor::copy_into(
             &client,
-            global.binding(),
-            out_global.binding(),
-            dtype_to_storage_type(dtype_global),
+            coarser.binding(),
+            out_coarser.binding(),
+            dtype_to_storage_type(dtype_coarser),
         );
     }
 

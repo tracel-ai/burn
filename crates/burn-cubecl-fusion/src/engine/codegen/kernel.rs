@@ -1062,8 +1062,8 @@ fn dequantize<C: Float, N: Size>(
     set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
     let grid =
         input_as_scales_view::<QScaleType, Const<1>>(inputs, pos, tensor_pos, scheme, config);
-    // A two-level scheme never reaches a fused kernel, so there is no per-tensor scale to apply.
-    let scales = Scales::<QScaleType>::new(&grid, ComptimeOption::new_None());
+    // A two-level scheme never reaches a fused kernel, so there is no coarser scale to apply.
+    let scales = Scales::<QScaleType>::new(grid, ComptimeOption::new_None());
 
     let mut vector = Vector::empty();
     let packed_dim = comptime![match scheme.store {

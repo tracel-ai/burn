@@ -704,6 +704,13 @@ whose tensors are split over `devices` (crate `burn-shard`).
   of blocks has more than one axis, such as one scale per row: each row now quantizes under its own
   scale. ([#6649](https://github.com/tracel-ai/burn/pull/6649))
 
+- A two-level scheme's coarser level may be any block, not only one scale for the whole tensor:
+  `QuantScheme::coarser_per_block` sets it, such as one `f32` scale a row over MXFP4's `ue8m0`
+  block scales (`QuantScheme::mxfp4_row_factored`). Quantizing, dequantizing, saving, loading,
+  transposing, reshaping and splitting a quantized tensor carry its grid of coarser scales.
+  **Breaking:** the second level of `QuantizationParameters` and of the parameter types behind
+  it is renamed `global` to `coarser`, and holds that grid. ([#PR](https://github.com/tracel-ai/burn/pull/PR))
+
 #### Random operation keys
 
 Random operations now reserve a `RandomKey` when requested, before shard, fusion, or remote queues

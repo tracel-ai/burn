@@ -57,13 +57,13 @@ impl<'a> TraceOperand<'a> {
             .as_ref()
             .expect("a quantized operand holds its scales");
         let block_scales = self.param(&qparams.scales);
-        let global_scale = qparams.global.as_ref().map(|scale| self.param(scale));
+        let coarser_scales = qparams.coarser.as_ref().map(|scale| self.param(scale));
         let stored = StoredTensor::of_quantized(
             &handle.client,
             values,
             scheme,
             block_scales,
-            global_scale,
+            coarser_scales,
             dimensions,
         )
         .map_err(TileFusedMatmulError::Operand)?;

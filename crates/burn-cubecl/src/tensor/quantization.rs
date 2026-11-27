@@ -126,9 +126,9 @@ impl CubeTensor {
         self.param_tensor(|qparams| Some(&qparams.scales))
     }
 
-    /// Construct a separate tensor for the per-tensor scale, for a two-level scheme.
-    pub fn global(&self) -> Option<CubeTensor> {
-        self.param_tensor(|qparams| qparams.global.as_ref())
+    /// Construct a separate tensor for the coarser level's scales, for a two-level scheme.
+    pub fn coarser(&self) -> Option<CubeTensor> {
+        self.param_tensor(|qparams| qparams.coarser.as_ref())
     }
 
     fn param_tensor(

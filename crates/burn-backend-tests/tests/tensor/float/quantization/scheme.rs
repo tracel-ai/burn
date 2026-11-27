@@ -71,7 +71,7 @@ fn block_tensor_symmetric_int8() {
     let expected = compute_q_params(&one_level, range()).scales.into_data();
     let qparams = compute_q_params(&two_level, range());
     let global = qparams
-        .global
+        .coarser
         .expect("a two-level scheme should produce a per-tensor scale");
 
     // The largest block scale is pushed to the top of what ue4m3 can hold, which is the point of
@@ -112,7 +112,7 @@ fn block_tensor_symmetric_int8_all_zero() {
 
     let qparams = compute_q_params(&scheme, range);
     let global: f32 = qparams
-        .global
+        .coarser
         .expect("a two-level scheme should produce a per-tensor scale")
         .into_scalar();
     let scales: Vec<f32> = qparams.scales.into_data().iter::<f32>().collect();

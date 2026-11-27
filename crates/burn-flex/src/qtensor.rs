@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 
 use burn_backend::{DType, TensorMetadata};
-use burn_std::{QuantScheme, Shape, quantization::global_scale_dtype};
+use burn_std::{QuantScheme, Shape};
 
 use crate::{FlexDevice, tensor::FlexTensor};
 
@@ -17,21 +17,21 @@ pub struct FlexQTensor {
     pub(crate) scheme: QuantScheme,
     /// Per-tensor or per-block scale factors.
     pub(crate) scales: Vec<f32>,
-    /// The per-tensor scale that [`scales`](Self::scales) are expressed relative to, for a
-    /// two-level scheme.
-    pub(crate) global: Option<f32>,
+    /// The coarser level's scales that [`scales`](Self::scales) are expressed relative to, for a
+    /// two-level scheme: one per block of the coarser level, row-major over its grid.
+    pub(crate) coarser: Option<Vec<f32>>,
 }
 
 impl FlexQTensor {
     /// Create a new quantized tensor.
     ///
-    /// The tensor must store i8 data and scales must be non-empty. A two-level scheme takes a
-    /// per-tensor scale, and no other level does.
+    /// The tensor must store i8 data and scales must be non-empty. A two-level scheme takes
+    /// coarser scales, and no other level does.
     pub fn new(
         tensor: FlexTensor,
         scheme: QuantScheme,
         scales: Vec<f32>,
-        global: Option<f32>,
+        coarser: Option<Vec<f32>>,
     ) -> Self {
         assert_eq!(
             tensor.dtype(),
@@ -44,15 +44,15 @@ impl FlexQTensor {
             "quantized tensor must have at least one scale factor"
         );
         assert_eq!(
-            global_scale_dtype(&scheme).is_some(),
-            global.is_some(),
-            "{scheme:?} does not match a per-tensor scale of {global:?}"
+            scheme.levels().nth(1).is_some(),
+            coarser.is_some(),
+            "{scheme:?} does not match coarser scales of {coarser:?}"
         );
         Self {
             tensor,
             scheme,
             scales,
-            global,
+            coarser,
         }
     }
 

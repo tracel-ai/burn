@@ -9,7 +9,7 @@ use crate::check::TensorCheck;
 use crate::check::unwrap_dim_index;
 use crate::kind::FloatMath;
 use crate::ops::{BridgeKind, BridgeTensor};
-use crate::quantization::{QuantScheme, QuantizationParameters, global_scale_dtype};
+use crate::quantization::{QuantScheme, QuantizationParameters, coarser_shape};
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Float, Int, TensorPrimitive};
@@ -453,31 +453,32 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// The quantized tensor.
     pub fn quantize(self, scheme: &QuantScheme, qparams: QuantizationParameters) -> Tensor<D> {
+        let grid = coarser_shape(&self.shape(), scheme);
         assert_eq!(
-            global_scale_dtype(scheme).is_some(),
-            qparams.global.is_some(),
-            "{scheme:?} does not match a per-tensor scale of {:?}",
-            qparams.global,
+            grid.is_some(),
+            qparams.coarser.is_some(),
+            "{scheme:?} does not match coarser scales of {:?}",
+            qparams.coarser,
         );
-        if let Some(global) = &qparams.global {
+        if let (Some(coarser), Some(grid)) = (&qparams.coarser, grid) {
             assert_eq!(
-                global.dims()[0],
-                1,
-                "the per-tensor scale must have exactly one element, got {:?}",
-                global.dims()
+                coarser.shape().num_elements(),
+                grid.num_elements(),
+                "{scheme:?} takes one coarser scale for each of {grid:?} blocks, got {:?}",
+                coarser.shape()
             );
             assert_eq!(
-                global.dtype(),
+                coarser.dtype(),
                 DType::F32,
-                "the per-tensor scale must be an f32 tensor, got {:?}",
-                global.dtype()
+                "the coarser scales must be an f32 tensor, got {:?}",
+                coarser.dtype()
             );
         }
         Tensor::new(quantize_impl(
             self.primitive,
             scheme,
             qparams.scales.primitive,
-            qparams.global.map(|global| global.primitive),
+            qparams.coarser.map(|coarser| coarser.primitive),
         ))
     }
 
@@ -1351,14 +1352,14 @@ fn quantize_impl(
     p: BridgeTensor,
     scheme: &QuantScheme,
     scales: BridgeTensor,
-    global: Option<BridgeTensor>,
+    coarser: Option<BridgeTensor>,
 ) -> BridgeTensor {
     BridgeTensor::qfloat(Dispatch::quantize(
         p.into_float(),
         scheme,
         QuantizationParametersPrimitive {
             scales: scales.into_float(),
-            global: global.map(|global| global.into_float()),
+            coarser: coarser.map(|coarser| coarser.into_float()),
         },
     ))
 }

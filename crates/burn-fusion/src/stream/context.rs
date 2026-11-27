@@ -920,11 +920,11 @@ impl RelativeOps for FloatOperationIr {
                 tensor: desc.tensor.to_relative(converter),
                 qparams: QuantizationParametersIr {
                     scales: desc.qparams.scales.to_relative(converter),
-                    global: desc
+                    coarser: desc
                         .qparams
-                        .global
+                        .coarser
                         .as_ref()
-                        .map(|global| global.to_relative(converter)),
+                        .map(|coarser| coarser.to_relative(converter)),
                 },
                 scheme: desc.scheme,
                 out: desc.out.to_relative(converter),

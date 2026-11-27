@@ -5,8 +5,8 @@ use crate::{
 };
 use alloc::{boxed::Box, vec, vec::Vec};
 use burn_std::{
-    Bytes, DType, QuantScheme, QuantizedBytes, Shape, Slice, TensorData, global_scale_size,
-    params_shape,
+    Bytes, DType, QuantScheme, QuantizedBytes, Shape, Slice, TensorData, coarser_scales_size,
+    coarser_shape, params_shape,
     quantization::{BlockExtent, BlockSize},
     scale_size,
 };
@@ -449,10 +449,13 @@ impl DimSplit {
     /// its codes and scales cut without changing any of them, and, along the packed axis, whole
     /// packed words, which a device stores a quantized tensor in.
     pub fn cuts_whole_quantized_units(&self, scheme: &QuantScheme, rank: usize) -> bool {
-        let block = match self.scale_extent(scheme, rank) {
-            BlockExtent::Values(values) => values.get() as usize,
-            BlockExtent::WholeAxis => 1,
-        };
+        let block = scheme
+            .levels()
+            .map(|level| match self.level_extent(&level.size, rank) {
+                BlockExtent::Values(values) => values.get() as usize,
+                BlockExtent::WholeAxis => 1,
+            })
+            .fold(1, least_common_multiple);
         let packed = match scheme.packing_dim() {
             Some(packed_dim) if rank - 1 - packed_dim == self.dim => scheme.num_quants(),
             _ => 1,
@@ -466,13 +469,30 @@ impl DimSplit {
     /// How far one scale of a tensor of `rank` dims quantized by `scheme` reaches along the split:
     /// one over the whole axis is each chunk's too, and any other is cut with the values.
     fn scale_extent(&self, scheme: &QuantScheme, rank: usize) -> BlockExtent {
+        self.level_extent(&scheme.finest().size, rank)
+    }
+
+    /// How far a block of `size` reaches along the split dim of a tensor of `rank` dims.
+    fn level_extent(&self, size: &BlockSize, rank: usize) -> BlockExtent {
         let from_last = rank - 1 - self.dim;
-        (scheme
-            .finest()
-            .size
-            .extents_in_rank(rank)
-            .nth_back(from_last))
-        .expect("the split should be along one of the dims")
+        (size.extents_in_rank(rank).nth_back(from_last))
+            .expect("the split should be along one of the dims")
+    }
+
+    /// Whether a two-level scheme's coarser scales vary along the split dim of a tensor of `rank`
+    /// dims, so each chunk holds its own part of their grid rather than the whole of it.
+    fn cuts_coarser(&self, scheme: &QuantScheme, rank: usize) -> bool {
+        (scheme.levels().nth(1))
+            .is_some_and(|coarser| self.level_extent(&coarser.size, rank) != BlockExtent::WholeAxis)
+    }
+
+    /// The same split over a two-level scheme's coarser grid, which lies row-major on the
+    /// tensor's own dims.
+    fn coarser_split(self, coarser: &TensorData) -> Self {
+        Self {
+            len: coarser.shape()[self.dim],
+            ..self
+        }
     }
 
     /// Each member's chunk of `data`, in member order, cut on the host. A quantized chunk keeps
@@ -525,6 +545,7 @@ impl DimSplit {
             BlockExtent::Values(_) => Some(self.stored_split(&parts, &parts.scales)),
             BlockExtent::WholeAxis => None,
         };
+        let cuts_coarser = self.cuts_coarser(&parts.scheme, data.shape().num_dims());
         (0..self.members)
             .map(|member| {
                 let mut shape = data.shape().clone();
@@ -537,15 +558,27 @@ impl DimSplit {
                         .collect(),
                     None => vec![scales],
                 };
-                parts.chunk(shape, values.chain(scales))
+                let coarser: Vec<_> = match (&parts.coarser, cuts_coarser) {
+                    (Some(coarser), true) => (self.coarser_split(coarser))
+                        .byte_ranges(coarser, member)
+                        .map(|range| &coarser.as_bytes()[range])
+                        .collect(),
+                    (Some(coarser), false) => vec![coarser.as_bytes()],
+                    (None, _) => Vec::new(),
+                };
+                parts.chunk(shape, values.chain(scales).chain(coarser))
             })
             .collect()
     }
 
     fn whole_quantized(self, chunks: &[TensorData]) -> Result<TensorData, ShardingError> {
         let parts: Vec<_> = chunks.iter().map(QuantizedParts::new).collect();
-        let extent = self.scale_extent(&parts[0].scheme, chunks[0].shape().num_dims());
-        if let Some(shard) = (parts.iter()).position(|part| !part.joins(&parts[0], extent)) {
+        let rank = chunks[0].shape().num_dims();
+        let extent = self.scale_extent(&parts[0].scheme, rank);
+        let cuts_coarser = self.cuts_coarser(&parts[0].scheme, rank);
+        if let Some(shard) =
+            (parts.iter()).position(|part| !part.joins(&parts[0], extent, cuts_coarser))
+        {
             return Err(ShardingError::QuantizedScales { shard });
         }
         // Chunks quantized each on their own can end inside a packed word, whose padding the
@@ -570,9 +603,24 @@ impl DimSplit {
             BlockExtent::WholeAxis => parts[0].scales.clone(),
             BlockExtent::Values(_) => joined(|part| &part.scales),
         };
+        let coarser = parts[0].coarser.as_ref().map(|first| match cuts_coarser {
+            true => {
+                let grids: Vec<_> = parts
+                    .iter()
+                    .filter_map(|part| part.coarser.clone())
+                    .collect();
+                let len = grids.iter().map(|grid| grid.shape()[self.dim]).sum();
+                DimSplit { len, ..self }.whole_plain(&grids)
+            }
+            false => first.clone(),
+        });
         let mut shape = chunks[0].shape().clone();
         shape[self.dim] = self.len;
-        Ok(parts[0].chunk(shape, [values.as_bytes(), scales.as_bytes()].into_iter()))
+        let pieces = [values.as_bytes(), scales.as_bytes()].into_iter();
+        Ok(parts[0].chunk(
+            shape,
+            pieces.chain(coarser.as_ref().map(TensorData::as_bytes)),
+        ))
     }
 
     /// The whole of quantized `chunks`, their codes and scales decoded, joined and quantized
@@ -581,7 +629,7 @@ impl DimSplit {
         let DType::QFloat(scheme) = chunks[0].dtype() else {
             unreachable!("Only quantized data has codes and scales")
         };
-        let mut global = None;
+        let mut coarser_chunks = Vec::new();
         let (codes, scales): (Vec<_>, Vec<_>) = (chunks.iter())
             .map(|chunk| {
                 let shape = chunk.shape().clone();
@@ -591,7 +639,10 @@ impl DimSplit {
                     shape: shape.clone(),
                 }
                 .into_vec_i8();
-                global = scales.global;
+                coarser_chunks.extend(
+                    (scales.coarser.zip(coarser_shape(&shape, &scheme)))
+                        .map(|(coarser, grid)| TensorData::new(coarser, grid)),
+                );
                 let block = TensorData::new(scales.block, params_shape(&shape, &scheme));
                 (TensorData::new(codes, shape), block)
             })
@@ -604,10 +655,23 @@ impl DimSplit {
                 DimSplit { len, ..self }.whole_plain(&scales)
             }
         };
+        let coarser = coarser_chunks.first().map(|first| {
+            match self.cuts_coarser(&scheme, codes.shape().num_dims()) {
+                true => {
+                    let len = coarser_chunks
+                        .iter()
+                        .map(|grid| grid.shape()[self.dim])
+                        .sum();
+                    DimSplit { len, ..self }.whole_plain(&coarser_chunks)
+                }
+                false => first.clone(),
+            }
+        });
+        let coarser = coarser.map(|grid| grid.try_into_vec::<f32>().expect("Scales are f32"));
         let shape = codes.shape().clone();
         let codes = codes.try_into_vec::<i8>().expect("Codes are i8");
         let scales = scales.try_into_vec::<f32>().expect("Scales are f32");
-        TensorData::quantized(codes, shape, scheme, &scales, global)
+        TensorData::quantized(codes, shape, scheme, &scales, coarser.as_deref())
     }
 
     /// The same split over a section of a quantized tensor's stored bytes: along the dim it lies
@@ -701,7 +765,7 @@ fn least_common_multiple(a: usize, b: usize) -> usize {
 }
 
 /// A quantized tensor's stored bytes as the plain tensors they are: its values as the words or
-/// bytes that hold them, its block scales, and a two-level scheme's per-tensor scale. Each cuts and
+/// bytes that hold them, its block scales, and a two-level scheme's coarser scales. Each cuts and
 /// joins along a dim like any plain tensor, so no code or scale is decoded on the way.
 ///
 /// A store packed along an outer axis lays its words, and its block scales, with that axis
@@ -714,8 +778,9 @@ struct QuantizedParts {
     values: TensorData,
     /// One scale per block in stored order, or a single one for a per-tensor scheme.
     scales: TensorData,
-    /// A two-level scheme's per-tensor scale, which every chunk keeps whole.
-    global: Bytes,
+    /// A two-level scheme's coarser scales, row-major on the tensor's own dims: a grid each chunk
+    /// holds its part of along a dim it varies along, and keeps whole along any other.
+    coarser: Option<TensorData>,
 }
 
 impl QuantizedParts {
@@ -764,7 +829,14 @@ impl QuantizedParts {
                 scales_shape,
                 unsigned_of_size(scale_bytes),
             ),
-            global: section(scales_end, scales_end + global_scale_size(&scheme)),
+            coarser: coarser_shape(shape, &scheme).map(|grid| {
+                let coarser_end = scales_end + coarser_scales_size(&scheme, shape);
+                TensorData::from_bytes(
+                    section(scales_end, coarser_end),
+                    grid,
+                    unsigned_of_size(size_of::<f32>()),
+                )
+            }),
         }
     }
 
@@ -778,18 +850,22 @@ impl QuantizedParts {
         }
     }
 
-    /// Whether these parts and `first` share the scales a whole joined along an axis they reach
-    /// `extent` of keeps once.
-    fn joins(&self, first: &Self, extent: BlockExtent) -> bool {
-        self.global[..] == first.global[..]
+    /// Whether these parts and `first` share the scales a whole joined along an axis keeps once:
+    /// the block scales where they reach `extent` of it, the coarser ones unless the split
+    /// `cuts_coarser`.
+    fn joins(&self, first: &Self, extent: BlockExtent, cuts_coarser: bool) -> bool {
+        let coarser_joins = cuts_coarser
+            || self.coarser.as_ref().map(TensorData::as_bytes)
+                == first.coarser.as_ref().map(TensorData::as_bytes);
+        coarser_joins
             && (extent != BlockExtent::WholeAxis
                 || self.scales.as_bytes() == first.scales.as_bytes())
     }
 
-    /// The quantized tensor of `shape` whose values and block scales are `pieces` end to end,
-    /// followed by these parts' per-tensor scale: each byte is copied once.
+    /// The quantized tensor of `shape` whose values, block scales and coarser scales are `pieces`
+    /// end to end: each byte is copied once.
     fn chunk<'a>(&'a self, shape: Shape, pieces: impl Iterator<Item = &'a [u8]>) -> TensorData {
-        let pieces: Vec<_> = pieces.chain([&self.global[..]]).collect();
+        let pieces: Vec<_> = pieces.collect();
         let len = pieces.iter().map(|piece| piece.len()).sum::<usize>();
         let mut bytes =
             Bytes::from_elems(Vec::<u128>::with_capacity(len.div_ceil(size_of::<u128>())));
@@ -918,7 +994,7 @@ mod tests {
             let scheme = packed_two_level(packed_dim);
             let codes: Vec<i8> = (0..32).map(|i| (i % 16) as i8 - 8).collect();
             let scales: Vec<f32> = (1..=16).map(|i| i as f32 * 0.25).collect();
-            let data = TensorData::quantized(codes.clone(), [2, 16], scheme, &scales, Some(3.0));
+            let data = TensorData::quantized(codes.clone(), [2, 16], scheme, &scales, Some(&[3.0]));
             let split = DimSplit {
                 dim: 1,
                 len: 16,
@@ -937,7 +1013,7 @@ mod tests {
                     let scales: Vec<f32> = rows
                         .flat_map(|row| scales[row * 8 + member * 4..][..4].to_vec())
                         .collect();
-                    TensorData::quantized(codes, [2, 8], scheme, &scales, Some(3.0))
+                    TensorData::quantized(codes, [2, 8], scheme, &scales, Some(&[3.0]))
                 })
                 .collect();
             assert_eq!(
@@ -983,7 +1059,7 @@ mod tests {
                     shape,
                     scheme,
                     &block,
-                    scales.global,
+                    scales.coarser.as_deref(),
                 )
             })
             .collect()
@@ -1026,8 +1102,9 @@ mod tests {
             let scales: Vec<f32> = (0..blocks)
                 .map(|block| (1 + block % 7) as f32 * 0.25)
                 .collect();
-            let global = burn_std::global_scale_dtype(&scheme).map(|_| 3.0);
-            let data = TensorData::quantized(codes, shape, scheme, &scales, global);
+            let coarser = coarser_shape(&Shape::from(shape), &scheme)
+                .map(|grid| vec![3.0; grid.num_elements()]);
+            let data = TensorData::quantized(codes, shape, scheme, &scales, coarser.as_deref());
             for (dim, members) in [(0, 2), (0, 3), (1, 2), (1, 4), (2, 2), (2, 4)] {
                 let split = DimSplit {
                     dim,
@@ -1107,8 +1184,9 @@ mod tests {
             .per_tensor(ScaleDtype::F32);
         let codes = || vec![0i8, 1, 2, 3];
         let scaled = |scale| TensorData::quantized(codes(), [2, 2], per_tensor, &[scale], None);
-        let global =
-            |global| TensorData::quantized(codes(), [2, 2], two_level, &[0.5, 0.5], Some(global));
+        let global = |global| {
+            TensorData::quantized(codes(), [2, 2], two_level, &[0.5, 0.5], Some(&[global]))
+        };
         let split = DimSplit {
             dim: 0,
             len: 4,

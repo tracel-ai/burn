@@ -194,12 +194,12 @@ impl TensorData {
         shape: S,
         scheme: QuantScheme,
         qparams: &[f32],
-        global: Option<f32>,
+        coarser: Option<&[f32]>,
     ) -> Self {
         let shape = shape.into();
         Self::check_data_len(&value, &shape);
 
-        let q_bytes = QuantizedBytes::new(value, shape.clone(), scheme, qparams, global);
+        let q_bytes = QuantizedBytes::new(value, shape.clone(), scheme, qparams, coarser);
 
         Self {
             bytes: q_bytes.bytes,

@@ -51,12 +51,12 @@ pub fn dequantize(tensor: CubeTensor, dtype: DType) -> CubeTensor {
         tensor.shape(),
         dtype,
     );
-    let global = tensor.global();
+    let coarser = tensor.coarser();
     let (values, params) = tensor.quantized_handles().unwrap();
 
-    // Innermost first: the block scales, then the per-tensor scale they are normalized against.
+    // Finest first: the block scales, then the coarser ones they are normalized against.
     let mut scales = vec![params.binding()];
-    scales.extend(global.map(|g| g.binding()));
+    scales.extend(coarser.map(|coarser| coarser.binding()));
 
     cubek::quantization::dequantize::launch_ref(
         &output.client,

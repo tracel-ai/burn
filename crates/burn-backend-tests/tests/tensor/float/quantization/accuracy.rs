@@ -10,7 +10,7 @@ use super::*;
 use burn_tensor::{
     DType, Shape, TensorData,
     quantization::{
-        QuantScheme, QuantValue, ScaleDtype, global_scale_size, params_shape, scale_size,
+        QuantScheme, QuantValue, ScaleDtype, coarser_scales_size, params_shape, scale_size,
     },
 };
 
@@ -34,7 +34,8 @@ fn bits_per_element(scheme: &QuantScheme, shape: &Shape) -> f64 {
     let numel = shape.num_elements();
     let num_scales = params_shape(shape, scheme).num_elements();
     scheme.size_bits_value() as f64
-        + ((scale_size(scheme.finest().dtype) * num_scales + global_scale_size(scheme)) * 8) as f64
+        + ((scale_size(scheme.finest().dtype) * num_scales + coarser_scales_size(scheme, shape))
+            * 8) as f64
             / numel as f64
 }
 

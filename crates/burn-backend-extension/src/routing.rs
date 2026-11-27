@@ -407,7 +407,7 @@ pub fn operation_autodiff_routing(
                 let __input_context = #name.scales.autodiff;
                 __has_autodiff_float_input |= matches!(__input_context, #enabled);
                 __ad_ctx = __ad_ctx.merge(__input_context);
-                if let Some(__tensor) = #name.global.as_ref() {
+                if let Some(__tensor) = #name.coarser.as_ref() {
                     let __input_context = __tensor.autodiff;
                     __has_autodiff_float_input |= matches!(__input_context, #enabled);
                     __ad_ctx = __ad_ctx.merge(__input_context);
@@ -641,12 +641,12 @@ fn extract_input(input: &OperationInput, extraction: &Extraction<'_>) -> TokenSt
             let scales = format_ident!("__scales");
             let tensor = format_ident!("__tensor");
             let extract_scales = extract_tensor(&scales, TensorKind::Float, false, extraction);
-            let extract_global = extract_tensor(&tensor, TensorKind::Float, false, extraction);
+            let extract_coarser = extract_tensor(&tensor, TensorKind::Float, false, extraction);
             quote! {
-                let #parameters { scales: __scales, global: __global } = #name;
+                let #parameters { scales: __scales, coarser: __coarser } = #name;
                 #extract_scales
-                let __global = __global.map(|__tensor| { #extract_global __tensor });
-                let #name = #parameters { scales: __scales, global: __global };
+                let __coarser = __coarser.map(|__tensor| { #extract_coarser __tensor });
+                let #name = #parameters { scales: __scales, coarser: __coarser };
             }
         }
         InputKind::Extension(ty) => extract_extension(

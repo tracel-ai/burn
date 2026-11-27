@@ -5,7 +5,7 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::ReadFuture;
 use burn_backend::{
     DType, Shape, TensorData,
-    quantization::{BlockExtent, BlockSize, QuantStore, params_shape},
+    quantization::{BlockExtent, BlockSize, QuantStore, level_shape, params_shape},
 };
 use burn_backend::{TensorMetadata, ops::QTensorOps, ops::unfold::calculate_unfold_shape};
 use burn_std::{
@@ -168,6 +168,12 @@ pub(crate) fn swap_dims(tensor: CubeTensor, dim1: usize, dim2: usize) -> CubeTen
 
         let qparams = tensor.qparams.as_mut().unwrap();
         qparams.scales.metadata.swap(dim1, dim2);
+        // A coarser grid lies on the tensor's axes as the finest one does; one scale for the whole
+        // tensor is a single cell, which no axis reaches.
+        let coarser = qparams.coarser.as_mut();
+        if let Some(grid) = coarser.filter(|coarser| coarser.metadata.num_dims() == rank) {
+            grid.metadata.swap(dim1, dim2);
+        }
     }
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
@@ -198,6 +204,12 @@ pub fn permute(tensor: CubeTensor, axes: &[usize]) -> CubeTensor {
 
         let qparams = tensor.qparams.as_mut().unwrap();
         qparams.scales.metadata.permute(axes).unwrap();
+        // A coarser grid lies on the tensor's axes as the finest one does; one scale for the whole
+        // tensor is a single cell, which no axis reaches.
+        let coarser = qparams.coarser.as_mut();
+        if let Some(grid) = coarser.filter(|coarser| coarser.metadata.num_dims() == axes.len()) {
+            grid.metadata.permute(axes).unwrap();
+        }
     }
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
@@ -380,6 +392,19 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
     // Blocks that reach past one value along the last axis alone.
     let lined = size == BlockSize::with_rest(&size.extents[..1], BlockExtent::VALUE);
     let shape_last = *shape.last().unwrap();
+    // A coarser grid whose blocks reach along the last axis alone follows its rows, as the finest
+    // grid of such blocks does; any other reshape of it would mix the scales of several blocks.
+    let coarser_level = (scheme.levels().nth(1)).filter(|level| level.size != BlockSize::TENSOR);
+    let coarser_grid = coarser_level.map(|level| level_shape(&shape, &level));
+    if let Some(level) = coarser_level {
+        let lined = level.size == BlockSize::with_rest(&level.size.extents[..1], BlockExtent::VALUE);
+        if !lined || curr_shape.last() != Some(&shape_last) {
+            unimplemented!(
+                "Cannot reshape a tensor under coarser scales per {:?} from {curr_shape:?} to {shape:?}",
+                level.size
+            );
+        }
+    }
     // Blocks in which a reshape that moves their axes would mix values of several scales.
     let moves_blocks = match size.extents[0] {
         _ if size == BlockSize::TENSOR => false,
@@ -503,6 +528,21 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
             qparams.scales.metadata = Metadata::new(shape_scales, strides);
         }
         (ReshapeAction::NoChange, ReshapeAction::NoChange) => {}
+    }
+
+    if let Some(grid) = coarser_grid {
+        let coarser = (tensor.qparams.as_mut().and_then(|qparams| qparams.coarser.as_mut()))
+            .expect("a two-level tensor holds its coarser scales");
+        match reshape_action(coarser.metadata.shape(), coarser.metadata.strides(), &grid) {
+            ReshapeAction::UpdateStrides { strides } => {
+                coarser.metadata = Metadata::new(grid, strides)
+            }
+            ReshapeAction::NoChange => {}
+            ReshapeAction::Recompute => unimplemented!(
+                "Cannot reshape coarser scales laid as {:?} to {grid:?}",
+                coarser.metadata
+            ),
+        }
     }
 
     tensor
@@ -660,7 +700,7 @@ mod same_runtime_tests {
             (
                 tensor.handle.size_in_used(),
                 tensor.scales().map(|scales| scales.handle.size_in_used()),
-                tensor.global().map(|global| global.handle.size_in_used()),
+                tensor.coarser().map(|coarser| coarser.handle.size_in_used()),
             )
         };
         let expected = into_data_sync(CubeBackend::dequantize(quantized.clone(), FloatDType::F32));
