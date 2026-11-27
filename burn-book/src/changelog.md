@@ -709,7 +709,7 @@ whose tensors are split over `devices` (crate `burn-shard`).
   block scales (`QuantScheme::mxfp4_row_factored`). Quantizing, dequantizing, saving, loading,
   transposing, reshaping and splitting a quantized tensor carry its grid of coarser scales.
   **Breaking:** the second level of `QuantizationParameters` and of the parameter types behind
-  it is renamed `global` to `coarser`, and holds that grid. ([#PR](https://github.com/tracel-ai/burn/pull/PR))
+  it is renamed `global` to `coarser`, and holds that grid. ([#6668](https://github.com/tracel-ai/burn/pull/6668))
 
 #### Random operation keys
 
