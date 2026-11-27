@@ -307,9 +307,11 @@ mod tests {
     fn a_grid_that_leaves_the_device_idle_is_tried_later() {
         let predictor = Predictor::on_device(&crate::CubeDevice::default().client());
         let lead = SwigluTuneCandidate::list(CubeSwigluRoutine, &predictor).swap_remove(0);
-        assert!(
-            lead.priority(&SwigluKey::new(F16, 2816, 1))
-                < lead.priority(&SwigluKey::new(F16, 2816, 512 * 4))
-        );
+        let idle = lead.priority(&SwigluKey::new(F16, 2816, 1));
+        let full = lead.priority(&SwigluKey::new(F16, 2816, 512 * 4));
+        if !crate::tune::predicted_on_device(&[idle, full]) {
+            return;
+        }
+        assert!(idle < full, "{idle:?} against {full:?}");
     }
 }

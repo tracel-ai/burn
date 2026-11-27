@@ -80,7 +80,12 @@ fn a_declined_setting_is_tried_last_and_claims_no_launch() {
 fn a_grid_that_leaves_the_device_idle_is_tried_later() {
     let predictor = Predictor::on_device(&crate::CubeDevice::default().client());
     let lead = MatmulTuneCandidate::list(CubeStagedMatmulRoutine, &predictor).swap_remove(0);
-    assert!(lead.priority(&key(1, 16, 16, 2048)) < lead.priority(&key(1, 2048, 2048, 2048)));
+    let idle = lead.priority(&key(1, 16, 16, 2048));
+    let full = lead.priority(&key(1, 2048, 2048, 2048));
+    if !crate::tune::predicted_on_device(&[idle, full]) {
+        return;
+    }
+    assert!(idle < full, "{idle:?} against {full:?}");
 }
 
 /// On devices a dev machine cannot show: a routine that declines a device is tried last and

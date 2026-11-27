@@ -187,6 +187,22 @@ pub fn priority_of<C: TuneCandidate>(
     (!repeats_an_earlier_candidate).then(|| candidate.priority(key))
 }
 
+/// Whether the device the tests run on timed every one of `priorities`, so a test of how the
+/// prediction orders them has something to compare: a launch is
+/// [`UNPREDICTED`](CandidatePriority::UNPREDICTED) on a device that does not say how many workers
+/// it has, as Vulkan and Metal through wgpu do not, and [`LAST`](CandidatePriority::LAST) where the
+/// device declines it.
+#[cfg(test)]
+pub(crate) fn predicted_on_device(priorities: &[CandidatePriority]) -> bool {
+    let predicted = priorities.iter().all(|priority| {
+        ![CandidatePriority::UNPREDICTED, CandidatePriority::LAST].contains(priority)
+    });
+    if !predicted {
+        std::eprintln!("skipped: the device does not time these launches: {priorities:?}");
+    }
+    predicted
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

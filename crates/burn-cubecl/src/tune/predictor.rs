@@ -141,7 +141,9 @@ impl Predictor {
 mod tests {
     use super::*;
     use cubecl::ir::{ElemType, FloatKind};
-    use cubek::rms_norm::kernels::{PlaneRmsNormRoutine, RmsNormKey, RmsNormRoutineProblem};
+    use cubek::rms_norm::kernels::{
+        CubeRmsNormRoutine, PlaneRmsNormRoutine, RmsNormKey, RmsNormRoutineProblem,
+    };
 
     const F32: ElemType = ElemType::Float(FloatKind::F32);
 
@@ -150,14 +152,22 @@ mod tests {
         RmsNormRoutineProblem::from(&RmsNormKey::new(F32, 4096, 512))
     }
 
-    /// The estimate of the first setting that prepares [`norm`] on the device, and the norm's
-    /// demand.
+    /// The estimate of the first setting that prepares [`norm`] on the device, the planes' before
+    /// the cubes', which a device without plane operations still prepares, and the norm's demand.
     fn lead_estimate(predictor: &Predictor) -> (KernelEstimate, Work) {
         let problem = norm();
-        let mut estimate = PlaneRmsNormRoutine::settings(predictor.hardware())
+        let plane = PlaneRmsNormRoutine::settings(predictor.hardware())
             .iter()
-            .find_map(|settings| predictor.estimate::<PlaneRmsNormRoutine>(&problem, settings))
-            .expect("a setting the device lists prepares a norm over 4096 columns");
+            .find_map(|settings| predictor.estimate::<PlaneRmsNormRoutine>(&problem, settings));
+        let mut estimate = plane
+            .or_else(|| {
+                CubeRmsNormRoutine::settings(predictor.hardware())
+                    .iter()
+                    .find_map(|settings| {
+                        predictor.estimate::<CubeRmsNormRoutine>(&problem, settings)
+                    })
+            })
+            .expect("a setting the device lists should prepare a norm over 4096 columns");
         estimate.demand = Some(problem.demand());
         (estimate, problem.demand())
     }
@@ -173,6 +183,9 @@ mod tests {
             predictor.priority_of_launches(core::slice::from_ref(&estimate), demand, arithmetic);
         let twice =
             predictor.priority_of_launches(&[estimate.clone(), estimate], demand, arithmetic);
+        if !crate::tune::predicted_on_device(&[alone, twice]) {
+            return;
+        }
         assert!(twice < alone, "{twice:?} against {alone:?}");
         assert!(twice > CandidatePriority::LAST, "{twice:?}");
     }
