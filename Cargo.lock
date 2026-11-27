@@ -11399,9 +11399,9 @@ dependencies = [
 
 [[package]]
 name = "typed-path"
-version = "0.13.0"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ce898823d8cd0f028662d2f349694b1af0a5cc9be83f1d213a00d3147445e1e"
+checksum = "8e28f89b80c87b8fb0cf04ab448d5dd0dd0ade2f8891bae878de66a75a28600e"
 
 [[package]]
 name = "typenum"
@@ -12835,21 +12835,16 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "9.8.2"
+version = "9.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d8dbe089cf6b0448b78f5fc50139ab5aaa40d08ac07cdc1baf2c13add35fcce"
+checksum = "6e04976da629d3b04204ba8105b396a193af8ad2583b2c79bfb3ab8af580a11e"
 dependencies = [
- "constant_time_eq",
  "crc32fast",
  "flate2",
- "getrandom 0.4.3",
  "indexmap",
- "libc",
  "memchr",
  "nix 0.31.3",
  "typed-path",
- "windows-sys 0.61.2",
- "zeroize",
 ]
 
 [[package]]
