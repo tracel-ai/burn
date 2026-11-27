@@ -24,7 +24,7 @@ use burn_backend::cubecl::autotune::{RACED_PRIORITY, raced_group};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use cubecl::{
-    AutotuneKeyable, CubeTuneId,
+    AutotuneKey, CubeTuneId,
     tile::launch::{Decline, SinkLaunch, SinkLaunchVisitor},
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
@@ -80,7 +80,7 @@ impl core::fmt::Display for TileFusedMatmulError {
     }
 }
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKeyable)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
 pub struct TileFusedMatmulAutotuneKey {
     matmul: MatmulTuneKey,
     #[autotune(anchor)]

@@ -3,7 +3,7 @@ use crate::tune::{Autotune, CandidateIdentity, GroupPriority, Predictor};
 use cubecl::CubeTuneId;
 use cubecl::client::Client;
 use cubecl::std::tensor::TensorHandle;
-use cubecl::tune::{AutotuneCheckable, LocalTuner, TunableSet, local_tuner};
+use cubecl::tune::{AutotuneOutput, LocalTuner, TunableSet, local_tuner};
 use cubek::matmul::kernels::plan::{MatmulCall, MatmulPlan};
 use cubek::matmul::kernels::select::MatmulAutotune;
 use cubek::matmul::kernels::{MatmulRoutineSettings, MatmulTuneKey};
@@ -63,7 +63,7 @@ pub(super) struct MatmulProduct {
     pub handle: TensorHandle,
 }
 
-impl AutotuneCheckable for MatmulProduct {
+impl AutotuneOutput for MatmulProduct {
     #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) -> Result<(), String> {
         crate::tune::check_equivalent(&self.client, self.handle.clone(), other.handle)
