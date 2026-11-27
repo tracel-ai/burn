@@ -7,26 +7,36 @@ use cubecl::std::tensor::TensorHandle;
 /// Two candidates' outputs for one problem hold the same floats, within the tolerance two
 /// summation orders differ by.
 ///
-/// # Panics
+/// # Errors
 ///
 /// Where they hold different counts of elements, or differ past the tolerance at one.
-pub(crate) fn assert_equivalent(client: &Client, expected: TensorHandle, actual: TensorHandle) {
+pub(crate) fn check_equivalent(
+    client: &Client,
+    expected: TensorHandle,
+    actual: TensorHandle,
+) -> Result<(), String> {
     let (expected, actual) = (read_f32(client, expected), read_f32(client, actual));
-    assert_eq!(
-        expected.len(),
-        actual.len(),
-        "two candidates for one problem returned different element counts"
-    );
+    if expected.len() != actual.len() {
+        return Err(format!(
+            "two candidates for one problem returned different element counts: {} vs {}",
+            expected.len(),
+            actual.len()
+        ));
+    }
     // Relative, with an absolute floor so values near zero do not fail on the last bit of a
     // denormal.
     const RELATIVE: f32 = 1e-2;
     const ABSOLUTE: f32 = 1e-4;
-    for (index, (want, got)) in expected.iter().zip(actual.iter()).enumerate() {
+    let differing = expected.iter().zip(actual.iter()).position(|(want, got)| {
         let tolerance = ABSOLUTE + RELATIVE * want.abs();
-        assert!(
-            (want - got).abs() <= tolerance || (want.is_nan() && got.is_nan()),
-            "candidates disagree at element {index}: {want} vs {got}"
-        );
+        !((want - got).abs() <= tolerance || (want.is_nan() && got.is_nan()))
+    });
+    match differing {
+        Some(index) => Err(format!(
+            "candidates disagree at element {index}: {} vs {}",
+            expected[index], actual[index]
+        )),
+        None => Ok(()),
     }
 }
 

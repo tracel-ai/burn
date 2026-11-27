@@ -42,15 +42,15 @@ impl From<CubeTensor> for TensorHandle {
     }
 }
 
-impl cubecl::tune::AutotuneOutput for CubeTensor {
+impl cubecl::tune::AutotuneCheckable for CubeTensor {
     #[cfg(feature = "autotune-checks")]
-    fn check_equivalence(&self, other: Self) {
+    fn check_equivalence(&self, other: Self) -> Result<(), String> {
         use crate::ops::into_data_sync;
         use burn_backend::Tolerance;
 
         let expected = into_data_sync(self.clone());
         let actual = into_data_sync(other);
-        expected.assert_approx_eq::<f32>(&actual, Tolerance::permissive());
+        expected.check_approx_eq::<f32>(&actual, Tolerance::permissive())
     }
 }
 

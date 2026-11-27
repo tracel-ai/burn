@@ -225,36 +225,44 @@ impl TensorData {
     /// Panics if the data is not equal.
     #[track_caller]
     pub fn assert_eq(&self, other: &Self, strict: bool) {
-        if strict {
-            assert_eq!(
-                self.dtype, other.dtype,
+        if let Err(message) = self.check_eq(other, strict) {
+            panic!("{message}");
+        }
+    }
+
+    /// Checks the data is equal to another data, as [`assert_eq`](Self::assert_eq) does.
+    ///
+    /// # Errors
+    ///
+    /// What differs, in the message [`assert_eq`](Self::assert_eq) panics with.
+    pub fn check_eq(&self, other: &Self, strict: bool) -> Result<(), String> {
+        if strict && self.dtype != other.dtype {
+            return Err(format!(
                 "Data types differ ({:?} != {:?})",
                 self.dtype, other.dtype
-            );
+            ));
         }
 
         match self.dtype {
-            DType::F64 => self.assert_eq_elem::<f64>(other),
-            DType::F32 | DType::Flex32 => self.assert_eq_elem::<f32>(other),
-            DType::F16 => self.assert_eq_elem::<f16>(other),
-            DType::BF16 => self.assert_eq_elem::<bf16>(other),
-            DType::I64 => self.assert_eq_elem::<i64>(other),
-            DType::I32 => self.assert_eq_elem::<i32>(other),
-            DType::I16 => self.assert_eq_elem::<i16>(other),
-            DType::I8 => self.assert_eq_elem::<i8>(other),
-            DType::U64 => self.assert_eq_elem::<u64>(other),
-            DType::U32 => self.assert_eq_elem::<u32>(other),
-            DType::U16 => self.assert_eq_elem::<u16>(other),
-            DType::U8 => self.assert_eq_elem::<u8>(other),
-            DType::Bool(BoolStore::Native) => self.assert_eq_elem::<bool>(other),
-            DType::Bool(BoolStore::U8) => self.assert_eq_elem::<u8>(other),
-            DType::Bool(BoolStore::U32) => self.assert_eq_elem::<u32>(other),
+            DType::F64 => self.check_eq_elem::<f64>(other),
+            DType::F32 | DType::Flex32 => self.check_eq_elem::<f32>(other),
+            DType::F16 => self.check_eq_elem::<f16>(other),
+            DType::BF16 => self.check_eq_elem::<bf16>(other),
+            DType::I64 => self.check_eq_elem::<i64>(other),
+            DType::I32 => self.check_eq_elem::<i32>(other),
+            DType::I16 => self.check_eq_elem::<i16>(other),
+            DType::I8 => self.check_eq_elem::<i8>(other),
+            DType::U64 => self.check_eq_elem::<u64>(other),
+            DType::U32 => self.check_eq_elem::<u32>(other),
+            DType::U16 => self.check_eq_elem::<u16>(other),
+            DType::U8 => self.check_eq_elem::<u8>(other),
+            DType::Bool(BoolStore::Native) => self.check_eq_elem::<bool>(other),
+            DType::Bool(BoolStore::U8) => self.check_eq_elem::<u8>(other),
+            DType::Bool(BoolStore::U32) => self.check_eq_elem::<u32>(other),
             DType::QFloat(q) => {
                 // Strict or not, it doesn't make sense to compare quantized data to not quantized data for equality
-                let q_other = if let DType::QFloat(q_other) = other.dtype {
-                    q_other
-                } else {
-                    panic!("Quantized data differs from other not quantized data")
+                let DType::QFloat(q_other) = other.dtype else {
+                    return Err("Quantized data differs from other not quantized data".into());
                 };
 
                 // Data equality mostly depends on input quantization type, but we also check levels
@@ -262,16 +270,17 @@ impl TensorData {
                     && q.finest().size == q_other.finest().size
                     && q.levels().skip(1).eq(q_other.levels().skip(1))
                 {
-                    self.assert_eq_elem::<i8>(other)
+                    self.check_eq_elem::<i8>(other)
                 } else {
-                    panic!("Quantization schemes differ ({q:?} != {q_other:?})")
+                    Err(format!(
+                        "Quantization schemes differ ({q:?} != {q_other:?})"
+                    ))
                 }
             }
         }
     }
 
-    #[track_caller]
-    fn assert_eq_elem<E: Element>(&self, other: &Self) {
+    fn check_eq_elem<E: Element>(&self, other: &Self) -> Result<(), String> {
         let mut message = String::new();
         if self.shape != other.shape {
             message += format!(
@@ -307,8 +316,9 @@ impl TensorData {
         }
 
         if !message.is_empty() {
-            panic!("Tensors are not eq:{message}");
+            return Err(format!("Tensors are not eq:{message}"));
         }
+        Ok(())
     }
 
     /// Asserts the data is approximately equal to another data.
@@ -323,6 +333,22 @@ impl TensorData {
     /// Panics if the data is not approximately equal.
     #[track_caller]
     pub fn assert_approx_eq<F: Float + Element>(&self, other: &Self, tolerance: Tolerance<F>) {
+        if let Err(message) = self.check_approx_eq(other, tolerance) {
+            panic!("{message}");
+        }
+    }
+
+    /// Checks the data is approximately equal to another data, as
+    /// [`assert_approx_eq`](Self::assert_approx_eq) does.
+    ///
+    /// # Errors
+    ///
+    /// What differs, in the message [`assert_approx_eq`](Self::assert_approx_eq) panics with.
+    pub fn check_approx_eq<F: Float + Element>(
+        &self,
+        other: &Self,
+        tolerance: Tolerance<F>,
+    ) -> Result<(), String> {
         let mut message = String::new();
         if self.shape != other.shape {
             message += format!(
@@ -372,8 +398,9 @@ impl TensorData {
         }
 
         if !message.is_empty() {
-            panic!("Tensors are not approx eq:{message}");
+            return Err(format!("Tensors are not approx eq:{message}"));
         }
+        Ok(())
     }
 
     /// Asserts each value is within a given range.

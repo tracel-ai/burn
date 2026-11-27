@@ -4,7 +4,7 @@ use burn_backend::ops::ConvOptions;
 use burn_std::Shape;
 use cubecl::{
     ir::ElemType,
-    tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
+    tune::{Anchor, LocalTuner, Tunable, TunableSet, local_tuner},
 };
 use cubek::convolution::{AcceleratedTileKind, UnitStrategy, UnitTiling};
 
@@ -257,7 +257,7 @@ fn create_key<const N: usize>(
     let kernel_size = weights.meta.shape()[1..dim_c].to_vec();
     let in_shape = input_shape[1..dim_c]
         .iter()
-        .map(|shape| anchor(*shape, None, None, None))
+        .map(|shape| Anchor::default().round(*shape))
         .collect();
 
     let ConvOptions {

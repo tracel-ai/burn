@@ -1,8 +1,8 @@
 use burn_backend::DType;
-use cubecl::AutotuneKey;
+use cubecl::AutotuneKeyable;
 use serde::{Deserialize, Serialize};
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKeyable)]
 /// Autotune key representative of matmul versions
 pub struct ConvAutotuneKey {
     pub kernel_size: Vec<usize>,
@@ -26,7 +26,7 @@ pub struct ConvAutotuneKey {
     pub rhs_stride_align: u8,
 }
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKeyable)]
 /// Autotune key representative of matmul versions
 pub struct ConvTranspose2dAutotuneKey {
     pub kernel_size: [usize; 2],
@@ -49,7 +49,7 @@ pub struct ConvTranspose2dAutotuneKey {
     pub dtype: DType,
 }
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKeyable)]
 /// Autotune key representative of 3D transposed convolution versions
 pub struct ConvTranspose3dAutotuneKey {
     pub kernel_size: [usize; 3],

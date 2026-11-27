@@ -9,9 +9,7 @@ use cubecl::std::tensor::layout::linear::linear_view;
 use cubecl::std::throughput::{compute_bound, measure_launch_overhead, memory_bound};
 use cubecl::tensor_vector_size_parallel;
 use cubecl::throughput::{MemoryAccess, ThroughputKey};
-use cubecl::tune::{
-    AutotuneError, Bounds, BoundsGenerator, Eviction, Thresholds, TuneInputs, Work,
-};
+use cubecl::tune::{AutotuneError, Bounds, BoundsGenerator, Evictor, Thresholds, TuneInputs, Work};
 use cubecl::zspace::Shape;
 use std::sync::Arc;
 
@@ -148,7 +146,7 @@ pub fn read_through(client: &Client, scratch: TensorHandle) -> TensorHandle {
 /// measured sample of a problem the cache would otherwise serve.
 pub(super) struct ReadCold<F>(pub(super) Arc<F>);
 
-impl<K, I, F> Eviction<K, I> for ReadCold<F>
+impl<K, I, F> Evictor<K, I> for ReadCold<F>
 where
     K: 'static,
     I: TuneInputs,
@@ -189,13 +187,18 @@ where
                     &client,
                     instruction,
                     work,
-                    thresholds.compute,
+                    thresholds.compute_fraction,
                 )]
             }
-            Ceiling::Memory(access) => vec![memory_bound(&client, access, work, thresholds.memory)],
+            Ceiling::Memory(access) => vec![memory_bound(
+                &client,
+                access,
+                work,
+                thresholds.memory_fraction,
+            )],
             Ceiling::Either { compute, memory } => vec![
-                compute_bound(&client, compute, work, thresholds.compute),
-                memory_bound(&client, memory, work, thresholds.memory),
+                compute_bound(&client, compute, work, thresholds.compute_fraction),
+                memory_bound(&client, memory, work, thresholds.memory_fraction),
             ],
         };
         Bounds {
