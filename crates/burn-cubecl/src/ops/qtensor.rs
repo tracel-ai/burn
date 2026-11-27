@@ -5,11 +5,11 @@ use burn_backend::{
     ops::QTensorOps,
     quantization::{
         QParamTensor, QuantMode, QuantPropagation, QuantScheme, QuantValue,
-        QuantizationParametersPrimitive, ScaleDtype, global_scale_dtype, params_shape,
+        QuantizationParametersPrimitive, ScaleDtype, coarser_shape, params_shape,
     },
     tensor::{Device, FloatTensor, QuantizedTensor},
 };
-use burn_std::{FloatDType, Metadata, quantization::global_scale_size};
+use burn_std::{FloatDType, Metadata, quantization::coarser_scales_size};
 use cubecl::server::{MemoryLayout, MemoryLayoutDescriptor, MemoryLayoutStrategy};
 use cubecl::{e2m1x2, quant::scheme::QuantStore};
 
@@ -21,11 +21,11 @@ use crate::{
 
 use super::{into_data, permute, swap_dims};
 
-/// Length of the block-scales region within a combined scales+global byte buffer.
-fn scales_region_len(total: usize, scheme: &QuantScheme) -> usize {
+/// Length of the block-scales region within a combined block and coarser scales byte buffer.
+fn scales_region_len(total: usize, scheme: &QuantScheme, shape: &Shape) -> usize {
     total
-        .checked_sub(global_scale_size(scheme))
-        .expect("quantized tensor data is shorter than the scheme's global scale")
+        .checked_sub(coarser_scales_size(scheme, shape))
+        .expect("quantized tensor data is shorter than the scheme's coarser scales")
 }
 
 /// Create a quantized tensor with packed values (u32).
@@ -147,51 +147,52 @@ fn new_quantized(
     let scales_desc =
         MemoryLayoutDescriptor::new(alloc_kind, scales_shape.clone(), scales_dtype.size());
 
-    let global_shape = Shape::new([1]);
-    let global_dtype = global_scale_dtype(&scheme).map(|dtype| {
+    let coarser_shape = coarser_shape(&shape, &scheme);
+    let coarser_dtype = scheme.levels().nth(1).map(|level| {
         // The region is f32-sized and the kernels bind it as f32.
         assert_eq!(
-            dtype,
+            level.dtype,
             ScaleDtype::F32,
-            "a two-level scheme binds its per-tensor scale as f32, got {scheme:?}"
+            "a two-level scheme binds its coarser scales as f32, got {scheme:?}"
         );
         DType::F32
     });
-    let global_desc = global_dtype
-        .map(|dtype| MemoryLayoutDescriptor::new(alloc_kind, global_shape.clone(), dtype.size()));
+    let coarser_desc = (coarser_shape.clone())
+        .zip(coarser_dtype)
+        .map(|(grid, dtype)| MemoryLayoutDescriptor::new(alloc_kind, grid, dtype.size()));
 
     let mut tensors = match data {
         Some(data) => {
             let num_bytes = shape_value.num_elements() * data_size;
             let split = data.split(num_bytes, SplitPolicy::Shared);
 
-            match (split, global_desc.clone()) {
+            match (split, coarser_desc.clone()) {
                 (Ok((bytes_data, bytes_params)), None) => client
                     .create_tensors(vec![(data_desc, bytes_data), (scales_desc, bytes_params)]),
-                (Ok((bytes_data, bytes_params)), Some(global_desc)) => {
-                    let scales_bytes = scales_region_len(bytes_params.len(), &scheme);
+                (Ok((bytes_data, bytes_params)), Some(coarser_desc)) => {
+                    let scales_bytes = scales_region_len(bytes_params.len(), &scheme, &shape);
                     match bytes_params.split(scales_bytes, SplitPolicy::Shared) {
-                        Ok((block, global)) => client.create_tensors(vec![
+                        Ok((block, coarser)) => client.create_tensors(vec![
                             (data_desc, bytes_data),
                             (scales_desc, block),
-                            (global_desc, global),
+                            (coarser_desc, coarser),
                         ]),
                         Err((params, _)) => client.create_tensors_from_slices(vec![
                             (data_desc, &bytes_data[..]),
                             (scales_desc, &params[..scales_bytes]),
-                            (global_desc, &params[scales_bytes..]),
+                            (coarser_desc, &params[scales_bytes..]),
                         ]),
                     }
                 }
-                (Err((data, _)), global_desc) => {
+                (Err((data, _)), coarser_desc) => {
                     let params = &data[num_bytes..];
-                    let scales_bytes = scales_region_len(params.len(), &scheme);
+                    let scales_bytes = scales_region_len(params.len(), &scheme, &shape);
                     let mut entries = vec![
                         (data_desc, &data[..num_bytes]),
                         (scales_desc, &params[..scales_bytes]),
                     ];
-                    if let Some(global_desc) = global_desc {
-                        entries.push((global_desc, &params[scales_bytes..]));
+                    if let Some(coarser_desc) = coarser_desc {
+                        entries.push((coarser_desc, &params[scales_bytes..]));
                     }
                     client.create_tensors_from_slices(entries)
                 }
@@ -199,12 +200,12 @@ fn new_quantized(
         }
         None => {
             let mut descs = vec![data_desc, scales_desc];
-            descs.extend(global_desc);
+            descs.extend(coarser_desc);
             client.empty_tensors(descs)
         }
     };
 
-    let global = global_dtype.map(|dtype| {
+    let coarser = coarser_shape.zip(coarser_dtype).map(|(grid, dtype)| {
         let MemoryLayout {
             memory: handle,
             strides,
@@ -212,7 +213,7 @@ fn new_quantized(
         QParamTensor {
             offset_start: handle.offset_start.unwrap_or(0) as usize,
             offset_end: handle.offset_end.unwrap_or(0) as usize,
-            metadata: Metadata::new(global_shape, strides),
+            metadata: Metadata::new(grid, strides),
             dtype,
         }
     });
@@ -228,7 +229,7 @@ fn new_quantized(
         metadata: Metadata::new(scales_shape, scales_strides),
         dtype: scales_dtype,
     };
-    let qparams = QParams { scales, global };
+    let qparams = QParams { scales, coarser };
 
     CubeTensor::new_quantized(
         client,
@@ -284,15 +285,15 @@ impl QTensorOps<Self> for CubeBackend {
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         // The kernel reads this at the scheme's scale dtype, not the tensor's actual dtype.
-        if let Some(global) = &qparams.global {
+        if let Some(coarser) = &qparams.coarser {
             assert_eq!(
-                global.dtype,
+                coarser.dtype,
                 DType::F32,
-                "a two-level scheme's per-tensor scale must be an f32 tensor, got {:?}",
-                global.dtype
+                "a two-level scheme's coarser scales must be an f32 tensor, got {:?}",
+                coarser.dtype
             );
         }
-        kernel::quantization::quantize(tensor, scheme, qparams.scales, qparams.global)
+        kernel::quantization::quantize(tensor, scheme, qparams.scales, qparams.coarser)
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
@@ -325,23 +326,23 @@ impl QTensorOps<Self> for CubeBackend {
                 Some(axis) => swap_dims(tensor, axis, shape.rank() - 1),
                 None => tensor,
             };
-            let global = tensor.global().map(into_data);
+            let coarser = tensor.coarser().map(into_data);
             let (values, params) = tensor.quantized_handles().unwrap();
             (
                 into_data(values),
-                Some((into_data(params), global, shape, dtype)),
+                Some((into_data(params), coarser, shape, dtype)),
             )
         };
 
         async move {
             let values = values.await?;
-            let Some((params, global, shape, dtype)) = rest else {
+            let Some((params, coarser, shape, dtype)) = rest else {
                 return Ok(values);
             };
             let mut bytes = values.into_bytes();
             bytes.extend_from_byte_slice(params.await?.as_bytes());
-            if let Some(global) = global {
-                bytes.extend_from_byte_slice(global.await?.as_bytes());
+            if let Some(coarser) = coarser {
+                bytes.extend_from_byte_slice(coarser.await?.as_bytes());
             }
             Ok(TensorData::from_bytes(bytes, shape, dtype))
         }

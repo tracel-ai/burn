@@ -27,7 +27,7 @@ impl<R: RouterChannel> QTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let qparams = QuantizationParametersIr {
             scales: qparams.scales.into_ir(),
-            global: qparams.global.map(RouterTensor::into_ir),
+            coarser: qparams.coarser.map(RouterTensor::into_ir),
         };
         let desc = QuantizeOpIr::create(tensor.into_ir(), qparams, *scheme, || {
             client.create_empty_handle()

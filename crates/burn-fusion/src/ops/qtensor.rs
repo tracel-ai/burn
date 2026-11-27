@@ -52,14 +52,14 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let scales = handles.get_float_tensor::<B>(&self.desc.qparams.scales);
-                let global = self
+                let coarser = self
                     .desc
                     .qparams
-                    .global
+                    .coarser
                     .as_ref()
-                    .map(|global| handles.get_float_tensor::<B>(global));
+                    .map(|coarser| handles.get_float_tensor::<B>(coarser));
 
-                let qparams = QuantizationParametersPrimitive { scales, global };
+                let qparams = QuantizationParametersPrimitive { scales, coarser };
                 let output = B::quantize(tensor, &self.desc.scheme, qparams);
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
 
@@ -72,7 +72,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let client = tensor.client.clone();
         let qparams = QuantizationParametersIr {
             scales: qparams.scales.into_ir(),
-            global: qparams.global.map(|global| global.into_ir()),
+            coarser: qparams.coarser.map(|coarser| coarser.into_ir()),
         };
         let desc = QuantizeOpIr::create(tensor.into_ir(), qparams, *scheme, || {
             client.create_empty_handle()

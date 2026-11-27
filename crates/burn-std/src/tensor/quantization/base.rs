@@ -75,19 +75,21 @@ pub enum QuantPropagation {
 /// The quantization tensor data parameters.
 #[derive(Clone, Debug)]
 pub struct QParams<S> {
-    /// The scaling factor.
+    /// The finest level's scales, one per block of its size.
     pub scales: S,
-    /// The per-tensor scale [`scales`](Self::scales) are relative to, for a two-level scheme.
-    pub global: Option<S>,
+    /// The coarser level's scales [`scales`](Self::scales) are relative to, for a two-level
+    /// scheme: a grid of its own, one scale per block of the coarser level's size.
+    pub coarser: Option<S>,
 }
 
 /// Scales recovered from a quantized byte buffer.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DecodedScales {
-    /// One scale per block, or a single entry for a per-tensor level.
+    /// The finest level's scales: one per block, row-major over its grid, or a single entry for a
+    /// per-tensor level.
     pub block: Vec<f32>,
-    /// The per-tensor scale, for a level that carries one.
-    pub global: Option<f32>,
+    /// The coarser level's scales, row-major over its grid, for a two-level scheme.
+    pub coarser: Option<Vec<f32>>,
 }
 
 /// A quantization parameter tensor descriptor.
@@ -109,43 +111,37 @@ pub struct QParamTensor {
 /// chosen rather than at the first quantize. Each condition is asserted again where it is relied
 /// on, so bypassing this reports the specific rule rather than this general one.
 pub fn quantizable(scheme: &QuantScheme) -> bool {
-    // The per-tensor scale is the largest block scale over the block dtype's maximum, so a block
-    // dtype reaching f32's range drives it subnormal. Any precision the per-tensor scale itself
-    // loses becomes a mismatch applied to every block.
-    let finest = scheme.finest().dtype.max_representable();
-    scheme.levels().skip(1).all(|global| {
-        finest <= crate::f16::MAX.to_f32()
-            && global.size == BlockSize::TENSOR
-            && global.dtype == ScaleDtype::F32
-    })
-}
-
-/// The dtype of the per-tensor scale block scales are normalized against, for a two-level scheme.
-///
-/// `None` for a per-tensor scheme too, where the scale is the whole reconstruction rather than a
-/// factor over block scales.
-///
-/// # Panics
-///
-/// Where the coarser level is not one scale for the whole tensor: no tensor here stores another.
-pub fn global_scale_dtype(scheme: &QuantScheme) -> Option<ScaleDtype> {
-    let global = scheme.levels().nth(1)?;
-    assert!(
-        global.size == BlockSize::TENSOR,
-        "a level coarser than the finest is stored as one scale for the whole tensor, got {scheme:?}"
-    );
-    Some(global.dtype)
+    // A coarser scale is a magnitude divided out of every finest scale under it: stored narrower
+    // than f32, its rounding becomes a mismatch applied to all of them.
+    scheme
+        .levels()
+        .skip(1)
+        .all(|coarser| coarser.dtype == ScaleDtype::F32)
 }
 
 /// Calculate the shape of the finest scales for a given tensor and scheme: one element for a
 /// per-tensor scale, and otherwise a grid with the tensor's rank, one scale per block.
 ///
-/// A two-level scheme's per-tensor scale is not part of it.
+/// A two-level scheme's coarser scales are not part of it ([`level_shape`]).
 pub fn params_shape(data_shape: &Shape, scheme: &QuantScheme) -> Shape {
-    match scheme.finest().size {
+    level_shape(data_shape, &scheme.finest())
+}
+
+/// Calculate the shape of one level's scales over a tensor of `data_shape`: one element for a
+/// scale for the whole tensor, and otherwise a grid with the tensor's rank, one scale per block.
+pub fn level_shape(data_shape: &Shape, level: &BlockScale) -> Shape {
+    match level.size {
         BlockSize::TENSOR => Shape::new([1]),
         block_size => Shape::from(block_size.num_blocks(data_shape.as_slice())),
     }
+}
+
+/// The shape of the coarser level's scales over a tensor of `data_shape`, for a two-level scheme.
+pub fn coarser_shape(data_shape: &Shape, scheme: &QuantScheme) -> Option<Shape> {
+    scheme
+        .levels()
+        .nth(1)
+        .map(|coarser| level_shape(data_shape, &coarser))
 }
 
 /// Which block each element of a tensor falls in, for a block scheme. A block is a rectangle, so
@@ -217,14 +213,15 @@ pub struct QuantizedBytes {
 impl QuantizedBytes {
     /// Creates a new quantized bytes representation.
     ///
-    /// `value` holds one code per element and `scales` the block scales, both row-major; `global`
-    /// is the per-tensor scale, required by a two-level scheme and rejected by a one-level one.
+    /// `value` holds one code per element and `scales` the block scales, both row-major; `coarser`
+    /// holds the coarser level's scales, row-major over its grid, required by a two-level scheme
+    /// and rejected by a one-level one.
     pub fn new<E: bytemuck::CheckedBitPattern + bytemuck::NoUninit>(
         value: Vec<E>,
         shape: impl Into<Shape>,
         scheme: QuantScheme,
         scales: &[f32],
-        global: Option<f32>,
+        coarser: Option<&[f32]>,
     ) -> Self {
         let shape = shape.into();
         assert_eq!(
@@ -258,20 +255,31 @@ impl QuantizedBytes {
         bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), QPARAM_ALIGN);
 
         // Last, so a reader can peel it off the end before the block scales it normalizes.
-        match (global_scale_dtype(&scheme), global) {
-            (Some(dtype), Some(global)) => {
-                // Encoding the per-tensor scale narrower would round it, and the block scales were
+        match (scheme.levels().nth(1), coarser) {
+            (Some(level), Some(coarser)) => {
+                // Encoding a coarser scale narrower would round it, and the block scales were
                 // normalized against the unrounded one.
                 assert_eq!(
-                    dtype,
+                    level.dtype,
                     ScaleDtype::F32,
-                    "a two-level scheme stores its per-tensor scale as f32, got {scheme:?}"
+                    "a two-level scheme stores its coarser scales as f32, got {scheme:?}"
                 );
-                let global_bytes = encode_scales(&[global], dtype);
-                bytes.extend_from_byte_slice_aligned(global_bytes.as_slice(), QPARAM_ALIGN);
+                let grid = level_shape(&shape, &level).num_elements();
+                assert_eq!(
+                    coarser.len(),
+                    grid,
+                    "{scheme:?} over {shape:?} takes {grid} coarser scales, not {}",
+                    coarser.len()
+                );
+                let coarser = match layout.level_order(&shape, &level) {
+                    Some(order) => order.to_stored(coarser),
+                    None => coarser.to_vec(),
+                };
+                let coarser_bytes = encode_scales(&coarser, level.dtype);
+                bytes.extend_from_byte_slice_aligned(coarser_bytes.as_slice(), QPARAM_ALIGN);
             }
-            (Some(_), None) => panic!("{scheme:?} requires a per-tensor scale"),
-            (None, Some(_)) => panic!("{scheme:?} does not take a per-tensor scale"),
+            (Some(_), None) => panic!("{scheme:?} requires coarser scales"),
+            (None, Some(_)) => panic!("{scheme:?} does not take coarser scales"),
             (None, None) => {}
         }
 
@@ -291,15 +299,18 @@ impl QuantizedBytes {
     /// bits.
     pub fn into_vec_i8(self) -> (Vec<i8>, DecodedScales) {
         let scheme = self.scheme;
-        let scale_order = ValueLayout::new(&scheme).block_scale_order(&self.shape, &scheme);
+        let layout = ValueLayout::new(&scheme);
+        let scale_order = layout.block_scale_order(&self.shape, &scheme);
+        let coarser = scheme.levels().nth(1);
+        let coarser_order = coarser.and_then(|level| layout.level_order(&self.shape, &level));
+        let coarser_bytes = coarser_scales_size(&scheme, &self.shape);
         let (values, (qparams, num_params)) = self.split_values_off();
 
-        // Laid out as `[block scale, ...]` optionally followed by the per-tensor scale.
-        let global_bytes = global_scale_size(&scheme);
+        // Laid out as `[block scale, ...]` optionally followed by the coarser scales.
         let block_end = qparams
             .len()
-            .checked_sub(global_bytes)
-            .expect("quantized parameter buffer is shorter than the scheme's global scale");
+            .checked_sub(coarser_bytes)
+            .expect("quantized parameter buffer is shorter than the scheme's coarser scales");
         let block_start = block_end
             .checked_sub(scale_size(scheme.finest().dtype) * num_params)
             .expect("quantized parameter buffer is shorter than the scheme's block scales");
@@ -309,10 +320,15 @@ impl QuantizedBytes {
             Some(order) => order.to_row_major(&block),
             None => block,
         };
-        let global =
-            global_scale_dtype(&scheme).map(|dtype| decode_scales(&qparams[block_end..], dtype)[0]);
+        let coarser = coarser.map(|level| {
+            let stored = decode_scales(&qparams[block_end..], level.dtype);
+            match coarser_order {
+                Some(order) => order.to_row_major(&stored),
+                None => stored,
+            }
+        });
 
-        (values, DecodedScales { block, global })
+        (values, DecodedScales { block, coarser })
     }
 
     /// Splits the quantized values of the tensor from the quantization parameters.
@@ -321,8 +337,8 @@ impl QuantizedBytes {
     /// quantization parameter bytes.
     fn split_values_off(self) -> (Vec<i8>, (Vec<u8>, usize)) {
         let num_params = params_shape(&self.shape, &self.scheme).num_elements();
-        let scale_bytes =
-            scale_size(self.scheme.finest().dtype) * num_params + global_scale_size(&self.scheme);
+        let scale_bytes = scale_size(self.scheme.finest().dtype) * num_params
+            + coarser_scales_size(&self.scheme, &self.shape);
         let (shape, scheme) = (self.shape, self.scheme);
 
         let mut stored = read_bytes_to_i8(self.bytes);
@@ -365,9 +381,11 @@ pub fn scale_to_dtype(scale: f32, dtype: ScaleDtype) -> f32 {
     dtype.round_up(scale)
 }
 
-/// Bytes taken by the per-tensor scale, zero for a scheme that does not carry one over blocks.
-pub fn global_scale_size(scheme: &QuantScheme) -> usize {
-    global_scale_dtype(scheme).map_or(0, scale_size)
+/// Bytes the coarser scales of a tensor of `shape` take, zero for a one-level scheme.
+pub fn coarser_scales_size(scheme: &QuantScheme, shape: &Shape) -> usize {
+    scheme.levels().nth(1).map_or(0, |level| {
+        level_shape(shape, &level).num_elements() * scale_size(level.dtype)
+    })
 }
 
 /// Number of storage elements a tensor of `shape` occupies under `scheme`.
@@ -422,22 +440,19 @@ pub(crate) fn try_quantized_data_len(scheme: &QuantScheme, shape: &Shape) -> Opt
     };
     let value_bytes = storage_elements(scheme, shape)?.checked_mul(value_bytes_per_element)?;
 
-    let finest = scheme.finest();
-    let mut past_rank = finest.size.extents.iter().skip(shape.num_dims());
-    let mut coarser = scheme.levels().skip(1);
-    if past_rank.any(|extent| *extent != finest.size.rest)
-        || coarser.any(|level| level.size != BlockSize::TENSOR)
-    {
-        return None;
+    let mut scale_bytes = 0usize;
+    for level in scheme.levels() {
+        let mut past_rank = level.size.extents.iter().skip(shape.num_dims());
+        if past_rank.any(|extent| *extent != level.size.rest) {
+            return None;
+        }
+        let num_params = level_shape(shape, &level)
+            .iter()
+            .try_fold(1usize, |params, &blocks| params.checked_mul(blocks))?;
+        scale_bytes = scale_bytes.checked_add(num_params.checked_mul(scale_size(level.dtype))?)?;
     }
-    let num_params = params_shape(shape, scheme)
-        .iter()
-        .try_fold(1usize, |params, &blocks| params.checked_mul(blocks))?;
-    let scale_bytes = num_params.checked_mul(scale_size(finest.dtype))?;
 
-    value_bytes
-        .checked_add(scale_bytes)?
-        .checked_add(global_scale_size(scheme))
+    value_bytes.checked_add(scale_bytes)
 }
 
 /// Bytes the values of a tensor of `shape` take under `scheme`, before its scales.
@@ -560,14 +575,14 @@ mod tests {
     }
 
     #[test]
-    fn a_coarser_level_of_rows_is_not_quantizable() {
-        assert!(!quantizable(&QuantScheme::mxfp4_row_factored()));
+    fn a_coarser_level_of_rows_is_quantizable() {
+        assert!(quantizable(&QuantScheme::mxfp4_row_factored()));
     }
 
     #[test]
-    #[should_panic(expected = "stored as one scale for the whole tensor")]
-    fn a_coarser_level_of_rows_is_no_global_scale() {
-        global_scale_dtype(&QuantScheme::mxfp4_row_factored());
+    fn a_coarser_level_of_rows_is_a_grid_of_rows() {
+        let shape = coarser_shape(&Shape::new([3, 64]), &QuantScheme::mxfp4_row_factored());
+        assert_eq!(shape, Some(Shape::new([3, 1])));
     }
 
     /// Backends divide by what `scale_to_dtype` returns and hand that same value to
@@ -609,7 +624,7 @@ mod tests {
     fn should_pack_unpack_two_level_scales() {
         // Exactly representable, so this pins the layout rather than the formats' rounding.
         let block_scales = [0.5f32, 0.125];
-        let global = 3.0f32;
+        let coarser = [3.0f32];
         let values = vec![0i8, 25, 51, 76, 102, 127, -128, -1];
 
         let scheme = QuantScheme::default()
@@ -618,7 +633,8 @@ mod tests {
             .per_block([4], ScaleDtype::UE4M3)
             .per_tensor(ScaleDtype::F32);
 
-        let q_bytes = QuantizedBytes::new(values.clone(), [8], scheme, &block_scales, Some(global));
+        let q_bytes =
+            QuantizedBytes::new(values.clone(), [8], scheme, &block_scales, Some(&coarser));
 
         // 8 values, one byte per UE4M3 block scale, a 4 byte f32 per-tensor scale.
         assert_eq!(q_bytes.bytes.len(), 8 + 2 + 4);
@@ -627,7 +643,41 @@ mod tests {
 
         assert_eq!(q_values, values);
         assert_eq!(scales.block, block_scales);
-        assert_eq!(scales.global, Some(global));
+        assert_eq!(scales.coarser, Some(coarser.to_vec()));
+    }
+
+    /// One `f32` a row after the block scales, row-major: the bytes a row-factored weight
+    /// carries, read back row by row.
+    #[test]
+    fn should_pack_unpack_a_coarser_scale_for_each_row() {
+        let block_scales = [1.0f32, 0.5, 0.25, 1.0];
+        let coarser = [3.0f32, 0.75];
+        let values = vec![1i8; 16];
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native)
+            .per_block([4], ScaleDtype::UE8M0)
+            .coarser_per_block(
+                BlockSize::with_rest(&[BlockExtent::WholeAxis], BlockExtent::VALUE),
+                ScaleDtype::F32,
+            );
+
+        let q_bytes = QuantizedBytes::new(
+            values.clone(),
+            [2, 8],
+            scheme,
+            &block_scales,
+            Some(&coarser),
+        );
+
+        // 16 values, one byte per ue8m0 block scale, a 4 byte f32 a row.
+        assert_eq!(q_bytes.bytes.len(), 16 + 4 + 2 * 4);
+
+        let (q_values, scales) = q_bytes.into_vec_i8();
+
+        assert_eq!(q_values, values);
+        assert_eq!(scales.block, block_scales);
+        assert_eq!(scales.coarser, Some(coarser.to_vec()));
     }
 
     /// MXFP4's scale level: one `ue8m0` byte per block, no per-tensor scale. Serialization has to
@@ -654,12 +704,12 @@ mod tests {
 
         assert_eq!(q_values, values);
         assert_eq!(scales.block, block_scales);
-        assert_eq!(scales.global, None);
+        assert_eq!(scales.coarser, None);
     }
 
     #[test]
-    #[should_panic(expected = "requires a per-tensor scale")]
-    fn two_level_scheme_without_a_global_scale_is_rejected() {
+    #[should_panic(expected = "requires coarser scales")]
+    fn two_level_scheme_without_coarser_scales_is_rejected() {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::Native)
@@ -670,7 +720,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "stores its per-tensor scale as f32")]
+    #[should_panic(expected = "stores its coarser scales as f32")]
     fn a_narrower_per_tensor_scale_is_rejected() {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
@@ -678,7 +728,7 @@ mod tests {
             .per_block([4], ScaleDtype::UE4M3)
             .per_tensor(ScaleDtype::F16);
 
-        QuantizedBytes::new(vec![0i8; 8], [8], scheme, &[0.5, 0.125], Some(3.0));
+        QuantizedBytes::new(vec![0i8; 8], [8], scheme, &[0.5, 0.125], Some(&[3.0]));
     }
 
     /// What a backend answers `supports_dtype` with, so a scheme it declines here is one no path
@@ -709,13 +759,13 @@ mod tests {
                 .per_block([32], ScaleDtype::UE8M0)
         ));
 
-        // Block scales reaching f32's range leave the per-tensor scale subnormal, and a narrower
-        // per-tensor scale rounds away precision every block was normalized against.
-        assert!(!quantizable(
+        // Block scales reaching f32's range land their largest at one under the coarser scale.
+        assert!(quantizable(
             &QuantScheme::default()
                 .per_block([4], ScaleDtype::F32)
                 .per_tensor(ScaleDtype::F32)
         ));
+        // A narrower coarser scale rounds away precision every block was normalized against.
         assert!(!quantizable(
             &QuantScheme::default()
                 .per_block([4], ScaleDtype::UE4M3)

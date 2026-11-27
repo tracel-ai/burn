@@ -2,8 +2,8 @@ use super::*;
 use alloc::{vec, vec::Vec};
 use burn_tensor::Tolerance;
 use burn_tensor::quantization::{
-    DecodedScales, QuantScheme, QuantStore, QuantValue, QuantizationParameters, QuantizedBytes,
-    ScaleDtype,
+    BlockExtent, BlockSize, DecodedScales, QuantScheme, QuantStore, QuantValue,
+    QuantizationParameters, QuantizedBytes, ScaleDtype,
 };
 use burn_tensor::{DType, Device, Element, TensorData};
 
@@ -36,7 +36,7 @@ fn should_support_quantize_symmetric_int8() {
         .with_value(QuantValue::Q8S);
     let qparams = QuantizationParameters {
         scales: TestTensor::from_data([0.014_173_228], &device),
-        global: None,
+        coarser: None,
     };
 
     let x_q = tensor.clone().quantize(&scheme, qparams);
@@ -643,7 +643,7 @@ fn should_quantize_each_row_under_its_own_scale() {
     let tensor = TestTensor::<2>::from_data(TensorData::new(rows, [3, 8]), &device);
     let qparams = QuantizationParameters {
         scales: TestTensor::from_data([1.0, 2.0, 0.5], &device),
-        global: None,
+        coarser: None,
     };
 
     let actual = tensor
@@ -672,7 +672,7 @@ fn should_quantize_each_block_of_a_grid_under_its_own_scale() {
             TensorData::new(scales.as_flattened().to_vec(), [4]),
             &device,
         ),
-        global: None,
+        coarser: None,
     };
     let scheme = QuantScheme::default()
         .with_value(QuantValue::E4M3)
@@ -685,4 +685,116 @@ fn should_quantize_each_block_of_a_grid_under_its_own_scale() {
     actual
         .into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), Tolerance::default());
+}
+
+/// Q8 blocks of four under one coarser scale a row, over rows whose magnitudes differ by orders.
+fn row_factored(device: &Device) -> QuantScheme {
+    device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_block([4], ScaleDtype::F32)
+        .coarser_per_block(
+            BlockSize::with_rest(&[BlockExtent::WholeAxis], BlockExtent::VALUE),
+            ScaleDtype::F32,
+        )
+}
+
+/// Four rows of eight, the second a thousand times the first, each block of four its own step.
+fn rows_of_magnitudes(device: &Device) -> TestTensor<2> {
+    let values: Vec<f32> = (0..32)
+        .map(|i| {
+            let (row, col) = (i / 8, i % 8);
+            [0.01f32, 10.0, 0.5, 3.0][row] * (col as f32 - 3.5) * (1.0 + (col / 4) as f32)
+        })
+        .collect();
+    TestTensor::<2>::from_data(TensorData::new(values, [4, 8]), device)
+}
+
+fn assert_round_trips(actual: TestTensor<2>, expected: TestTensor<2>) {
+    actual.into_data().assert_approx_eq::<FloatElem>(
+        &expected.into_data(),
+        Tolerance::absolute(1e-4).set_relative(1e-2),
+    );
+}
+
+#[test]
+fn should_quantize_each_row_under_its_own_coarser_scale() {
+    let device = Default::default();
+    let input = rows_of_magnitudes(&device);
+
+    let output = input.clone().quantize_dynamic(&row_factored(&device));
+
+    assert_round_trips(output.dequantize(), input);
+}
+
+/// The coarser grid moves with the values: read along the wrong axis, a transposed row would
+/// come back under another row's scale.
+#[test]
+fn should_transpose_a_tensor_under_a_coarser_scale_for_each_row() {
+    let device = Default::default();
+    let input = rows_of_magnitudes(&device);
+
+    let output = input
+        .clone()
+        .quantize_dynamic(&row_factored(&device))
+        .transpose();
+
+    assert_round_trips(output.dequantize(), input.transpose());
+}
+
+#[test]
+fn should_reshape_the_rows_of_a_tensor_under_a_coarser_scale_for_each_row() {
+    let device = Default::default();
+    let input = rows_of_magnitudes(&device);
+    let stacked: TestTensor<3> = input.clone().reshape([2, 2, 8]);
+
+    let output = stacked
+        .quantize_dynamic(&row_factored(&device))
+        .reshape([4, 8]);
+
+    assert_round_trips(output.dequantize(), input);
+}
+
+#[test]
+fn should_read_back_the_data_of_a_tensor_under_a_coarser_scale_for_each_row() {
+    let device = Default::default();
+    let input = rows_of_magnitudes(&device);
+    let data = input
+        .clone()
+        .quantize_dynamic(&row_factored(&device))
+        .into_data();
+
+    let output = TestTensor::<2>::from_data(data, &device);
+
+    assert_round_trips(output.dequantize(), input);
+}
+
+/// MXFP4 factored by row: `e2m1` codes under `ue8m0` block scales, those under one `f32` a row.
+/// Each block holds a 6, so its scale is its row's times a power of two, the second block of a row
+/// three below the first: every value is exact under the factored scales.
+#[test]
+fn should_round_trip_mxfp4_factored_by_row() {
+    let device = Default::default();
+    let codes = [0.0f32, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0];
+    let rows = [0.37f32, 5.0, 0.002, 1.0];
+    let values: Vec<f32> = (0..rows.len() * 64)
+        .map(|i| {
+            let (row, col) = (i / 64, i % 64);
+            let sign = if col % 2 == 0 { 1.0 } else { -1.0 };
+            let block = if col < 32 { 1.0 } else { 0.125 };
+            sign * codes[col % 8] * block * rows[row]
+        })
+        .collect();
+    let input = TestTensor::<2>::from_data(TensorData::new(values, [4, 64]), &device);
+
+    let output = input
+        .clone()
+        .quantize_dynamic(&QuantScheme::mxfp4_row_factored());
+
+    output
+        .dequantize()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&input.into_data(), Tolerance::relative(1e-5));
 }

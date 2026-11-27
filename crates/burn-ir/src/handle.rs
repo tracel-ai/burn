@@ -546,10 +546,10 @@ impl<H: Clone> HandleContainer<H> {
     {
         QuantizationParametersPrimitive {
             scales: self.get_float_tensor::<B>(&qparams.scales),
-            global: qparams
-                .global
+            coarser: qparams
+                .coarser
                 .as_ref()
-                .map(|global| self.get_float_tensor::<B>(global)),
+                .map(|coarser| self.get_float_tensor::<B>(coarser)),
         }
     }
 

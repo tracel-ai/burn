@@ -331,7 +331,7 @@ impl<'a> OpClass<'a> {
                 kind: OpKind::Quantize,
                 inputs: [&desc.tensor, &desc.qparams.scales]
                     .into_iter()
-                    .chain(desc.qparams.global.as_ref())
+                    .chain(desc.qparams.coarser.as_ref())
                     .collect(),
                 outputs: [&desc.out].into_iter().collect(),
             },

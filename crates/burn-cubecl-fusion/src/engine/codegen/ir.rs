@@ -124,8 +124,12 @@ impl AsMutExpand for FuseArg {
     }
 }
 
-impl IntoMut for FuseArg {
-    fn into_mut(self, _context: &Scope) -> Self {
+impl PlaceExpand for FuseArg {
+    fn create_mut_place(self, _: &Scope) -> Self {
+        self
+    }
+
+    fn read_place(self, _: &Scope) -> Self {
         self
     }
 }

@@ -13,8 +13,9 @@ pub struct QuantizationParametersPrimitive<B: Backend> {
     /// The scaling factor, one per block or a single one for a per-tensor level, in the quantized
     /// tensor's float dtype.
     pub scales: B::FloatTensorPrimitive,
-    /// The per-tensor scale that [`scales`](Self::scales) are expressed relative to, for a
-    /// two-level scheme. Always `f32`, unlike `scales`, so the two cannot go into a binary op
+    /// The coarser level's scales that [`scales`](Self::scales) are expressed relative to, for a
+    /// two-level scheme: a grid of its own, one per block of the coarser level, or a single one for
+    /// the whole tensor. Always `f32`, unlike `scales`, so the two cannot go into a binary op
     /// without a cast.
-    pub global: Option<B::FloatTensorPrimitive>,
+    pub coarser: Option<B::FloatTensorPrimitive>,
 }

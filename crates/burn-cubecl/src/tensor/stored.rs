@@ -28,14 +28,14 @@ impl CubeTensor {
             .scales()
             .expect("a quantized tensor holds its scales")
             .plain();
-        let global = self.global().map(CubeTensor::plain);
+        let coarser = self.coarser().map(CubeTensor::plain);
         let client = self.client.clone();
         StoredTensor::of_quantized(
             &client,
             self.stored_binding(),
             scheme,
             block_scales,
-            global,
+            coarser,
             dimensions,
         )
     }
@@ -255,7 +255,7 @@ mod tests {
                     blocks * n,
                 ),
             };
-            let global = weight.global();
+            let global = weight.coarser();
 
             let align = |bytes: usize| {
                 bytes.next_multiple_of(client.properties().memory.alignment as usize)
@@ -305,7 +305,7 @@ mod tests {
                     metadata: scales_metadata,
                     dtype: DType::U8,
                 },
-                global: global.map(|_| QParamTensor {
+                coarser: global.map(|_| QParamTensor {
                     offset_start: global_at,
                     offset_end: 0,
                     metadata: Metadata::new(Shape::new([1]), vec![1]),

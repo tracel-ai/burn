@@ -1587,9 +1587,9 @@ pub struct ConvTranspose3dOptionsIr {
 pub struct QuantizationParametersIr {
     /// The scaling factor, one per block or a single one for a per-tensor level.
     pub scales: TensorIr,
-    /// The per-tensor scale that [`scales`](Self::scales) are expressed relative to, for a
+    /// The coarser level's scales that [`scales`](Self::scales) are expressed relative to, for a
     /// two-level scheme.
-    pub global: Option<TensorIr>,
+    pub coarser: Option<TensorIr>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -3431,7 +3431,7 @@ impl FloatOperationIr {
             FloatOperationIr::Quantize(repr) => Box::new(
                 [&repr.tensor, &repr.qparams.scales]
                     .into_iter()
-                    .chain(repr.qparams.global.iter()),
+                    .chain(repr.qparams.coarser.iter()),
             ),
             FloatOperationIr::Dequantize(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::IsNan(repr) => Box::new([&repr.input].into_iter()),
@@ -3555,8 +3555,8 @@ impl FloatOperationIr {
             FloatOperationIr::Quantize(repr) => {
                 repr.tensor.mark_read_only(nodes, &mut output);
                 repr.qparams.scales.mark_read_only(nodes, &mut output);
-                if let Some(global) = &mut repr.qparams.global {
-                    global.mark_read_only(nodes, &mut output);
+                if let Some(coarser) = &mut repr.qparams.coarser {
+                    coarser.mark_read_only(nodes, &mut output);
                 }
             }
             FloatOperationIr::Dequantize(repr) => {
@@ -3688,8 +3688,8 @@ impl FloatOperationIr {
             FloatOperationIr::Quantize(repr) => {
                 v.visit_tensor_mut(&mut repr.tensor);
                 v.visit_tensor_mut(&mut repr.qparams.scales);
-                if let Some(global) = &mut repr.qparams.global {
-                    v.visit_tensor_mut(global);
+                if let Some(coarser) = &mut repr.qparams.coarser {
+                    v.visit_tensor_mut(coarser);
                 }
                 v.visit_tensor_mut(&mut repr.out);
             }

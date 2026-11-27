@@ -27,7 +27,7 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
             scheme,
             QuantizationParametersPrimitive {
                 scales: qparams.scales.primitive,
-                global: qparams.global.map(|global| global.primitive),
+                coarser: qparams.coarser.map(|coarser| coarser.primitive),
             },
         )
     }
