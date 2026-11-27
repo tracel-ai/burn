@@ -5,6 +5,7 @@ use crate::{
     engine::trace::TuneOutput,
     tune::{FusionInputGen, TuneInput},
 };
+use burn_backend::cubecl::autotune::{RACED_PRIORITY, raced_group};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
@@ -13,7 +14,7 @@ use cubecl::{
     tile::Geometry,
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
-use cubek::reduce::kernels::{ReduceElements, ReduceKey, ReduceRoutineProblem};
+use cubek::reduce::kernels::{ReduceElements, ReduceKey, ReducePartials, ReduceRoutineProblem};
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 
@@ -52,9 +53,13 @@ pub fn fused_reduce_autotune(
     let tunables = TUNER.init(&tune_id, || {
         // The fallback first: it always runs, and its unfused reduce settles the key the fused
         // one elects its routine from.
+        let raced = raced_group("kernels");
         TunableSet::new(create_key, FusionInputGen)
-            .with(Tunable::new("fused_reduce_fallback", tune_fallback))
-            .with(Tunable::new("fused_reduce_tile", tune_fused))
+            .with(
+                Tunable::new("fused_reduce_fallback", tune_fallback)
+                    .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(Tunable::new("fused_reduce_tile", tune_fused).group(&raced, |_| RACED_PRIORITY))
     });
 
     TUNER.execute(
@@ -101,7 +106,12 @@ fn reduce_key(info: &ReduceOptimizationInfo, tensors: &HashMap<TensorId, TensorI
             out: dtype_to_storage_type(out.dtype),
         },
     );
-    ReduceKey::from(&problem)
+    // The unfused reduce and the fused launch both give cubek scratch, which its key tells apart
+    // from a call given none.
+    ReduceKey::from(&ReduceRoutineProblem {
+        partials: Some(ReducePartials::default()),
+        ..problem
+    })
 }
 
 /// The reduce on its elected routine, through the trace's read block, then the write block; on the

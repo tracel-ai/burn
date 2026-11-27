@@ -3,6 +3,7 @@
 use crate::kernel::reduce::{reduce_dims_copy, reduce_dims_folded};
 use crate::{CubeTuneId, tensor::CubeTensor};
 use burn_backend::DType;
+use burn_backend::cubecl::autotune::{RACED_PRIORITY, raced_group};
 use cubecl::{
     AutotuneKey,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
@@ -58,9 +59,10 @@ pub(crate) fn autotune_reduce_dims_plan(
     let client = input.client.clone();
     let tune_id = CubeTuneId::new(&client, &input.device);
     let tunables = TUNER.init(&tune_id, || {
+        let raced = raced_group("kernels");
         TunableSet::new(create_key, input_gen)
-            .with(Tunable::new("folded", folded))
-            .with(Tunable::new("copy_single", copy_single))
+            .with(Tunable::new("folded", folded).group(&raced, |_| RACED_PRIORITY))
+            .with(Tunable::new("copy_single", copy_single).group(&raced, |_| RACED_PRIORITY))
     });
 
     let dims = (0..input.meta.num_dims())

@@ -1,3 +1,4 @@
+use burn_backend::cubecl::autotune::{RACED_PRIORITY, raced_group};
 use burn_backend::ops::ConvTransposeOptions;
 use cubecl::tune::{LocalTuner, Tunable, TunableSet, local_tuner};
 
@@ -20,19 +21,26 @@ pub fn conv_transpose2d_autotune(
 
     let tune_id = CubeTuneId::new(&input.client, &input.device);
     let tune_set = TUNER.init(&tune_id, || {
+        let raced = raced_group("kernels");
         TunableSet::new(create_key, create_transpose2d_input)
-            .with(Tunable::new(
-                "conv_transpose2d_direct",
-                |(input, weights, bias, options)| {
-                    conv_transpose2d_direct(input, weights, bias, options)
-                },
-            ))
-            .with(Tunable::new(
-                "conv_transpose2d_col2im",
-                |(input, weights, bias, options)| {
-                    conv_transpose2d_col2im(input, weights, bias, options)
-                },
-            ))
+            .with(
+                Tunable::new(
+                    "conv_transpose2d_direct",
+                    |(input, weights, bias, options)| {
+                        conv_transpose2d_direct(input, weights, bias, options)
+                    },
+                )
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new(
+                    "conv_transpose2d_col2im",
+                    |(input, weights, bias, options)| {
+                        conv_transpose2d_col2im(input, weights, bias, options)
+                    },
+                )
+                .group(&raced, |_| RACED_PRIORITY),
+            )
     });
 
     TUNER.execute(&tune_id, &client, tune_set, (input, weights, bias, options))

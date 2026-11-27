@@ -2,10 +2,11 @@
 //! ([`ReduceCandidate::list`]), raced per problem, over the unit routine as the floor.
 
 use crate::tune::{
-    Autotune, CandidateIdentity, CandidatePriority, Ceiling, GroupPriority, Identity, Roofline,
-    TuneCandidate,
+    Arithmetic, Autotune, CandidateIdentity, CandidatePriority, Ceiling, GroupPriority, Identity,
+    Predictor, Roofline, TuneCandidate,
 };
 use cubecl::client::Client;
+use cubecl::ir::{ElemType, FloatKind};
 use cubecl::throughput::MemoryAccess;
 use cubecl::tune::{LocalTuner, TunableSet, local_tuner};
 use cubecl::{CubeTuneId, Device};
@@ -13,7 +14,6 @@ use cubek::reduce::kernels::{
     Reduce, ReduceCandidate, ReduceKernel, ReduceKey, ReduceOpStrategy, ReducePrepared,
     ReduceTensors,
 };
-use cubek::std::Hardware;
 use cubek::std::routine::EstimatedProblem;
 use std::sync::Arc;
 
@@ -55,15 +55,15 @@ pub(crate) fn fastest_tuned(
 /// The autotune for the device `id` names, built on first touch. The one place it is built: a
 /// tuner caches a set per initializer *type*, so a second `init` site would build a second set.
 fn tunables(id: &CubeTuneId, client: &Client) -> ReduceTunables {
-    let hw = Hardware::from_client(client);
-    TUNER.init(id, move || candidates(hw.clone()))
+    let predictor = Predictor::on_device(client);
+    TUNER.init(id, move || candidates(predictor.clone()))
 }
 
 /// One routine at one of its settings, as the autotune races it, on the device it was listed for.
 #[derive(Debug, Clone)]
 struct ReduceTuneCandidate {
     candidate: ReduceCandidate,
-    hw: Hardware,
+    predictor: Predictor,
 }
 
 impl TuneCandidate for ReduceTuneCandidate {
@@ -75,14 +75,13 @@ impl TuneCandidate for ReduceTuneCandidate {
         self.candidate.name()
     }
 
-    /// First, lowered a level for each halving the prepared grid falls short of filling the
-    /// device; last where the routine declines the problem.
+    /// The routine's estimate at this setting, timed at the device's peaks, against the
+    /// reduction's roofline, the arithmetic counted in `f32`.
     fn priority(&self, key: &ReduceKey) -> CandidatePriority {
-        match self.candidate.prepared(key) {
-            Some(prepared) => CandidatePriority::FIRST
-                .lowered(self.hw.halvings_short_of_filling(prepared.launch())),
-            None => CandidatePriority::LAST,
-        }
+        self.predictor.priority_of(
+            self.candidate.estimate(key),
+            Arithmetic::plain(ElemType::Float(FloatKind::F32)),
+        )
     }
 
     fn blueprint(&self, key: &ReduceKey) -> Option<ReducePrepared> {
@@ -92,14 +91,14 @@ impl TuneCandidate for ReduceTuneCandidate {
 
 /// Every routine's candidates on `hw`, identified by their routine and setting, over the unit
 /// routine as the floor, which serves every problem on every device.
-fn candidates(hw: Hardware) -> TunableSet<ReduceKey, ReduceTensors, (), ReduceIdentity> {
+fn candidates(predictor: Predictor) -> TunableSet<ReduceKey, ReduceTensors, (), ReduceIdentity> {
     let mut autotune = ReduceAutotune::new(|tensors: &ReduceTensors| ReduceKey::from(tensors));
     let tile = autotune.group("tile", GroupPriority::DEFAULT);
-    let raced = ReduceCandidate::list(&hw)
+    let raced = ReduceCandidate::list(predictor.hardware())
         .into_iter()
         .map(|candidate| ReduceTuneCandidate {
             candidate,
-            hw: hw.clone(),
+            predictor: predictor.clone(),
         })
         .collect();
     autotune
@@ -161,48 +160,46 @@ mod tests {
         )
     }
 
-    /// The first candidate on `hw` whose name starts with `routine`, raced on `hw`.
-    fn raced(routine: &str, hw: Hardware) -> ReduceTuneCandidate {
-        let candidate = ReduceCandidate::list(&hw)
+    /// The first candidate on `predictor`'s device whose name starts with `routine`.
+    fn raced(routine: &str, predictor: Predictor) -> ReduceTuneCandidate {
+        let candidate = ReduceCandidate::list(predictor.hardware())
             .into_iter()
             .find(|candidate| candidate.name().starts_with(routine))
             .expect("the routine lists a setting on every device");
-        ReduceTuneCandidate { candidate, hw }
+        ReduceTuneCandidate {
+            candidate,
+            predictor,
+        }
     }
 
-    /// The unit routine's first candidate on an M2 Pro.
-    fn unit() -> ReduceTuneCandidate {
-        raced("unit-direct-reduce", devices::m2_pro())
-    }
-
+    /// A candidate that prepares on the device is placed by its prediction, which never puts it
+    /// with the declines.
     #[test]
-    fn a_candidate_that_fills_the_device_comes_first() {
-        assert_eq!(
-            unit().priority(&key_of_rows(1 << 18)),
-            CandidatePriority::FIRST
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
+    fn a_candidate_that_prepares_is_placed_above_the_declines() {
+        let unit = raced(
+            "unit-direct-reduce",
+            Predictor::on_device(&cubecl::test_device().client()),
         );
-    }
-
-    /// Eight rows take one cube of 128 units, where an M2 Pro takes 76.
-    #[test]
-    fn a_candidate_that_leaves_the_device_idle_is_lowered_a_level_a_halving() {
-        assert_eq!(
-            unit().priority(&key_of_rows(8)),
-            CandidatePriority::FIRST.lowered(76u32.ilog2())
-        );
+        for rows in [8, 1 << 18] {
+            assert!(unit.priority(&key_of_rows(rows)) > CandidatePriority::LAST);
+        }
     }
 
     #[test]
     fn a_candidate_that_declines_the_key_comes_last() {
         let declining = raced(
             "cube-staged-reduce",
-            devices::lacking_every_feature(devices::m2_pro()),
+            Predictor::described(devices::lacking_every_feature(devices::m2_pro())),
         );
         assert_eq!(declining.priority(&key_of_rows(8)), CandidatePriority::LAST);
     }
 
     /// A sum no caller asks for: it accumulates in less than it reads.
-    #[cfg(feature = "fusion")]
+    #[cfg(all(
+        feature = "fusion",
+        any(feature = "cuda", feature = "wgpu", feature = "metal")
+    ))]
     #[test]
     fn a_key_no_reduction_settled_has_no_fastest_candidate() {
         let device = cubecl::test_device();

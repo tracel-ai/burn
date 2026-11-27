@@ -86,7 +86,7 @@ Bounds describe the minimum traffic and arithmetic for a component running alone
 This projection assumes floating-point inputs and weights of the same dtype:
 
 ```rust,ignore
-use burn::instrument::{Bounds, compute, tensor_bytes};
+use burn::instrument::{Bounds, compute, tensor_bytes, tensor_dims};
 use burn::tensor::Tensor;
 
 struct Projection {
@@ -101,15 +101,19 @@ impl Projection {
     }
 
     /// Read the input and the weight once, write the output once.
-    fn bounds(&self, x: &Tensor<2>) -> Bounds {
-        let [rows, input] = x.dims();
-        let [_, output] = self.weight.dims();
+    fn bounds(&self, x: &Tensor<2>) -> Option<Bounds> {
+        let [rows, input] = tensor_dims(x);
+        let [weight_input, output] = tensor_dims(&self.weight);
+        // Rows split, or one operand along the contraction: the product gathers or cuts first.
+        if rows != x.dims()[0] || input != weight_input {
+            return None;
+        }
         let element = x.dtype().size() as u64;
-        Bounds {
+        Some(Bounds {
             read: tensor_bytes(x) + tensor_bytes(&self.weight),
             write: (rows * output) as u64 * element,
             flops: 2 * (rows * input * output) as u64,
-        }
+        })
     }
 }
 ```
@@ -121,6 +125,16 @@ impl Projection {
   through global memory at the widths its tensors are stored in, and its multiply-add FLOPs. Leave
   it off for a component that will be fused into its neighbour. A floor nothing can reach is worse
   than none.
+
+On a sharded compute device of several members, the run is priced twice: for the device, and for
+the lead, its first member, given how the operands are split. `tensor_dims` and `tensor_bytes`
+answer for the share being priced, a split operand reading as the lead's shard and a replicated
+one whole. They give what the lead holds as the component is entered, not what an operation
+inside redistributes, so the floor above returns `None` where the product gathers or cuts an
+operand first.
+A floor that cannot price the lead's share returns `None` there too, and one that neither reads a
+shape through `tensor_dims` nor asks `pricing_lead()` leaves the component timed and not scored
+on the lead.
 
 ## Measuring a model
 
@@ -153,7 +167,8 @@ output dropped inside the run lets the fuser skip the work that wrote it:
 - **clean wall**, the median of 10 clean runs (`.samples(n)`): what the report splits into device
   time and the time the device waited on the host. An instrumented run times every launch, so its
   own wall time describes the instrumentation, not the model.
-- **pricing**, one untimed run that evaluates component bounds, including any value readbacks.
+- **pricing**, one untimed run that evaluates component bounds, including any value readbacks,
+  and a second on a sharded compute device of several members, for its lead.
 - **the instrumented run**, whose breakdown the file holds.
 
 ### Replay requirements
@@ -177,7 +192,8 @@ let measurement = Instrument::new(&device).measure(|| model.forward(batch.clone(
 ```
 
 The model must also satisfy the state requirements above. `Instrument::breakdown` runs the
-closure twice, for pricing and timing, and has the same replay requirements.
+closure twice, for pricing and timing, and a third time on a sharded compute device of several
+members, to price its lead. It has the same replay requirements.
 
 ### Profiling the text classifier
 
@@ -222,3 +238,14 @@ Components are matched by their path from the root, and each delta carries the e
 served it. A component whose work fused into another's in one measurement and not the other is
 named rather than subtracted. Two measurements on a different device, graph or timing are announced
 before any number.
+
+### Sharded compute devices
+
+The members of a sharded compute device run at once, and the report reads them at the lead, on
+the assumption that they are one hardware. Its peaks are the lead's, a component's time and
+launches are its kernels' on the lead, and its floor is its bounds priced for the lead's share. An uneven split hands the lead its
+largest shard, so no member has more to do. What the lead's kernels leave of the clean run is the
+time it waited, on its collectives as well as on the host. A run cannot be read at the lead when
+a launch was timed alone or measured no time, a timing could not be placed, a kernel ran on no
+member, or two members share a device: its components are then every member's
+kernels, and none is scored. A sharded compute device of one member is read as a plain device.

@@ -1,12 +1,14 @@
 use crate::{
     Backend, TensorMetadata,
-    distributed::{ReduceOperation, ShardingError},
+    distributed::{ReduceOperation, Sharding, ShardingError},
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use alloc::{boxed::Box, vec, vec::Vec};
 use burn_std::{
     Bytes, DType, QuantScheme, QuantizedBytes, Shape, Slice, TensorData, global_scale_size,
-    params_shape, scale_size,
+    params_shape,
+    quantization::{BlockExtent, BlockSize},
+    scale_size,
 };
 use core::{marker::PhantomData, ops::Range};
 
@@ -424,6 +426,35 @@ impl DimSplit {
         split
     }
 
+    /// The chunk member `member` of `members` holds of a split into `chunks`: the members form
+    /// that many contiguous groups, each holding its chunk alike.
+    ///
+    /// # Assumptions
+    ///
+    /// `member` is below `members`, and `chunks` is at least one and divides `members`.
+    pub fn chunk_of(member: usize, members: usize, chunks: usize) -> usize {
+        member / (members / chunks)
+    }
+
+    /// `dims`, a tensor's extents, cut to the shard member `member` of `members` holds under
+    /// `sharding`: a split dim to its chunk, every other dim whole.
+    ///
+    /// # Assumptions
+    ///
+    /// `sharding` is one `members` members can hold a tensor of `dims` under: its split dim is
+    /// one of `dims`, and its chunks are as [`chunk_of`](Self::chunk_of) assumes. `member` is
+    /// below `members`.
+    pub fn cut_to_member(dims: &mut [usize], sharding: Sharding, member: usize, members: usize) {
+        if let (Some(dim), Some(chunks)) = (sharding.split_dim(), sharding.num_chunks(members)) {
+            let split = Self {
+                dim,
+                len: dims[dim],
+                members: chunks,
+            };
+            dims[dim] = split.range(Self::chunk_of(member, members, chunks)).len();
+        }
+    }
+
     /// The indices along `dim` that `member` holds.
     pub fn range(&self, member: usize) -> Range<usize> {
         let base = self.len / self.members;
@@ -447,9 +478,10 @@ impl DimSplit {
     /// its codes and scales cut without changing any of them, and, along the packed axis, whole
     /// packed words, which a device stores a quantized tensor in.
     pub fn cuts_whole_quantized_units(&self, scheme: &QuantScheme, rank: usize) -> bool {
-        let block = scheme
-            .block_size()
-            .map_or(1, |block| block.to_dim_vec(rank)[self.dim] as usize);
+        let block = match self.scale_extent(scheme, rank) {
+            BlockExtent::Values(values) => values.get() as usize,
+            BlockExtent::WholeAxis => 1,
+        };
         let packed = match scheme.packing_dim() {
             Some(packed_dim) if rank - 1 - packed_dim == self.dim => scheme.num_quants(),
             _ => 1,
@@ -458,6 +490,18 @@ impl DimSplit {
             1 => true,
             unit => self.len.is_multiple_of(self.members * unit),
         }
+    }
+
+    /// How far one scale of a tensor of `rank` dims quantized by `scheme` reaches along the split:
+    /// one over the whole axis is each chunk's too, and any other is cut with the values.
+    fn scale_extent(&self, scheme: &QuantScheme, rank: usize) -> BlockExtent {
+        let from_last = rank - 1 - self.dim;
+        (scheme
+            .finest()
+            .size
+            .extents_in_rank(rank)
+            .nth_back(from_last))
+        .expect("the split should be along one of the dims")
     }
 
     /// Each member's chunk of `data`, in member order, cut on the host. A quantized chunk keeps
@@ -506,8 +550,10 @@ impl DimSplit {
         );
         let (values, scales) = (parts.values.as_bytes(), parts.scales.as_bytes());
         let values_split = self.stored_split(&parts, &parts.values);
-        let scales_split =
-            (parts.scheme.block_size()).map(|_| self.stored_split(&parts, &parts.scales));
+        let scales_split = match self.scale_extent(&parts.scheme, data.shape().num_dims()) {
+            BlockExtent::Values(_) => Some(self.stored_split(&parts, &parts.scales)),
+            BlockExtent::WholeAxis => None,
+        };
         (0..self.members)
             .map(|member| {
                 let mut shape = data.shape().clone();
@@ -527,7 +573,8 @@ impl DimSplit {
 
     fn whole_quantized(self, chunks: &[TensorData]) -> Result<TensorData, ShardingError> {
         let parts: Vec<_> = chunks.iter().map(QuantizedParts::new).collect();
-        if let Some(shard) = parts.iter().position(|part| !part.joins(&parts[0])) {
+        let extent = self.scale_extent(&parts[0].scheme, chunks[0].shape().num_dims());
+        if let Some(shard) = (parts.iter()).position(|part| !part.joins(&parts[0], extent)) {
             return Err(ShardingError::QuantizedScales { shard });
         }
         // Chunks quantized each on their own can end inside a packed word, whose padding the
@@ -548,9 +595,9 @@ impl DimSplit {
             DimSplit { len, ..split }.whole_plain(&sections)
         };
         let values = joined(|part| &part.values);
-        let scales = match parts[0].scheme.block_size() {
-            None => parts[0].scales.clone(),
-            Some(_) => joined(|part| &part.scales),
+        let scales = match extent {
+            BlockExtent::WholeAxis => parts[0].scales.clone(),
+            BlockExtent::Values(_) => joined(|part| &part.scales),
         };
         let mut shape = chunks[0].shape().clone();
         shape[self.dim] = self.len;
@@ -579,9 +626,9 @@ impl DimSplit {
             })
             .unzip();
         let codes = self.whole_plain(&codes);
-        let scales = match scheme.block_size() {
-            None => scales[0].clone(),
-            Some(_) => {
+        let scales = match self.scale_extent(&scheme, codes.shape().num_dims()) {
+            BlockExtent::WholeAxis => scales[0].clone(),
+            BlockExtent::Values(_) => {
                 let len = scales.iter().map(|scale| scale.shape()[self.dim]).sum();
                 DimSplit { len, ..self }.whole_plain(&scales)
             }
@@ -722,11 +769,11 @@ impl QuantizedParts {
             }
             None => size_of::<i8>(),
         };
-        let scales_shape = match scheme.block_size() {
-            Some(_) => lay(params_shape(shape, &scheme)),
-            None => Shape::new([1]),
+        let scales_shape = match scheme.finest().size {
+            BlockSize::TENSOR => params_shape(shape, &scheme),
+            _ => lay(params_shape(shape, &scheme)),
         };
-        let scale_bytes = scale_size(scheme.scale_dtype());
+        let scale_bytes = scale_size(scheme.finest().dtype);
         let values_end = values_shape.num_elements() * value_bytes;
         let scales_end = values_end + scales_shape.num_elements() * scale_bytes;
         let section = |start: usize, end: usize| {
@@ -760,11 +807,12 @@ impl QuantizedParts {
         }
     }
 
-    /// Whether these parts and `first` share the scales a joined whole keeps once.
-    fn joins(&self, first: &Self) -> bool {
-        let per_tensor = self.scheme.block_size().is_none();
+    /// Whether these parts and `first` share the scales a whole joined along an axis they reach
+    /// `extent` of keeps once.
+    fn joins(&self, first: &Self, extent: BlockExtent) -> bool {
         self.global[..] == first.global[..]
-            && (!per_tensor || self.scales.as_bytes() == first.scales.as_bytes())
+            && (extent != BlockExtent::WholeAxis
+                || self.scales.as_bytes() == first.scales.as_bytes())
     }
 
     /// The quantized tensor of `shape` whose values and block scales are `pieces` end to end,
@@ -822,6 +870,29 @@ mod tests {
         let ranges: Vec<_> = (0..3).map(|member| split.range(member)).collect();
 
         assert_eq!(ranges, [0..3, 3..5, 5..7]);
+    }
+
+    #[test]
+    fn a_replicated_split_cuts_every_member_of_a_group_to_its_chunk() {
+        let sharding = Sharding::ReplicatedSplit { dim: 0, groups: 2 };
+        let cut = |member| {
+            let mut dims = [3, 2];
+            DimSplit::cut_to_member(&mut dims, sharding, member, 4);
+            dims
+        };
+
+        assert_eq!(
+            (0..4).map(cut).collect::<Vec<_>>(),
+            [[2, 2], [2, 2], [1, 2], [1, 2]]
+        );
+    }
+
+    #[test]
+    fn a_replicated_tensor_is_whole_on_every_member() {
+        let mut dims = [3, 2];
+        DimSplit::cut_to_member(&mut dims, Sharding::Replicated, 1, 2);
+
+        assert_eq!(dims, [3, 2]);
     }
 
     #[test]
@@ -944,9 +1015,9 @@ mod tests {
         .into_vec_i8();
         let codes = TensorData::new(codes, shape.clone());
         let block_scales = TensorData::new(scales.block, params_shape(&shape, &scheme));
-        let block_chunks: Vec<_> = match scheme.block_size() {
-            None => vec![block_scales; split.members],
-            Some(_) => DimSplit {
+        let block_chunks: Vec<_> = match split.scale_extent(&scheme, shape.num_dims()) {
+            BlockExtent::WholeAxis => vec![block_scales; split.members],
+            BlockExtent::Values(_) => DimSplit {
                 len: block_scales.shape()[split.dim],
                 ..split
             }
@@ -988,6 +1059,7 @@ mod tests {
                 .with_value(QuantValue::Q8S)
                 .with_store(QuantStore::Native)
                 .per_block([2], ScaleDtype::F32),
+            QuantScheme::fp8_per_row(),
             QuantScheme::default()
                 .with_value(QuantValue::Q4S)
                 .with_store(QuantStore::PackedU32(1)),

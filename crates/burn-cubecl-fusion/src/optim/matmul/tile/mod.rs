@@ -10,7 +10,7 @@ mod operand;
 mod runner;
 mod sink;
 
-use super::optimization::MatmulOptimizationTuneArg;
+use super::optimization::{MatmulOptimizationInfo, MatmulOptimizationTuneArg};
 use crate::{
     CubeFusionHandle,
     elector::elected_matmul,
@@ -20,6 +20,7 @@ use crate::{
     },
     tune::{FusionInputGen, TuneInput},
 };
+use burn_backend::cubecl::autotune::{RACED_PRIORITY, raced_group};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use cubecl::{
@@ -28,7 +29,7 @@ use cubecl::{
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
 use cubek::matmul::kernels::{
-    MatmulOpStrategy, MatmulTuneKey, create_key,
+    MatmulOpStrategy, MatmulRoutineSettings, MatmulTuneKey, create_key,
     plan::MatmulCall,
     select::{problem::MatmulProblem, selector::measured_autotune},
 };
@@ -86,32 +87,44 @@ pub struct TileFusedMatmulAutotuneKey {
     num_out_buffers: usize,
     #[autotune(anchor)]
     num_ops: usize,
+    /// The routine the plain matmul's race elected for the product, by its name: `None` while
+    /// that race has not settled. A fused race run before then measures the tile candidate on no
+    /// routine, so its persisted decision must not answer a key whose routine is elected.
+    routine: Option<String>,
 }
 
 /// Run the fused product: its elected routine storing into the block, or the fallback, whichever
 /// the autotune measured faster for its key.
-pub(crate) fn execute(arg: MatmulOptimizationTuneArg, context: &mut Context<CubeFusionHandle>) {
+pub(crate) fn execute(mut arg: MatmulOptimizationTuneArg, context: &mut Context<CubeFusionHandle>) {
     static TUNER: LocalTuner<TileFusedMatmulAutotuneKey, CubeTuneId> = local_tuner!();
+
+    arg.routine = matmul_call(&arg.info, context)
+        .ok()
+        .and_then(|call| elected(&call));
 
     let client = arg.info.client.clone();
     let tune_id = CubeTuneId::new(&client, &arg.info.device);
     let tunables = TUNER.init(&tune_id, || {
         // The fallback first: it always runs.
+        let raced = raced_group("kernels");
         TunableSet::new(create_autotune_key, FusionInputGen)
-            .with(Tunable::new("fused_matmul_fallback", tune_fallback))
-            .with(Tunable::new("fused_matmul_tile", tune_fused))
+            .with(
+                Tunable::new("fused_matmul_fallback", tune_fallback)
+                    .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(Tunable::new("fused_matmul_tile", tune_fused).group(&raced, |_| RACED_PRIORITY))
     });
 
     TUNER.execute(&tune_id, &client, tunables, TuneInput::new(context, arg));
 }
 
-/// The routine the backend's matmul autotune elected for `call`, prepared for a sink and handed to
-/// `visitor`; `None` where the product's plan is no single race, or the race has not measured the
-/// product's key yet ([`RoutineElector::elect_matmul`](crate::RoutineElector::elect_matmul)).
+/// The routine the backend's matmul autotune elected for `call`; `None` where the product's plan
+/// is no single race, or the race has not measured the product's key yet
+/// ([`RoutineElector::elect_matmul`](crate::RoutineElector::elect_matmul)).
 ///
 /// The race is the one cubek's selection sends the unfused product to, under the same device
 /// identity, so the fused product launches whichever routine the unfused one settled.
-fn elected<V: SinkLaunchVisitor>(call: &MatmulCall, visitor: V) -> Option<V::Output> {
+fn elected(call: &MatmulCall) -> Option<MatmulRoutineSettings> {
     let (lhs_shape, rhs_shape) = (
         call.lhs.meta.logical_shape().ok()?,
         call.rhs.meta.logical_shape().ok()?,
@@ -121,24 +134,18 @@ fn elected<V: SinkLaunchVisitor>(call: &MatmulCall, visitor: V) -> Option<V::Out
         (&rhs_shape, call.rhs.tensor.kind()),
     );
     let autotune = measured_autotune(MatmulOpStrategy::Autotune, &problem, &call.hw)?;
-    let settings = elected_matmul(autotune, call)?;
-    Some(settings.sink_launch(call, visitor))
+    elected_matmul(autotune, call)
 }
 
-/// The product's routine storing into the trace's block.
-fn execute_fused(
-    arg: &MatmulOptimizationTuneArg,
-    context: &mut Context<CubeFusionHandle>,
-) -> Result<TuneOutput, TraceError<TileFusedMatmulError>> {
-    let info = &arg.info;
+/// The fused product's matmul as a call, read from `context`.
+fn matmul_call(
+    info: &MatmulOptimizationInfo,
+    context: &Context<CubeFusionHandle>,
+) -> Result<MatmulCall, TileFusedMatmulError> {
     let op = &info.matmul.op;
-    let lhs = TraceOperand::new(context, &op.lhs)
-        .call_input([M, K])
-        .map_err(TraceError::RunnerError)?;
-    let rhs = TraceOperand::new(context, &op.rhs)
-        .call_input([K, N])
-        .map_err(TraceError::RunnerError)?;
-    let call = MatmulCall {
+    let lhs = TraceOperand::new(context, &op.lhs).call_input([M, K])?;
+    let rhs = TraceOperand::new(context, &op.rhs).call_input([K, N])?;
+    Ok(MatmulCall {
         hw: Hardware::from_client(&info.client),
         client: info.client.clone(),
         tune_id: CubeTuneId::new(&info.client, &info.device),
@@ -146,10 +153,21 @@ fn execute_fused(
         rhs,
         out: dtype_to_storage_type(context.tensors[&op.out.id].dtype),
         destination: None,
+    })
+}
+
+/// The product's routine storing into the trace's block.
+fn execute_fused(
+    arg: &MatmulOptimizationTuneArg,
+    context: &mut Context<CubeFusionHandle>,
+) -> Result<TuneOutput, TraceError<TileFusedMatmulError>> {
+    let call = matmul_call(&arg.info, context).map_err(TraceError::RunnerError)?;
+    let Some(settings) = arg.routine else {
+        return Err(TraceError::RunnerError(
+            TileFusedMatmulError::NoRoutineElected,
+        ));
     };
-    elected(&call, FusedRun { arg, context }).unwrap_or(Err(TraceError::RunnerError(
-        TileFusedMatmulError::NoRoutineElected,
-    )))
+    settings.sink_launch(&call, FusedRun { arg, context })
 }
 
 /// A fused product waiting for its routine's launch: the trace runs with the launch storing into
@@ -178,6 +196,7 @@ impl SinkLaunchVisitor for FusedRun<'_> {
 fn create_autotune_key(input: &TuneInput<MatmulOptimizationTuneArg>) -> TileFusedMatmulAutotuneKey {
     let opt = input.optimization();
     let op = &opt.info.matmul.op;
+    let routine = opt.routine.map(|settings| settings.to_string());
     let lhs = TraceOperand::new(input.context(), &op.lhs).key();
     let rhs = TraceOperand::new(input.context(), &op.rhs).key();
     let out = dtype_to_storage_type(input.tensors()[&op.out.id].dtype);
@@ -185,6 +204,7 @@ fn create_autotune_key(input: &TuneInput<MatmulOptimizationTuneArg>) -> TileFuse
         create_key(out, (&lhs.0, lhs.1), (&rhs.0, rhs.1)),
         opt.info.num_output_buffers(),
         opt.info.num_ops_fused(),
+        routine,
     )
 }
 

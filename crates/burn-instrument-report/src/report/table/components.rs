@@ -320,10 +320,10 @@ const KERNEL_INDENT: usize = 4;
 fn launched(reading: &KernelReading<'_>) -> String {
     let (name, kernel): (&str, &Kernel) = (&reading.name, reading.kernel);
     match kernel.fuses.as_slice() {
-        [] => format!("{name} ×{}", kernel.launches),
+        [] => format!("{name} ×{}", reading.launches),
         fuses => format!(
             "{name} ×{} · fuses ↑ {}",
-            kernel.launches,
+            reading.launches,
             fuses
                 .iter()
                 .map(ToString::to_string)

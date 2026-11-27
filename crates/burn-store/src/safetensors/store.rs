@@ -744,13 +744,11 @@ impl ModuleStore for SafetensorsStore {
             tensors = apply_remapping(tensors, self.get_remapper());
         }
 
-        // Get metadata (already includes format, producer and version from default_metadata)
-        let metadata = self.get_metadata().clone();
-
-        #[cfg(feature = "std")]
-        let std_metadata: std::collections::HashMap<String, String> = metadata
+        // Collect into the metadata map type expected by SafeTensors.
+        let metadata = self
+            .get_metadata()
             .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
+            .map(|(key, value)| (key.clone(), value.clone()))
             .collect();
 
         // Write to storage
@@ -789,7 +787,7 @@ impl ModuleStore for SafetensorsStore {
                 // serialize_to_file streams directly to disk, calling the lazy closures
                 // on-demand without buffering everything.
                 caught(move || {
-                    safetensors::serialize_to_file(tensors, Some(std_metadata), &scratch_path)
+                    safetensors::serialize_to_file(tensors, Some(metadata), &scratch_path)
                 })??;
 
                 if p.overwrite {
@@ -802,9 +800,8 @@ impl ModuleStore for SafetensorsStore {
             Self::Memory(p) => {
                 // For memory, we need to serialize to bytes
                 let tensors = to_safetensors_views(tensors)?;
-                // For no-std, serialize still needs std HashMap when std feature is enabled
                 #[cfg(feature = "std")]
-                let data = caught(move || safetensors::serialize(tensors, Some(std_metadata)))??;
+                let data = caught(move || safetensors::serialize(tensors, Some(metadata)))??;
 
                 #[cfg(not(feature = "std"))]
                 let data = safetensors::serialize(tensors, Some(metadata))?;

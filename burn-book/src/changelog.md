@@ -77,6 +77,12 @@ conflicts with it (E0119); delete the handwritten one.
 - Include the preceding `CompileOnly` pass's statistics in the following
   `CompileAndAutotune` pass on CubeCL backends, so deferred completions appear in its snapshot.
 
+- CubeCL autotuning orders its candidates by the time each kernel's estimate predicts on the
+  device's measured peaks, and stops a race once ten candidates were measured and twenty more in a
+  row failed to beat the fastest, so large tables such as matmul and attention measure a fraction
+  of their candidates. Saved autotuning results are tuned again once.
+  ([#6644](https://github.com/tracel-ai/burn/pull/6644))
+
 - Compile autotuning candidates in parallel, including CUDA binary assembly, to reduce startup time.
   ([#5996](https://github.com/tracel-ai/burn/pull/5996),
   [#6074](https://github.com/tracel-ai/burn/pull/6074))
@@ -278,6 +284,19 @@ Reports also include the measured cost of a kernel launch.
   ([#6632](https://github.com/tracel-ai/burn/pull/6632))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- A sharded compute device is measured at its lead, its first member, on the assumption that its
+  members are one hardware: `Peaks::new` probes the lead, and `Kernel::members` and
+  `Kernel::member_launches` keep each member's part of a kernel's time and launches.
+  `#[compute(bounds = ...)]` is priced for the lead's share too, where `tensor_dims` and
+  `tensor_bytes` read the lead's shards (`pricing_lead` says which share is priced), and
+  `Tensor::shard_dims` reads every member's. A report times each component on the lead and holds it
+  to its lead's floor; one whose bounds read no shape through `tensor_dims` and never call
+  `pricing_lead` is left unscored there.
+  `tensor_bytes` counts a quantized tensor as its layout stores it, padded words and every scale
+  included. Measurement files are version 8, and one of version 7 is refused: measure it again.
+  ([#6651](https://github.com/tracel-ai/burn/pull/6651))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 #### Flex SIMD operations
 
 - Speed up Flex CPU F32 `exp`, `sigmoid`, and `softmax` with a SIMD `exp` within 2 ulp of libm, and
@@ -309,6 +328,11 @@ Reports also include the measured cost of a kernel launch.
 
 #### Fusion
 
+- Speed up fused concatenation on CubeCL backends by selecting inputs from precomputed segment
+  boundaries and reading aligned output vectors from a single input.
+  ([#6618](https://github.com/tracel-ai/burn/pull/6618)) [@laggui](https://github.com/laggui),
+  [@EthanAlmloff](https://github.com/EthanAlmloff).
+
 - Reduce fusion's CPU overhead by skipping unnecessary reduction-fuser resets.
   ([#6036](https://github.com/tracel-ai/burn/pull/6036)) [@louisfd](https://github.com/louisfd)
 
@@ -331,6 +355,11 @@ Reports also include the measured cost of a kernel launch.
 - Fix a fused segment running entirely unfused when its chunks formed an ordering cycle through a
   re-optimized hole: the repair now opens composed chunks and keeps only fused optimizations whole.
   ([#6570](https://github.com/tracel-ai/burn/pull/6570))
+
+- Fix operations after the first fused run of a segment executing unfused when the segment ends at
+  a sync (a read, or a collective on a sharded device): the rest of the segment is now searched for
+  fusions too.
+  ([#6646](https://github.com/tracel-ai/burn/pull/6646))
 
 - Fusion autotune copies only the handles of the tensors its queue maps, not every live tensor's, so
   a launch that is not yet tuned no longer costs a pass over every live handle.
@@ -362,6 +391,11 @@ Reports also include the measured cost of a kernel launch.
 
 - Flex matrix multiplication now preserves empty batch dimensions when broadcasting against a batch
   of size one.
+
+- Fix CubeCL matrix multiplication of one matrix by a batch of single columns, `[1, m, k] @
+  [b, k, 1]`, writing the batches over each other. The right-hand side's gradient of such a product
+  had the same problem. ([#6643](https://github.com/tracel-ai/burn/pull/6643),
+  [#6607](https://github.com/tracel-ai/burn/pull/6607))
 
 - Enable CUDA tensor-core acceleration on Blackwell and Blackwell Ultra GPUs, including B300.
   ([#6161](https://github.com/tracel-ai/burn/pull/6161))
@@ -636,6 +670,14 @@ whose tensors are split over `devices` (crate `burn-shard`).
   [#6062](https://github.com/tracel-ai/burn/pull/6062),
   [#6069](https://github.com/tracel-ai/burn/pull/6069))
 
+- Fix a dtype mismatch that caused `sort`, `sort_with_indices`, `argsort`, and their descending
+  variants to panic on `Flex32` tensors when using the host fallback. Sorted values retain the
+  `Flex32` dtype. ([#6624](https://github.com/tracel-ai/burn/pull/6624)) [@tandede](https://github.com/tandede)
+
+- On CubeCL backends, casting between `F32` and `Flex32` now returns the requested dtype in both
+  directions. ([#6647](https://github.com/tracel-ai/burn/pull/6647))
+  [@laggui](https://github.com/laggui)
+
 #### Grid sampling
 
 - Fix bilinear `grid_sample_2d` on CubeCL backends reading the wrong y coordinates when the grid's
@@ -681,6 +723,10 @@ whose tensors are split over `devices` (crate `burn-shard`).
 - Run quantized `argmax`, `argmin`, `gather` and `quantize_dynamic` on the backend's own
   implementations through device dispatch instead of dequantizing first.
   ([#6383](https://github.com/tracel-ai/burn/pull/6383))
+
+- Fix `quantize` on CubeCL backends reading flat scales along the wrong axes when the scheme's grid
+  of blocks has more than one axis, such as one scale per row: each row now quantizes under its own
+  scale. ([#6649](https://github.com/tracel-ai/burn/pull/6649))
 
 - Add `TensorData::from_quantized_parts` and `QuantizedBytes::from_parts`, which build quantized
 data from codes and scales already in their stored encoding, without decoding them.
@@ -1147,6 +1193,12 @@ Use `OnOptimizerStep::with(...)` to register standard metrics for optimizer upda
 See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics).
 
 #### Optimizers
+
+- Optimizer checkpoints restore each state tensor in its saved numeric dtype, so training can
+  resume when an optimizer's accumulator precision differs from the device default.
+
+- Custom optimizer and scheduler states can now derive `burn::optim::RecordState` in crates
+  that depend only on `burn` with the `optim` feature enabled.
 
 - Build `burn-optim` without the `std` feature again. `ModuleOptimizer` no longer depends on the
   standard-library-only learning-rate scheduler module, so fixed learning rates work in `no_std`.

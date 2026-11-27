@@ -8,7 +8,7 @@
 // expansion that warns on either fails this module's compilation.
 #![deny(unused_variables, unused_mut, unused_braces)]
 
-use crate::observed::{entered, installed};
+use crate::observed::{entered, entered_at_lead, installed};
 use crate::{Bounds, compute};
 
 /// What the expansion names, as a crate depending on `burn` sees it.
@@ -54,6 +54,25 @@ impl Mixer {
             write: *x as u64,
             flops: 2,
         }
+    }
+
+    /// The floor of mixing `x`, of which the lead of a sharded compute device does half.
+    fn shared_bounds(&self, x: &u32) -> Bounds {
+        let x = match crate::pricing_lead() {
+            true => *x as u64 / 2,
+            false => *x as u64,
+        };
+        Bounds {
+            read: x * 4,
+            write: x * 2,
+            flops: 2,
+        }
+    }
+
+    /// One floor, priced for the device and for the lead of a sharded compute device.
+    #[compute(label = "split", bounds = Self::shared_bounds)]
+    fn split(&self, x: u32) -> u32 {
+        x * self.scale
     }
 
     /// No label: the component is named for the type.
@@ -136,6 +155,46 @@ impl Mixer {
     #[compute(label = "single")]
     fn single(&self, x: u32) -> u32 { x * self.scale }
 
+    /// Named from what its floor then consumes.
+    #[compute(label = Self::named(&rows), bounds = Self::priced_rows(rows))]
+    fn count(&self, rows: Vec<u32>) -> u32 {
+        self.scale
+    }
+
+    fn named(rows: &[u32]) -> &'static str {
+        match rows.is_empty() {
+            true => "no rows",
+            false => "rows",
+        }
+    }
+
+    fn priced_rows(rows: Vec<u32>) -> Bounds {
+        Bounds {
+            read: rows.len() as u64 * 4,
+            write: 0,
+            flops: 0,
+        }
+    }
+
+    /// Named by a temporary the label borrows.
+    #[compute(label = format!("layer {}", self.scale).as_str())]
+    fn layer(&self, x: u32) -> u32 {
+        x + self.scale
+    }
+
+    /// Named by a parameter its body then changes.
+    #[compute(label = label)]
+    fn renamed(&self, label: &mut String) -> u32 {
+        label.push('!');
+        self.scale
+    }
+
+    /// Priced by a parameter named as the expansion names its label.
+    #[compute(bounds = __burn_instrument_label)]
+    fn priced_by(&self, x: u32, __burn_instrument_label: Bounds) -> u32 {
+        x + self.scale
+    }
+
     /// A parameter whose name the expansion could use for its own binding.
     #[compute(label = observing)]
     fn named_by(&self, x: u32, observing: &str) -> u32 {
@@ -208,6 +267,51 @@ fn a_component_that_consumes_itself_is_priced_by_reference() {
     assert_eq!(seen.events(), ["+consume:-:28", "-"]);
 }
 
+#[test]
+fn a_label_is_read_before_the_floor_consumes_what_it_reads() {
+    let seen = entered(|| {
+        Mixer { scale: 3 }.count(vec![1, 2]);
+    });
+
+    assert_eq!(seen.events(), ["+rows:-:8", "-"]);
+}
+
+#[test]
+fn a_label_borrowing_a_temporary_is_read_while_it_lives() {
+    let seen = entered(|| {
+        Mixer { scale: 3 }.layer(1);
+    });
+
+    assert_eq!(seen.events(), ["+layer 3:-:-", "-"]);
+}
+
+#[test]
+fn a_parameter_named_as_the_label_binding_is_still_the_floor() {
+    let seen = entered(|| {
+        Mixer { scale: 3 }.priced_by(
+            1,
+            Bounds {
+                read: 5,
+                write: 0,
+                flops: 0,
+            },
+        );
+    });
+
+    assert_eq!(seen.events(), ["+mixer:-:5", "-"]);
+}
+
+#[test]
+fn a_label_borrowed_mutably_is_still_the_bodys_to_change() {
+    let mut label = String::from("renamed");
+    let seen = entered(|| {
+        Mixer { scale: 3 }.renamed(&mut label);
+    });
+
+    assert_eq!(seen.events(), ["+renamed:-:-", "-"]);
+    assert_eq!(label, "renamed!");
+}
+
 /// A path that names a value is that value, not a function to call: a component can decline a
 /// floor with `None`, declare a constant, or take one its caller priced.
 #[test]
@@ -270,6 +374,80 @@ fn a_floor_can_be_the_call_that_computes_it() {
     });
 
     assert_eq!(seen.events(), ["+mix:-:56", "-"]);
+}
+
+#[test]
+fn a_component_prices_the_device_outside_the_leads_pricing_run() {
+    let seen = entered(|| {
+        Mixer { scale: 3 }.split(8);
+    });
+
+    assert_eq!(seen.events(), ["+split:-:48", "-"]);
+}
+
+#[test]
+fn the_leads_pricing_run_prices_its_share_with_the_same_bounds() {
+    let seen = entered_at_lead(|| {
+        Mixer { scale: 3 }.split(8);
+    });
+
+    assert_eq!(seen.events(), ["+split:-:24", "-"]);
+}
+
+#[test]
+fn the_leads_share_ends_with_the_bounds_it_priced() {
+    let mut after = true;
+    entered_at_lead(|| {
+        Mixer { scale: 3 }.split(8);
+        after = crate::pricing_lead();
+    });
+
+    assert!(!after);
+}
+
+#[test]
+fn a_lead_pricing_inside_another_leaves_the_enclosing_one_priced() {
+    let enclosing = crate::price_at_lead(|| {
+        crate::price_at_lead(|| ());
+        crate::pricing_lead()
+    });
+
+    assert!(enclosing);
+}
+
+#[test]
+fn a_lead_pricing_inside_another_keeps_what_the_enclosing_one_asked() {
+    let lead = crate::Observing.price_lead();
+    crate::pricing_lead();
+
+    crate::price_at_lead(|| ());
+
+    assert!(lead.priced(Some(Bounds::default())).is_some());
+}
+
+#[test]
+fn an_entry_made_by_hand_has_no_lead_floor() {
+    let seen = entered_at_lead(|| {
+        let observing = crate::observing().expect("the lead's pricing run observes this thread");
+        drop(observing.enter(crate::Declaration {
+            label: "by hand",
+            variant: None,
+            site: "test",
+            bounds: observing.prices().then(Bounds::default),
+        }));
+    });
+
+    assert_eq!(seen.events(), ["+by hand:-:-", "-"]);
+}
+
+/// They priced the device's work, which is not the lead's share of it.
+#[test]
+fn bounds_that_never_ask_for_the_leads_share_price_no_lead() {
+    let seen = entered_at_lead(|| {
+        Mixer { scale: 3 }.consume(7);
+    });
+
+    assert_eq!(seen.events(), ["+consume:-:-", "-"]);
 }
 
 /// A label can come from an argument the body never reads, so a caller can name the role

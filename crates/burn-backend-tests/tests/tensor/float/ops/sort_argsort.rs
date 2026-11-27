@@ -1,6 +1,34 @@
 use super::*;
-use burn_tensor::TensorData;
-use burn_tensor::Tolerance;
+use burn_tensor::{DType, Device, TensorData, Tolerance};
+
+#[test]
+fn test_sort_descending_flex32() {
+    let device = Device::default();
+    if !device.supports_dtype(DType::Flex32) {
+        return;
+    }
+
+    let tensor = TestTensor::<1>::from_data([1.0, -2.0, 3.0], (&device, DType::Flex32));
+    let expected = TensorData::from([3.0, 1.0, -2.0]).convert_dtype(DType::Flex32);
+    assert_eq!(tensor.sort_descending(0).into_data(), expected);
+}
+
+#[test]
+fn test_sort_descending_with_indices_flex32() {
+    let device = Device::default();
+    if !device.supports_dtype(DType::Flex32) {
+        return;
+    }
+
+    let tensor = TestTensor::<2>::from_data([[1.0, 3.0], [2.0, -1.0]], (&device, DType::Flex32));
+    let expected = TensorData::from([[3.0, 1.0], [2.0, -1.0]]).convert_dtype(DType::Flex32);
+
+    let (values, indices) = tensor.sort_descending_with_indices(1);
+    assert_eq!(values.into_data(), expected);
+    indices
+        .into_data()
+        .assert_eq(&TensorData::from([[1, 0], [0, 1]]), false);
+}
 
 #[test]
 fn test_sort_1d_float() {

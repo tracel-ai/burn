@@ -2,7 +2,7 @@ use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{
     Shape,
-    quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype},
+    quantization::{BlockExtent, BlockSize, QuantScheme, QuantStore, QuantValue, ScaleDtype},
 };
 
 fn should_quantize_dequantize_symmetric_arange<S: Into<Shape>>(
@@ -35,6 +35,44 @@ fn should_quantize_dequantize_symmetric_arange<S: Into<Shape>>(
     output
         .into_data()
         .assert_approx_eq::<FloatElem>(&output_ref.to_data(), Tolerance::default());
+}
+
+/// A `[3, 40]` range quantized under a scale per row, packed, and its reference stored natively.
+fn quantize_under_a_scale_per_row() -> (TestTensor<2>, TestTensor<2>) {
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+    let row = BlockSize::with_rest(&[BlockExtent::WholeAxis], BlockExtent::VALUE);
+    let scheme = QuantScheme::default()
+        .with_value(QuantValue::Q8S)
+        .per_block(row, ScaleDtype::F32)
+        .with_store(QuantStore::PackedU32(0));
+
+    let input: TestTensor<2> = TestTensorInt::arange(0..3 * 40, &device)
+        .float()
+        .reshape([3, 40]);
+    let input_ref = TestTensor::<2>::from_data(input.to_data(), &ref_device);
+
+    (
+        input.quantize_dynamic(&scheme),
+        input_ref.quantize_dynamic(&scheme.with_store(QuantStore::Native)),
+    )
+}
+
+#[test]
+fn should_quantize_under_a_scale_per_row() {
+    let (output, output_ref) = quantize_under_a_scale_per_row();
+
+    output.to_data().assert_eq(&output_ref.to_data(), false);
+}
+
+#[test]
+fn should_dequantize_under_a_scale_per_row() {
+    let (output, output_ref) = quantize_under_a_scale_per_row();
+
+    output
+        .dequantize()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&output_ref.dequantize().to_data(), Tolerance::default());
 }
 
 fn should_quantize_dequantize_symmetric_per_block_arange<S: Into<Shape>>(

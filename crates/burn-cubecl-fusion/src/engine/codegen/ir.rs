@@ -2,7 +2,7 @@ use super::tensor::GlobalTensor;
 use crate::engine::codegen::{DynElem, DynSize, DynVector};
 use burn_std::{
     BoolStore, DType, Shape, Strides, bf16, f16,
-    quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype, global_scale_dtype},
+    quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype},
     strides,
 };
 use core::fmt::Display;
@@ -124,8 +124,12 @@ impl AsMutExpand for FuseArg {
     }
 }
 
-impl IntoMut for FuseArg {
-    fn into_mut(self, _context: &Scope) -> Self {
+impl PlaceExpand for FuseArg {
+    fn create_mut_place(self, _context: &Scope) -> Self {
+        self
+    }
+
+    fn read_place(self, _context: &Scope) -> Self {
         self
     }
 }
@@ -388,6 +392,8 @@ pub struct GlobalArgs {
     /// When there are no metadata as a reference layout, we provide runtime shape/strides in this
     /// sequence instead.
     pub runtime_layouts: Sequence<usize>,
+    /// Segment boundaries and read layouts in block and operation order.
+    pub concats: Sequence<ConcatArgs>,
     /// Variables shared between blocks.
     pub variables: MultiBlockVariables,
 }
@@ -482,6 +488,7 @@ impl Default for GlobalArgsLaunch {
             reshapes: Default::default(),
             variables: Default::default(),
             runtime_layouts: Default::default(),
+            concats: Default::default(),
         }
     }
 }
@@ -680,12 +687,28 @@ pub enum FuseType {
     U8,
 }
 
+/// Runtime segment boundaries and compile-time layout decisions for one concat.
+#[derive(CubeType, CubeLaunch, Clone)]
+#[expand(derive(Clone))]
+pub struct ConcatArgs {
+    /// Exclusive ends of all but the last input along the concat axis.
+    pub boundaries: Sequence<usize>,
+    /// Each output vector lies wholly inside a segment.
+    #[cube(comptime)]
+    pub whole_vectors: bool,
+    /// Inputs and reference both follow contiguous logical dimension order.
+    #[cube(comptime)]
+    pub contiguous: bool,
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 /// Configuration that encapsulates all comptime information necessary for element wise fusion.
 pub struct FuseBlockConfig {
     pub rank: usize,
     pub ref_layout: RefLayout,
     pub ops: Vec<FuseOp>,
+    /// Number of entries in [`GlobalArgs::concats`] that precede this block.
+    pub concat_args_offset: usize,
     pub width: VectorSize,
     /// The axis a vector of [width](Self::width) elements runs along.
     ///
@@ -812,11 +835,7 @@ impl FuseOp {
                 indices.multi_block_variable(registers);
                 output.multi_block_variable(registers);
             }
-            FuseOp::Cat {
-                inputs,
-                output,
-                dim: _,
-            } => {
+            FuseOp::Cat { inputs, output, .. } => {
                 for input in inputs {
                     input.multi_block_variable(registers);
                 }
@@ -947,8 +966,8 @@ impl FuseType {
     ///
     /// Same contract as [Self::from_scale_dtype]: callers must decline to fuse on `None`.
     pub fn from_quant_scheme(scheme: QuantScheme) -> Option<Self> {
-        // No fused kernel applies a per-tensor scale.
-        if global_scale_dtype(&scheme).is_some() {
+        // No fused kernel applies a coarser level's scale.
+        if scheme.levels().count() > 1 {
             return None;
         }
 

@@ -1,3 +1,4 @@
+use burn_backend::cubecl::autotune::{RACED_PRIORITY, raced_group};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::ConvOptions;
 use burn_std::Shape;
@@ -37,44 +38,56 @@ pub fn dgrad_autotune<const N: usize>(
     // No CMMA for TMA because swizzling will be mandatory for good performance on dgrad.
     let tune_id = CubeTuneId::new(&out_grad.client, &out_grad.device);
     let tunables = TUNER.init(&tune_id, || {
+        let raced = raced_group("kernels");
         TunableSet::new(create_key::<N>, create_dgrad_input::<N>)
-            .with(Tunable::new(
-                "dgrad_fallback",
-                |(out_grad, weights, input_shape, options)| {
-                    conv_data_backward_fallback::<N>(out_grad, weights, input_shape, options)
-                },
-            ))
-            .with(Tunable::new(
-                "dgrad_stride_phases",
-                |(out_grad, weights, input_shape, options)| {
-                    dgrad_stride_phases::<N>(out_grad, weights, input_shape, options)
-                },
-            ))
+            .with(
+                Tunable::new(
+                    "dgrad_fallback",
+                    |(out_grad, weights, input_shape, options)| {
+                        conv_data_backward_fallback::<N>(out_grad, weights, input_shape, options)
+                    },
+                )
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new(
+                    "dgrad_stride_phases",
+                    |(out_grad, weights, input_shape, options)| {
+                        dgrad_stride_phases::<N>(out_grad, weights, input_shape, options)
+                    },
+                )
+                .group(&raced, |_| RACED_PRIORITY),
+            )
             // Pointwise unit stride only; `dgrad_im2col` declines this shape so
             // the unmaterialised matmul is the dense candidate.
-            .with(Tunable::new(
-                "dgrad_im2col_1x1",
-                |(out_grad, weights, input_shape, options)| {
-                    dgrad_im2col_1x1::<N>(out_grad, weights, input_shape, options)
-                },
-            ))
+            .with(
+                Tunable::new(
+                    "dgrad_im2col_1x1",
+                    |(out_grad, weights, input_shape, options)| {
+                        dgrad_im2col_1x1::<N>(out_grad, weights, input_shape, options)
+                    },
+                )
+                .group(&raced, |_| RACED_PRIORITY),
+            )
             // Every other `groups == 1` dense shape, including stride other
             // than 1, which the implicit-GEMM candidates below decline in
             // setup. Materialises `[M, taps * C_in]` and scatter-adds; autotune
             // drops it when that loses.
-            .with(Tunable::new(
-                "dgrad_im2col",
-                |(out_grad, weights, input_shape, options)| {
-                    dgrad_im2col::<N>(out_grad, weights, input_shape, options)
-                },
-            ))
+            .with(
+                Tunable::new(
+                    "dgrad_im2col",
+                    |(out_grad, weights, input_shape, options)| {
+                        dgrad_im2col::<N>(out_grad, weights, input_shape, options)
+                    },
+                )
+                .group(&raced, |_| RACED_PRIORITY),
+            )
             // The data gradient's matmul has `N = C_in`, `M = batch * input
             // spatial` and `K = taps * C_out`; the same regime span as the
             // forward applies, so it carries the same forced tilings. A cached
             // key that does not fit any of them still falls back in `dgrad_unit`.
-            .with(Tunable::new(
-                "dgrad_unit_narrow",
-                |(grad, weights, shape, options)| {
+            .with(
+                Tunable::new("dgrad_unit_narrow", |(grad, weights, shape, options)| {
                     dgrad_unit(
                         grad,
                         weights,
@@ -82,11 +95,11 @@ pub fn dgrad_autotune<const N: usize>(
                         options,
                         UnitStrategy::Fixed(UnitTiling::NARROW),
                     )
-                },
-            ))
-            .with(Tunable::new(
-                "dgrad_unit_balanced",
-                |(grad, weights, shape, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("dgrad_unit_balanced", |(grad, weights, shape, options)| {
                     dgrad_unit(
                         grad,
                         weights,
@@ -94,11 +107,11 @@ pub fn dgrad_autotune<const N: usize>(
                         options,
                         UnitStrategy::Fixed(UnitTiling::BALANCED),
                     )
-                },
-            ))
-            .with(Tunable::new(
-                "dgrad_unit_wide",
-                |(grad, weights, shape, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("dgrad_unit_wide", |(grad, weights, shape, options)| {
                     dgrad_unit(
                         grad,
                         weights,
@@ -106,11 +119,11 @@ pub fn dgrad_autotune<const N: usize>(
                         options,
                         UnitStrategy::Fixed(UnitTiling::WIDE),
                     )
-                },
-            ))
-            .with(Tunable::new(
-                "dgrad_unit_deep",
-                |(grad, weights, shape, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("dgrad_unit_deep", |(grad, weights, shape, options)| {
                     dgrad_unit(
                         grad,
                         weights,
@@ -118,11 +131,11 @@ pub fn dgrad_autotune<const N: usize>(
                         options,
                         UnitStrategy::Fixed(UnitTiling::DEEP),
                     )
-                },
-            ))
-            .with(Tunable::new(
-                "dgrad_unit_tall",
-                |(grad, weights, shape, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("dgrad_unit_tall", |(grad, weights, shape, options)| {
                     dgrad_unit(
                         grad,
                         weights,
@@ -130,68 +143,84 @@ pub fn dgrad_autotune<const N: usize>(
                         options,
                         UnitStrategy::Fixed(UnitTiling::TALL),
                     )
-                },
-            ))
-            .with(Tunable::new(
-                "simple_sync_cmma",
-                |(out_grad, weights, input_shape, options)| {
-                    dgrad_gemm_simple_sync(
-                        out_grad,
-                        weights,
-                        input_shape,
-                        options,
-                        AcceleratedTileKind::Cmma,
-                    )
-                },
-            ))
-            .with(Tunable::new(
-                "simple_sync_mma",
-                |(out_grad, weights, input_shape, options)| {
-                    dgrad_gemm_simple_sync(
-                        out_grad,
-                        weights,
-                        input_shape,
-                        options,
-                        AcceleratedTileKind::Mma,
-                    )
-                },
-            ))
-            .with(Tunable::new(
-                "simple_async_cmma",
-                |(out_grad, weights, input_shape, options)| {
-                    dgrad_gemm_simple_async(
-                        out_grad,
-                        weights,
-                        input_shape,
-                        options,
-                        AcceleratedTileKind::Cmma,
-                    )
-                },
-            ))
-            .with(Tunable::new(
-                "simple_async_mma",
-                |(out_grad, weights, input_shape, options)| {
-                    dgrad_gemm_simple_async(
-                        out_grad,
-                        weights,
-                        input_shape,
-                        options,
-                        AcceleratedTileKind::Mma,
-                    )
-                },
-            ))
-            .with(Tunable::new(
-                "simple_tma_mma",
-                |(out_grad, weights, input_shape, options)| {
-                    dgrad_gemm_simple_tma(
-                        out_grad,
-                        weights,
-                        input_shape,
-                        options,
-                        AcceleratedTileKind::Mma,
-                    )
-                },
-            ))
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new(
+                    "simple_sync_cmma",
+                    |(out_grad, weights, input_shape, options)| {
+                        dgrad_gemm_simple_sync(
+                            out_grad,
+                            weights,
+                            input_shape,
+                            options,
+                            AcceleratedTileKind::Cmma,
+                        )
+                    },
+                )
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new(
+                    "simple_sync_mma",
+                    |(out_grad, weights, input_shape, options)| {
+                        dgrad_gemm_simple_sync(
+                            out_grad,
+                            weights,
+                            input_shape,
+                            options,
+                            AcceleratedTileKind::Mma,
+                        )
+                    },
+                )
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new(
+                    "simple_async_cmma",
+                    |(out_grad, weights, input_shape, options)| {
+                        dgrad_gemm_simple_async(
+                            out_grad,
+                            weights,
+                            input_shape,
+                            options,
+                            AcceleratedTileKind::Cmma,
+                        )
+                    },
+                )
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new(
+                    "simple_async_mma",
+                    |(out_grad, weights, input_shape, options)| {
+                        dgrad_gemm_simple_async(
+                            out_grad,
+                            weights,
+                            input_shape,
+                            options,
+                            AcceleratedTileKind::Mma,
+                        )
+                    },
+                )
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new(
+                    "simple_tma_mma",
+                    |(out_grad, weights, input_shape, options)| {
+                        dgrad_gemm_simple_tma(
+                            out_grad,
+                            weights,
+                            input_shape,
+                            options,
+                            AcceleratedTileKind::Mma,
+                        )
+                    },
+                )
+                .group(&raced, |_| RACED_PRIORITY),
+            )
     });
 
     TUNER.execute(

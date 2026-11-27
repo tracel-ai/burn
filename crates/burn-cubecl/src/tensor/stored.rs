@@ -1,11 +1,11 @@
 //! A tensor as cubek's tile-DSL routines read it: its values bound as they are, or, quantized,
-//! packed under its scales.
+//! under its scales.
 
 use super::CubeTensor;
 use burn_backend::DType;
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::tile::{Dimension, launch::Decline};
-use cubek::matmul::kernels::tensor::{PackedTensor, PlainTensor, StoredTensor};
+use cubek::matmul::kernels::tensor::{PlainTensor, StoredTensor};
 
 impl CubeTensor {
     /// This tensor bound as its values, at the element they are stored in.
@@ -15,11 +15,11 @@ impl CubeTensor {
     }
 
     /// This tensor, one matrix over `dimensions` in the order its shape states them, as it is
-    /// stored: plain, or, quantized, packed under its scales ([`PackedTensor::of_quantized`]).
+    /// stored: plain, or, quantized, under its scales ([`StoredTensor::of_quantized`]).
     ///
     /// # Errors
     ///
-    /// For a quantized tensor, what [`PackedTensor::of_quantized`] declines.
+    /// For a quantized tensor, what [`StoredTensor::of_quantized`] declines.
     pub fn stored(self, dimensions: [Dimension; 2]) -> Result<StoredTensor, Decline> {
         let DType::QFloat(scheme) = self.dtype else {
             return Ok(StoredTensor::Plain(self.plain()));
@@ -30,7 +30,7 @@ impl CubeTensor {
             .plain();
         let global = self.global().map(CubeTensor::plain);
         let client = self.client.clone();
-        PackedTensor::of_quantized(
+        StoredTensor::of_quantized(
             &client,
             self.stored_binding(),
             scheme,
@@ -38,7 +38,6 @@ impl CubeTensor {
             global,
             dimensions,
         )
-        .map(StoredTensor::Packed)
     }
 }
 
@@ -154,6 +153,76 @@ mod tests {
         );
     }
 
+    /// A packed key describes the problem its tensors state, so a packed candidate is placed by
+    /// the launch it would run: the same NVFP4 weight in rows and in tile order, its strips
+    /// staggered, against a bf16 activation, each keyed as a product keys it.
+    #[test]
+    fn a_packed_key_states_the_problem_its_tensors_do() {
+        use burn_backend::ops::FloatTensorOps;
+        use burn_std::FloatDType;
+        use cubecl::ir::{ElemType, FloatKind};
+        use cubek::matmul::kernels::{MatmulTensors, create_key};
+        use cubek::matmul::tiled::storage::{StoredValues, stored_tile};
+        use cubek::microkernel::matmul::MatmulOperand;
+        use cubek::std::Hardware;
+        use cubek::std::matmul_dimensions::M;
+
+        let device = CubeDevice::default();
+        // A power of two of rows, which a key keys as they are.
+        let (m, n, k) = (32, 64, 256);
+        let values: Vec<f32> = (0..n * k).map(|i| (i % 29) as f32 / 29. - 0.5).collect();
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::E2M1)
+            .per_block([16], ScaleDtype::UE4M3)
+            .per_tensor(ScaleDtype::F32)
+            .with_store(QuantStore::PackedU32(0));
+        let weight = from_data(TensorData::new(values, [n, k]), &device);
+        let rows = swap_dims(CubeBackend::quantize_dynamic(weight, &scheme), 0, 1);
+        let hw = Hardware::from_client(&rows.client);
+        let DType::QFloat(served) = rows.dtype else {
+            unreachable!("a quantized weight")
+        };
+        let activation = ElemType::Float(FloatKind::BF16);
+        let input: Vec<f32> = (0..m * k).map(|i| (i % 13) as f32 / 13. - 0.5).collect();
+        let input = CubeBackend::float_cast(
+            from_data(TensorData::new(input, [m, k]), &device),
+            FloatDType::BF16,
+        );
+        let mut weights = vec![rows.clone()];
+        let tile = stored_tile(
+            &hw,
+            MatmulOperand::Rhs,
+            StoredValues::Packed(served),
+            activation,
+        );
+        // The device's own tile where it stores one, and one whole words of block scales deep,
+        // whose strips the writer staggers: the order's tile, words and strips all reach the key.
+        if let Some(tile) = tile {
+            let [tile_k, tile_n] = MatmulOperand::Rhs
+                .dimensions()
+                .map(|dimension| tile.extent(dimension));
+            weights.push(tile_order::laid(rows.clone(), (tile_k, tile_n)));
+        }
+        weights.push(tile_order::laid(rows, (64, 8)));
+
+        for weight in weights {
+            let lhs = input.clone().stored([M, K]).expect("a float activation");
+            let rhs = weight
+                .clone()
+                .stored([K, N])
+                .expect("the weight is read packed");
+            let key = create_key(
+                activation,
+                (&input.meta, lhs.kind()),
+                (&weight.meta, rhs.kind()),
+            );
+            let stated = MatmulTensors::written_in(&input.client, lhs, rhs, activation)
+                .expect("a product of a float and a packed input")
+                .problem();
+            assert_eq!(key.packed_problem(&hw), Some(stated), "{key:?}");
+        }
+    }
+
     /// The tile-order writer a load runs for a kernel that reads tile order, as a test lays a
     /// weight out: Burn writes no tile order of its own.
     mod tile_order {
@@ -230,7 +299,6 @@ mod tests {
             let (scales, scales_metadata, scales_bytes) = match order.scales_storage(N, rows_a_read)
             {
                 Some(storage) => {
-                    let block_scale = scheme.block_scale().expect("tile order keeps block scales");
                     let tiled = relayout(
                         CubeTensor::new(
                             client.clone(),
@@ -240,7 +308,7 @@ mod tests {
                             DType::U32,
                         ),
                         &tile_order::scales_dimensions(N),
-                        Field::of_scale(block_scale.dtype),
+                        Field::of_scale(scheme.finest().dtype),
                         storage,
                     );
                     let bytes =

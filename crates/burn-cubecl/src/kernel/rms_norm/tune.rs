@@ -4,9 +4,11 @@
 //! meets it warm, and a round read cold would time a kernel nobody runs.
 
 use crate::tune::{
-    Autotune, CandidateIdentity, CandidatePriority, GroupPriority, Identity, TuneCandidate,
+    Arithmetic, Autotune, CandidateIdentity, CandidatePriority, GroupPriority, Identity, Predictor,
+    TuneCandidate,
 };
 use cubecl::client::Client;
+use cubecl::ir::{ElemType, FloatKind};
 use cubecl::std::tensor::TensorHandle;
 use cubecl::tile::launch::Decline;
 use cubecl::tune::{AutotuneOutput, LocalTuner, TunableSet, local_tuner};
@@ -15,7 +17,7 @@ use cubek::matmul::kernels::tensor::{LhsOutput, PlainTensor};
 use cubek::rms_norm::kernels::{
     CubeGroupsRmsNormRoutine, CubeRmsNormRoutine, PlaneRmsNormRoutine, RmsNormBlueprint,
     RmsNormCall, RmsNormCandidate, RmsNormKey, RmsNormRoutine, RmsNormRoutineCandidate,
-    RmsNormRoutinePrepared,
+    RmsNormRoutinePrepared, RmsNormRoutineProblem,
 };
 use cubek::std::Hardware;
 use cubek::std::routine::Routine;
@@ -136,37 +138,37 @@ pub fn fastest_rms_norm_routine(
 /// priority `tile`. The one place it is built: a tuner caches a set per initializer *type*, so a
 /// second `init` site would build a second set.
 fn tunables(id: &CubeTuneId, client: &Client, tile: GroupPriority) -> RmsNormTunables {
-    let hw = Hardware::from_client(client);
-    TUNER.init(id, move || candidates(hw.clone(), tile))
+    let predictor = Predictor::on_device(client);
+    TUNER.init(id, move || candidates(predictor.clone(), tile))
 }
 
 /// Every routine's candidates on `hw`, identified by their routine and setting, over the cube
 /// groups' lead as the floor.
 fn candidates(
-    hw: Hardware,
+    predictor: Predictor,
     priority: GroupPriority,
 ) -> TunableSet<RmsNormKey, RmsNormRace, RmsNormOutput, RmsNormIdentity> {
     let mut autotune = Autotune::<RmsNormKey, RmsNormRace, RmsNormOutput, RmsNormIdentity>::new(
         |race: &RmsNormRace| RmsNormKey::from(&race.call.input),
     );
     let tile = autotune.group("tile", priority);
-    let floor = RmsNormTuneCandidate::floor(&hw);
+    let floor = RmsNormTuneCandidate::floor(&predictor);
     autotune
         .identified(
             &tile,
-            RmsNormTuneCandidate::list(CubeRmsNormRoutine, &hw),
+            RmsNormTuneCandidate::list(CubeRmsNormRoutine, &predictor),
             RmsNormTuneCandidate::identity,
             RmsNormTuneCandidate::run,
         )
         .identified(
             &tile,
-            RmsNormTuneCandidate::list(PlaneRmsNormRoutine, &hw),
+            RmsNormTuneCandidate::list(PlaneRmsNormRoutine, &predictor),
             RmsNormTuneCandidate::identity,
             RmsNormTuneCandidate::run,
         )
         .identified(
             &tile,
-            RmsNormTuneCandidate::list(CubeGroupsRmsNormRoutine, &hw),
+            RmsNormTuneCandidate::list(CubeGroupsRmsNormRoutine, &predictor),
             RmsNormTuneCandidate::identity,
             RmsNormTuneCandidate::run,
         )
@@ -182,33 +184,32 @@ fn candidates(
 /// One routine at one of its settings, as the RMS-norm autotune races it, on the device it was
 /// listed for.
 ///
-/// Its priority is how far the prepared launch's grid falls short of filling the device
-/// ([`Hardware::halvings_short_of_filling`]): a norm of a few rows by cubes of one row is the
-/// shape that leaves it idle.
+/// Its priority is its routine's estimate timed at the device's peaks, against the norm's
+/// roofline ([`Predictor::predict_priority`]).
 #[derive(Debug, Clone)]
 struct RmsNormTuneCandidate<R: Routine> {
     candidate: RmsNormRoutineCandidate<R>,
-    hw: Hardware,
+    predictor: Predictor,
 }
 
 impl RmsNormTuneCandidate<CubeGroupsRmsNormRoutine> {
     /// The cube groups at their default: the autotune's floor.
-    fn floor(hw: &Hardware) -> Self {
+    fn floor(predictor: &Predictor) -> Self {
         Self {
-            candidate: RmsNormRoutineCandidate::floor(hw),
-            hw: hw.clone(),
+            candidate: RmsNormRoutineCandidate::floor(predictor.hardware()),
+            predictor: predictor.clone(),
         }
     }
 }
 
 impl<R: Routine + Copy> RmsNormTuneCandidate<R> {
-    /// Every setting `routine` lists on `hw`, its default first.
-    fn list(routine: R, hw: &Hardware) -> Vec<Self> {
-        RmsNormRoutineCandidate::list(routine, hw)
+    /// Every setting `routine` lists on `predictor`'s device, its default first.
+    fn list(routine: R, predictor: &Predictor) -> Vec<Self> {
+        RmsNormRoutineCandidate::list(routine, predictor.hardware())
             .into_iter()
             .map(|candidate| Self {
                 candidate,
-                hw: hw.clone(),
+                predictor: predictor.clone(),
             })
             .collect()
     }
@@ -241,7 +242,8 @@ where
 
 impl<R, M: PartialEq> TuneCandidate for RmsNormTuneCandidate<R>
 where
-    R: RmsNormRoutine<M> + Routine<Microkernel = M, Blueprint = RmsNormBlueprint<M>>,
+    R: RmsNormRoutine<M>
+        + Routine<Problem = RmsNormRoutineProblem, Microkernel = M, Blueprint = RmsNormBlueprint<M>>,
 {
     type Strategy = R::Settings;
     type Key = RmsNormKey;
@@ -251,15 +253,14 @@ where
         self.candidate.settings()
     }
 
-    /// First, lowered a level for each halving the prepared grid falls short of filling the
-    /// device; last where the routine declines the problem, which it then does at launch before
-    /// compiling anything.
+    /// The routine's estimate at this setting, timed at the device's peaks, against the norm's
+    /// roofline, the arithmetic counted in `f32`, which the norm computes in.
     fn priority(&self, key: &RmsNormKey) -> CandidatePriority {
-        match self.candidate.prepared(key) {
-            Some(prepared) => CandidatePriority::FIRST
-                .lowered(self.hw.halvings_short_of_filling(prepared.launch())),
-            None => CandidatePriority::LAST,
-        }
+        self.predictor.predict_priority::<R>(
+            &RmsNormRoutineProblem::from(key),
+            self.candidate.settings(),
+            Arithmetic::plain(ElemType::Float(FloatKind::F32)),
+        )
     }
 
     fn blueprint(&self, key: &RmsNormKey) -> Option<RmsNormRoutinePrepared<M>> {
@@ -270,13 +271,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::CubeDevice;
     use cubecl::ir::{ElemType, FloatKind};
     use cubek::std::devices;
 
     const F16: ElemType = ElemType::Float(FloatKind::F16);
 
     /// The memory `output`'s buffer lies in.
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn output_memory(output: &TensorHandle) -> impl PartialEq + core::fmt::Debug + use<> {
         PlainTensor::of_handle(output.clone())
             .binding
@@ -286,8 +287,9 @@ mod tests {
     }
 
     /// A race of three rows over 64, its output allocated once.
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn race_of_three_rows() -> RmsNormRace {
-        let client = CubeDevice::default().client();
+        let client = crate::CubeDevice::default().client();
         let f32 = ElemType::Float(FloatKind::F32);
         let call = RmsNormCall {
             client: client.clone(),
@@ -302,10 +304,11 @@ mod tests {
     /// **A race runs on the call's buffers.** The autotune hands its candidates the call's own
     /// rows, weight and output, whatever bucket the rows' count is keyed in.
     #[test]
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn a_race_runs_on_the_calls_rows() {
         let race = race_of_three_rows();
         let tunables = candidates(
-            Hardware::from_client(&race.call.client),
+            Predictor::on_device(&race.call.client),
             GroupPriority::DEFAULT,
         );
         let raced = tunables.generate_inputs(&RmsNormKey::from(&race.call.input), &race);
@@ -318,9 +321,10 @@ mod tests {
     /// **A race allocates no output.** Every candidate that runs writes the norm into the race's
     /// one output.
     #[test]
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
     fn every_candidate_writes_the_races_output() {
         let race = race_of_three_rows();
-        let hw = Hardware::from_client(&race.call.client);
+        let hw = Predictor::on_device(&race.call.client);
         let outputs = (RmsNormTuneCandidate::list(CubeGroupsRmsNormRoutine, &hw).iter())
             .map(|candidate| candidate.run(race.clone()))
             .chain(
@@ -358,6 +362,7 @@ mod tests {
                 devices::wgpu_no_subgroups(),
                 devices::cpu_12(),
             ] {
+                let hw = Predictor::described(hw);
                 for plane in RmsNormTuneCandidate::list(PlaneRmsNormRoutine, &hw) {
                     let declined = plane.blueprint(&key).is_none();
                     let last = plane.priority(&key) == CandidatePriority::LAST;
@@ -372,16 +377,18 @@ mod tests {
         }
     }
 
-    /// A decode step's single row by cubes of one row falls short of the device, and a prompt's
-    /// rows fill it.
+    /// A decode step's single row by cubes of one row leaves the device idle, so it is predicted
+    /// further above its roofline than a prompt's rows, which fill it.
     #[test]
-    fn the_priority_reads_how_far_the_grid_falls_short() {
-        let hw = devices::strix_halo();
-        let lead = RmsNormTuneCandidate::list(PlaneRmsNormRoutine, &hw).swap_remove(0);
-        assert_eq!(
-            lead.priority(&RmsNormKey::new(F16, 128, 512 * 24)),
-            CandidatePriority::FIRST
-        );
-        assert!(lead.priority(&RmsNormKey::new(F16, 128, 1)) < CandidatePriority::FIRST);
+    #[cfg(any(feature = "cuda", feature = "wgpu", feature = "metal"))]
+    fn a_grid_that_leaves_the_device_idle_is_tried_later() {
+        let predictor = Predictor::on_device(&crate::CubeDevice::default().client());
+        let lead = RmsNormTuneCandidate::list(PlaneRmsNormRoutine, &predictor).swap_remove(0);
+        let idle = lead.priority(&RmsNormKey::new(F16, 128, 1));
+        let full = lead.priority(&RmsNormKey::new(F16, 128, 512 * 24));
+        if !crate::tune::predicted_on_device(&[idle, full]) {
+            return;
+        }
+        assert!(idle < full, "{idle:?} against {full:?}");
     }
 }

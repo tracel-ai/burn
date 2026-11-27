@@ -48,6 +48,13 @@ impl DeviceList {
         self.devices.len() > 1
     }
 
+    /// Whether the run is on one sharded compute device of several members, which work at once.
+    pub fn sharded(&self) -> bool {
+        (self.single())
+            .and_then(Device::shard_members)
+            .is_some_and(|members| members.len() > 1)
+    }
+
     /// The cubecl devices behind every device, in order: see `DispatchDevice::member_ids`.
     pub fn member_ids(&self) -> impl Iterator<Item = DeviceId> + '_ {
         (self.devices.iter()).flat_map(|device| device.as_dispatch().member_ids())

@@ -1,5 +1,6 @@
-//! What each member did, beneath the totals, where the run had several: the components sum
-//! every member's kernels, which is the run's device time only for members that took turns.
+//! What each member did, beneath the totals, where the run had several: the components are the
+//! lead's where the members ran at once and were read at the lead, and sum every member's
+//! kernels otherwise, which is the run's device time only for members that took turns.
 //!
 //! Idle time is the instrumented run's, whose host pays a round trip per launch, so it runs
 //! past the clean run's wall; what the wall holds beyond the slowest member is the clean run's.

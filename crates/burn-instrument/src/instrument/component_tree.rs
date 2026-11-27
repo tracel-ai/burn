@@ -14,9 +14,11 @@
 //! function entered at two shapes is one site, and a role its caller knows is
 //! named by an argument instead.
 
+use std::ops::AddAssign;
 use std::time::Duration;
 
 use super::cursor::{Attribution, Fusion, Placement};
+use super::members::Member;
 use super::timing::TimingQuality;
 use crate::breakdown::{Breakdown, Component, Kernel, PerMember, Variant};
 use crate::component_path::ComponentPath;
@@ -65,6 +67,16 @@ impl ComponentTree {
         Attribution::Component(component)
     }
 
+    /// Add `bounds`, the lead's floor of the entry just entered, to its component's: summed
+    /// across entries as [`Component::bounds`](crate::Component::bounds) are.
+    pub fn credit_lead_bounds(&mut self, bounds: Option<Bounds>) {
+        let (Some(component), Some(bounds)) = (self.innermost(), bounds) else {
+            return;
+        };
+        let lead = &mut self.component_mut(component).lead_bounds;
+        *lead = Some(lead.unwrap_or_default() + bounds);
+    }
+
     /// Leave the innermost open component, and say where launches land now.
     pub fn exit(&mut self) -> Attribution {
         self.open.pop();
@@ -91,10 +103,17 @@ impl ComponentTree {
         self.kernels(placement.attribution).count(kernel, placement);
     }
 
-    /// Add `duration` to the component that counted `kernel`'s launch under
-    /// `attribution`, or `false` when no launch of it was counted there.
-    pub fn credit(&mut self, attribution: Attribution, kernel: &str, duration: Duration) -> bool {
-        self.kernels(attribution).credit(kernel, duration)
+    /// Add `duration`, which ran on `member` of a sharded compute device where it names one, to
+    /// the component that counted `kernel`'s launch under `attribution`, or `false` when no launch
+    /// of it was counted there.
+    pub fn credit(
+        &mut self,
+        attribution: Attribution,
+        kernel: &str,
+        duration: Duration,
+        member: Option<Member>,
+    ) -> bool {
+        self.kernels(attribution).credit(kernel, duration, member)
     }
 
     /// Charge `idle` to the component whose kernel ended it. See [`Component::own_wait`].
@@ -242,6 +261,7 @@ impl ComponentTree {
                 .map(|site| site.to_string())
                 .collect(),
             bounds: component.bounds,
+            lead_bounds: component.lead_bounds,
             entries: component.entries,
             children: component
                 .children
@@ -264,6 +284,7 @@ struct ComponentRecord {
     /// Distinct call sites that entered this label, in first-seen order.
     sites: Vec<&'static str>,
     bounds: Option<Bounds>,
+    lead_bounds: Option<Bounds>,
     entries: usize,
     children: Vec<ComponentId>,
     kernels: KernelCounter,
@@ -281,6 +302,7 @@ impl ComponentRecord {
             // Left empty: `enter` sums each entry's bounds into it over
             // `unwrap_or_default`, so seeding a zero here says nothing.
             bounds: None,
+            lead_bounds: None,
             entries: 0,
             children: Vec::new(),
             kernels: KernelCounter::default(),
@@ -318,6 +340,14 @@ impl ComponentRecord {
     }
 }
 
+/// Add `amount` to lane `index` of `lanes`, lengthening them to hold that lane.
+fn credit_lane<T: Copy + Default + AddAssign>(lanes: &mut Vec<T>, index: usize, amount: T) {
+    if lanes.len() <= index {
+        lanes.resize(index + 1, T::default());
+    }
+    lanes[index] += amount;
+}
+
 /// The kernels one component counted, by name, in first-seen order.
 #[derive(Default)]
 struct KernelCounter(Vec<CountedKernel>);
@@ -333,6 +363,10 @@ struct CountedKernel {
     fuses: Vec<ComponentId>,
     /// See [`Kernel::fuses_own`].
     fuses_own: bool,
+    /// See [`Kernel::members`].
+    members: Vec<Duration>,
+    /// See [`Kernel::member_launches`].
+    member_launches: Vec<usize>,
 }
 
 impl KernelCounter {
@@ -347,6 +381,8 @@ impl KernelCounter {
                     total: Duration::ZERO,
                     fuses: Vec::new(),
                     fuses_own: false,
+                    members: Vec::new(),
+                    member_launches: Vec::new(),
                 });
                 self.0.last_mut().expect("pushed right above")
             }
@@ -371,14 +407,16 @@ impl KernelCounter {
     /// By component, not by name across the tree: every projection of a block can
     /// launch the same kernel, and a search by name alone would credit the
     /// first component it finds with every other component's time.
-    fn credit(&mut self, name: &str, duration: Duration) -> bool {
-        match self.0.iter_mut().find(|counted| counted.name == name) {
-            Some(counted) => {
-                counted.total += duration;
-                true
-            }
-            None => false,
+    fn credit(&mut self, name: &str, duration: Duration, member: Option<Member>) -> bool {
+        let Some(counted) = self.0.iter_mut().find(|counted| counted.name == name) else {
+            return false;
+        };
+        counted.total += duration;
+        if let Some(Member(index)) = member {
+            credit_lane(&mut counted.members, index, duration);
+            credit_lane(&mut counted.member_launches, index, 1);
         }
+        true
     }
 
     /// The kernels counted, each spanned component named by `path`.
@@ -395,6 +433,8 @@ impl KernelCounter {
                     .map(|component| path(*component))
                     .collect(),
                 fuses_own: kernel.fuses_own,
+                members: kernel.members.clone(),
+                member_launches: kernel.member_launches.clone(),
             })
             .collect()
     }
@@ -566,6 +606,29 @@ mod tests {
                 read: 28,
                 write: 12,
                 flops: 12
+            })
+        );
+    }
+
+    #[test]
+    fn lead_bounds_sum_across_entries() {
+        let mut components = ComponentTree::default();
+        for read in [4, 5] {
+            components.enter(declared("attention"));
+            components.credit_lead_bounds(Some(Bounds {
+                read,
+                write: 1,
+                flops: 2,
+            }));
+            components.exit();
+        }
+
+        assert_eq!(
+            finished(&components).tree[0].lead_bounds,
+            Some(Bounds {
+                read: 9,
+                write: 2,
+                flops: 4,
             })
         );
     }

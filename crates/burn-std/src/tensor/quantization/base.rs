@@ -1,6 +1,6 @@
 // Re-exported types
 pub use cubecl_common::quant::scheme::{
-    BlockScale, BlockSize, QuantMode, QuantScheme, QuantStore, QuantValue, ScaleDtype,
+    BlockExtent, BlockScale, BlockSize, QuantMode, QuantScheme, QuantStore, QuantValue, ScaleDtype,
 };
 
 /// Alignment (in bytes) for quantization parameters in serialized tensor data.
@@ -109,32 +109,42 @@ pub struct QParamTensor {
 /// chosen rather than at the first quantize. Each condition is asserted again where it is relied
 /// on, so bypassing this reports the specific rule rather than this general one.
 pub fn quantizable(scheme: &QuantScheme) -> bool {
-    match (scheme.block_scale(), global_scale_dtype(scheme)) {
-        (Some(block), Some(global)) => {
-            // The per-tensor scale is the largest block scale over the block dtype's maximum, so a
-            // block dtype reaching f32's range drives it subnormal. Any precision the per-tensor
-            // scale itself loses becomes a mismatch applied to every block.
-            block.dtype.max_representable() <= crate::f16::MAX.to_f32() && global == ScaleDtype::F32
-        }
-        _ => true,
-    }
+    // The per-tensor scale is the largest block scale over the block dtype's maximum, so a block
+    // dtype reaching f32's range drives it subnormal. Any precision the per-tensor scale itself
+    // loses becomes a mismatch applied to every block.
+    let finest = scheme.finest().dtype.max_representable();
+    scheme.levels().skip(1).all(|global| {
+        finest <= crate::f16::MAX.to_f32()
+            && global.size == BlockSize::TENSOR
+            && global.dtype == ScaleDtype::F32
+    })
 }
 
 /// The dtype of the per-tensor scale block scales are normalized against, for a two-level scheme.
 ///
-/// [`QuantScheme::tensor_scale`] answers for a per-tensor scheme too, where the scale is the whole
-/// reconstruction rather than a factor over block scales.
+/// `None` for a per-tensor scheme too, where the scale is the whole reconstruction rather than a
+/// factor over block scales.
+///
+/// # Panics
+///
+/// Where the coarser level is not one scale for the whole tensor: no tensor here stores another.
 pub fn global_scale_dtype(scheme: &QuantScheme) -> Option<ScaleDtype> {
-    scheme.block_scale().and(scheme.tensor_scale())
+    let global = scheme.levels().nth(1)?;
+    assert!(
+        global.size == BlockSize::TENSOR,
+        "a level coarser than the finest is stored as one scale for the whole tensor, got {scheme:?}"
+    );
+    Some(global.dtype)
 }
 
-/// Calculate the shape of the block scale grid for a given tensor and scheme.
+/// Calculate the shape of the finest scales for a given tensor and scheme: one element for a
+/// per-tensor scale, and otherwise a grid with the tensor's rank, one scale per block.
 ///
-/// A two-level scheme's per-tensor scale is not part of this grid.
+/// A two-level scheme's per-tensor scale is not part of it.
 pub fn params_shape(data_shape: &Shape, scheme: &QuantScheme) -> Shape {
-    match scheme.block_size() {
-        None => Shape::new([1]),
-        Some(block_size) => Shape::from(block_size.num_blocks(data_shape.as_slice())),
+    match scheme.finest().size {
+        BlockSize::TENSOR => Shape::new([1]),
+        block_size => Shape::from(block_size.num_blocks(data_shape.as_slice())),
     }
 }
 
@@ -144,7 +154,7 @@ pub fn params_shape(data_shape: &Shape, scheme: &QuantScheme) -> Shape {
 #[derive(Debug, Clone)]
 pub struct BlockLayout {
     shape: Shape,
-    block: Vec<u8>,
+    block: Vec<usize>,
     blocks: Shape,
 }
 
@@ -153,7 +163,7 @@ impl BlockLayout {
     pub fn new(shape: &Shape, block: &BlockSize) -> Self {
         Self {
             shape: shape.clone(),
-            block: block.to_dim_vec(shape.num_dims()),
+            block: block.values(shape.as_slice()),
             blocks: Shape::from(block.num_blocks(shape.as_slice())),
         }
     }
@@ -168,7 +178,7 @@ impl BlockLayout {
         self.shape
             .iter()
             .zip(&self.block)
-            .all(|(&dim, &extent)| dim.is_multiple_of(extent as usize))
+            .all(|(&dim, &extent)| dim.is_multiple_of(extent))
     }
 
     /// The row-major index of the block holding row-major element `index`.
@@ -178,7 +188,7 @@ impl BlockLayout {
         for dim in (0..self.shape.num_dims()).rev() {
             let coordinate = index % self.shape[dim];
             index /= self.shape[dim];
-            block += coordinate / self.block[dim] as usize * stride;
+            block += coordinate / self.block[dim] * stride;
             stride *= self.blocks[dim];
         }
         block
@@ -234,11 +244,11 @@ impl QuantizedBytes {
                 Bytes::from_elems(PackedOrder::new(shape.as_slice(), packed_dim).pack(&i8s, &word))
             }
         };
-        let scales = match scheme.block_size() {
-            Some(_) => scales,
-            None => &scales[..1],
+        let scales = match scheme.finest().size {
+            BlockSize::TENSOR => &scales[..1],
+            _ => scales,
         };
-        let scales = encode_scales(scales, scheme.scale_dtype());
+        let scales = encode_scales(scales, scheme.finest().dtype);
 
         let global = match (global_scale_dtype(&scheme), global) {
             (Some(dtype), Some(global)) => {
@@ -282,12 +292,12 @@ impl QuantizedBytes {
             [codes.len(), scales.len()],
             global.map(<[u8]>::len),
         )?;
-        let width = scale_size(scheme.scale_dtype());
+        let width = scale_size(scheme.finest().dtype);
 
         let mut bytes = codes;
-        let order = match scheme.block_size() {
-            Some(_) => ValueLayout::new(&scheme).block_scale_order(&shape, &scheme),
-            None => None,
+        let order = match scheme.finest().size {
+            BlockSize::TENSOR => None,
+            _ => ValueLayout::new(&scheme).block_scale_order(&shape, &scheme),
         };
         let stored: Vec<u8> = match order {
             Some(order) => {
@@ -328,10 +338,10 @@ impl QuantizedBytes {
             .checked_sub(global_bytes)
             .expect("quantized parameter buffer is shorter than the scheme's global scale");
         let block_start = block_end
-            .checked_sub(scale_size(scheme.scale_dtype()) * num_params)
+            .checked_sub(scale_size(scheme.finest().dtype) * num_params)
             .expect("quantized parameter buffer is shorter than the scheme's block scales");
 
-        let block = decode_scales(&qparams[block_start..block_end], scheme.scale_dtype());
+        let block = decode_scales(&qparams[block_start..block_end], scheme.finest().dtype);
         let block = match scale_order {
             Some(order) => order.to_row_major(&block),
             None => block,
@@ -349,7 +359,7 @@ impl QuantizedBytes {
     fn split_values_off(self) -> (Vec<i8>, (Vec<u8>, usize)) {
         let num_params = params_shape(&self.shape, &self.scheme).num_elements();
         let scale_bytes =
-            scale_size(self.scheme.scale_dtype()) * num_params + global_scale_size(&self.scheme);
+            scale_size(self.scheme.finest().dtype) * num_params + global_scale_size(&self.scheme);
         let (shape, scheme) = (self.shape, self.scheme);
 
         let mut stored = read_bytes_to_i8(self.bytes);
@@ -395,7 +405,7 @@ pub fn check_quantized_parts(
         shape: shape.clone(),
         scheme: *scheme,
     })? * scheme.size_bits_stored().div_ceil(8);
-    let scales = params_shape(shape, scheme).num_elements() * scale_size(scheme.scale_dtype());
+    let scales = params_shape(shape, scheme).num_elements() * scale_size(scheme.finest().dtype);
     let expected = [
         (QuantizedPart::Codes, codes, lengths[0]),
         (QuantizedPart::Scales, scales, lengths[1]),
@@ -520,24 +530,18 @@ pub(crate) fn try_quantized_data_len(scheme: &QuantScheme, shape: &Shape) -> Opt
     };
     let value_bytes = storage_elements(scheme, shape)?.checked_mul(value_bytes_per_element)?;
 
-    let num_params = if let Some(block) = scheme.block_size() {
-        if block.as_slice().len() > shape.num_dims() {
-            return None;
-        }
-        let block_shape = block.to_dim_vec(shape.num_dims());
-        let mut num_params = 1usize;
-        for (&dim, block) in shape.iter().zip(block_shape) {
-            let block = block as usize;
-            if block == 0 {
-                return None;
-            }
-            num_params = num_params.checked_mul(dim.div_ceil(block))?;
-        }
-        num_params
-    } else {
-        1
-    };
-    let scale_bytes = num_params.checked_mul(scale_size(scheme.scale_dtype()))?;
+    let finest = scheme.finest();
+    let mut past_rank = finest.size.extents.iter().skip(shape.num_dims());
+    let mut coarser = scheme.levels().skip(1);
+    if past_rank.any(|extent| *extent != finest.size.rest)
+        || coarser.any(|level| level.size != BlockSize::TENSOR)
+    {
+        return None;
+    }
+    let num_params = params_shape(shape, scheme)
+        .iter()
+        .try_fold(1usize, |params, &blocks| params.checked_mul(blocks))?;
+    let scale_bytes = num_params.checked_mul(scale_size(finest.dtype))?;
 
     value_bytes
         .checked_add(scale_bytes)?
@@ -649,6 +653,29 @@ mod tests {
         assert_eq!(qparams.block, vec![scale]);
 
         assert_eq!(q_values, values);
+    }
+
+    #[test]
+    fn a_tensors_scale_is_one_element() {
+        let shape = params_shape(&Shape::new([2, 3]), &QuantScheme::default());
+        assert_eq!(shape, Shape::new([1]));
+    }
+
+    #[test]
+    fn a_scale_per_row_is_a_grid_of_rows() {
+        let shape = params_shape(&Shape::new([2, 3, 64]), &QuantScheme::fp8_per_row());
+        assert_eq!(shape, Shape::new([2, 3, 1]));
+    }
+
+    #[test]
+    fn a_coarser_level_of_rows_is_not_quantizable() {
+        assert!(!quantizable(&QuantScheme::mxfp4_row_factored()));
+    }
+
+    #[test]
+    #[should_panic(expected = "stored as one scale for the whole tensor")]
+    fn a_coarser_level_of_rows_is_no_global_scale() {
+        global_scale_dtype(&QuantScheme::mxfp4_row_factored());
     }
 
     /// Backends divide by what `scale_to_dtype` returns and hand that same value to

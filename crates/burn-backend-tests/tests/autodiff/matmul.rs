@@ -81,3 +81,39 @@ fn test_matmul_complex_2() {
         .to_data()
         .assert_eq(&TensorData::from([[264., 264.0], [344.0, 344.0]]), false);
 }
+
+#[test]
+fn should_diff_matmul_broadcast_lhs_single_column() {
+    // [1, 2, 3] @ [3, 3, 1]: the rhs gradient, lhsᵀ @ grad, is itself such a product.
+    let device = AutodiffDevice::new();
+    let lhs =
+        TestTensor::<3>::from_data([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]], &device).require_grad();
+    let rhs = TestTensor::<3>::from_data(
+        TensorData::new((0..9).map(|i| i as f32).collect(), [3, 3, 1]),
+        &device,
+    )
+    .require_grad();
+    let weights = TestTensor::<3>::from_data(
+        TensorData::new((0..6).map(|i| i as f32).collect(), [3, 2, 1]),
+        &device,
+    );
+
+    let output = lhs.clone().matmul(rhs.clone()).mul(weights).sum();
+    let grads = output.backward();
+
+    let grad_lhs = lhs.grad(&grads).unwrap();
+    let grad_rhs = rhs.grad(&grads).unwrap();
+
+    grad_lhs.to_data().assert_eq(
+        &TensorData::from([[[30.0, 36.0, 42.0], [39.0, 48.0, 57.0]]]),
+        false,
+    );
+    grad_rhs.to_data().assert_eq(
+        &TensorData::from([
+            [[4.0], [5.0], [6.0]],
+            [[14.0], [19.0], [24.0]],
+            [[24.0], [33.0], [42.0]],
+        ]),
+        false,
+    );
+}

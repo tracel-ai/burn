@@ -1,3 +1,4 @@
+use burn_backend::cubecl::autotune::{RACED_PRIORITY, raced_group};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::ConvOptions;
 use burn_std::Shape;
@@ -37,26 +38,30 @@ pub fn wgrad_autotune<const N: usize>(
 
     let tune_id = CubeTuneId::new(&input.client, &input.device);
     let tunables = TUNER.init(&tune_id, || {
+        let raced = raced_group("kernels");
         TunableSet::new(create_key::<N>, create_wgrad_input::<N>)
-            .with(Tunable::new(
-                "wgrad_fallback",
-                |(input, grad, shape, options)| {
+            .with(
+                Tunable::new("wgrad_fallback", |(input, grad, shape, options)| {
                     conv_weight_backward_fallback::<N>(input, grad, shape, options)
-                },
-            ))
-            .with(Tunable::new(
-                "wgrad_depthwise_tiled",
-                |(input, grad, shape, options)| wgrad_depthwise::<N>(input, grad, shape, options),
-            ))
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("wgrad_depthwise_tiled", |(input, grad, shape, options)| {
+                    wgrad_depthwise::<N>(input, grad, shape, options)
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
             // The dense case, which the two pointwise candidates decline and
             // the fallback computes as a convolution by the gradient.
-            .with(Tunable::new(
-                "wgrad_im2col_gather",
-                |(input, grad, shape, options)| wgrad_im2col::<N>(input, grad, shape, options),
-            ))
-            .with(Tunable::new(
-                "wgrad_split_implicit",
-                |(input, grad, shape, options)| {
+            .with(
+                Tunable::new("wgrad_im2col_gather", |(input, grad, shape, options)| {
+                    wgrad_im2col::<N>(input, grad, shape, options)
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("wgrad_split_implicit", |(input, grad, shape, options)| {
                     wgrad_split_implicit::<N>(
                         input,
                         grad,
@@ -64,44 +69,49 @@ pub fn wgrad_autotune<const N: usize>(
                         options,
                         PartialColumnOrder::ChannelsLast,
                     )
-                },
-            ))
-            .with(Tunable::new(
-                "wgrad_split_implicit_spatial_last",
-                |(input, grad, shape, options)| {
-                    wgrad_split_implicit::<N>(
-                        input,
-                        grad,
-                        shape,
-                        options,
-                        PartialColumnOrder::SpatialLast,
-                    )
-                },
-            ))
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new(
+                    "wgrad_split_implicit_spatial_last",
+                    |(input, grad, shape, options)| {
+                        wgrad_split_implicit::<N>(
+                            input,
+                            grad,
+                            shape,
+                            options,
+                            PartialColumnOrder::SpatialLast,
+                        )
+                    },
+                )
+                .group(&raced, |_| RACED_PRIORITY),
+            )
             // The same matmul with its contraction cut into pieces, which is
             // what a weight gradient's shape asks for — see `split_count`.
-            .with(Tunable::new(
-                "wgrad_im2col_1x1_split",
-                |(input, grad, shape, options)| {
+            .with(
+                Tunable::new("wgrad_im2col_1x1_split", |(input, grad, shape, options)| {
                     wgrad_im2col_1x1_split::<N>(input, grad, shape, options)
-                },
-            ))
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
             // Declines every shape but the pointwise one. It earns its place
             // because a device with no accelerated matmul for the dtype
             // declines every candidate below, leaving the fallback unopposed.
-            .with(Tunable::new(
-                "wgrad_im2col_1x1",
-                |(input, grad, shape, options)| wgrad_im2col_1x1::<N>(input, grad, shape, options),
-            ))
+            .with(
+                Tunable::new("wgrad_im2col_1x1", |(input, grad, shape, options)| {
+                    wgrad_im2col_1x1::<N>(input, grad, shape, options)
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
             // The weight gradient's matmul has `M = C_out`, `N = taps * C_in`
             // and `K = batch * output spatial` (split into intervals by
             // `split_count`). A wide channel count makes `N` large and a large
             // feature map makes each split's `K` long, so the wide/deep tilings
             // matter here as much as narrow/balanced; `wgrad_unit_small` keeps
             // the inferred minimum tiling, the default when nothing is tuned.
-            .with(Tunable::new(
-                "wgrad_unit_narrow",
-                |(input, grad, shape, options)| {
+            .with(
+                Tunable::new("wgrad_unit_narrow", |(input, grad, shape, options)| {
                     wgrad_unit(
                         input,
                         grad,
@@ -109,11 +119,11 @@ pub fn wgrad_autotune<const N: usize>(
                         options,
                         UnitStrategy::Fixed(UnitTiling::NARROW),
                     )
-                },
-            ))
-            .with(Tunable::new(
-                "wgrad_unit_balanced",
-                |(input, grad, shape, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("wgrad_unit_balanced", |(input, grad, shape, options)| {
                     wgrad_unit(
                         input,
                         grad,
@@ -121,11 +131,11 @@ pub fn wgrad_autotune<const N: usize>(
                         options,
                         UnitStrategy::Fixed(UnitTiling::BALANCED),
                     )
-                },
-            ))
-            .with(Tunable::new(
-                "wgrad_unit_wide",
-                |(input, grad, shape, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("wgrad_unit_wide", |(input, grad, shape, options)| {
                     wgrad_unit(
                         input,
                         grad,
@@ -133,11 +143,11 @@ pub fn wgrad_autotune<const N: usize>(
                         options,
                         UnitStrategy::Fixed(UnitTiling::WIDE),
                     )
-                },
-            ))
-            .with(Tunable::new(
-                "wgrad_unit_deep",
-                |(input, grad, shape, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("wgrad_unit_deep", |(input, grad, shape, options)| {
                     wgrad_unit(
                         input,
                         grad,
@@ -145,11 +155,11 @@ pub fn wgrad_autotune<const N: usize>(
                         options,
                         UnitStrategy::Fixed(UnitTiling::DEEP),
                     )
-                },
-            ))
-            .with(Tunable::new(
-                "wgrad_unit_small",
-                |(input, grad, shape, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("wgrad_unit_small", |(input, grad, shape, options)| {
                     wgrad_unit(
                         input,
                         grad,
@@ -157,44 +167,45 @@ pub fn wgrad_autotune<const N: usize>(
                         options,
                         UnitStrategy::Inferred(TileSizeSelection::MinTileSize),
                     )
-                },
-            ))
-            .with(Tunable::new(
-                "simple_sync_cmma",
-                |(input, grad, shape, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("simple_sync_cmma", |(input, grad, shape, options)| {
                     wgrad_gemm_simple_sync(input, grad, shape, options, AcceleratedTileKind::Cmma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_sync_mma",
-                |(input, grad, shape, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("simple_sync_mma", |(input, grad, shape, options)| {
                     wgrad_gemm_simple_sync(input, grad, shape, options, AcceleratedTileKind::Mma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_async_cmma",
-                |(input, grad, shape, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("simple_async_cmma", |(input, grad, shape, options)| {
                     wgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Cmma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_async_mma",
-                |(input, grad, shape, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("simple_async_mma", |(input, grad, shape, options)| {
                     wgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Mma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_tma_cmma",
-                |(input, grad, shape, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("simple_tma_cmma", |(input, grad, shape, options)| {
                     wgrad_gemm_simple_tma(input, grad, shape, options, AcceleratedTileKind::Cmma)
-                },
-            ))
-            .with(Tunable::new(
-                "simple_tma_mma",
-                |(input, grad, shape, options)| {
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
+            .with(
+                Tunable::new("simple_tma_mma", |(input, grad, shape, options)| {
                     wgrad_gemm_simple_tma(input, grad, shape, options, AcceleratedTileKind::Mma)
-                },
-            ))
+                })
+                .group(&raced, |_| RACED_PRIORITY),
+            )
     });
 
     TUNER.execute(

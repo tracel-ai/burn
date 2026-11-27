@@ -58,8 +58,8 @@ impl<O: NumOperations> BlocksOptimizer<O> {
     ///    ordering covered, but which sits before some other resolved
     ///    position — is a hole that must be filled by a second optimization
     ///    pass. Trailing unresolved positions, on the other hand, are the
-    ///    natural tail of a drained block and are left in the queue for the
-    ///    processor to handle in the next round.
+    ///    natural tail of a drained block and are left for the next round: the
+    ///    processor's in lazy mode, the explorer's own at a sync.
     ///
     /// `fresh_builders` are the builders as a new search starts them; see [Block::optimize].
     pub fn optimize(
