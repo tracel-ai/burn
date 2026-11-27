@@ -4,7 +4,7 @@ use crate::{
     renderer::tui::{TuiSplit, TuiTag},
 };
 use ratatui::{
-    style::{Color, Style},
+    style::Style,
     symbols,
     widgets::{Bar, Dataset, GraphType},
 };
@@ -27,10 +27,8 @@ struct FullHistoryPoints {
     avg_sum: f64,
     avg_counter: f64,
     points: Vec<(f64, f64)>,
-    /// Index of the first point of each line segment. A later point whose x is
-    /// further than `step_size` from the previous one starts a new segment, so
-    /// validation runs are not joined across the training steps between them.
-    segment_starts: Vec<usize>,
+    /// Exclusive end indices of completed, nonempty runs in the retained points.
+    segment_ends: Vec<usize>,
     max_samples: usize,
     step_size: usize,
 }
@@ -102,19 +100,30 @@ impl FullHistoryPlot {
         self.update_bounds();
     }
 
+    pub(crate) fn end_split(&mut self, split: TuiSplit) {
+        for (tag, points) in &mut self.points {
+            if tag.split == split {
+                points.end_segment();
+            }
+        }
+    }
+
     pub(crate) fn datasets(&self) -> Vec<Dataset<'_>> {
         let mut datasets = Vec::new();
 
-        for (tag, points) in self.points.iter() {
-            let color = tag.split.color();
-            let name = format!("{tag}");
-            let segments = points.segments();
-            if segments.is_empty() {
-                datasets.push(points.line_dataset(true, name, color, &points.points));
-                continue;
-            }
-            for (index, segment) in segments.into_iter().enumerate() {
-                datasets.push(points.line_dataset(index == 0, name.clone(), color, segment));
+        for (tag, points) in &self.points {
+            let style = Style::default().fg(tag.split.color()).bold();
+            for (index, segment) in points.segments().enumerate() {
+                let dataset = Dataset::default()
+                    .marker(symbols::Marker::Braille)
+                    .style(style)
+                    .graph_type(GraphType::Line)
+                    .data(segment);
+                datasets.push(if index == 0 {
+                    dataset.name(tag.to_string())
+                } else {
+                    dataset
+                });
             }
         }
 
@@ -159,7 +168,7 @@ impl FullHistoryPoints {
             avg_sum: 0.0,
             avg_counter: 0.0,
             points: Vec::with_capacity(max_samples),
-            segment_starts: Vec::new(),
+            segment_ends: Vec::new(),
             max_samples,
             step_size: 1,
         }
@@ -204,14 +213,6 @@ impl FullHistoryPoints {
             self.min_y = y
         }
 
-        if let Some(&(last_x, _)) = self.points.last() {
-            if x - last_x > self.step_size as f64 {
-                self.segment_starts.push(self.points.len());
-            }
-        } else {
-            self.segment_starts.push(0);
-        }
-
         self.points.push((x, y));
 
         if self.points.len() > self.max_samples {
@@ -229,15 +230,7 @@ impl FullHistoryPoints {
     ///
     /// This ensure that we have the same amount of points across the X axis.
     fn resize(&mut self) {
-        let old_starts = self.segment_starts.clone();
-        let segment_index = |point_index: usize| {
-            old_starts
-                .partition_point(|&start| start <= point_index)
-                .saturating_sub(1)
-        };
         let mut points = Vec::with_capacity(self.max_samples / 2);
-        let mut segment_starts = Vec::new();
-        let mut current_segment = None;
         let mut max_x = f64::MIN;
         let mut max_y = f64::MIN;
         let mut min_x = f64::MAX;
@@ -245,11 +238,6 @@ impl FullHistoryPoints {
 
         for (i, (x, y)) in self.points.drain(0..self.points.len()).enumerate() {
             if i % 2 == 0 {
-                let segment = segment_index(i);
-                if current_segment != Some(segment) {
-                    segment_starts.push(points.len());
-                    current_segment = Some(segment);
-                }
                 if x > max_x {
                     max_x = x;
                 }
@@ -268,7 +256,11 @@ impl FullHistoryPoints {
         }
 
         self.points = points;
-        self.segment_starts = segment_starts;
+        // Keeping the even indices retains ceil(end / 2) points before each boundary.
+        for end in &mut self.segment_ends {
+            *end = end.div_ceil(2);
+        }
+        self.segment_ends.dedup();
         self.step_size *= 2;
 
         self.min_x = min_x;
@@ -277,41 +269,26 @@ impl FullHistoryPoints {
         self.max_y = max_y;
     }
 
-    fn segments(&self) -> Vec<&[(f64, f64)]> {
-        if self.points.is_empty() {
-            return Vec::new();
+    fn end_segment(&mut self) {
+        let end = self.points.len();
+        if end > self.segment_ends.last().copied().unwrap_or(0) {
+            self.segment_ends.push(end);
         }
-        let starts = if self.segment_starts.is_empty() {
-            vec![0]
-        } else {
-            self.segment_starts.clone()
-        };
-        let mut out = Vec::with_capacity(starts.len());
-        for (idx, &start) in starts.iter().enumerate() {
-            let end = starts.get(idx + 1).copied().unwrap_or(self.points.len());
-            if start < end && start < self.points.len() {
-                out.push(&self.points[start..end.min(self.points.len())]);
-            }
-        }
-        out
     }
 
-    fn line_dataset<'a>(
-        &'a self,
-        named: bool,
-        name: String,
-        color: Color,
-        data: &'a [(f64, f64)],
-    ) -> Dataset<'a> {
-        let mut dataset = Dataset::default()
-            .marker(symbols::Marker::Braille)
-            .style(Style::default().fg(color).bold())
-            .graph_type(GraphType::Line)
-            .data(data);
-        if named {
-            dataset = dataset.name(name);
-        }
-        dataset
+    fn segments(&self) -> impl Iterator<Item = &[(f64, f64)]> {
+        let len = self.points.len();
+        let mut start = 0;
+        self.segment_ends
+            .iter()
+            .copied()
+            .take_while(move |&end| end < len)
+            .chain(std::iter::once(len))
+            .map(move |end| {
+                let segment = &self.points[start..end];
+                start = end;
+                segment
+            })
     }
 
     fn bar<'a>(&'a self, tag: &TuiTag, max: u64) -> Option<(Bar<'a>, usize)> {
@@ -381,27 +358,66 @@ mod tests {
     }
 
     #[test]
-    fn validation_runs_are_separate_line_segments() {
-        let mut chart = FullHistoryPlot::new(100);
+    fn validation_only_runs_stay_separate_after_downsampling() {
+        let mut chart = FullHistoryPlot::new(3);
+        let valid = TuiTag::new(TuiSplit::Valid, TuiGroup::Default);
+
+        // The next run starts at x=1, which is discarded when x=3 triggers a resize.
+        chart.push(valid.clone(), Some(NumericEntry::Value(8.0)));
+        chart.end_split(TuiSplit::Valid);
+        for value in [7.0, 5.0, 4.0] {
+            chart.push(valid.clone(), Some(NumericEntry::Value(value)));
+        }
+        chart.end_split(TuiSplit::Valid);
+
+        // An empty run and a skipped first sample must preserve the next boundary.
+        chart.end_split(TuiSplit::Valid);
+        chart.push(valid.clone(), None);
+        chart.push(valid.clone(), Some(NumericEntry::Value(3.0)));
+        chart.push(valid.clone(), Some(NumericEntry::Value(1.0)));
+
+        let segments: Vec<_> = chart.points[&valid].segments().collect();
+        assert_eq!(segments, [&[(0.0, 8.0)], &[(2.0, 5.0)], &[(6.0, 1.0)]]);
+    }
+
+    #[test]
+    fn downsampling_keeps_an_uninterrupted_run_connected() {
+        let mut chart = FullHistoryPlot::new(3);
         let train = TuiTag::new(TuiSplit::Train, TuiGroup::Default);
         let valid = TuiTag::new(TuiSplit::Valid, TuiGroup::Default);
 
-        chart.push(valid.clone(), Some(NumericEntry::Value(1.0)));
-        chart.push(valid.clone(), Some(NumericEntry::Value(0.8)));
-        chart.push(train.clone(), Some(NumericEntry::Value(2.0)));
-        chart.push(train, Some(NumericEntry::Value(1.5)));
-        chart.push(valid.clone(), Some(NumericEntry::Value(0.4)));
+        chart.push(train, Some(NumericEntry::Value(9.0)));
+        for value in [8.0, 7.0, 6.0, 5.0, 4.0, 3.0] {
+            chart.push(valid.clone(), Some(NumericEntry::Value(value)));
+        }
 
-        let segments = chart.points.get(&valid).unwrap().segments();
-        assert_eq!(
-            segments.len(),
-            2,
-            "a gap in x must break the validation line"
-        );
-        assert_eq!(segments[0], &[(0.0, 1.0), (1.0, 0.8)]);
-        assert_eq!(segments[1], &[(4.0, 0.4)]);
-        // Train is one segment; validation is two. Only the first of each series is named.
-        assert_eq!(chart.datasets().len(), 3);
+        let segments: Vec<_> = chart.points[&valid].segments().collect();
+        assert_eq!(segments, [&[(1.0, 8.0), (3.0, 6.0), (6.0, 3.0)]]);
+    }
+
+    #[test]
+    fn legend_lists_each_series_once_including_an_empty_series() {
+        use ratatui::{
+            buffer::Buffer,
+            layout::Rect,
+            widgets::{Chart, Widget},
+        };
+
+        let mut chart = FullHistoryPlot::new(10);
+        let valid = TuiTag::new(TuiSplit::Valid, TuiGroup::Default);
+        chart.push(TuiTag::new(TuiSplit::Train, TuiGroup::Default), None);
+        chart.push(valid.clone(), Some(NumericEntry::Value(0.8)));
+        chart.end_split(TuiSplit::Valid);
+        chart.push(valid, Some(NumericEntry::Value(0.4)));
+        chart.end_split(TuiSplit::Valid);
+
+        let datasets = chart.datasets();
+        assert_eq!(datasets.len(), 3);
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 60, 24));
+        Chart::new(datasets).render(buffer.area, &mut buffer);
+        let text: String = buffer.content().iter().map(|cell| cell.symbol()).collect();
+        assert_eq!(text.matches("Train").count(), 1);
+        assert_eq!(text.matches("Valid").count(), 1);
     }
 
     #[test]

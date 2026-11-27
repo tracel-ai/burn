@@ -57,7 +57,7 @@ enum TuiRendererEvent {
     },
     CounterUpdate(String),
     LabelUpdate(Option<String>),
-    SplitEnd,
+    SplitEnd(TuiSplit),
     ManualClose,
     Close,
     Persistent,
@@ -286,7 +286,7 @@ impl TrainingProgressLogger for TuiMetricsRendererWrapper {
 
     fn end_split(&mut self, progress: &Progress) {
         self.update_split(progress);
-        self.send_event(TuiRendererEvent::SplitEnd);
+        self.send_event(TuiRendererEvent::SplitEnd(self.current_split));
         self.current_split = TuiSplit::Train;
     }
 
@@ -318,7 +318,7 @@ impl EvaluationProgressLogger for TuiMetricsRendererWrapper {
 
     fn end_test(&mut self, progress: &Progress) {
         self.update_test_progress(progress);
-        self.send_event(TuiRendererEvent::SplitEnd);
+        self.send_event(TuiRendererEvent::SplitEnd(TuiSplit::Test));
     }
 
     fn end_global_progress(&mut self) {}
@@ -465,7 +465,8 @@ impl TuiMetricsRenderer {
                 self.status.update_counter(event);
             }
             TuiRendererEvent::LabelUpdate(label) => self.status.update_label(label.as_deref()),
-            TuiRendererEvent::SplitEnd => {
+            TuiRendererEvent::SplitEnd(split) => {
+                self.metrics_numeric.end_split(split);
                 self.status.reset_counters();
             }
             TuiRendererEvent::ManualClose => self.manual_close = true,

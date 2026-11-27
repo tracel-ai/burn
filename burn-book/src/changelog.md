@@ -1081,6 +1081,12 @@ See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics)
 - Fix `burn-train` failing to build with systemstat 0.2.8, which new projects resolve to, and the
   `CpuTemperature` metric reading NaN after its first reading with that version.
 
+#### Terminal metrics chart
+
+- The full-history chart draws separate lines for successive validation runs, including when a
+  metric is recorded only during validation. Downsampling preserves the breaks between runs.
+  ([#6614](https://github.com/tracel-ai/burn/pull/6614))
+
 #### Text generation metrics
 
 - Correct BLEU and ROUGE-L scores and prevent panics when prediction and reference sequence lengths

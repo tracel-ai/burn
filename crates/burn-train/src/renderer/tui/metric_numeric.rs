@@ -97,6 +97,12 @@ impl NumericMetricsState {
         full.push(tag, data);
     }
 
+    pub(crate) fn end_split(&mut self, split: TuiSplit) {
+        for (_, full) in self.data.values_mut() {
+            full.end_split(split);
+        }
+    }
+
     /// Update the state with the training progress.
     pub(crate) fn update_progress_train(&mut self, progress: &ProgressSnapshot) {
         self.epoch = progress.global.items_processed;
