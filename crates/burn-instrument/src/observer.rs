@@ -24,6 +24,12 @@ pub trait ComponentObserver {
     fn prices(&self) -> bool {
         true
     }
+    /// Whether the components entered evaluate their bounds at the lead's share (see
+    /// [`pricing_lead`]): what an observer of a pricing run of a sharded compute device's lead
+    /// asks for.
+    fn prices_lead(&self) -> bool {
+        false
+    }
 }
 
 /// An observer shared with whoever reads it once the run is over, installed as the observer
@@ -38,6 +44,9 @@ impl<O: ComponentObserver + ?Sized> ComponentObserver for std::sync::Arc<O> {
     }
     fn prices(&self) -> bool {
         (**self).prices()
+    }
+    fn prices_lead(&self) -> bool {
+        (**self).prices_lead()
     }
 }
 
@@ -81,6 +90,94 @@ std::thread_local! {
     static OBSERVED: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
     static OBSERVER: core::cell::RefCell<Option<Box<dyn ComponentObserver>>> =
         const { core::cell::RefCell::new(None) };
+    /// Whether the bounds being evaluated on this thread price the lead's share.
+    static PRICING_LEAD: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+    /// Whether those bounds have asked [`pricing_lead`] since the share was set.
+    static LEAD_ASKED: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+    /// Whether the bounds of the entry about to be made passed [`LeadPricing::priced`].
+    static LEAD_FLOOR: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+}
+
+/// Whether the bounds being evaluated price the lead's share: the work of the first member of a
+/// sharded compute device, whose times and peaks a report reads such a run by.
+///
+/// On a sharded compute device of several members, the instrument prices a run twice, for the
+/// device and for the lead. [`tensor_dims`](crate::tensor_dims) and
+/// [`tensor_bytes`](crate::tensor_bytes) answer for the share being priced, so one declaration
+/// prices both; a floor that cannot price the lead's share of what it was handed returns `None`
+/// where this is `true`.
+///
+/// # Guarantees
+///
+/// `false` everywhere but in a component's `bounds` evaluated in the lead's pricing run, and
+/// inside [`price_at_lead`]. A lead floor is kept only where its evaluation asked this, itself or
+/// through [`tensor_dims`](crate::tensor_dims): one that never asked priced the device, not the
+/// lead. [`tensor_bytes`](crate::tensor_bytes) answers without asking, since a floor written for
+/// one device reads its bytes through it and its shapes whole.
+pub fn pricing_lead() -> bool {
+    let pricing = lead_share_priced();
+    #[cfg(feature = "instrument")]
+    LEAD_ASKED.with(|asked| asked.set(asked.get() || pricing));
+    pricing
+}
+
+/// Whether the lead's share is being priced, read without asking [`pricing_lead`].
+pub(crate) fn lead_share_priced() -> bool {
+    #[cfg(feature = "instrument")]
+    return PRICING_LEAD.with(core::cell::Cell::get);
+    #[cfg(not(feature = "instrument"))]
+    false
+}
+
+/// Whether the entry being made has a lead floor, which only the next entry may claim.
+fn take_lead_floor() -> bool {
+    #[cfg(feature = "instrument")]
+    return LEAD_FLOOR.with(|floor| floor.replace(false));
+    #[cfg(not(feature = "instrument"))]
+    false
+}
+
+/// What `price` returns with the lead's share priced, as a component's bounds are in the lead's
+/// pricing run of a sharded compute device: how a floor's share at the lead is read outside an
+/// instrumented run, as a test of it does.
+#[cfg(feature = "instrument")]
+pub fn price_at_lead<T>(price: impl FnOnce() -> T) -> T {
+    let _lead = Observing.price_lead();
+    price()
+}
+
+/// The lead's share, priced on this thread until the guard drops, which restores the pricing it
+/// was made inside. See [`pricing_lead`].
+#[doc(hidden)]
+#[must_use = "the lead's share is priced only while this guard lives"]
+pub struct LeadPricing {
+    /// Whether the share was priced, and asked for, when this guard was made.
+    #[cfg(feature = "instrument")]
+    enclosing: (bool, bool),
+    _thread: core::marker::PhantomData<*const ()>,
+}
+
+impl LeadPricing {
+    /// `bounds`, where their evaluation asked [`pricing_lead`], as the floor of the next entry.
+    pub fn priced(self, bounds: Option<Bounds>) -> Option<Bounds> {
+        #[cfg(feature = "instrument")]
+        return bounds.filter(|_| {
+            let asked = LEAD_ASKED.with(core::cell::Cell::get);
+            LEAD_FLOOR.with(|floor| floor.set(asked));
+            asked
+        });
+        #[cfg(not(feature = "instrument"))]
+        return bounds.and(None);
+    }
+}
+
+#[cfg(feature = "instrument")]
+impl Drop for LeadPricing {
+    fn drop(&mut self) {
+        let (pricing, asked) = self.enclosing;
+        PRICING_LEAD.with(|lead| lead.set(pricing));
+        LEAD_ASKED.with(|inner| inner.set(asked || inner.get()));
+    }
 }
 
 /// The observation of this thread, or `None` when nothing observes it.
@@ -153,9 +250,16 @@ pub struct Observing;
 impl Observing {
     /// Open a tag for the component being entered. It closes when the returned guard drops, so
     /// an early return cannot leave one open.
+    ///
+    /// In the lead's pricing run of a sharded compute device, `declared` keeps its bounds only
+    /// where `#[compute]` priced them at the lead's share: an entry made by hand has no lead floor.
     #[inline]
     pub fn enter(self, declared: Declaration<'_>) -> Tag {
-        Self::with_observer(|observer| observer.enter(declared));
+        Self::with_observer(|observer| {
+            let lead_floor = take_lead_floor();
+            let bounds = (declared.bounds).filter(|_| lead_floor || !observer.prices_lead());
+            observer.enter(Declaration { bounds, ..declared })
+        });
         Tag {
             _thread: core::marker::PhantomData,
         }
@@ -168,6 +272,30 @@ impl Observing {
         let mut prices = false;
         Self::with_observer(|observer| prices = observer.prices());
         prices
+    }
+
+    /// Whether the component being entered evaluates its bounds at the lead's share. See
+    /// [`ComponentObserver::prices_lead`].
+    #[inline]
+    pub fn prices_lead(self) -> bool {
+        let mut prices = false;
+        Self::with_observer(|observer| prices = observer.prices_lead());
+        prices
+    }
+
+    /// Price the lead's share until the guard drops, while a component's bounds are evaluated in
+    /// the lead's pricing run. See [`pricing_lead`].
+    #[doc(hidden)]
+    #[inline]
+    pub fn price_lead(self) -> LeadPricing {
+        LeadPricing {
+            #[cfg(feature = "instrument")]
+            enclosing: (
+                PRICING_LEAD.with(|lead| lead.replace(true)),
+                LEAD_ASKED.with(|asked| asked.replace(false)),
+            ),
+            _thread: core::marker::PhantomData,
+        }
     }
 
     /// Suspend observation while a bounds expression runs, so its annotated helpers

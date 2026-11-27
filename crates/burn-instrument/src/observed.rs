@@ -26,6 +26,8 @@ enum Event {
 pub(crate) struct Entered {
     events: Mutex<Vec<Event>>,
     depth: Mutex<usize>,
+    /// Whether the run is observed as the lead's pricing run of a sharded compute device.
+    lead: bool,
 }
 
 impl ComponentObserver for &'static Entered {
@@ -44,6 +46,10 @@ impl ComponentObserver for &'static Entered {
     fn exit(&self) {
         self.events.lock().unwrap().push(Event::Exit);
         *self.depth.lock().unwrap() -= 1;
+    }
+
+    fn prices_lead(&self) -> bool {
+        self.lead
     }
 }
 
@@ -108,7 +114,20 @@ impl Entered {
 
 /// Observe what `run` enters, with the observation closed before it is read.
 pub(crate) fn entered(run: impl FnOnce()) -> &'static Entered {
-    let (seen, observation) = installed();
+    observed(Entered::default(), run)
+}
+
+/// Observe what `run` enters as the lead's pricing run of a sharded compute device.
+pub(crate) fn entered_at_lead(run: impl FnOnce()) -> &'static Entered {
+    let lead = Entered {
+        lead: true,
+        ..Entered::default()
+    };
+    observed(lead, run)
+}
+
+fn observed(seen: Entered, run: impl FnOnce()) -> &'static Entered {
+    let (seen, observation) = installed_as(seen);
     run();
     drop(observation);
     seen
@@ -116,8 +135,12 @@ pub(crate) fn entered(run: impl FnOnce()) -> &'static Entered {
 
 /// A fresh observer installed on this thread, and the guard holding it open.
 pub(crate) fn installed() -> (&'static Entered, ComponentObservation) {
+    installed_as(Entered::default())
+}
+
+fn installed_as(seen: Entered) -> (&'static Entered, ComponentObservation) {
     // Leaked: the tests read it after the run, so it outlives every borrow by
     // construction.
-    let seen: &'static Entered = Box::leak(Box::new(Entered::default()));
+    let seen: &'static Entered = Box::leak(Box::new(seen));
     (seen, ComponentObservation::new(Box::new(seen)))
 }

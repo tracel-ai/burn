@@ -1,0 +1,184 @@
+m,n,k,routine,setting,priority,pred_us,floor_us,us,cubes,units,mem_us,cache_us,shared_us,comp_us,bw_share,lanes,worker_cubes,overlapped,instr,ops_per_cube,stages,in_flight,registers
+1,4096,4096,plane_shuffle,plane-shuffle-matmul block=1x4 k_split=whole-plane planes=4,59,291.58,175.86,349.30,128,128,172.00,284.24,0.00,3.48,1.000,1.000,16,true,Some(Vector),2.621e5,32,1,26
+1,4096,4096,plane_shuffle,plane-shuffle-matmul block=1x1 k_split=whole-plane planes=4,59,291.58,175.86,315.60,128,128,172.00,284.24,0.00,3.48,1.000,1.000,16,true,Some(Vector),2.621e5,128,1,13
+1,4096,4096,plane_shuffle,plane-shuffle-matmul block=2x4 k_split=whole-plane planes=4,64,175.86,175.86,240.41,64,128,172.00,122.16,0.00,3.48,1.000,1.000,16,true,Some(Vector),5.243e5,32,1,50
+1,4096,4096,plane_shuffle,plane-shuffle-matmul block=1x4 k_split=one-transaction planes=4,49,768.29,175.86,557.81,4,128,764.43,4.98,0.00,17.41,0.225,0.200,16,true,Some(Vector),8.389e6,1024,1,26
+1,4096,4096,plane_shuffle,plane-shuffle-matmul block=1x4 k_split=whole-plane planes=1,59,291.64,175.86,330.18,512,32,172.00,284.30,0.00,3.48,1.000,1.000,32,true,Some(Vector),6.554e4,32,1,26
+1,4096,4096,plane_shuffle,plane-shuffle-matmul block=1x4 k_split=whole-plane planes=8,59,291.57,175.86,267.18,64,256,172.00,284.23,0.00,3.48,1.000,1.000,8,true,Some(Vector),5.243e5,32,1,26
+1,4096,4096,plane_shuffle,plane-shuffle-matmul block=1x8 k_split=one-transaction planes=1,56,386.07,175.86,861.66,16,32,382.21,4.98,0.00,17.41,0.450,0.200,32,true,Some(Vector),2.097e6,512,1,44
+1,4096,4096,plane_shuffle,plane-shuffle-matmul block=1x1 k_split=one-transaction planes=4,34,3061.58,175.86,1782.32,4,128,3057.72,4.98,0.00,17.41,0.056,0.200,16,true,Some(Vector),8.389e6,4096,1,13
+1,4096,4096,plane_shuffle,plane-shuffle-matmul block=2x1 k_split=whole-plane planes=1,64,175.86,175.86,215.09,256,32,172.00,122.19,0.00,3.48,1.000,1.000,32,true,Some(Vector),1.311e5,128,1,25
+1,4096,4096,plane_shuffle,plane-shuffle-matmul block=2x1 k_split=whole-plane planes=4,64,175.86,175.86,209.19,64,128,172.00,122.16,0.00,3.48,1.000,1.000,16,true,Some(Vector),5.243e5,128,1,25
+1,4096,4096,plane_shuffle,plane-shuffle-matmul block=4x1 k_split=whole-plane planes=1,64,175.86,175.86,195.01,128,32,172.00,41.14,0.00,3.48,1.000,1.000,32,true,Some(Vector),2.621e5,128,1,49
+1,4096,4096,plane_shuffle,plane-shuffle-matmul block=4x1 k_split=whole-plane planes=4,64,175.86,175.86,199.58,32,128,172.00,41.13,0.00,3.48,1.000,1.000,16,true,Some(Vector),1.049e6,128,1,49
+1,4096,4096,plane_shuffle,plane-shuffle-matmul block=4x1 k_split=whole-plane planes=8,64,175.86,175.86,192.88,16,256,172.00,41.13,0.00,3.48,1.000,1.000,8,true,Some(Vector),2.097e6,128,1,49
+1,4096,4096,plane_shuffle,plane-shuffle-matmul block=1x4 k_split=whole-plane rows_per_unit=2 planes=4,59,291.58,175.86,321.69,128,128,172.00,284.24,0.00,3.48,1.000,1.000,16,true,Some(Vector),2.621e5,32,1,26
+1,4096,4096,plane_shuffle,plane-shuffle-matmul block=1x4 k_split=whole-plane planes=32,59,291.57,175.86,371.06,16,1024,172.00,284.23,0.00,3.48,1.000,1.000,2,true,Some(Vector),2.097e6,32,1,26
+1,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x4,64,175.86,175.86,369.98,16,256,172.00,21.17,31.86,91.24,1.000,1.000,2,true,Some(Matrix),2.684e8,128,1,192
+1,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=2x4,64,175.86,175.86,323.73,16,256,172.00,10.58,24.62,45.62,1.000,1.000,4,true,Some(Matrix),1.342e8,128,1,112
+1,4096,4096,cube_staged,cube-staged-matmul units=4x2x1 planes=2x4,64,183.81,175.86,295.56,32,256,172.00,42.37,46.34,91.24,1.000,1.000,4,true,Some(Matrix),1.342e8,128,1,112
+1,4096,4096,cube_staged,cube-staged-matmul units=2x2x1 planes=2x4,64,175.86,175.86,274.92,32,256,172.00,21.17,31.86,45.62,1.000,1.000,7,true,Some(Matrix),6.711e7,128,1,64
+1,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x2,64,175.86,175.86,315.39,32,128,172.00,41.12,34.76,91.24,1.000,1.000,5,true,Some(Matrix),1.342e8,128,1,192
+1,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=4x2,57,332.32,175.86,396.63,32,256,172.00,82.26,63.72,182.48,1.000,1.000,2,true,Some(Matrix),2.684e8,128,1,192
+1,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=4x4,54,458.63,175.86,535.65,16,512,172.00,42.37,57.93,182.48,1.000,1.000,1,false,Some(Matrix),5.369e8,128,1,192
+1,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=2x2,64,175.86,175.86,409.93,32,128,172.00,41.12,34.76,91.24,1.000,1.000,2,true,Some(Matrix),1.342e8,64,1,192
+1,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=4x2,57,332.32,175.86,373.74,32,256,172.00,82.26,63.72,182.48,1.000,1.000,2,true,Some(Matrix),2.684e8,64,1,192
+1,4096,4096,cube_staged,cube-staged-matmul units=2x4x2 planes=2x1,64,175.86,175.86,214.16,64,64,172.00,40.50,28.96,45.62,1.000,1.000,5,true,Some(Matrix),3.355e7,64,1,112
+1,4096,4096,cube_staged,cube-staged-matmul units=2x4x2 planes=2x2,64,175.86,175.86,240.81,32,128,172.00,20.55,26.07,45.62,1.000,1.000,3,true,Some(Matrix),6.711e7,64,1,112
+1,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=1x2,64,175.86,175.86,536.89,32,64,172.00,20.55,25.34,57.02,1.000,0.800,3,true,Some(Matrix),6.711e7,64,1,192
+1,4096,4096,cube_staged,cube-staged-matmul units=8x2x2 planes=1x2,61,223.70,175.86,450.61,64,64,172.00,82.26,46.34,91.24,1.000,1.000,4,true,Some(Matrix),6.711e7,64,1,208
+1,4096,4096,cube_staged,cube-staged-matmul units=2x4x4 planes=2x1,64,175.86,175.86,522.46,64,64,172.00,40.50,36.20,57.02,1.000,1.000,2,true,Some(Matrix),3.355e7,32,1,112
+1,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=4x1,53,488.13,175.86,637.56,64,128,172.00,162.05,94.13,228.10,1.000,1.000,2,true,Some(Matrix),1.342e8,64,1,192
+1,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x4 prefetch=registers,64,175.86,175.86,465.72,16,256,172.00,21.17,31.86,91.24,1.000,1.000,2,true,Some(Matrix),2.684e8,128,1,192
+1,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=4x2 prefetch=registers,57,332.32,175.86,709.70,32,256,172.00,82.26,63.72,182.48,1.000,1.000,2,true,Some(Matrix),2.684e8,64,1,192
+1,4096,4096,cube_staged,cube-staged-matmul units=2x4x2 planes=2x1 stages_in_flight=2 prefetch=registers,64,175.86,175.86,314.39,64,64,172.00,40.50,36.20,57.02,1.000,1.000,2,true,Some(Matrix),3.355e7,64,2,112
+1,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x2 layout=blocks,64,175.86,175.86,337.92,32,128,172.00,41.12,34.76,91.24,1.000,1.000,5,true,Some(Matrix),1.342e8,128,1,192
+1,4096,4096,cube_staged,cube-staged-matmul units=2x4x4 planes=2x1 layout=blocks,64,175.86,175.86,365.21,64,64,172.00,40.50,28.96,45.62,1.000,1.000,4,true,Some(Matrix),3.355e7,32,1,112
+1,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=4,64,175.86,175.86,277.28,64,128,172.00,20.24,32.58,43.44,1.000,1.000,3,true,Some(Matrix),1.678e7,32,1,112
+1,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=2,64,175.86,175.86,222.02,64,64,172.00,20.24,17.38,22.99,1.000,1.000,5,true,Some(Matrix),1.678e7,64,1,112
+1,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=4 scratch=whole_partition,64,175.86,175.86,292.03,64,128,172.00,20.24,32.58,43.44,1.000,1.000,3,true,Some(Matrix),1.678e7,32,1,112
+1,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=2 stages_in_flight=2 prefetch=registers,64,175.86,175.86,286.62,64,64,172.00,20.24,32.58,43.10,1.000,1.000,3,true,Some(Matrix),1.678e7,64,2,112
+1,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x4 cubes=m-strips-4,64,175.86,175.86,370.54,16,256,172.00,21.17,31.86,91.24,1.000,1.000,2,true,Some(Matrix),2.684e8,128,1,192
+1,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x2 layout=blocks cubes=m-strips-4,64,175.86,175.86,336.71,32,128,172.00,41.12,34.76,91.24,1.000,1.000,5,true,Some(Matrix),1.342e8,128,1,192
+1,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=4 cubes=m-strips-4,64,175.86,175.86,288.82,64,128,172.00,20.24,32.58,43.44,1.000,1.000,3,true,Some(Matrix),1.678e7,32,1,112
+1,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=4 cubes=n-strips-4,64,175.86,175.86,303.33,64,128,172.00,20.24,32.58,43.44,1.000,1.000,3,true,Some(Matrix),1.678e7,32,1,112
+1,4096,4096,hypercube_last_arrival,hypercube-last-arrival-matmul units=4x4x1 planes=2x4 cubes_per_worker=4,64,175.86,175.86,402.04,80,256,172.00,40.47,32.36,92.66,1.000,1.000,2,true,Some(Matrix),5.453e7,26,1,192
+1,4096,4096,hypercube_last_arrival,hypercube-last-arrival-matmul units=4x4x1 planes=2x4 cubes_per_worker=1,64,175.86,175.86,370.02,20,256,172.00,28.26,32.05,91.77,1.000,1.000,2,true,Some(Matrix),2.160e8,103,1,192
+1,4096,4096,hypercube_last_arrival,hypercube-last-arrival-matmul units=4x4x1 planes=2x4 cubes_per_worker=2,64,175.86,175.86,313.47,40,256,172.00,36.45,32.36,92.66,1.000,1.000,2,true,Some(Matrix),1.091e8,52,1,192
+1,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=32,59,273.10,175.86,473.37,16,128,172.00,199.60,0.00,69.63,1.000,0.800,12,true,Some(Vector),3.355e7,512,1,80
+1,4096,4096,unit_registers,unit-registers-matmul block=2x2x4 planes=4x1 blocks_per_plane=32,63,198.31,175.86,821.11,16,128,172.00,159.63,0.00,34.82,1.000,0.800,16,true,Some(Vector),1.678e7,512,1,56
+1,4096,4096,unit_registers,unit-registers-matmul block=8x4x4 planes=4x1 blocks_per_plane=32,55,422.67,175.86,6036.01,16,128,172.00,279.55,0.00,139.26,1.000,0.800,8,true,Some(Vector),6.711e7,512,1,128
+1,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=2x1 blocks_per_plane=32,64,175.86,175.86,540.74,16,64,172.00,79.85,0.00,69.63,1.000,0.400,25,true,Some(Vector),1.678e7,512,1,80
+1,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=8x1 blocks_per_plane=32,52,554.39,175.86,831.25,16,256,172.00,439.12,0.00,111.41,1.000,1.000,6,true,Some(Vector),6.711e7,512,1,80
+1,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=2x2 blocks_per_plane=32,64,175.86,175.86,867.92,8,128,172.00,79.85,0.00,69.63,1.000,0.400,12,true,Some(Vector),3.355e7,512,1,80
+1,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=32x1 blocks_per_plane=32,36,2497.73,175.86,836.78,16,1024,172.00,1876.23,0.00,445.64,1.000,1.000,1,false,Some(Vector),2.684e8,512,1,80
+1,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=16,60,259.17,175.86,484.79,32,128,172.00,199.60,0.00,55.71,1.000,1.000,12,true,Some(Vector),1.678e7,512,1,80
+1,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=64,57,342.73,175.86,1444.04,8,128,172.00,199.60,0.00,139.26,1.000,0.400,12,true,Some(Vector),6.711e7,512,1,80
+1,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=32 cubes=m-strips-4,59,273.10,175.86,360.88,16,128,172.00,199.60,0.00,69.63,1.000,0.800,12,true,Some(Vector),3.355e7,512,1,80
+1,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=32 cubes=n-strips-4,59,273.10,175.86,354.99,16,128,172.00,199.60,0.00,69.63,1.000,0.800,12,true,Some(Vector),3.355e7,512,1,80
+16,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x4,64,177.11,177.11,285.18,16,256,173.26,20.88,31.86,91.24,1.000,1.000,2,true,Some(Matrix),2.684e8,128,1,192
+16,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=2x4,64,177.11,177.11,256.24,16,256,173.26,10.29,24.62,45.62,1.000,1.000,4,true,Some(Matrix),1.342e8,128,1,112
+16,4096,4096,cube_staged,cube-staged-matmul units=4x2x1 planes=2x4,64,183.51,177.11,318.88,32,256,173.26,42.08,46.34,91.24,1.000,1.000,4,true,Some(Matrix),1.342e8,128,1,112
+16,4096,4096,cube_staged,cube-staged-matmul units=2x2x1 planes=2x4,64,177.11,177.11,284.22,32,256,173.26,20.88,31.86,45.62,1.000,1.000,7,true,Some(Matrix),6.711e7,128,1,64
+16,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x2,64,177.11,177.11,293.03,32,128,173.26,40.83,34.76,91.24,1.000,1.000,5,true,Some(Matrix),1.342e8,128,1,192
+16,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=4x2,57,332.02,177.11,421.79,32,256,173.26,81.97,63.72,182.48,1.000,1.000,2,true,Some(Matrix),2.684e8,128,1,192
+16,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=4x4,54,459.59,177.11,503.99,16,512,173.26,42.08,57.93,182.48,1.000,1.000,1,false,Some(Matrix),5.369e8,128,1,192
+16,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=2x2,64,177.11,177.11,428.49,32,128,173.26,40.83,34.76,91.24,1.000,1.000,2,true,Some(Matrix),1.342e8,64,1,192
+16,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=4x2,57,332.02,177.11,395.03,32,256,173.26,81.97,63.72,182.48,1.000,1.000,2,true,Some(Matrix),2.684e8,64,1,192
+16,4096,4096,cube_staged,cube-staged-matmul units=2x4x2 planes=2x1,64,177.11,177.11,226.87,64,64,173.26,40.20,28.96,45.62,1.000,1.000,5,true,Some(Matrix),3.355e7,64,1,112
+16,4096,4096,cube_staged,cube-staged-matmul units=2x4x2 planes=2x2,64,177.11,177.11,242.42,32,128,173.26,20.26,26.07,45.62,1.000,1.000,3,true,Some(Matrix),6.711e7,64,1,112
+16,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=1x2,64,177.11,177.11,505.23,32,64,173.26,20.26,25.34,57.02,1.000,0.800,3,true,Some(Matrix),6.711e7,64,1,192
+16,4096,4096,cube_staged,cube-staged-matmul units=8x2x2 planes=1x2,62,223.41,177.11,472.25,64,64,173.26,81.97,46.34,91.24,1.000,1.000,4,true,Some(Matrix),6.711e7,64,1,208
+16,4096,4096,cube_staged,cube-staged-matmul units=2x4x4 planes=2x1,64,177.11,177.11,568.83,64,64,173.26,40.20,36.20,57.02,1.000,1.000,2,true,Some(Matrix),3.355e7,32,1,112
+16,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=4x1,53,487.84,177.11,724.52,64,128,173.26,161.76,94.13,228.10,1.000,1.000,2,true,Some(Matrix),1.342e8,64,1,192
+16,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x4 prefetch=registers,64,177.11,177.11,456.82,16,256,173.26,20.88,31.86,91.24,1.000,1.000,2,true,Some(Matrix),2.684e8,128,1,192
+16,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=4x2 prefetch=registers,57,332.02,177.11,755.82,32,256,173.26,81.97,63.72,182.48,1.000,1.000,2,true,Some(Matrix),2.684e8,64,1,192
+16,4096,4096,cube_staged,cube-staged-matmul units=2x4x2 planes=2x1 stages_in_flight=2 prefetch=registers,64,177.11,177.11,310.75,64,64,173.26,40.20,36.20,57.02,1.000,1.000,2,true,Some(Matrix),3.355e7,64,2,112
+16,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x2 layout=blocks,64,177.11,177.11,339.20,32,128,173.26,40.83,34.76,91.24,1.000,1.000,5,true,Some(Matrix),1.342e8,128,1,192
+16,4096,4096,cube_staged,cube-staged-matmul units=2x4x4 planes=2x1 layout=blocks,64,177.11,177.11,381.64,64,64,173.26,40.20,28.96,45.62,1.000,1.000,4,true,Some(Matrix),3.355e7,32,1,112
+16,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=4,64,177.11,177.11,282.97,64,128,173.26,19.95,32.58,43.44,1.000,1.000,3,true,Some(Matrix),1.678e7,32,1,112
+16,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=2,64,177.11,177.11,228.91,64,64,173.26,19.95,17.38,22.99,1.000,1.000,5,true,Some(Matrix),1.678e7,64,1,112
+16,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=4 scratch=whole_partition,64,177.11,177.11,293.07,64,128,173.26,19.95,32.58,43.44,1.000,1.000,3,true,Some(Matrix),1.678e7,32,1,112
+16,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=2 stages_in_flight=2 prefetch=registers,64,177.11,177.11,281.45,64,64,173.26,19.95,32.58,43.10,1.000,1.000,3,true,Some(Matrix),1.678e7,64,2,112
+16,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x4 cubes=m-strips-4,64,177.11,177.11,384.08,16,256,173.26,20.88,31.86,91.24,1.000,1.000,2,true,Some(Matrix),2.684e8,128,1,192
+16,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x2 layout=blocks cubes=m-strips-4,64,177.11,177.11,338.92,32,128,173.26,40.83,34.76,91.24,1.000,1.000,5,true,Some(Matrix),1.342e8,128,1,192
+16,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=4 cubes=m-strips-4,64,177.11,177.11,293.15,64,128,173.26,19.95,32.58,43.44,1.000,1.000,3,true,Some(Matrix),1.678e7,32,1,112
+16,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=4 cubes=n-strips-4,64,177.11,177.11,284.82,64,128,173.26,19.95,32.58,43.44,1.000,1.000,3,true,Some(Matrix),1.678e7,32,1,112
+16,4096,4096,hypercube_last_arrival,hypercube-last-arrival-matmul units=4x4x1 planes=2x4 cubes_per_worker=4,64,177.11,177.11,429.65,80,256,173.26,40.24,32.36,92.66,1.000,1.000,2,true,Some(Matrix),5.453e7,26,1,192
+16,4096,4096,hypercube_last_arrival,hypercube-last-arrival-matmul units=4x4x1 planes=2x4 cubes_per_worker=1,64,177.11,177.11,379.59,20,256,173.26,27.97,32.05,91.77,1.000,1.000,2,true,Some(Matrix),2.160e8,103,1,192
+16,4096,4096,hypercube_last_arrival,hypercube-last-arrival-matmul units=4x4x1 planes=2x4 cubes_per_worker=2,64,177.11,177.11,312.99,40,256,173.26,36.15,32.36,92.66,1.000,1.000,2,true,Some(Matrix),1.091e8,52,1,192
+16,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=32,59,272.80,177.11,2265.55,16,128,173.26,199.31,0.00,69.63,1.000,0.800,12,true,Some(Vector),3.355e7,512,1,80
+16,4096,4096,unit_registers,unit-registers-matmul block=2x2x4 planes=4x1 blocks_per_plane=32,55,418.45,177.11,852.69,32,128,173.26,358.89,0.00,55.71,1.000,1.000,16,true,Some(Vector),1.678e7,512,1,56
+16,4096,4096,unit_registers,unit-registers-matmul block=8x4x4 planes=4x1 blocks_per_plane=32,55,422.38,177.11,5797.60,16,128,173.26,279.25,0.00,139.26,1.000,0.800,8,true,Some(Vector),6.711e7,512,1,128
+16,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=2x1 blocks_per_plane=32,59,272.80,177.11,2928.44,32,64,173.26,199.31,0.00,69.63,1.000,0.800,25,true,Some(Vector),1.678e7,512,1,80
+16,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=8x1 blocks_per_plane=32,52,554.10,177.11,839.30,16,256,173.26,438.83,0.00,111.41,1.000,1.000,6,true,Some(Vector),6.711e7,512,1,80
+16,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=2x2 blocks_per_plane=32,59,272.80,177.11,3724.06,16,128,173.26,199.31,0.00,69.63,1.000,0.800,12,true,Some(Vector),3.355e7,512,1,80
+16,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=32x1 blocks_per_plane=32,36,2498.69,177.11,933.12,16,1024,173.26,1875.93,0.00,445.64,1.000,1.000,1,false,Some(Vector),2.684e8,512,1,80
+16,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=16,60,258.88,177.11,2255.21,32,128,173.26,199.31,0.00,55.71,1.000,1.000,12,true,Some(Vector),1.678e7,512,1,80
+16,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=64,57,342.44,177.11,1954.84,8,128,173.26,199.31,0.00,139.26,1.000,0.400,12,true,Some(Vector),6.711e7,512,1,80
+16,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=32 cubes=m-strips-4,59,272.80,177.11,1123.00,16,128,173.26,199.31,0.00,69.63,1.000,0.800,12,true,Some(Vector),3.355e7,512,1,80
+16,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=32 cubes=n-strips-4,59,272.80,177.11,1138.54,16,128,173.26,199.31,0.00,69.63,1.000,0.800,12,true,Some(Vector),3.355e7,512,1,80
+256,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x4,59,327.35,197.26,402.92,32,256,193.40,77.29,63.72,182.48,1.000,1.000,2,true,Some(Matrix),2.684e8,128,1,192
+256,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=2x4,56,441.89,197.26,466.68,64,256,193.40,157.08,98.47,182.48,1.000,1.000,4,true,Some(Matrix),1.342e8,128,1,112
+256,4096,4096,cube_staged,cube-staged-matmul units=4x2x1 planes=2x4,57,398.70,197.26,414.54,64,256,193.40,119.68,92.68,182.48,1.000,1.000,4,true,Some(Matrix),1.342e8,128,1,112
+256,4096,4096,cube_staged,cube-staged-matmul units=2x2x1 planes=2x4,54,513.24,197.26,563.30,128,256,193.40,199.47,127.44,182.48,1.000,1.000,7,true,Some(Matrix),6.711e7,128,1,64
+256,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x2,57,373.04,197.26,398.47,64,128,193.40,117.19,69.51,182.48,1.000,1.000,5,true,Some(Matrix),1.342e8,128,1,192
+256,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=4x2,59,327.35,197.26,451.21,32,256,193.40,77.29,63.72,182.48,1.000,1.000,2,true,Some(Matrix),2.684e8,128,1,192
+256,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=4x4,55,475.06,197.26,583.54,16,512,193.40,37.40,57.93,182.48,1.000,1.000,1,false,Some(Matrix),5.369e8,128,1,192
+256,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=2x2,56,436.03,197.26,837.58,64,128,193.40,117.19,86.89,228.10,1.000,1.000,2,true,Some(Matrix),1.342e8,64,1,192
+256,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=4x2,59,327.35,197.26,546.67,32,256,193.40,77.29,63.72,182.48,1.000,1.000,2,true,Some(Matrix),2.684e8,64,1,192
+256,4096,4096,cube_staged,cube-staged-matmul units=2x4x2 planes=2x1,52,630.23,197.26,579.01,256,64,193.40,276.76,135.77,213.84,1.000,1.000,5,true,Some(Matrix),3.355e7,64,1,112
+256,4096,4096,cube_staged,cube-staged-matmul units=2x4x2 planes=2x2,52,604.07,197.26,584.46,128,128,193.40,196.97,146.63,256.61,1.000,1.000,3,true,Some(Matrix),6.711e7,64,1,112
+256,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=1x2,53,571.49,197.26,1851.77,128,64,193.40,196.97,114.04,256.61,1.000,1.000,3,true,Some(Matrix),6.711e7,64,1,192
+256,4096,4096,cube_staged,cube-staged-matmul units=8x2x2 planes=1x2,53,547.28,197.26,910.56,128,64,193.40,199.47,115.85,228.10,1.000,1.000,4,true,Some(Matrix),6.711e7,64,1,208
+256,4096,4096,cube_staged,cube-staged-matmul units=2x4x4 planes=2x1,52,606.92,197.26,1616.41,256,64,193.40,276.76,126.71,199.58,1.000,1.000,2,true,Some(Matrix),3.355e7,32,1,112
+256,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=4x1,55,483.17,197.26,1122.88,64,128,193.40,157.08,94.13,228.10,1.000,1.000,2,true,Some(Matrix),1.342e8,64,1,192
+256,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x4 prefetch=registers,59,327.35,197.26,485.59,32,256,193.40,77.29,63.72,182.48,1.000,1.000,2,true,Some(Matrix),2.684e8,128,1,192
+256,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=4x2 prefetch=registers,59,327.35,197.26,798.34,32,256,193.40,77.29,63.72,182.48,1.000,1.000,2,true,Some(Matrix),2.684e8,64,1,192
+256,4096,4096,cube_staged,cube-staged-matmul units=2x4x2 planes=2x1 stages_in_flight=2 prefetch=registers,52,606.92,197.26,711.94,256,64,193.40,276.76,126.71,199.58,1.000,1.000,2,true,Some(Matrix),3.355e7,64,2,112
+256,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x2 layout=blocks,57,373.04,197.26,404.36,64,128,193.40,117.19,69.51,182.48,1.000,1.000,5,true,Some(Matrix),1.342e8,128,1,192
+256,4096,4096,cube_staged,cube-staged-matmul units=2x4x4 planes=2x1 layout=blocks,51,653.53,197.26,1115.62,256,64,193.40,276.76,144.82,228.10,1.000,1.000,4,true,Some(Matrix),3.355e7,32,1,112
+256,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=4,50,782.28,197.26,1016.88,512,128,193.40,436.34,146.63,195.46,1.000,1.000,3,true,Some(Matrix),1.678e7,32,1,112
+256,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=2,49,818.62,197.26,737.71,512,64,193.40,436.34,162.92,215.51,1.000,1.000,5,true,Some(Matrix),1.678e7,64,1,112
+256,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=4 scratch=whole_partition,50,782.28,197.26,962.73,512,128,193.40,436.34,146.63,195.46,1.000,1.000,3,true,Some(Matrix),1.678e7,32,1,112
+256,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=2 stages_in_flight=2 prefetch=registers,50,780.78,197.26,831.65,512,64,193.40,436.34,146.63,193.96,1.000,1.000,3,true,Some(Matrix),1.678e7,64,2,112
+256,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x4 cubes=m-strips-4,59,327.35,197.26,426.08,32,256,193.40,77.29,63.72,182.48,1.000,1.000,2,true,Some(Matrix),2.684e8,128,1,192
+256,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x2 layout=blocks cubes=m-strips-4,57,373.04,197.26,413.06,64,128,193.40,117.19,69.51,182.48,1.000,1.000,5,true,Some(Matrix),1.342e8,128,1,192
+256,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=4 cubes=m-strips-4,50,782.28,197.26,983.65,512,128,193.40,436.34,146.63,195.46,1.000,1.000,3,true,Some(Matrix),1.678e7,32,1,112
+256,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=4 cubes=n-strips-4,50,782.28,197.26,1019.32,512,128,193.40,436.34,146.63,195.46,1.000,1.000,3,true,Some(Matrix),1.678e7,32,1,112
+256,4096,4096,hypercube_last_arrival,hypercube-last-arrival-matmul units=4x4x1 planes=2x4 cubes_per_worker=4,58,361.74,197.26,613.76,80,256,193.40,107.84,64.72,185.33,1.000,1.000,2,true,Some(Matrix),1.091e8,52,1,192
+256,4096,4096,hypercube_last_arrival,hypercube-last-arrival-matmul units=4x4x1 planes=2x4 cubes_per_worker=1,58,333.20,197.26,676.63,20,256,193.40,82.90,63.78,182.66,1.000,1.000,2,true,Some(Matrix),4.299e8,205,1,192
+256,4096,4096,hypercube_last_arrival,hypercube-last-arrival-matmul units=4x4x1 planes=2x4 cubes_per_worker=2,58,342.97,197.26,531.96,40,256,193.40,91.47,64.09,183.55,1.000,1.000,2,true,Some(Matrix),2.160e8,103,1,192
+256,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=32,29,5462.43,197.26,3708.71,256,128,193.40,3787.40,0.00,1671.17,1.000,1.000,12,true,Some(Vector),3.355e7,512,1,80
+256,4096,4096,unit_registers,unit-registers-matmul block=2x2x4 planes=4x1 blocks_per_plane=32,26,7458.56,197.26,2423.01,512,128,193.40,6340.59,0.00,1114.11,1.000,1.000,16,true,Some(Vector),1.678e7,512,1,56
+256,4096,4096,unit_registers,unit-registers-matmul block=8x4x4 planes=4x1 blocks_per_plane=32,34,3405.95,197.26,6846.38,128,128,193.40,2510.80,0.00,891.29,1.000,1.000,8,true,Some(Vector),6.711e7,512,1,128
+256,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=2x1 blocks_per_plane=32,29,5532.06,197.26,3143.76,512,64,193.40,3787.40,0.00,1740.80,1.000,1.000,25,true,Some(Vector),1.678e7,512,1,80
+256,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=8x1 blocks_per_plane=32,29,5462.43,197.26,4044.34,128,256,193.40,3787.40,0.00,1671.17,1.000,1.000,6,true,Some(Vector),6.711e7,512,1,80
+256,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=2x2 blocks_per_plane=32,29,5462.43,197.26,3780.88,256,128,193.40,3787.40,0.00,1671.17,1.000,1.000,12,true,Some(Vector),3.355e7,512,1,80
+256,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=32x1 blocks_per_plane=32,30,5098.77,197.26,3573.57,32,1024,193.40,3787.40,0.00,1114.11,1.000,1.000,1,false,Some(Vector),2.684e8,512,1,80
+256,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=16,30,5044.63,197.26,4626.36,512,128,193.40,3787.40,0.00,1253.38,1.000,1.000,12,true,Some(Vector),1.678e7,512,1,80
+256,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=64,31,4682.55,197.26,3542.59,128,128,193.40,3787.40,0.00,891.29,1.000,1.000,12,true,Some(Vector),6.711e7,512,1,80
+256,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=32 cubes=m-strips-4,29,5462.43,197.26,2879.71,256,128,193.40,3787.40,0.00,1671.17,1.000,1.000,12,true,Some(Vector),3.355e7,512,1,80
+256,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=32 cubes=n-strips-4,29,5462.43,197.26,2026.42,256,128,193.40,3787.40,0.00,1671.17,1.000,1.000,12,true,Some(Vector),3.355e7,512,1,80
+2048,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x4,56,3093.27,1463.67,3250.80,256,256,344.99,935.20,557.54,1596.67,1.000,1.000,2,true,Some(Matrix),2.684e8,128,1,192
+2048,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=2x4,53,4062.41,1463.67,3945.47,512,256,344.99,1600.22,861.66,1596.67,1.000,1.000,4,true,Some(Matrix),1.342e8,128,1,112
+2048,4096,4096,cube_staged,cube-staged-matmul units=4x2x1 planes=2x4,54,3699.99,1463.67,3995.25,512,256,344.99,1288.49,810.97,1596.67,1.000,1.000,4,true,Some(Matrix),1.342e8,128,1,112
+2048,4096,4096,cube_staged,cube-staged-matmul units=2x2x1 planes=2x4,52,4669.14,1463.67,5234.86,1024,256,344.99,1953.52,1115.09,1596.67,1.000,1.000,7,true,Some(Matrix),6.711e7,128,1,64
+2048,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x2,54,3633.96,1463.67,3719.41,512,128,344.99,1267.71,651.67,1710.72,1.000,1.000,5,true,Some(Matrix),1.342e8,128,1,192
+2048,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=4x2,56,3093.27,1463.67,4210.09,256,256,344.99,935.20,557.54,1596.67,1.000,1.000,2,true,Some(Matrix),2.684e8,128,1,192
+2048,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=4x4,56,3055.06,1463.67,4371.31,128,512,344.99,602.68,506.86,1596.67,1.000,1.000,1,false,Some(Matrix),5.369e8,128,1,192
+2048,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=2x2,55,3318.98,1463.67,5820.36,512,128,344.99,1267.71,564.78,1482.62,1.000,1.000,2,true,Some(Matrix),1.342e8,64,1,192
+2048,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=4x2,56,3093.27,1463.67,4499.36,256,256,344.99,935.20,557.54,1596.67,1.000,1.000,2,true,Some(Matrix),2.684e8,64,1,192
+2048,4096,4096,cube_staged,cube-staged-matmul units=2x4x2 planes=2x1,51,5048.86,1463.67,5280.83,2048,64,344.99,2597.76,950.36,1496.88,1.000,1.000,5,true,Some(Matrix),3.355e7,64,1,112
+2048,4096,4096,cube_staged,cube-staged-matmul units=2x4x2 planes=2x2,53,4356.00,1463.67,4686.11,1024,128,344.99,1932.74,879.76,1539.65,1.000,1.000,3,true,Some(Matrix),6.711e7,64,1,112
+2048,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=1x2,53,4160.50,1463.67,13390.31,1024,64,344.99,1932.74,684.26,1539.65,1.000,1.000,3,true,Some(Matrix),6.711e7,64,1,192
+2048,4096,4096,cube_staged,cube-staged-matmul units=8x2x2 planes=1x2,53,4193.05,1463.67,8194.24,1024,64,344.99,1953.52,753.05,1482.62,1.000,1.000,4,true,Some(Matrix),6.711e7,64,1,208
+2048,4096,4096,cube_staged,cube-staged-matmul units=2x4x4 planes=2x1,51,4921.14,1463.67,13777.24,2048,64,344.99,2493.35,941.31,1482.62,1.000,1.000,2,true,Some(Matrix),3.355e7,32,1,112
+2048,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=4x1,54,3698.56,1463.67,7102.86,512,128,344.99,1600.22,611.85,1482.62,1.000,1.000,2,true,Some(Matrix),1.342e8,64,1,192
+2048,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x4 prefetch=registers,56,3093.27,1463.67,3848.37,256,256,344.99,935.20,557.54,1596.67,1.000,1.000,2,true,Some(Matrix),2.684e8,128,1,192
+2048,4096,4096,cube_staged,cube-staged-matmul units=4x4x2 planes=4x2 prefetch=registers,56,3093.27,1463.67,5153.11,256,256,344.99,935.20,557.54,1596.67,1.000,1.000,2,true,Some(Matrix),2.684e8,64,1,192
+2048,4096,4096,cube_staged,cube-staged-matmul units=2x4x2 planes=2x1 stages_in_flight=2 prefetch=registers,51,4921.14,1463.67,7818.53,2048,64,344.99,2493.35,941.31,1482.62,1.000,1.000,2,true,Some(Matrix),3.355e7,64,2,112
+2048,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x2 layout=blocks,54,3633.96,1463.67,3825.53,512,128,344.99,1267.71,651.67,1710.72,1.000,1.000,5,true,Some(Matrix),1.342e8,128,1,192
+2048,4096,4096,cube_staged,cube-staged-matmul units=2x4x4 planes=2x1 layout=blocks,51,5025.55,1463.67,7897.88,2048,64,344.99,2597.76,941.31,1482.62,1.000,1.000,4,true,Some(Matrix),3.355e7,32,1,112
+2048,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=4,49,6396.49,1463.67,11510.08,4096,128,344.99,3769.94,1124.14,1498.55,1.000,1.000,3,true,Some(Matrix),1.678e7,32,1,112
+2048,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=2,48,6517.61,1463.67,12235.05,4096,64,344.99,3927.82,1113.28,1472.66,1.000,1.000,5,true,Some(Matrix),1.678e7,64,1,112
+2048,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=4 scratch=whole_partition,49,6396.49,1463.67,15535.03,4096,128,344.99,3769.94,1124.14,1498.55,1.000,1.000,3,true,Some(Matrix),1.678e7,32,1,112
+2048,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=2 stages_in_flight=2 prefetch=registers,49,6384.96,1463.67,11179.98,4096,64,344.99,3769.94,1124.14,1487.02,1.000,1.000,3,true,Some(Matrix),1.678e7,64,2,112
+2048,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x4 cubes=m-strips-4,56,3093.27,1463.67,2995.72,256,256,344.99,935.20,557.54,1596.67,1.000,1.000,2,true,Some(Matrix),2.684e8,128,1,192
+2048,4096,4096,cube_staged,cube-staged-matmul units=4x4x1 planes=2x2 layout=blocks cubes=m-strips-4,54,3633.96,1463.67,2782.64,512,128,344.99,1267.71,651.67,1710.72,1.000,1.000,5,true,Some(Matrix),1.342e8,128,1,192
+2048,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=4 cubes=m-strips-4,49,6396.49,1463.67,7094.65,4096,128,344.99,3769.94,1124.14,1498.55,1.000,1.000,3,true,Some(Matrix),1.678e7,32,1,112
+2048,4096,4096,cube_staged,cube-staged-matmul units=2x4x1 planes=1x1 planes_along_k=4 cubes=n-strips-4,49,6396.49,1463.67,9809.04,4096,128,344.99,3769.94,1124.14,1498.55,1.000,1.000,3,true,Some(Matrix),1.678e7,32,1,112
+2048,4096,4096,hypercube_last_arrival,hypercube-last-arrival-matmul units=4x4x1 planes=2x4 cubes_per_worker=4,57,2923.21,1463.67,3484.76,80,256,344.99,947.86,510.25,1461.24,1.000,1.000,2,true,Some(Matrix),8.598e8,410,1,192
+2048,4096,4096,hypercube_last_arrival,hypercube-last-arrival-matmul units=4x4x1 planes=2x4 cubes_per_worker=1,57,2897.25,1463.67,5479.68,20,256,344.99,923.10,509.94,1460.35,1.000,1.000,2,true,Some(Matrix),3.437e9,1639,1,192
+2048,4096,4096,hypercube_last_arrival,hypercube-last-arrival-matmul units=4x4x1 planes=2x4 cubes_per_worker=2,57,2906.97,1463.67,3738.84,40,256,344.99,931.62,510.25,1461.24,1.000,1.000,2,true,Some(Matrix),1.720e9,820,1,192
+2048,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=32,29,39383.10,1463.67,18438.58,2048,128,344.99,31858.98,0.00,7520.26,1.000,1.000,12,true,Some(Vector),3.355e7,512,1,80
+2048,4096,4096,unit_registers,unit-registers-matmul block=2x2x4 planes=4x1 blocks_per_plane=32,25,60385.45,1463.67,44386.46,4096,128,344.99,53139.86,0.00,7241.73,1.000,1.000,16,true,Some(Vector),1.678e7,512,1,56
+2048,4096,4096,unit_registers,unit-registers-matmul block=8x4x4 planes=4x1 blocks_per_plane=32,33,29021.18,1463.67,22369.98,1024,128,344.99,21218.54,0.00,7798.78,1.000,1.000,8,true,Some(Vector),6.711e7,512,1,128
+2048,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=2x1 blocks_per_plane=32,29,39696.44,1463.67,19169.60,4096,64,344.99,31858.98,0.00,7833.60,1.000,1.000,25,true,Some(Vector),1.678e7,512,1,80
+2048,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=8x1 blocks_per_plane=32,29,39383.10,1463.67,17265.89,1024,256,344.99,31858.98,0.00,7520.26,1.000,1.000,6,true,Some(Vector),6.711e7,512,1,80
+2048,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=2x2 blocks_per_plane=32,29,39383.10,1463.67,17852.63,2048,128,344.99,31858.98,0.00,7520.26,1.000,1.000,12,true,Some(Vector),3.355e7,512,1,80
+2048,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=32x1 blocks_per_plane=32,29,39449.56,1463.67,13596.45,256,1024,344.99,31858.98,0.00,7241.73,1.000,1.000,1,false,Some(Vector),2.684e8,512,1,80
+2048,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=16,29,39383.10,1463.67,26094.56,4096,128,344.99,31858.98,0.00,7520.26,1.000,1.000,12,true,Some(Vector),1.678e7,512,1,80
+2048,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=64,29,40218.68,1463.67,25232.70,1024,128,344.99,31858.98,0.00,8355.84,1.000,1.000,12,true,Some(Vector),6.711e7,512,1,80
+2048,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=32 cubes=m-strips-4,29,39383.10,1463.67,14000.74,2048,128,344.99,31858.98,0.00,7520.26,1.000,1.000,12,true,Some(Vector),3.355e7,512,1,80
+2048,4096,4096,unit_registers,unit-registers-matmul block=4x4x4 planes=4x1 blocks_per_plane=32 cubes=n-strips-4,29,39383.10,1463.67,16270.49,2048,128,344.99,31858.98,0.00,7520.26,1.000,1.000,12,true,Some(Vector),3.355e7,512,1,80

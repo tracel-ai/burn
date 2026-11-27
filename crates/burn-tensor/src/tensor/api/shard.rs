@@ -97,6 +97,29 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
         #[cfg(not(feature = "shard"))]
         None
     }
+
+    /// Each member's shard shape: the shapes [`into_shards`](Self::into_shards) hands out, read
+    /// without moving anything.
+    ///
+    /// # Guarantees
+    ///
+    /// One shape per member, in member order, as [`Device::shard_members`] lists the members;
+    /// `None` exactly where the tensor is not on a sharded compute device.
+    pub fn shard_dims(&self) -> Option<Vec<[usize; D]>> {
+        #[cfg(feature = "shard")]
+        {
+            let sharding = self.sharding()?;
+            let members = self.device().shard_members()?.len();
+            let shard = |member: usize| {
+                let mut dims = self.dims();
+                crate::shard::DimSplit::cut_to_member(&mut dims, sharding, member, members);
+                dims
+            };
+            Some((0..members).map(shard).collect())
+        }
+        #[cfg(not(feature = "shard"))]
+        None
+    }
 }
 
 impl Device {
@@ -127,6 +150,7 @@ mod tests {
         let tensor = Tensor::<1>::zeros([4], &device);
 
         assert_eq!(tensor.sharding(), None);
+        assert_eq!(tensor.shard_dims(), None);
         assert_eq!(device.shard_members(), None);
         assert_eq!(
             Tensor::<1>::from_shards(
@@ -139,5 +163,44 @@ mod tests {
             .err(),
             Some(ShardsError::NotSharded)
         );
+    }
+}
+
+#[cfg(all(test, feature = "shard", feature = "flex"))]
+mod sharded_tests {
+    use alloc::vec;
+    use alloc::vec::Vec;
+
+    use crate::{Device, Sharding, Shards, Tensor};
+
+    /// A tensor over `members` flex members whose member `i` holds a shard of `shapes[i]`.
+    fn sharded(shapes: &[[usize; 2]], sharding: Sharding) -> Tensor<2> {
+        let device = Device::shard_options(&vec![Device::flex(); shapes.len()])
+            .init()
+            .expect("flex members form a sharded compute device");
+        let shards: Vec<Tensor<2>> = device
+            .shard_members()
+            .expect("a sharded compute device")
+            .iter()
+            .zip(shapes)
+            .map(|(member, shape)| Tensor::zeros(*shape, member))
+            .collect();
+        Tensor::from_shards(Shards { shards, sharding }, &device).expect("each member's part")
+    }
+
+    #[test]
+    fn a_split_reads_the_first_members_longer_chunks() {
+        let shapes = [[4, 3], [4, 3], [4, 2]];
+        let weight = sharded(&shapes, Sharding::Split { dim: 1 });
+
+        assert_eq!(weight.shard_dims(), Some(shapes.to_vec()));
+    }
+
+    #[test]
+    fn a_replicated_split_reads_its_groups_chunk_on_every_member_of_it() {
+        let shapes = [[3, 2], [3, 2], [2, 2], [2, 2]];
+        let weight = sharded(&shapes, Sharding::ReplicatedSplit { dim: 0, groups: 2 });
+
+        assert_eq!(weight.shard_dims(), Some(shapes.to_vec()));
     }
 }

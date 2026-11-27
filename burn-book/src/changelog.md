@@ -77,6 +77,12 @@ conflicts with it (E0119); delete the handwritten one.
 - Include the preceding `CompileOnly` pass's statistics in the following
   `CompileAndAutotune` pass on CubeCL backends, so deferred completions appear in its snapshot.
 
+- CubeCL autotuning orders its candidates by the time each kernel's estimate predicts on the
+  device's measured peaks, and stops a race once ten candidates were measured and twenty more in a
+  row failed to beat the fastest, so large tables such as matmul and attention measure a fraction
+  of their candidates. Saved autotuning results are tuned again once.
+  ([#6644](https://github.com/tracel-ai/burn/pull/6644))
+
 - Compile autotuning candidates in parallel, including CUDA binary assembly, to reduce startup time.
   ([#5996](https://github.com/tracel-ai/burn/pull/5996),
   [#6074](https://github.com/tracel-ai/burn/pull/6074))
@@ -278,6 +284,19 @@ Reports also include the measured cost of a kernel launch.
   ([#6632](https://github.com/tracel-ai/burn/pull/6632))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
+- A sharded compute device is measured at its lead, its first member, on the assumption that its
+  members are one hardware: `Peaks::new` probes the lead, and `Kernel::members` and
+  `Kernel::member_launches` keep each member's part of a kernel's time and launches.
+  `#[compute(bounds = ...)]` is priced for the lead's share too, where `tensor_dims` and
+  `tensor_bytes` read the lead's shards (`pricing_lead` says which share is priced), and
+  `Tensor::shard_dims` reads every member's. A report times each component on the lead and holds it
+  to its lead's floor; one whose bounds read no shape through `tensor_dims` and never call
+  `pricing_lead` is left unscored there.
+  `tensor_bytes` counts a quantized tensor as its layout stores it, padded words and every scale
+  included. Measurement files are version 8, and one of version 7 is refused: measure it again.
+  ([#6651](https://github.com/tracel-ai/burn/pull/6651))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 #### Flex SIMD operations
 
 - Speed up Flex CPU F32 `exp`, `sigmoid`, and `softmax` with a SIMD `exp` within 2 ulp of libm, and
@@ -372,6 +391,11 @@ Reports also include the measured cost of a kernel launch.
 
 - Flex matrix multiplication now preserves empty batch dimensions when broadcasting against a batch
   of size one.
+
+- Fix CubeCL matrix multiplication of one matrix by a batch of single columns, `[1, m, k] @
+  [b, k, 1]`, writing the batches over each other. The right-hand side's gradient of such a product
+  had the same problem. ([#6643](https://github.com/tracel-ai/burn/pull/6643),
+  [#6607](https://github.com/tracel-ai/burn/pull/6607))
 
 - Enable CUDA tensor-core acceleration on Blackwell and Blackwell Ultra GPUs, including B300.
   ([#6161](https://github.com/tracel-ai/burn/pull/6161))
@@ -1238,6 +1262,8 @@ let pack_tensor = tensor.into_pack();
 
 - Add `PytorchReader::from_bytes` for loading checkpoints from memory.
   ([#5755](https://github.com/tracel-ai/burn/pull/5755))
+
+- Fix loading ZIP64 checkpoints affected by ZIP archive offset detection.
 
 #### SafeTensors loading
 

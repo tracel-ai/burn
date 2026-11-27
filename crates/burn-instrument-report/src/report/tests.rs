@@ -7,6 +7,7 @@ use burn_instrument::{
 use burn_tensor::FloatDType;
 
 use super::Report;
+use crate::components::KernelReading;
 use crate::millis::Millis;
 use crate::reading::{HostSplit, TimeReading};
 use crate::roofline::Roofline;
@@ -204,6 +205,7 @@ fn component() -> Component {
         variants: Vec::new(),
         sites: Vec::new(),
         bounds: None,
+        lead_bounds: None,
         entries: 1,
         children: Vec::new(),
         kernels: Vec::new(),
@@ -229,6 +231,8 @@ fn kernel(name: &str, launches: usize, micros: u64) -> Kernel {
         total: Duration::from_micros(micros),
         fuses: Vec::new(),
         fuses_own: false,
+        members: Vec::new(),
+        member_launches: Vec::new(),
     }
 }
 
@@ -318,7 +322,7 @@ fn a_host_split_names_why_it_has_none() {
             },
             ..component()
         }];
-        HostSplit::new(&measurement)
+        HostSplit::new(&measurement, TimeReading::new(&measurement))
     };
     assert_eq!(
         in_place(Some(2_000), 1_500),
@@ -330,7 +334,11 @@ fn a_host_split_names_why_it_has_none() {
     assert_eq!(in_place(None, 1_500), HostSplit::NoCleanRun);
     assert_eq!(in_place(Some(2_000), 0), HostSplit::NothingTimed);
     assert_eq!(in_place(Some(1_000), 1_500), HostSplit::ClocksDisagree);
-    assert_eq!(HostSplit::new(&measurement()), HostSplit::TimedAlone);
+    let timed_alone = measurement();
+    assert_eq!(
+        HostSplit::new(&timed_alone, TimeReading::new(&timed_alone)),
+        HostSplit::TimedAlone
+    );
 }
 
 /// A component's milliseconds are apportioned only where the kernels ran alone and there is
@@ -755,6 +763,7 @@ fn a_run_on_several_members_reads_each_member_apart() {
                 idle: micros(1_500),
             },
         ],
+        member_count: 2,
         schedule: MemberSchedule::Concurrent,
         off_members: micros(300),
         collectives: Vec::new(),
@@ -809,6 +818,7 @@ fn a_run_on_members_in_turn_reads_their_sum() {
     };
     measurement.breakdown.per_member = Some(PerMember {
         members: vec![member(600), member(500)],
+        member_count: 2,
         schedule: MemberSchedule::Sequential,
         off_members: Duration::ZERO,
         collectives: Vec::new(),
@@ -838,6 +848,279 @@ fn a_run_on_members_in_turn_reads_their_sum() {
         table.contains("not separable: the members ran in turn"),
         "{table}"
     );
+}
+
+/// Two members at once, read back after the run: one `project` whose kernel took 100 µs on the
+/// lead and 200 µs on the other member, priced at 100 µs for the device and 50 µs for the lead,
+/// in a 400 µs clean run.
+fn at_once() -> Measurement {
+    let micros = Duration::from_micros;
+    let project = Component {
+        label: "project".to_string(),
+        bounds: Some(Bounds {
+            read: 19_890_000,
+            write: 0,
+            flops: 0,
+        }),
+        lead_bounds: Some(lead_bounds()),
+        kernels: vec![Kernel {
+            members: vec![micros(100), micros(200)],
+            member_launches: vec![1, 1],
+            ..kernel("Matmul", 2, 300)
+        }],
+        ..component()
+    };
+    let member = |on_device| MemberTime {
+        on_device: micros(on_device),
+        idle: Duration::ZERO,
+    };
+    let mut measurement = measurement();
+    measurement.clean_wall = Some(micros(400));
+    measurement.breakdown.tree = vec![project];
+    measurement.breakdown.untagged.clear();
+    measurement.breakdown.timed_alone = false;
+    measurement.breakdown.per_member = Some(PerMember {
+        members: vec![member(100), member(200)],
+        member_count: 2,
+        schedule: MemberSchedule::Concurrent,
+        off_members: Duration::ZERO,
+        collectives: Vec::new(),
+    });
+    measurement
+}
+
+/// The lead's part of [`at_once`]'s `project`.
+fn lead_bounds() -> Bounds {
+    Bounds {
+        read: 9_945_000,
+        write: 0,
+        flops: 0,
+    }
+}
+
+#[test]
+fn a_component_at_once_is_timed_and_floored_at_the_lead_though_another_member_is_busier() {
+    let measurement = at_once();
+    let report = Report::new(&measurement);
+    let project = &measurement.breakdown.tree[0];
+
+    assert_eq!(report.reading(), TimeReading::Lead);
+    assert_eq!(
+        report.reading().apportioned(project),
+        Duration::from_micros(100)
+    );
+    let floor = report.roofline().floor_of(project).expect("a lead floor");
+    let lead = Floor::new(lead_bounds(), &peaks()).expect("a priced lead");
+    assert_eq!(floor.time, lead.time);
+    let score = report
+        .roofline()
+        .score_of(project)
+        .expect("scored at the lead");
+    assert!((score.achieved - 0.5).abs() < 1e-6, "{score:?}");
+}
+
+#[test]
+fn a_kernel_read_at_the_lead_counts_the_leads_launches() {
+    let measurement = at_once();
+    let report = Report::new(&measurement);
+
+    let kernels = KernelReading::list(&report, &measurement.breakdown.tree[0].kernels);
+
+    assert_eq!(kernels[0].launches, 1);
+}
+
+/// A launch whose timing window was refused leaves its kernel's time short of a launch.
+#[test]
+fn members_at_once_with_a_launch_left_untimed_are_not_read_at_the_lead() {
+    let mut measurement = at_once();
+    measurement.breakdown.tree[0].kernels[0].launches = 3;
+
+    let report = Report::new(&measurement);
+
+    assert_eq!(report.reading(), TimeReading::InPlace);
+}
+
+#[test]
+fn the_leads_totals_count_only_the_kernels_the_lead_launched() {
+    let micros = Duration::from_micros;
+    let mut measurement = at_once();
+    measurement.breakdown.tree[0].kernels.push(Kernel {
+        members: vec![Duration::ZERO, micros(50)],
+        member_launches: vec![0, 1],
+        ..kernel("Elemwise", 1, 50)
+    });
+
+    let table = Report::new(&measurement).to_string();
+
+    assert!(table.contains("1 distinct kernels, 1 launches"), "{table}");
+}
+
+/// Codex's case: the other member's 200 µs kernel still runs once nothing waits.
+#[test]
+fn members_at_once_recover_no_more_waiting_than_the_slowest_member_leaves() {
+    let measurement = at_once();
+
+    let ladder = Report::new(&measurement).ladder();
+
+    assert_eq!(ladder.host, Duration::from_micros(200));
+}
+
+#[test]
+fn members_at_once_whose_slowest_member_outlasts_the_clean_run_disagree() {
+    let mut measurement = at_once();
+    measurement.clean_wall = Some(Duration::from_micros(150));
+
+    let report = Report::new(&measurement);
+
+    assert_eq!(report.host_split(), HostSplit::ClocksDisagree);
+}
+
+/// Codex's case: nothing priced, so faster kernels win nothing, the other member's extra 100 µs
+/// included.
+#[test]
+fn members_at_once_leave_the_slowest_members_extra_time_to_no_kernel() {
+    let mut measurement = at_once();
+    measurement.clean_wall = Some(Duration::from_micros(300));
+    measurement.breakdown.tree[0].bounds = None;
+    measurement.breakdown.tree[0].lead_bounds = None;
+
+    let ladder = Report::new(&measurement).ladder();
+
+    assert_eq!(ladder.kernels, ladder.device());
+}
+
+#[test]
+fn members_at_once_wait_for_what_the_leads_kernels_leave_of_the_clean_run() {
+    let measurement = at_once();
+    let report = Report::new(&measurement);
+
+    assert_eq!(report.host_split().idle(), Some(Duration::from_micros(300)));
+    assert_eq!(
+        report.host_split().never_idle(),
+        ["the members never waiting", "host, collectives"]
+    );
+    assert_eq!(report.host_split().share(Duration::from_micros(1)), None);
+    let table = report.to_string();
+    assert!(
+        table.contains("not separable: the members ran at once, so the time"),
+        "{table}"
+    );
+}
+
+#[test]
+fn a_run_at_once_says_its_peaks_and_times_are_the_leads() {
+    let table = Report::new(&at_once()).to_string();
+
+    assert!(
+        table.contains("probed on the lead, the first member"),
+        "{table}"
+    );
+    assert!(table.contains("in place, at the lead"), "{table}");
+}
+
+/// Three launches, one of whose timings came back empty on the lead: the lanes still sum to
+/// the kernel's total, which is short a launch.
+#[test]
+fn members_at_once_with_a_timing_left_unplaced_are_not_read_at_the_lead() {
+    let micros = Duration::from_micros;
+    let mut measurement = at_once();
+    measurement.breakdown.tree[0].kernels = vec![Kernel {
+        members: vec![micros(100), micros(100)],
+        member_launches: vec![1, 1],
+        ..kernel("Matmul", 3, 200)
+    }];
+    measurement.breakdown.unplaced.timings = 1;
+    let report = Report::new(&measurement);
+
+    assert_eq!(report.reading(), TimeReading::InPlace);
+    assert!(
+        (report.roofline())
+            .floor_of(&measurement.breakdown.tree[0])
+            .is_none()
+    );
+}
+
+/// Members on `[GPU 0, GPU 0, GPU 1]`: the first lane holds the lead and the member beside it.
+#[test]
+fn members_sharing_the_leads_device_are_not_read_at_the_lead() {
+    let micros = Duration::from_micros;
+    let mut measurement = at_once();
+    measurement.breakdown.tree[0].kernels = vec![Kernel {
+        members: vec![micros(200), micros(100)],
+        member_launches: vec![2, 1],
+        ..kernel("Matmul", 3, 300)
+    }];
+    if let Some(per_member) = measurement.breakdown.per_member.as_mut() {
+        per_member.member_count = 3;
+    }
+    let report = Report::new(&measurement);
+
+    assert_eq!(report.reading(), TimeReading::InPlace);
+    assert!(
+        (report.roofline())
+            .floor_of(&measurement.breakdown.tree[0])
+            .is_none()
+    );
+}
+
+#[test]
+fn an_unprobed_run_at_once_says_nothing_of_the_lead() {
+    let mut measurement = at_once();
+    measurement.peaks = None;
+    let table = Report::new(&measurement).to_string();
+
+    assert!(!table.contains("probed on the lead"), "{table}");
+    assert!(table.contains("not probed"), "{table}");
+}
+
+/// Codex's case: the lead runs `norm` on its own for 100 µs and only the second member fuses it
+/// into the block's kernel, so `norm` is scored at the lead.
+#[test]
+fn work_only_another_member_fused_is_scored_at_the_lead() {
+    let micros = Duration::from_micros;
+    let mut measurement = at_once();
+    let mut norm = measurement.breakdown.tree[0].clone();
+    norm.label = "norm".to_string();
+    norm.kernels = vec![Kernel {
+        members: vec![micros(100)],
+        member_launches: vec![1],
+        ..kernel("Norm", 1, 100)
+    }];
+    measurement.breakdown.tree[0] = Component {
+        label: "block".to_string(),
+        children: vec![norm],
+        kernels: vec![Kernel {
+            members: vec![Duration::ZERO, micros(80)],
+            member_launches: vec![0, 1],
+            fuses: vec![ComponentPath::new(["norm"])],
+            ..kernel("ElemwiseNorm", 1, 80)
+        }],
+        ..component()
+    };
+    let report = Report::new(&measurement);
+    let norm = &measurement.breakdown.tree[0].children[0];
+
+    assert_eq!(report.reading(), TimeReading::Lead);
+    assert_eq!(report.roofline().fused_elsewhere().share(norm), None);
+    assert!(report.roofline().score_of(norm).is_some());
+}
+
+/// A launch that measured no time is missing from the lead's lane too, so the run is read as
+/// every member's kernels and nothing is held to the lead's floor.
+#[test]
+fn members_at_once_that_lost_a_timing_are_not_read_at_the_lead() {
+    let mut measurement = at_once();
+    (measurement.breakdown.tree[0].kernels).push(kernel("Exp", 1, 0));
+    let report = Report::new(&measurement);
+    let project = &measurement.breakdown.tree[0];
+
+    assert_eq!(report.reading(), TimeReading::InPlace);
+    assert_eq!(
+        report.reading().apportioned(project),
+        Duration::from_micros(300)
+    );
+    assert!(report.roofline().floor_of(project).is_none());
+    assert_eq!(report.host_split(), HostSplit::SeveralMembers);
 }
 
 /// The clean run's host time is split by how long the device waited

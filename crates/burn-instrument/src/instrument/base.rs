@@ -130,8 +130,9 @@ impl Instrument {
     /// price it and run it once more instrumented: see
     /// [`breakdown`](Self::breakdown).
     ///
-    /// `model` runs once per warmup, once per sample, once priced and once
-    /// instrumented, and
+    /// `model` runs once per warmup, once per sample, once priced (twice on a
+    /// sharded compute device of several members, for the device and for its
+    /// lead) and once instrumented, and
     /// what it returns is held until the run it belongs to has ended: an
     /// output dropped inside the run would let the fuser skip the work that
     /// wrote it. Each clean run is synced, so call it on work already
@@ -171,7 +172,8 @@ impl Instrument {
     /// warming it up or measuring what it is scored against.
     ///
     /// The pricing run evaluates the floor of every component it enters, and
-    /// is not timed, so a floor may read values back. The instrumented run
+    /// is not timed, so a floor may read values back; a sharded compute device
+    /// of several members has a second, for its lead. The instrumented run
     /// evaluates none: each entry takes the floor of the pricing run's entry
     /// at the same position.
     ///
@@ -193,7 +195,7 @@ impl Instrument {
     ///
     /// # Replay requirements
     ///
-    /// Both calls must enter the same annotated components in the same order, with
+    /// Every call must enter the same annotated components in the same order, with
     /// equivalent shapes and values wherever they affect bounds. Reuse inputs and restore
     /// equivalent model state if a call advances an iterator, grows a KV cache, or changes
     /// routing decisions. Bounds calculations must also preserve state and randomness
@@ -225,17 +227,25 @@ impl Instrument {
         breakdown
     }
 
-    /// Run `model` under a pricing observer to its end, its output held to
-    /// the sync, and say the floor each entry declared.
+    /// Run `model` under a pricing observer to its end, and say the floor each entry declared:
+    /// on a sharded compute device, again at the lead's share, in a run of its own so each entry
+    /// evaluates its bounds once per run.
     fn price<T>(&self, model: &mut impl FnMut() -> T) -> Floors {
+        let device = self.priced(model, false);
+        let lead = (self.devices.sharded()).then(|| self.priced(model, true));
+        Floors::new(device, lead)
+    }
+
+    /// One pricing run of `model`, its output held to the sync, at the lead's share where `lead`.
+    fn priced<T>(&self, model: &mut impl FnMut() -> T, lead: bool) -> Pricing {
         self.devices.seed(Self::SEED);
-        let pricing = Pricing::default();
+        let pricing = Pricing::new(lead);
         let observation = ComponentObservation::new(Box::new(pricing.clone()));
         let output = model();
         drop(observation);
         self.devices.sync("the device answers");
         drop(output);
-        pricing.floors()
+        pricing
     }
 
     /// The median wall time of the configured samples, or `None` for none.

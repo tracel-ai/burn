@@ -3,8 +3,8 @@
 //! the plane window routine as the floor.
 
 use crate::tune::{
-    Autotune, CandidateIdentity, CandidatePriority, Ceiling, GroupPriority, Identity, Roofline,
-    TuneCandidate,
+    Arithmetic, Autotune, CandidateIdentity, CandidatePriority, Ceiling, GroupPriority, Identity,
+    Predictor, Roofline, TuneCandidate,
 };
 use cubecl::client::Client;
 use cubecl::throughput::{CmmaDims, MemoryAccess, ThroughputKey};
@@ -12,7 +12,7 @@ use cubecl::tile::launch::Decline;
 use cubecl::tune::{LocalTuner, TunableSet, local_tuner};
 use cubecl_common::device::ServiceId;
 use cubek::convolution::kernels::tiled::{
-    ConvCoverage, ConvRoutineKind, ConvTensors, CubeStagedConvCandidate, CubeStagedConvPrepared,
+    ConvRoutineKind, ConvTensors, CubeStagedConvCandidate, CubeStagedConvPrepared,
     CubeStagedConvSettings, CubeStagedConvTuneKey,
 };
 use cubek::std::routine::{ROUTINE_LISTS_NO_SETTING, first_served};
@@ -60,8 +60,8 @@ pub fn conv_tile_autotune(tensors: ConvTensors) -> Result<(), Decline> {
     let id = client.service_id();
     let list = listed(&id, &hw);
     let tunables = TUNER.init(&id, {
-        let (list, hw) = (list.clone(), hw.clone());
-        move || candidates(list.clone(), hw.clone())
+        let (list, predictor) = (list.clone(), Predictor::on_device(&client));
+        move || candidates(list.clone(), predictor.clone())
     });
     let key = CubeStagedConvTuneKey::of(&tensors, &hw);
     let serves = |candidates: &mut dyn Iterator<Item = &CubeStagedConvCandidate>| {
@@ -118,10 +118,13 @@ fn launch_floor(
 }
 
 /// One listed setting, as the autotune races it, on the device it was listed for.
+///
+/// Its priority is its routine's estimate timed at the device's peaks, against the
+/// convolution's roofline ([`Predictor::priority_of`]).
 #[derive(Debug, Clone)]
 struct TileConvTuneCandidate {
     candidate: CubeStagedConvCandidate,
-    hw: Hardware,
+    predictor: Predictor,
 }
 
 impl TuneCandidate for TileConvTuneCandidate {
@@ -133,17 +136,18 @@ impl TuneCandidate for TileConvTuneCandidate {
         self.candidate.settings()
     }
 
-    /// As [`priority`] judges the launch the candidate prepares; last where the routine declines
-    /// the problem, which it then does at launch before compiling anything.
+    /// Its estimate timed at the device's peaks, on the largest instruction the device offers
+    /// the key's elements; last where the routine declines the problem, which it then does at
+    /// launch before compiling anything.
     fn priority(&self, key: &CubeStagedConvTuneKey) -> CandidatePriority {
-        match self.candidate.prepared(key) {
-            Some(prepared) => priority(
-                prepared.coverage(),
-                prepared.cube_dim().num_elems(),
-                &self.hw,
-            ),
-            None => CandidatePriority::LAST,
-        }
+        let hw = self.predictor.hardware();
+        let arithmetic = Arithmetic {
+            vector: ThroughputKey::compute(None, key.lhs, key.sum),
+            matrix: instruction(key, hw)
+                .map(|dims| ThroughputKey::compute(Some(dims), key.lhs, key.sum)),
+        };
+        self.predictor
+            .priority_of(self.candidate.estimate(key), arithmetic)
     }
 
     fn blueprint(&self, key: &CubeStagedConvTuneKey) -> Option<CubeStagedConvPrepared> {
@@ -151,28 +155,10 @@ impl TuneCandidate for TileConvTuneCandidate {
     }
 }
 
-/// Where a candidate whose launch lies over its problem as `coverage`, in cubes of
-/// `units_per_cube` units, is tried on `hw`: the top band unless its boxes cover at least twice
-/// the problem or its grid fills less than half the device, then one band lower. A band is raced
-/// whole and a lower one only when it measures nothing, so the priority only separates the
-/// clearly wasteful from the rest.
-fn priority(coverage: &ConvCoverage, units_per_cube: u32, hw: &Hardware) -> CandidatePriority {
-    let wasteful = coverage.covered_cells >= 2 * coverage.problem_cells.max(1);
-    let idle = hw
-        .cubes_to_fill(units_per_cube)
-        .is_some_and(|wanted| wanted as usize > 2 * coverage.cube_count.max(1));
-    match wasteful || idle {
-        true => CandidatePriority::FIRST.lowered(1),
-        false => CandidatePriority::FIRST,
-    }
-}
-
-/// The bound `key`'s convolution has on `hw`: the largest instruction the device offers at the
-/// key's elements accumulating in the key's sum (plain arithmetic where it offers none), or the
-/// read bus, whichever is higher for the key.
-fn ceiling(key: &CubeStagedConvTuneKey, hw: &Hardware) -> Ceiling {
-    let instruction = hw
-        .properties
+/// The largest matrix instruction `hw` offers at `key`'s elements accumulating in the key's sum,
+/// or `None` where it offers none.
+fn instruction(key: &CubeStagedConvTuneKey, hw: &Hardware) -> Option<CmmaDims> {
+    hw.properties
         .features
         .matmul
         .cmma
@@ -185,16 +171,23 @@ fn ceiling(key: &CubeStagedConvTuneKey, hw: &Hardware) -> Ceiling {
             m: shape.m as usize,
             n: shape.n as usize,
             k: shape.k as usize,
-        });
+        })
+}
+
+/// The bound `key`'s convolution has on `hw`: the largest instruction the device offers at the
+/// key's elements accumulating in the key's sum (plain arithmetic where it offers none), or the
+/// read bus, whichever is higher for the key.
+fn ceiling(key: &CubeStagedConvTuneKey, hw: &Hardware) -> Ceiling {
     Ceiling::Either {
-        compute: ThroughputKey::compute(instruction, key.lhs, key.sum),
+        compute: ThroughputKey::compute(instruction(key, hw), key.lhs, key.sum),
         memory: MemoryAccess::Read,
     }
 }
 
-/// The autotune over `list` on `hw`: every listed setting, a round stopping at the first within
+/// The autotune over `list` on `predictor`'s device: every listed setting, a round stopping at the first within
 /// reach of the bound the convolution has, and [`launch_floor`] where none serves.
-fn candidates(list: Arc<[CubeStagedConvCandidate]>, hw: Hardware) -> TileConvTunables {
+fn candidates(list: Arc<[CubeStagedConvCandidate]>, predictor: Predictor) -> TileConvTunables {
+    let hw = predictor.hardware().clone();
     let keyed = hw.clone();
     let mut autotune = TileConvAutotune::new(move |tensors: &ConvTensors| {
         CubeStagedConvTuneKey::of(tensors, &keyed)
@@ -205,7 +198,7 @@ fn candidates(list: Arc<[CubeStagedConvCandidate]>, hw: Hardware) -> TileConvTun
         .iter()
         .map(|candidate| TileConvTuneCandidate {
             candidate: candidate.clone(),
-            hw: hw.clone(),
+            predictor: predictor.clone(),
         })
         .collect();
     autotune
@@ -241,11 +234,6 @@ mod tests {
     use cubecl::ir::{ElemType, FloatKind};
     use cubek::std::devices;
 
-    /// The units of a cube of four planes of 32.
-    const UNITS_PER_CUBE: u32 = 128;
-    /// Cells a problem has, which a close launch covers.
-    const PROBLEM_CELLS: usize = 1 << 20;
-
     /// An NVIDIA GPU offering cmma `16x16x16` over `f16`, accumulating in `f32`.
     fn nvidia() -> Hardware {
         let f16 = ElemType::Float(FloatKind::F16);
@@ -260,55 +248,6 @@ mod tests {
         devices::offering_cmma(devices::h100(), [shape])
     }
 
-    /// The cubes that fill `hw` in cubes of [`UNITS_PER_CUBE`] units.
-    fn filling(hw: &Hardware) -> usize {
-        hw.cubes_to_fill(UNITS_PER_CUBE)
-            .expect("the device states its cores") as usize
-    }
-
-    /// A launch covering `covered_cells` of the problem's cells in `cube_count` cubes.
-    fn coverage(covered_cells: usize, cube_count: usize) -> ConvCoverage {
-        ConvCoverage {
-            covered_cells,
-            problem_cells: PROBLEM_CELLS,
-            cube_count,
-        }
-    }
-
-    /// Boxes overhanging the problem a little, on a grid that fills the device, are raced in the
-    /// top band.
-    #[test]
-    fn a_close_launch_filling_the_device_is_first() {
-        let hw = nvidia();
-        let close = coverage(PROBLEM_CELLS + PROBLEM_CELLS / 8, filling(&hw));
-        assert_eq!(
-            priority(&close, UNITS_PER_CUBE, &hw),
-            CandidatePriority::FIRST
-        );
-    }
-
-    /// Boxes covering at least twice the problem are raced a band lower.
-    #[test]
-    fn boxes_covering_twice_the_problem_are_a_band_lower() {
-        let hw = nvidia();
-        let overhanging = coverage(2 * PROBLEM_CELLS, filling(&hw));
-        assert_eq!(
-            priority(&overhanging, UNITS_PER_CUBE, &hw),
-            CandidatePriority::FIRST.lowered(1)
-        );
-    }
-
-    /// A grid short of half the cubes that fill the device is raced a band lower; one of half
-    /// of them is not.
-    #[test]
-    fn a_grid_short_of_half_the_device_is_a_band_lower() {
-        let hw = nvidia();
-        let at = |cube_count| priority(&coverage(PROBLEM_CELLS, cube_count), UNITS_PER_CUBE, &hw);
-        let half = filling(&hw).div_ceil(2);
-        assert_eq!(at(half - 1), CandidatePriority::FIRST.lowered(1));
-        assert_eq!(at(half), CandidatePriority::FIRST);
-    }
-
     /// The set raced over the device's list comes out the same every time it is built, so the
     /// autotune's checksum is stable.
     #[test]
@@ -316,7 +255,7 @@ mod tests {
         let hw = nvidia();
         let checksum = || {
             let list = CubeStagedConvCandidate::list(&hw).into();
-            candidates(list, hw.clone()).compute_checksum()
+            candidates(list, Predictor::described(hw.clone())).compute_checksum()
         };
         assert!(!CubeStagedConvCandidate::list(&hw).is_empty());
         assert_eq!(checksum(), checksum());

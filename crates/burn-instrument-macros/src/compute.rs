@@ -6,7 +6,7 @@
 //! written (`mut` parameters, `impl Trait` returns, lifetimes), and a trait method can be
 //! annotated as well as an inherent one.
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::spanned::Spanned;
 use syn::{Expr, FnArg, ItemFn, Pat, Token};
@@ -101,26 +101,47 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
     // The body's statements rather than its block, so a one-line body is not a block in tail
     // position that rustc would call unnecessary.
     let body = &function.block.stmts;
+    // Hygienic, as the bounds are evaluated in their scope and may read a parameter of that name.
+    let label_binding = syn::Ident::new("__burn_instrument_label", Span::mixed_site());
+    let variant_binding = syn::Ident::new("__burn_instrument_variant", Span::mixed_site());
+    let prices_lead_binding = syn::Ident::new("__burn_instrument_prices_lead", Span::mixed_site());
     // Bound first, so the tag outlives every local of the body and closes on every return. The
     // declaration is evaluated before the body runs, so a parameter it reads has not been moved.
     // The names are the macro's own, so they cannot hide a parameter the declaration reads.
     function.block = syn::parse_quote!({
         let __burn_instrument_tag = match burn::instrument::observing() {
             None => None,
-            Some(__burn_instrument_observing) => Some(__burn_instrument_observing.enter(
-                burn::instrument::Declaration {
-                label: #label,
-                variant: #variant,
-                site: #site,
-                bounds: match __burn_instrument_observing.prices() {
-                    true => {
-                        let __burn_instrument_suspended = __burn_instrument_observing.suspend();
-                        #bounds
-                    },
-                    false => None,
-                },
-                },
-            )),
+            // Named before the floors are priced, so a floor may consume what a name reads, and
+            // in a scrutinee, so a temporary a name borrows lives until the tag is entered. The
+            // label is reborrowed as `&str`, so a `&mut String` label is not moved out of the body.
+            Some(__burn_instrument_observing) => match (
+                ::core::convert::identity::<&str>(#label),
+                #variant,
+            ) {
+                (#label_binding, #variant_binding) => {
+                    // Asked before observation is suspended, which leaves no observer to answer.
+                    let #prices_lead_binding = __burn_instrument_observing.prices_lead();
+                    let __burn_instrument_bounds: ::core::option::Option<burn::instrument::Bounds> =
+                        match __burn_instrument_observing.prices() {
+                            true => {
+                                let __burn_instrument_suspended =
+                                    __burn_instrument_observing.suspend();
+                                match #prices_lead_binding {
+                                    // Sizes read at the lead's share, in the lead's pricing run.
+                                    true => __burn_instrument_observing.price_lead().priced(#bounds),
+                                    false => #bounds,
+                                }
+                            },
+                            false => None,
+                        };
+                    Some(__burn_instrument_observing.enter(burn::instrument::Declaration {
+                        label: #label_binding,
+                        variant: #variant_binding,
+                        site: #site,
+                        bounds: __burn_instrument_bounds,
+                    }))
+                }
+            },
         };
         #(#body)*
     });

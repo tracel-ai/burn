@@ -11,14 +11,20 @@ mod base;
 mod checks;
 mod group;
 mod kernel;
+mod prediction;
+mod predictor;
 mod priority;
 mod roofline;
 #[cfg(all(test, any(feature = "cuda", feature = "wgpu", feature = "metal")))]
 mod tests;
+mod worker;
 
 pub use base::*;
 #[cfg(feature = "autotune-checks")]
 pub(crate) use checks::assert_equivalent;
 pub use group::*;
+pub use prediction::{Arithmetic, Peaks, Prediction};
+pub use predictor::Predictor;
 pub use priority::*;
 pub use roofline::*;
+pub use worker::WorkerLimits;

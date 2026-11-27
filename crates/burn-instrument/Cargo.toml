@@ -62,7 +62,7 @@ cubecl = { workspace = true, optional = true, features = ["std"] }
 cubecl-common = { workspace = true, optional = true, features = ["std"] }
 
 [dev-dependencies]
-burn-tensor = { workspace = true, features = ["flex"] }
+burn-tensor = { workspace = true, features = ["flex", "shard"] }
 
 [package.metadata.docs.rs]
 features = ["doc"]

@@ -445,6 +445,32 @@ fn test_matmul_batched_broadcast_transposed() {
 }
 
 #[test]
+fn test_matmul_broadcast_lhs_single_column() {
+    // One rotation [1, 3, 3] applied to a batch of points [4, 3, 1].
+    let device = Default::default();
+    let lhs = TestTensor::<3>::from_data(
+        [[[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]],
+        &device,
+    );
+    let rhs = TestTensor::<3>::from_data(
+        TensorData::new((0..12).map(|i| i as f32).collect(), [4, 3, 1]),
+        &device,
+    );
+
+    let output = lhs.matmul(rhs);
+
+    // (x, y, z) -> (-y, x, z)
+    let expected = TensorData::from([
+        [[-1.0], [0.0], [2.0]],
+        [[-4.0], [3.0], [5.0]],
+        [[-7.0], [6.0], [8.0]],
+        [[-10.0], [9.0], [11.0]],
+    ]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
 #[should_panic]
 fn float_should_panic_when_inner_dimensions_are_not_equal() {
     let device = Default::default();

@@ -42,6 +42,9 @@ use proc_macro::TokenStream;
 ///   instrument prices in a run it does not time, so the expression may read values back.
 ///   Observation is suspended while evaluating it, so annotated helpers do not become model
 ///   entries. The expression must preserve model state and randomness needed by the forward pass.
+///   On a sharded compute device of several members the instrument prices a second run, at the
+///   lead's share, where `burn::instrument::tensor_bytes` and `tensor_dims` answer for the lead's
+///   shards (see `burn::instrument::pricing_lead`).
 ///
 /// The method must take `self` (the type names the component), and with a bare-path `bounds` bind each
 /// parameter to a plain name (the path is handed them by name). It may be an inherent method, a

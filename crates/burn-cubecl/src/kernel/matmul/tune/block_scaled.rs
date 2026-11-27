@@ -2,6 +2,7 @@ use super::base::{
     MatmulAutotuneGroups, MatmulProduct, MatmulTunables, RoutineIdentity, candidate_list,
 };
 use super::floor;
+use crate::tune::Predictor;
 use crate::tune::{CandidateIdentity, GroupPriority};
 use cubecl::tile::StageStorage;
 use cubecl::tune::Tunable;
@@ -27,7 +28,8 @@ use cubek::std::routine::Routine;
 /// Not bounded: a roofline is a 16-bit product's peak, which a block-scaled instruction runs past,
 /// so a bound would end every round at its first candidate. Its one group is its own: the autotune
 /// races one kernel's settings.
-pub(super) fn candidates(hw: Hardware, _groups: MatmulAutotuneGroups) -> MatmulTunables {
+pub(super) fn candidates(predictor: Predictor, _groups: MatmulAutotuneGroups) -> MatmulTunables {
+    let hw = predictor.hardware().clone();
     let mut autotune = candidate_list();
     let group = autotune.group("block-scaled", GroupPriority::DEFAULT);
     let tma = CubeStagedTmaMatmulRoutine.block_scaled_settings(&hw);

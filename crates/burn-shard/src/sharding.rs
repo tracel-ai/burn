@@ -37,23 +37,14 @@ impl ShardMember {
     /// The shape of the shard this member holds of a tensor of `shape`.
     pub fn local_shape(&self, shape: &Shape, sharding: Sharding) -> Shape {
         let mut shape = shape.clone();
-        if let (Some(dim), Some(chunks)) =
-            (sharding.split_dim(), sharding.num_chunks(self.num_members))
-        {
-            let split = DimSplit {
-                dim,
-                len: shape[dim],
-                members: chunks,
-            };
-            shape[dim] = split.range(self.chunk(chunks)).len();
-        }
+        DimSplit::cut_to_member(&mut shape, sharding, self.index, self.num_members);
         shape
     }
 
     /// The chunk this member holds of a split cut into `chunks`: the members form that many
     /// contiguous groups.
     pub fn chunk(&self, chunks: usize) -> usize {
-        self.index / self.members_per_chunk(chunks)
+        DimSplit::chunk_of(self.index, self.num_members, chunks)
     }
 
     /// Whether this member is the first of its group in a split cut into `chunks`.
