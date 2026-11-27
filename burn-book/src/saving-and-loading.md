@@ -428,6 +428,56 @@ let adapter = HalfPrecisionAdapter::new()
     .with_module("CustomLayer");
 ```
 
+#### Quantized SafeTensors Checkpoints
+
+A checkpoint quantized to a block format, such as FP8 codes with one scale per block, stores each
+weight as two entries linked only by their names: `layer.weight` (`F8_E4M3`) beside `layer.scale`
+(`F8_E8M0`). Burn's `SafetensorsStore` has no way to know these groupings, until a `TensorGrouping` says which entries form one quantized tensor. The store reads each group as one `QFloat` tensor
+that keeps the file's exact bytes:
+
+```rust, ignore
+use burn::tensor::quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype};
+use burn_store::{
+    QuantizedGroup, SafetensorsDtype, SafetensorsEntry, SafetensorsStore, SafetensorsStoreError,
+    TensorGrouping,
+};
+
+/// Each FP8 `<p>.weight` read with its `<p>.scale`, one `ue8m0` scale per 32×32 block.
+struct WeightWithScale;
+
+impl TensorGrouping for WeightWithScale {
+    fn group(
+        &self,
+        entries: &[SafetensorsEntry],
+    ) -> Result<Vec<QuantizedGroup>, SafetensorsStoreError> {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::E4M3)
+            .with_store(QuantStore::Native)
+            .per_block([32, 32], ScaleDtype::UE8M0);
+        Ok(entries
+            .iter()
+            .filter(|entry| entry.dtype == SafetensorsDtype::F8_E4M3)
+            .filter_map(|entry| {
+                let prefix = entry.name.strip_suffix(".weight")?;
+                Some(QuantizedGroup {
+                    name: entry.name.clone(),
+                    codes: entry.name.clone(),
+                    scales: format!("{prefix}.scale"),
+                    tensor_scale: None,
+                    scheme,
+                    shape: entry.shape.clone(),
+                })
+            })
+            .collect())
+    }
+}
+
+let mut store = SafetensorsStore::from_file("model.safetensors").with_grouping(WeightWithScale);
+model.load_from(&mut store)?;
+```
+
+The default grouping, `NoGrouping`, groups nothing.
+
 #### Direct Tensor Access
 
 Inspect tensors without loading into a model:
@@ -480,6 +530,7 @@ model2.apply(snapshots, Some(filter), None, false);
 | **Adapters**  | `with_from_adapter(adapter)`           | Loading transformations              |
 |               | `with_to_adapter(adapter)`             | Saving transformations               |
 |               | `HalfPrecisionAdapter::new()`          | F32/F16 mixed-precision              |
+| **Grouping**  | `with_grouping(grouping)`              | Read split quantized entries         |
 | **Config**    | `allow_partial(bool)`                  | Continue on missing tensors          |
 |               | `with_top_level_key(key)`              | Access nested dict (PyTorch)         |
 |               | `skip_enum_variants(bool)`             | Skip enum variants in paths          |

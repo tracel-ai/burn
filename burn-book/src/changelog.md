@@ -682,6 +682,12 @@ whose tensors are split over `devices` (crate `burn-shard`).
   implementations through device dispatch instead of dequantizing first.
   ([#6383](https://github.com/tracel-ai/burn/pull/6383))
 
+- Add `TensorData::from_quantized_parts` and `QuantizedBytes::from_parts`, which build quantized
+data from codes and scales already in their stored encoding, without decoding them.
+
+- **Breaking:** `DataError` has a new `QuantizedParts` variant; an exhaustive `match` on
+  `DataError` needs an arm for it.
+
 #### Random operation keys
 
 Random operations now reserve a `RandomKey` when requested, before shard, fusion, or remote queues
@@ -1212,6 +1218,13 @@ let pack_tensor = tensor.into_pack();
 - Avoid repeated SafeTensors header parsing when loading models with many tensors.
   ([#6269](https://github.com/tracel-ai/burn/pull/6269))
   [@Arc000007](https://github.com/Arc000007)
+
+- Load quantized checkpoints that store each weight's codes and block scales as separate entries
+  (`<p>.weight` beside `<p>.scale`): `SafetensorsStore::with_grouping` takes a `TensorGrouping`
+  that names, for each file, the entries forming one quantized tensor and its `QuantScheme`, and the
+  store reads each group as one `QFloat` tensor without decoding it. The default, `NoGrouping`,
+  groups nothing. An entry at a dtype Burn has no plain tensor for (`F8_E4M3`, `F8_E8M0`, `F4`) now
+  fails naming the tensor, instead of failing the whole file.
 
 ### Extensions
 

@@ -12,6 +12,8 @@
 //! - **Filtering**: Load only specific tensors using path filters
 //! - **Remapping**: Transform tensor names during load/save operations
 //! - **Metadata**: Store and retrieve custom metadata alongside tensors (automatic `format`, `producer` and `version` metadata included)
+//! - **Quantized checkpoints**: Read a weight's codes and block scales, stored as separate entries,
+//!   as one quantized tensor through a caller-defined [`TensorGrouping`]
 //! - **Cross-Platform**: Works on all platforms including no-std environments
 //!
 //! # Usage Examples
@@ -126,6 +128,20 @@
 //!     .with_to_adapter(BurnToPyTorchAdapter);   // Transposes weights back, renames for PyTorch
 //!
 //! burn_model.save_into(&mut store)?;
+//! ```
+//!
+//! ### Quantized Checkpoints
+//!
+//! A release quantized to a block format (FP8 or FP4 codes beside their block scales) stores each
+//! weight as two entries linked only by their names, such as `<p>.weight` and `<p>.scale`. Burn has no
+//! plain tensor for those dtypes, so such a file fails to load until a [`TensorGrouping`] says which
+//! entries form one quantized tensor and under which `QuantScheme`. The store asks it once per file,
+//! with every entry's name, dtype and shape, before any key is remapped, and reads each group as one
+//! `QFloat` tensor holding the file's own bytes. The default, [`NoGrouping`], groups nothing.
+//!
+//! ```rust,ignore
+//! let mut store = SafetensorsStore::from_file("model.safetensors").with_grouping(MyRelease);
+//! model.load_from(&mut store)?;
 //! ```
 //!
 //! ### Additional Configuration Options
