@@ -8,7 +8,7 @@ use super::{block_scaled, few_rows, many_rows};
 use crate::tune::{CandidatePriority, TuneCandidate};
 use cubecl::features::MmaConfig;
 use cubecl::ir::{ElemType, FloatKind};
-use cubecl::quant::scheme::{QuantScheme, QuantStore, QuantValue, ScaleDtype};
+use cubecl::quant::scheme::{BlockScale, QuantScheme, QuantStore, QuantValue, ScaleDtype};
 use cubecl::tile::Dimension;
 use cubek::matmul::kernels::select::problem::OperandKind;
 use cubek::matmul::kernels::{
@@ -153,7 +153,7 @@ mod few_rows_candidates {
     fn quantized_key(m: usize, n: usize, k: usize) -> MatmulTuneKey {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q4S)
-            .per_block([32, 1], ScaleDtype::F16)
+            .with_levels([BlockScale::per_block([32, 1], ScaleDtype::F16)])
             .with_store(QuantStore::PackedU32(1));
         MatmulTuneKey::new(
             F16,
@@ -215,7 +215,7 @@ mod few_rows_candidates {
 fn one_row_tries_the_registers_before_the_matrix_instructions() {
     let scheme = QuantScheme::default()
         .with_value(QuantValue::E2M1)
-        .per_block([16, 1], ScaleDtype::F16)
+        .with_levels([BlockScale::per_block([16, 1], ScaleDtype::F16)])
         .with_store(QuantStore::PackedU32(1));
     let key = |rows, rhs: OperandKind| {
         MatmulTuneKey::new(

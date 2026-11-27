@@ -1,7 +1,7 @@
 use super::*;
 use burn_tensor::{
     DType, Device, TensorData, Tolerance,
-    quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype},
+    quantization::{BlockScale, QuantScheme, QuantStore, QuantValue, ScaleDtype},
 };
 
 fn input(device: &Device) -> TestTensor<2> {
@@ -25,16 +25,16 @@ fn bytes_packed_along_an_outer_axis_load_on_flex_unchanged() {
     let device = Device::default();
     let packed = packed(&device);
     for scheme in [
-        packed
-            .with_value(QuantValue::Q4S)
-            .per_block([16], ScaleDtype::F16)
-            .per_tensor(ScaleDtype::F32),
+        packed.with_value(QuantValue::Q4S).with_levels([
+            BlockScale::per_block([16], ScaleDtype::F16),
+            BlockScale::per_tensor(ScaleDtype::F32),
+        ]),
         packed
             .with_value(QuantValue::E4M3)
-            .per_block([16], ScaleDtype::F32),
+            .with_levels([BlockScale::per_block([16], ScaleDtype::F32)]),
         packed
             .with_value(QuantValue::E2M1)
-            .per_block([16], ScaleDtype::UE8M0),
+            .with_levels([BlockScale::per_block([16], ScaleDtype::UE8M0)]),
     ] {
         if !device.supports_dtype(DType::QFloat(scheme)) {
             continue;
@@ -88,12 +88,12 @@ fn flex_quantizes_to_the_bytes_a_device_writes() {
         packed.with_value(QuantValue::Q8S),
         packed
             .with_value(QuantValue::Q4S)
-            .per_block([16], ScaleDtype::F32),
+            .with_levels([BlockScale::per_block([16], ScaleDtype::F32)]),
         packed.with_value(QuantValue::E4M3),
         packed.with_value(QuantValue::E5M2),
         packed
             .with_value(QuantValue::E2M1)
-            .per_block([16], ScaleDtype::UE8M0),
+            .with_levels([BlockScale::per_block([16], ScaleDtype::UE8M0)]),
     ] {
         if !device.supports_dtype(DType::QFloat(scheme)) {
             continue;

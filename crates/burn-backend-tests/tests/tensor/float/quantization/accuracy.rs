@@ -10,7 +10,8 @@ use super::*;
 use burn_tensor::{
     DType, Shape, TensorData,
     quantization::{
-        QuantScheme, QuantValue, ScaleDtype, coarser_scales_size, params_shape, scale_size,
+        BlockScale, QuantScheme, QuantValue, ScaleDtype, coarser_scales_size, inner_level,
+        params_shape, scale_size,
     },
 };
 
@@ -34,7 +35,8 @@ fn bits_per_element(scheme: &QuantScheme, shape: &Shape) -> f64 {
     let numel = shape.num_elements();
     let num_scales = params_shape(shape, scheme).num_elements();
     scheme.size_bits_value() as f64
-        + ((scale_size(scheme.finest().dtype) * num_scales + coarser_scales_size(scheme, shape))
+        + ((scale_size(inner_level(&scheme).dtype) * num_scales
+            + coarser_scales_size(scheme, shape))
             * 8) as f64
             / numel as f64
 }
@@ -107,11 +109,12 @@ fn scheme_for(value: QuantValue, levels: Levels, dtype: ScaleDtype) -> QuantSche
     let scheme = device.settings().quantization.scheme.with_value(value);
 
     match levels {
-        Levels::Tensor => scheme.per_tensor(dtype),
-        Levels::Block(block) => scheme.per_block([block], dtype),
-        Levels::BlockUnderTensor(block) => {
-            scheme.per_block([block], dtype).per_tensor(ScaleDtype::F32)
-        }
+        Levels::Tensor => scheme.with_levels([BlockScale::per_tensor(dtype)]),
+        Levels::Block(block) => scheme.with_levels([BlockScale::per_block([block], dtype)]),
+        Levels::BlockUnderTensor(block) => scheme.with_levels([
+            BlockScale::per_block([block], dtype),
+            BlockScale::per_tensor(ScaleDtype::F32),
+        ]),
     }
 }
 

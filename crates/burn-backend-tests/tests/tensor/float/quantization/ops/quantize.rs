@@ -2,7 +2,7 @@ use super::*;
 use alloc::{vec, vec::Vec};
 use burn_tensor::Tolerance;
 use burn_tensor::quantization::{
-    BlockExtent, BlockSize, DecodedScales, QuantScheme, QuantStore, QuantValue,
+    BlockExtent, BlockScale, BlockSize, DecodedScales, QuantScheme, QuantStore, QuantValue,
     QuantizationParameters, QuantizedBytes, ScaleDtype,
 };
 use burn_tensor::{DType, Device, Element, TensorData};
@@ -152,7 +152,7 @@ fn should_quantize_dequantize_symmetric_per_block_arange_16x16() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .per_block([2, 16], ScaleDtype::F32);
+        .with_levels([BlockScale::per_block([2, 16], ScaleDtype::F32)]);
 
     let output = input.clone().quantize_dynamic(&scheme);
     let output = output.dequantize();
@@ -186,7 +186,7 @@ fn should_quantize_blocks_that_do_not_span_the_trailing_dim() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .per_block([2, 4], ScaleDtype::F32);
+        .with_levels([BlockScale::per_block([2, 4], ScaleDtype::F32)]);
 
     let quantized = input.clone().quantize_dynamic(&scheme);
 
@@ -225,8 +225,10 @@ fn should_round_trip_two_level_through_bytes() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .per_block([2, 16], ScaleDtype::UE4M3)
-        .per_tensor(ScaleDtype::F32);
+        .with_levels([
+            BlockScale::per_block([2, 16], ScaleDtype::UE4M3),
+            BlockScale::per_tensor(ScaleDtype::F32),
+        ]);
 
     let quantized = input.quantize_dynamic(&scheme);
     let direct = quantized.clone().dequantize().into_data();
@@ -258,10 +260,11 @@ fn two_level_error_should_not_track_weight_magnitude() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S);
-    let two_level = base
-        .per_block([2, 16], ScaleDtype::UE4M3)
-        .per_tensor(ScaleDtype::F32);
-    let one_level = base.per_block([2, 16], ScaleDtype::UE4M3);
+    let two_level = base.with_levels([
+        BlockScale::per_block([2, 16], ScaleDtype::UE4M3),
+        BlockScale::per_tensor(ScaleDtype::F32),
+    ]);
+    let one_level = base.with_levels([BlockScale::per_block([2, 16], ScaleDtype::UE4M3)]);
 
     let error = |tensor: TestTensor<2>, scheme: &QuantScheme| -> f32 {
         let reference = tensor.clone();
@@ -389,7 +392,7 @@ fn should_quantize_symmetric_per_block_int8_after_transpose_32x64() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .per_block([32], ScaleDtype::F32);
+        .with_levels([BlockScale::per_block([32], ScaleDtype::F32)]);
     should_quantize_after_transpose(tensor, scheme);
 }
 
@@ -407,7 +410,7 @@ fn should_transpose_symmetric_per_block_int8_after_quantize_32x64_match_dequanti
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .per_block([32], ScaleDtype::F32);
+        .with_levels([BlockScale::per_block([32], ScaleDtype::F32)]);
 
     should_transpose_after_quantize_match_dequantized_layout(tensor, scheme);
 }
@@ -426,7 +429,7 @@ fn should_swap_dims_symmetric_per_block_int8_after_quantize_match_dequantized_la
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .per_block([1, 2, 16], ScaleDtype::F32);
+        .with_levels([BlockScale::per_block([1, 2, 16], ScaleDtype::F32)]);
     let quantized = tensor.quantize_dynamic(&scheme);
 
     assert_layout_matches_dequantize(
@@ -449,7 +452,7 @@ fn should_permute_symmetric_per_block_int8_after_quantize_2x8x16_match_dequantiz
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .per_block([1, 2, 16], ScaleDtype::F32);
+        .with_levels([BlockScale::per_block([1, 2, 16], ScaleDtype::F32)]);
     let quantized = tensor.quantize_dynamic(&scheme);
 
     assert_layout_matches_dequantize(
@@ -472,7 +475,7 @@ fn should_permute_packed_axis_first_after_quantize_match_dequantized_layout() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .per_block([1, 2, 16], ScaleDtype::F32);
+        .with_levels([BlockScale::per_block([1, 2, 16], ScaleDtype::F32)]);
     let quantized = tensor.quantize_dynamic(&scheme);
 
     assert_layout_matches_dequantize(
@@ -525,8 +528,10 @@ fn should_quantize_symmetric_two_level_f16_block_scales() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .per_block([2, 16], ScaleDtype::F16)
-        .per_tensor(ScaleDtype::F32);
+        .with_levels([
+            BlockScale::per_block([2, 16], ScaleDtype::F16),
+            BlockScale::per_tensor(ScaleDtype::F32),
+        ]);
 
     let quantized = input.clone().quantize_dynamic(&scheme);
     let direct = quantized.clone().dequantize().into_data();
@@ -557,8 +562,10 @@ fn should_round_trip_packed_along_the_first_axis_through_bytes() {
         .scheme
         .with_value(QuantValue::Q4S)
         .with_store(QuantStore::PackedU32(0))
-        .per_block([16], ScaleDtype::F16)
-        .per_tensor(ScaleDtype::F32);
+        .with_levels([
+            BlockScale::per_block([16], ScaleDtype::F16),
+            BlockScale::per_tensor(ScaleDtype::F32),
+        ]);
     // A backend that cannot hold this packed scheme has no packed axis to keep.
     if !device.supports_dtype(DType::QFloat(scheme)) {
         return;
@@ -594,7 +601,7 @@ fn per_block_32_scheme(device: &Device) -> QuantScheme {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .per_block([32], ScaleDtype::F32)
+        .with_levels([BlockScale::per_block([32], ScaleDtype::F32)])
 }
 
 #[test]
@@ -677,7 +684,7 @@ fn should_quantize_each_block_of_a_grid_under_its_own_scale() {
     let scheme = QuantScheme::default()
         .with_value(QuantValue::E4M3)
         .with_store(QuantStore::Native)
-        .per_block([2, 4], ScaleDtype::F32);
+        .with_levels([BlockScale::per_block([2, 4], ScaleDtype::F32)]);
 
     let actual = tensor.clone().quantize(&scheme, qparams).dequantize();
 
@@ -694,11 +701,13 @@ fn row_factored(device: &Device) -> QuantScheme {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .per_block([4], ScaleDtype::F32)
-        .coarser_per_block(
-            BlockSize::with_rest(&[BlockExtent::WholeAxis], BlockExtent::VALUE),
-            ScaleDtype::F32,
-        )
+        .with_levels([
+            BlockScale::per_block([4], ScaleDtype::F32),
+            BlockScale::per_block(
+                BlockSize::with_rest(&[BlockExtent::WholeAxis], BlockExtent::VALUE),
+                ScaleDtype::F32,
+            ),
+        ])
 }
 
 /// Four rows of eight, the second a thousand times the first, each block of four its own step.

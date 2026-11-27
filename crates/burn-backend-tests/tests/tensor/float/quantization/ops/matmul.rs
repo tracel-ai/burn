@@ -2,7 +2,7 @@ use super::qtensor::*;
 use super::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
-use burn_tensor::quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype};
+use burn_tensor::quantization::{BlockScale, QuantScheme, QuantStore, QuantValue, ScaleDtype};
 
 #[test]
 #[ignore]
@@ -267,8 +267,10 @@ fn should_matmul_two_level_rhs() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .per_block([2, 16], ScaleDtype::F16)
-        .per_tensor(ScaleDtype::F32);
+        .with_levels([
+            BlockScale::per_block([2, 16], ScaleDtype::F16),
+            BlockScale::per_tensor(ScaleDtype::F32),
+        ]);
 
     let quantized = rhs.quantize_dynamic(&scheme);
     let expected = lhs
@@ -294,8 +296,10 @@ fn should_matmul_nvfp4_rhs() {
         .quantization
         .scheme
         .with_value(QuantValue::E2M1)
-        .per_block([16], ScaleDtype::UE4M3)
-        .per_tensor(ScaleDtype::F32)
+        .with_levels([
+            BlockScale::per_block([16], ScaleDtype::UE4M3),
+            BlockScale::per_tensor(ScaleDtype::F32),
+        ])
         .with_store(QuantStore::PackedU32(0));
     let quantized = rhs.quantize_dynamic(&scheme);
 
@@ -328,8 +332,10 @@ fn should_matmul_nvfp4_transposed_rhs() {
         .quantization
         .scheme
         .with_value(QuantValue::E2M1)
-        .per_block([16], ScaleDtype::UE4M3)
-        .per_tensor(ScaleDtype::F32)
+        .with_levels([
+            BlockScale::per_block([16], ScaleDtype::UE4M3),
+            BlockScale::per_tensor(ScaleDtype::F32),
+        ])
         .with_store(QuantStore::PackedU32(0));
     let head = embedding.quantize_dynamic(&scheme).transpose();
 
@@ -352,7 +358,7 @@ fn should_fuse_tail_of_block_scaled_matmul() {
     assert_fused_tail_matches_dequantized(|scheme| {
         scheme
             .with_value(QuantValue::Q8S)
-            .per_block([16], ScaleDtype::F32)
+            .with_levels([BlockScale::per_block([16], ScaleDtype::F32)])
     });
 }
 
@@ -360,10 +366,10 @@ fn should_fuse_tail_of_block_scaled_matmul() {
 #[test]
 fn should_fuse_tail_of_two_level_matmul() {
     assert_fused_tail_matches_dequantized(|scheme| {
-        scheme
-            .with_value(QuantValue::Q8S)
-            .per_block([2, 16], ScaleDtype::F16)
-            .per_tensor(ScaleDtype::F32)
+        scheme.with_value(QuantValue::Q8S).with_levels([
+            BlockScale::per_block([2, 16], ScaleDtype::F16),
+            BlockScale::per_tensor(ScaleDtype::F32),
+        ])
     });
 }
 

@@ -8,6 +8,7 @@ use burn_backend::{
     quantization::{BlockExtent, BlockSize, QuantStore, level_shape, params_shape},
 };
 use burn_backend::{TensorMetadata, ops::QTensorOps, ops::unfold::calculate_unfold_shape};
+use burn_std::quantization::inner_level;
 use burn_std::{
     Metadata, QuantValue, ReshapeAnalysis, reshape_analysis,
     tensor::{ReshapeAction, contiguous_strides, reshape_action},
@@ -161,7 +162,7 @@ pub(crate) fn swap_dims(tensor: CubeTensor, dim1: usize, dim2: usize) -> CubeTen
     tensor.meta.swap(dim1, dim2);
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
-        && scheme.finest().size != BlockSize::TENSOR
+        && inner_level(scheme).size != BlockSize::TENSOR
     {
         let rank = tensor.meta.num_dims();
         scheme.swap_block_dims(rank, dim1, dim2);
@@ -198,7 +199,7 @@ pub fn permute(tensor: CubeTensor, axes: &[usize]) -> CubeTensor {
     tensor.meta.permute(axes).unwrap();
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
-        && scheme.finest().size != BlockSize::TENSOR
+        && inner_level(scheme).size != BlockSize::TENSOR
     {
         scheme.permute_block_dims(axes);
 
@@ -280,7 +281,7 @@ pub(crate) fn expand(tensor: CubeTensor, target_shape: Shape) -> CubeTensor {
     let shape = tensor.shape();
 
     // Extra check to ensure block scales must be properly handled once they're added
-    if tensor.qparams.is_some() && tensor.scheme().finest().size != BlockSize::TENSOR {
+    if tensor.qparams.is_some() && inner_level(&tensor.scheme()).size != BlockSize::TENSOR {
         todo!()
     }
 
@@ -388,7 +389,7 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
     };
 
     let (values, scales) = tensor.quantized_handles().unwrap();
-    let size = scheme.finest().size;
+    let size = inner_level(&scheme).size;
     // Blocks that reach past one value along the last axis alone.
     let lined = size == BlockSize::with_rest(&size.extents[..1], BlockExtent::VALUE);
     let shape_last = *shape.last().unwrap();
@@ -625,7 +626,7 @@ mod same_runtime_tests {
     use super::*;
     use burn_backend::{
         Tolerance,
-        quantization::{QuantScheme, QuantValue, ScaleDtype},
+        quantization::{BlockScale, QuantScheme, QuantValue, ScaleDtype},
     };
     use burn_std::{FloatDType, TensorData};
 
@@ -673,8 +674,10 @@ mod same_runtime_tests {
         let per_tensor = QuantScheme::default();
         let two_level = QuantScheme::default()
             .with_value(QuantValue::Q8S)
-            .per_block([4], ScaleDtype::F16)
-            .per_tensor(ScaleDtype::F32);
+            .with_levels([
+                BlockScale::per_block([4], ScaleDtype::F16),
+                BlockScale::per_tensor(ScaleDtype::F32),
+            ]);
 
         // Values pack four to a word, so each last dim is a multiple of 4. Each shape's regions
         // come to an odd multiple of 32 bytes, which a device aligning to 64 rounds up, moving

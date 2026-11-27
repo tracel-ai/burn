@@ -1,6 +1,6 @@
 // Re-exported types
 pub use cubecl_common::quant::scheme::{
-    BlockExtent, BlockScale, BlockSize, QuantMode, QuantScheme, QuantStore, QuantValue, ScaleDtype,
+    BlockExtent, BlockScale, BlockSize, QuantScheme, QuantStore, QuantValue, ScaleDtype,
 };
 
 /// Alignment (in bytes) for quantization parameters in serialized tensor data.
@@ -111,20 +111,47 @@ pub struct QParamTensor {
 /// chosen rather than at the first quantize. Each condition is asserted again where it is relied
 /// on, so bypassing this reports the specific rule rather than this general one.
 pub fn quantizable(scheme: &QuantScheme) -> bool {
-    // A coarser scale is a magnitude divided out of every finest scale under it: stored narrower
+    // A quantized tensor holds codes under its scales: a whole float has nothing to quantize, and
+    // an index names an entry of a table no quantized tensor carries.
+    let codes = !scheme.value.is_index()
+        && !matches!(
+            scheme.value,
+            QuantValue::F32 | QuantValue::F16 | QuantValue::BF16
+        );
+    // Burn holds an inner level and at most one coarser level over it ([`inner_level`]).
+    let levels = (1..=2).contains(&scheme.levels().count());
+    // A coarser scale is a magnitude divided out of every inner scale under it: stored narrower
     // than f32, its rounding becomes a mismatch applied to all of them.
-    scheme
+    let coarser_f32 = scheme
         .levels()
         .skip(1)
-        .all(|coarser| coarser.dtype == ScaleDtype::F32)
+        .all(|coarser| coarser.dtype == ScaleDtype::F32);
+    codes && levels && coarser_f32
 }
 
-/// Calculate the shape of the finest scales for a given tensor and scheme: one element for a
+/// The innermost level of `scheme`, whose scales lie beside the values. A second level, where the
+/// scheme has one, is the coarser one over it: burn holds at most these two.
+///
+/// # Panics
+///
+/// Where the scheme states no level, or more than two.
+pub fn inner_level(scheme: &QuantScheme) -> BlockScale {
+    assert!(
+        scheme.levels().count() <= 2,
+        "burn holds at most two scale levels, got {scheme:?}"
+    );
+    scheme
+        .levels()
+        .next()
+        .expect("a quantized tensor's scheme should state a scale level")
+}
+
+/// Calculate the shape of the innermost scales for a given tensor and scheme: one element for a
 /// per-tensor scale, and otherwise a grid with the tensor's rank, one scale per block.
 ///
 /// A two-level scheme's coarser scales are not part of it ([`level_shape`]).
 pub fn params_shape(data_shape: &Shape, scheme: &QuantScheme) -> Shape {
-    level_shape(data_shape, &scheme.finest())
+    level_shape(data_shape, &inner_level(scheme))
 }
 
 /// Calculate the shape of one level's scales over a tensor of `data_shape`: one element for a
@@ -244,14 +271,14 @@ impl QuantizedBytes {
         };
 
         let scales = match (
-            scheme.finest().size,
+            inner_level(&scheme).size,
             layout.block_scale_order(&shape, &scheme),
         ) {
             (BlockSize::TENSOR, _) => scales[..1].to_vec(),
             (_, Some(order)) => order.to_stored(scales),
             (_, None) => scales.to_vec(),
         };
-        let scale_bytes = encode_scales(&scales, scheme.finest().dtype);
+        let scale_bytes = encode_scales(&scales, inner_level(&scheme).dtype);
         bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), QPARAM_ALIGN);
 
         // Last, so a reader can peel it off the end before the block scales it normalizes.
@@ -312,10 +339,10 @@ impl QuantizedBytes {
             .checked_sub(coarser_bytes)
             .expect("quantized parameter buffer is shorter than the scheme's coarser scales");
         let block_start = block_end
-            .checked_sub(scale_size(scheme.finest().dtype) * num_params)
+            .checked_sub(scale_size(inner_level(&scheme).dtype) * num_params)
             .expect("quantized parameter buffer is shorter than the scheme's block scales");
 
-        let block = decode_scales(&qparams[block_start..block_end], scheme.finest().dtype);
+        let block = decode_scales(&qparams[block_start..block_end], inner_level(&scheme).dtype);
         let block = match scale_order {
             Some(order) => order.to_row_major(&block),
             None => block,
@@ -337,7 +364,7 @@ impl QuantizedBytes {
     /// quantization parameter bytes.
     fn split_values_off(self) -> (Vec<i8>, (Vec<u8>, usize)) {
         let num_params = params_shape(&self.shape, &self.scheme).num_elements();
-        let scale_bytes = scale_size(self.scheme.finest().dtype) * num_params
+        let scale_bytes = scale_size(inner_level(&self.scheme).dtype) * num_params
             + coarser_scales_size(&self.scheme, &self.shape);
         let (shape, scheme) = (self.shape, self.scheme);
 
@@ -630,8 +657,10 @@ mod tests {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::Native)
-            .per_block([4], ScaleDtype::UE4M3)
-            .per_tensor(ScaleDtype::F32);
+            .with_levels([
+                BlockScale::per_block([4], ScaleDtype::UE4M3),
+                BlockScale::per_tensor(ScaleDtype::F32),
+            ]);
 
         let q_bytes =
             QuantizedBytes::new(values.clone(), [8], scheme, &block_scales, Some(&coarser));
@@ -656,11 +685,13 @@ mod tests {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::Native)
-            .per_block([4], ScaleDtype::UE8M0)
-            .coarser_per_block(
-                BlockSize::with_rest(&[BlockExtent::WholeAxis], BlockExtent::VALUE),
-                ScaleDtype::F32,
-            );
+            .with_levels([
+                BlockScale::per_block([4], ScaleDtype::UE8M0),
+                BlockScale::per_block(
+                    BlockSize::with_rest(&[BlockExtent::WholeAxis], BlockExtent::VALUE),
+                    ScaleDtype::F32,
+                ),
+            ]);
 
         let q_bytes = QuantizedBytes::new(
             values.clone(),
@@ -693,7 +724,7 @@ mod tests {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::Native)
-            .per_block([4], ScaleDtype::UE8M0);
+            .with_levels([BlockScale::per_block([4], ScaleDtype::UE8M0)]);
 
         let q_bytes = QuantizedBytes::new(values.clone(), [8], scheme, &block_scales, None);
 
@@ -713,8 +744,10 @@ mod tests {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::Native)
-            .per_block([4], ScaleDtype::F32)
-            .per_tensor(ScaleDtype::F32);
+            .with_levels([
+                BlockScale::per_block([4], ScaleDtype::F32),
+                BlockScale::per_tensor(ScaleDtype::F32),
+            ]);
 
         QuantizedBytes::new(vec![0i8; 8], [8], scheme, &[0.5, 0.125], None);
     }
@@ -725,8 +758,10 @@ mod tests {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::Native)
-            .per_block([4], ScaleDtype::UE4M3)
-            .per_tensor(ScaleDtype::F16);
+            .with_levels([
+                BlockScale::per_block([4], ScaleDtype::UE4M3),
+                BlockScale::per_tensor(ScaleDtype::F16),
+            ]);
 
         QuantizedBytes::new(vec![0i8; 8], [8], scheme, &[0.5, 0.125], Some(&[3.0]));
     }
@@ -737,40 +772,37 @@ mod tests {
     fn quantizable_declines_what_no_backend_can_store() {
         assert!(quantizable(&QuantScheme::default()));
         assert!(quantizable(
-            &QuantScheme::default().per_block([4], ScaleDtype::F16)
+            &QuantScheme::default().with_levels([BlockScale::per_block([4], ScaleDtype::F16)])
         ));
-        assert!(quantizable(
-            &QuantScheme::default()
-                .per_block([4], ScaleDtype::UE4M3)
-                .per_tensor(ScaleDtype::F32)
-        ));
+        assert!(quantizable(&QuantScheme::default().with_levels([
+            BlockScale::per_block([4], ScaleDtype::UE4M3),
+            BlockScale::per_tensor(ScaleDtype::F32)
+        ])));
 
         // `ue8m0` stores a bare exponent, so its round-up is to the next power of two.
         assert!(quantizable(
-            &QuantScheme::default().per_block([4], ScaleDtype::UE8M0)
+            &QuantScheme::default().with_levels([BlockScale::per_block([4], ScaleDtype::UE8M0)])
         ));
         assert!(quantizable(
-            &QuantScheme::default().per_tensor(ScaleDtype::UE8M0)
+            &QuantScheme::default().with_levels([BlockScale::per_tensor(ScaleDtype::UE8M0)])
         ));
         // MXFP4, whose whole definition is that pairing.
         assert!(quantizable(
             &QuantScheme::default()
                 .with_value(QuantValue::E2M1)
-                .per_block([32], ScaleDtype::UE8M0)
+                .with_levels([BlockScale::per_block([32], ScaleDtype::UE8M0)])
         ));
 
         // Block scales reaching f32's range land their largest at one under the coarser scale.
-        assert!(quantizable(
-            &QuantScheme::default()
-                .per_block([4], ScaleDtype::F32)
-                .per_tensor(ScaleDtype::F32)
-        ));
+        assert!(quantizable(&QuantScheme::default().with_levels([
+            BlockScale::per_block([4], ScaleDtype::F32),
+            BlockScale::per_tensor(ScaleDtype::F32)
+        ])));
         // A narrower coarser scale rounds away precision every block was normalized against.
-        assert!(!quantizable(
-            &QuantScheme::default()
-                .per_block([4], ScaleDtype::UE4M3)
-                .per_tensor(ScaleDtype::BF16)
-        ));
+        assert!(!quantizable(&QuantScheme::default().with_levels([
+            BlockScale::per_block([4], ScaleDtype::UE4M3),
+            BlockScale::per_tensor(ScaleDtype::BF16)
+        ])));
     }
 
     /// `scale_size` is what the readers use to locate the scales in the buffer, so an encoding
@@ -808,7 +840,7 @@ mod tests {
             QuantScheme::default()
                 .with_value(QuantValue::Q8S)
                 .with_store(QuantStore::Native)
-                .per_block([4], ScaleDtype::UE4M3),
+                .with_levels([BlockScale::per_block([4], ScaleDtype::UE4M3)]),
             &scales,
             None,
         );

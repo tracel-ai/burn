@@ -1,5 +1,6 @@
 use alloc::{vec, vec::Vec};
 
+use super::inner_level;
 use super::{BlockScale, BlockSize, QuantScheme, QuantStore, QuantValue, level_shape};
 use crate::Shape;
 
@@ -32,7 +33,7 @@ impl ValueLayout {
     /// The order the block scales of a tensor of `shape` are stored in under `scheme`, when that
     /// is not row-major: blocks of values packed along an outer axis.
     pub fn block_scale_order(&self, shape: &Shape, scheme: &QuantScheme) -> Option<PackedOrder> {
-        self.level_order(shape, &scheme.finest())
+        self.level_order(shape, &inner_level(scheme))
     }
 
     /// The order the scales of `level` over a tensor of `shape` are stored in, when that is not
@@ -284,7 +285,7 @@ mod tests {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::PackedU32(1))
-            .per_block([2, 4], ScaleDtype::F32);
+            .with_levels([BlockScale::per_block([2, 4], ScaleDtype::F32)]);
         let scales = [1.0f32, 2.0, 3.0, 4.0];
 
         let bytes = QuantizedBytes::new(vec![0i8; 32], [4, 8], scheme, &scales, None);

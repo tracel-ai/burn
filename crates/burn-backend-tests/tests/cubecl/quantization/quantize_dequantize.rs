@@ -2,7 +2,9 @@ use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{
     Shape,
-    quantization::{BlockExtent, BlockSize, QuantScheme, QuantStore, QuantValue, ScaleDtype},
+    quantization::{
+        BlockExtent, BlockScale, BlockSize, QuantScheme, QuantStore, QuantValue, ScaleDtype,
+    },
 };
 
 fn should_quantize_dequantize_symmetric_arange<S: Into<Shape>>(
@@ -44,7 +46,7 @@ fn quantize_under_a_scale_per_row() -> (TestTensor<2>, TestTensor<2>) {
     let row = BlockSize::with_rest(&[BlockExtent::WholeAxis], BlockExtent::VALUE);
     let scheme = QuantScheme::default()
         .with_value(QuantValue::Q8S)
-        .per_block(row, ScaleDtype::F32)
+        .with_levels([BlockScale::per_block(row, ScaleDtype::F32)])
         .with_store(QuantStore::PackedU32(0));
 
     let input: TestTensor<2> = TestTensorInt::arange(0..3 * 40, &device)
@@ -86,7 +88,7 @@ fn should_quantize_dequantize_symmetric_per_block_arange<S: Into<Shape>>(
 
     let scheme = QuantScheme::default()
         .with_value(value)
-        .per_block([block_size as u8], ScaleDtype::F32)
+        .with_levels([BlockScale::per_block([block_size as u8], ScaleDtype::F32)])
         .with_store(store);
     let scheme_ref = scheme.with_store(QuantStore::Native);
 
@@ -116,7 +118,7 @@ fn should_quantize_dequantize_symmetric_per_block(
 ) {
     let scheme = QuantScheme::default()
         .with_value(value)
-        .per_block([block_size as u8], ScaleDtype::F32)
+        .with_levels([BlockScale::per_block([block_size as u8], ScaleDtype::F32)])
         .with_store(store);
     let scheme_ref = scheme.with_store(QuantStore::Native);
 

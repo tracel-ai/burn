@@ -4,6 +4,7 @@ use crate::{
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use alloc::{boxed::Box, vec, vec::Vec};
+use burn_std::quantization::inner_level;
 use burn_std::{
     Bytes, DType, QuantScheme, QuantizedBytes, Shape, Slice, TensorData, coarser_scales_size,
     coarser_shape, params_shape,
@@ -469,7 +470,7 @@ impl DimSplit {
     /// How far one scale of a tensor of `rank` dims quantized by `scheme` reaches along the split:
     /// one over the whole axis is each chunk's too, and any other is cut with the values.
     fn scale_extent(&self, scheme: &QuantScheme, rank: usize) -> BlockExtent {
-        self.level_extent(&scheme.finest().size, rank)
+        self.level_extent(&inner_level(scheme).size, rank)
     }
 
     /// How far a block of `size` reaches along the split dim of a tensor of `rank` dims.
@@ -792,11 +793,11 @@ impl QuantizedParts {
             }
             None => size_of::<i8>(),
         };
-        let scales_shape = match scheme.finest().size {
+        let scales_shape = match inner_level(&scheme).size {
             BlockSize::TENSOR => params_shape(shape, &scheme),
             _ => lay(params_shape(shape, &scheme)),
         };
-        let scale_bytes = scale_size(scheme.finest().dtype);
+        let scale_bytes = scale_size(inner_level(&scheme).dtype);
         let values_end = values_shape.num_elements() * value_bytes;
         let scales_end = values_end + scales_shape.num_elements() * scale_bytes;
         let section = |start: usize, end: usize| {
@@ -896,7 +897,7 @@ mod tests {
     use alloc::vec;
     #[cfg(feature = "std")]
     use burn_std::Reader;
-    use burn_std::{QuantStore, QuantValue, ScaleDtype};
+    use burn_std::{BlockScale, QuantStore, QuantValue, ScaleDtype};
 
     #[test]
     fn a_split_gives_the_first_members_one_more() {
@@ -974,8 +975,10 @@ mod tests {
         QuantScheme::default()
             .with_value(QuantValue::Q4S)
             .with_store(QuantStore::PackedU32(packed_dim))
-            .per_block([2], ScaleDtype::F32)
-            .per_tensor(ScaleDtype::F32)
+            .with_levels([
+                BlockScale::per_block([2], ScaleDtype::F32),
+                BlockScale::per_tensor(ScaleDtype::F32),
+            ])
     }
 
     #[test]
@@ -1081,8 +1084,10 @@ mod tests {
             QuantScheme::default()
                 .with_value(QuantValue::E2M1)
                 .with_store(store)
-                .per_block(block, ScaleDtype::UE4M3)
-                .per_tensor(ScaleDtype::F32)
+                .with_levels([
+                    BlockScale::per_block(block, ScaleDtype::UE4M3),
+                    BlockScale::per_tensor(ScaleDtype::F32),
+                ])
         };
         let schemes = [
             nvfp4(QuantStore::PackedU32(0), &[16]),
@@ -1092,7 +1097,7 @@ mod tests {
             QuantScheme::default()
                 .with_value(QuantValue::Q8S)
                 .with_store(QuantStore::Native)
-                .per_block([2], ScaleDtype::F32),
+                .with_levels([BlockScale::per_block([2], ScaleDtype::F32)]),
             QuantScheme::fp8_per_row(),
             QuantScheme::default()
                 .with_value(QuantValue::Q4S)
@@ -1195,9 +1200,10 @@ mod tests {
         let per_tensor = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::Native);
-        let two_level = per_tensor
-            .per_block([2], ScaleDtype::F32)
-            .per_tensor(ScaleDtype::F32);
+        let two_level = per_tensor.with_levels([
+            BlockScale::per_block([2], ScaleDtype::F32),
+            BlockScale::per_tensor(ScaleDtype::F32),
+        ]);
         let codes = || vec![0i8, 1, 2, 3];
         let scaled = |scale| TensorData::quantized(codes(), [2, 2], per_tensor, &[scale], None);
         let global = |global| {
@@ -1225,7 +1231,7 @@ mod tests {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::Native)
-            .per_block([2], ScaleDtype::F32);
+            .with_levels([BlockScale::per_block([2], ScaleDtype::F32)]);
         let split = |len, members| DimSplit {
             dim: 1,
             len,

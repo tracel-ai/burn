@@ -156,7 +156,9 @@ mod tests {
         ops::{BoolTensorOps, FloatTensorOps, IntTensorOps, QTensorOps},
     };
     use burn_flex::{Flex, FlexDevice};
-    use burn_std::{QuantScheme, QuantStore, QuantValue, ScaleDtype, distributed::ShardingError};
+    use burn_std::{
+        BlockScale, QuantScheme, QuantStore, QuantValue, ScaleDtype, distributed::ShardingError,
+    };
 
     use super::*;
 
@@ -321,7 +323,7 @@ mod tests {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::Native)
-            .per_block([2], ScaleDtype::F32);
+            .with_levels([BlockScale::per_block([2], ScaleDtype::F32)]);
         let members = [FlexDevice; 3];
         let shards = MemberShards::<Flex>::new(
             members

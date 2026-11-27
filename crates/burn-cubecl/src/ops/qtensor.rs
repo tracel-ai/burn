@@ -4,11 +4,12 @@ use burn_backend::{
     get_or_init_device_settings,
     ops::QTensorOps,
     quantization::{
-        QParamTensor, QuantMode, QuantPropagation, QuantScheme, QuantValue,
-        QuantizationParametersPrimitive, ScaleDtype, coarser_shape, params_shape,
+        QParamTensor, QuantPropagation, QuantScheme, QuantValue, QuantizationParametersPrimitive,
+        ScaleDtype, coarser_shape, params_shape,
     },
     tensor::{Device, FloatTensor, QuantizedTensor},
 };
+use burn_std::quantization::inner_level;
 use burn_std::{FloatDType, Metadata, quantization::coarser_scales_size};
 use cubecl::server::{MemoryLayout, MemoryLayoutDescriptor, MemoryLayoutStrategy};
 use cubecl::{e2m1x2, quant::scheme::QuantStore};
@@ -127,6 +128,7 @@ fn new_quantized(
             | QuantValue::E2M1 => {
                 panic!("Can't store native sub-byte values")
             }
+            other => panic!("`quantizable` refuses {other:?}: a quantized tensor holds codes"),
         },
         QuantStore::PackedNative(_) => match scheme.value {
             QuantValue::E2M1 => size_of::<e2m1x2>(),
@@ -134,7 +136,7 @@ fn new_quantized(
         },
     };
 
-    let scales_dtype = match scheme.finest().dtype {
+    let scales_dtype = match inner_level(&scheme).dtype {
         ScaleDtype::F32 => DType::F32,
         ScaleDtype::F16 => DType::F16,
         ScaleDtype::BF16 => DType::BF16,
@@ -247,7 +249,6 @@ impl QTensorOps<Self> for CubeBackend {
         match data.dtype() {
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
-                    mode: QuantMode::Symmetric,
                     value:
                         QuantValue::Q8F
                         | QuantValue::Q8S
@@ -266,9 +267,13 @@ impl QTensorOps<Self> for CubeBackend {
                     new_qtensor_optimized(bytes, shape, scheme, device)
                 }
                 QuantScheme {
-                    mode: QuantMode::Lookup,
+                    value: QuantValue::Index8 | QuantValue::Index4 | QuantValue::Index2,
                     ..
                 } => unimplemented!("lookup quantization does not travel as a QFloat tensor"),
+                QuantScheme {
+                    value: QuantValue::F32 | QuantValue::F16 | QuantValue::BF16,
+                    ..
+                } => unimplemented!("a QFloat tensor's values are quantized, not plain floats"),
             },
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",

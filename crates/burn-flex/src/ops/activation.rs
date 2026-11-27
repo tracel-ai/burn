@@ -71,7 +71,7 @@ impl ActivationOps<Flex> for Flex {
         #[cfg(feature = "simd")]
         let tensor = match crate::ops::unary::simd_map::<f32, _>(tensor, crate::simd::Gelu) {
             Ok(out) => return out,
-            Err(tensor) => tensor,
+            Err(tensor) => *tensor,
         };
         use crate::ops::unary::{erf_f32, erf_f64};
         let sqrt2_f32: f32 = core::f32::consts::SQRT_2;
@@ -96,7 +96,7 @@ impl ActivationOps<Flex> for Flex {
         #[cfg(feature = "simd")]
         let x = match crate::ops::unary::simd_map::<f32, _>(x, crate::simd::GeluGrad) {
             Ok(dx) => return Flex::float_mul(dx, grad),
-            Err(x) => x,
+            Err(x) => *x,
         };
         use crate::ops::unary::{erf_f32, erf_f64};
         let sqrt2_f32: f32 = core::f32::consts::SQRT_2;
@@ -124,7 +124,7 @@ impl ActivationOps<Flex> for Flex {
         #[cfg(feature = "simd")]
         let tensor = match crate::ops::unary::simd_map::<f32, _>(tensor, crate::simd::Sigmoid) {
             Ok(out) => return out,
-            Err(tensor) => tensor,
+            Err(tensor) => *tensor,
         };
         unary_op(tensor, sigmoid_f32, sigmoid_f64)
     }
@@ -159,7 +159,7 @@ impl ActivationOps<Flex> for Flex {
         #[cfg(feature = "simd")]
         let tensor = match crate::ops::unary::simd_map::<f32, _>(tensor, crate::simd::LogSigmoid) {
             Ok(out) => return out,
-            Err(tensor) => tensor,
+            Err(tensor) => *tensor,
         };
         unary_op(
             tensor,
@@ -196,7 +196,7 @@ impl ActivationOps<Flex> for Flex {
         #[cfg(feature = "simd")]
         let x = match crate::ops::unary::simd_map::<f32, _>(x, crate::simd::LogSigmoidGrad) {
             Ok(dx) => return Flex::float_mul(dx, grad),
-            Err(x) => x,
+            Err(x) => *x,
         };
         binary_op(
             x,

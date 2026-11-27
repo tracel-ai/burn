@@ -432,6 +432,7 @@ fn vector_sizes_quants(
             QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
                 unreachable!("Can't store native sub-byte values")
             }
+            other => unreachable!("no fused quantized input is {other:?}: fusion declines it"),
         },
         QuantStore::PackedU32(packed_dim) => {
             let mut vector_sizes = client

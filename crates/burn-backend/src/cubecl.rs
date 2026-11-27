@@ -115,11 +115,17 @@ pub fn dtype_to_elem_type(dtype: DType) -> ElemType {
                 QuantValue::Q8F | QuantValue::Q8S => ElemType::Int(IntKind::I8),
                 QuantValue::E4M3 => ElemType::Float(FloatKind::E4M3),
                 QuantValue::E5M2 => ElemType::Float(FloatKind::E5M2),
+                QuantValue::F32 => ElemType::Float(FloatKind::F32),
+                QuantValue::F16 => ElemType::Float(FloatKind::F16),
+                QuantValue::BF16 => ElemType::Float(FloatKind::BF16),
+                QuantValue::Index8 => ElemType::UInt(UIntKind::U8),
                 QuantValue::Q4F
                 | QuantValue::Q4S
                 | QuantValue::Q2F
                 | QuantValue::Q2S
-                | QuantValue::E2M1 => {
+                | QuantValue::E2M1
+                | QuantValue::Index4
+                | QuantValue::Index2 => {
                     panic!("Can't store native sub-byte values")
                 }
             },

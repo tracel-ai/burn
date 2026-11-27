@@ -11,6 +11,7 @@ use burn_backend::{
     MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
     ProfileToken, SlicedPoolReport, TensorData, profile_with_tokens,
 };
+use burn_std::quantization::inner_level;
 burn_std::native_persistence! {
     use burn_backend::{
         EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, EnvironmentSummary,
@@ -43,7 +44,7 @@ fn qfloat_params_usable(client: &Client, dtype: DType) -> bool {
     quantizable(&scheme)
         && client
             .properties()
-            .type_usage(ElemType::from_scale_dtype(scheme.finest().dtype))
+            .type_usage(ElemType::from_scale_dtype(inner_level(&scheme).dtype))
             .is_superset(TypeUsage::Buffer | TypeUsage::Conversion)
 }
 

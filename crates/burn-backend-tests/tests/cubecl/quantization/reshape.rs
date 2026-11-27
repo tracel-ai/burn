@@ -2,13 +2,15 @@ use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{
     Shape,
-    quantization::{BlockExtent, BlockSize, QuantScheme, QuantStore, QuantValue, ScaleDtype},
+    quantization::{
+        BlockExtent, BlockScale, BlockSize, QuantScheme, QuantStore, QuantValue, ScaleDtype,
+    },
 };
 
 fn scheme_for(block: Option<BlockSize>, value: QuantValue, store: QuantStore) -> QuantScheme {
     let scheme = QuantScheme::default().with_value(value).with_store(store);
     match block {
-        Some(block) => scheme.per_block(block, ScaleDtype::F32),
+        Some(block) => scheme.with_levels([BlockScale::per_block(block, ScaleDtype::F32)]),
         None => scheme,
     }
 }

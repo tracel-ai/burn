@@ -650,7 +650,7 @@ mod tests {
     use burn_backend::ops::{DimSplit, FloatTensorOps, QTensorOps};
     use burn_flex::{Flex, FlexDevice};
     use burn_ir::{CustomOpIr, SliceOpIr};
-    use burn_std::{QuantScheme, QuantStore, QuantValue, ScaleDtype, future::block_on};
+    use burn_std::{BlockScale, QuantScheme, QuantStore, QuantValue, ScaleDtype, future::block_on};
 
     use super::*;
     use crate::{CustomOpPlan, CustomOpRule, OpKind};
@@ -886,7 +886,7 @@ mod tests {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::Native)
-            .per_block([2], ScaleDtype::F32);
+            .with_levels([BlockScale::per_block([2], ScaleDtype::F32)]);
         let codes: Vec<i8> = (0..32).collect();
         let scales: Vec<f32> = (1..=16).map(|i| i as f32 * 0.1).collect();
         let data = TensorData::quantized(codes, [4, 8], scheme, &scales, None);
@@ -932,7 +932,7 @@ mod tests {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::Native)
-            .per_block([2], ScaleDtype::F32);
+            .with_levels([BlockScale::per_block([2], ScaleDtype::F32)]);
         let codes: Vec<i8> = (0..32).collect();
         let scales: Vec<f32> = (1..=16).map(|i| i as f32 * 0.1).collect();
         let data = TensorData::quantized(codes, [4, 8], scheme, &scales, None);

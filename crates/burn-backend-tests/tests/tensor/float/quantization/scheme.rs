@@ -2,7 +2,7 @@ use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{
     Device, Element, FloatDType, TensorData,
-    quantization::{CalibrationRange, QuantValue, ScaleDtype, compute_q_params},
+    quantization::{BlockScale, CalibrationRange, QuantValue, ScaleDtype, compute_q_params},
 };
 
 #[test]
@@ -38,7 +38,7 @@ fn per_block_symmetric_int8() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .per_block([4], ScaleDtype::F32);
+        .with_levels([BlockScale::per_block([4], ScaleDtype::F32)]);
 
     let qparams = compute_q_params(&scheme, range);
 
@@ -63,10 +63,11 @@ fn block_tensor_symmetric_int8() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S);
-    let one_level = scheme.per_block([4], ScaleDtype::F32);
-    let two_level = scheme
-        .per_block([4], ScaleDtype::UE4M3)
-        .per_tensor(ScaleDtype::F32);
+    let one_level = scheme.with_levels([BlockScale::per_block([4], ScaleDtype::F32)]);
+    let two_level = scheme.with_levels([
+        BlockScale::per_block([4], ScaleDtype::UE4M3),
+        BlockScale::per_tensor(ScaleDtype::F32),
+    ]);
 
     let expected = compute_q_params(&one_level, range()).scales.into_data();
     let qparams = compute_q_params(&two_level, range());
@@ -107,8 +108,10 @@ fn block_tensor_symmetric_int8_all_zero() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .per_block([4], ScaleDtype::UE4M3)
-        .per_tensor(ScaleDtype::F32);
+        .with_levels([
+            BlockScale::per_block([4], ScaleDtype::UE4M3),
+            BlockScale::per_tensor(ScaleDtype::F32),
+        ]);
 
     let qparams = compute_q_params(&scheme, range);
     let global: f32 = qparams

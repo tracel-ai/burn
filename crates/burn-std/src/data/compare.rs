@@ -1,3 +1,4 @@
+use crate::quantization::inner_level;
 use alloc::format;
 use alloc::string::String;
 use num_traits::{Float, ToPrimitive};
@@ -259,7 +260,7 @@ impl TensorData {
 
                 // Data equality mostly depends on input quantization type, but we also check levels
                 if q.value == q_other.value
-                    && q.finest().size == q_other.finest().size
+                    && inner_level(&q).size == inner_level(&q_other).size
                     && q.levels().skip(1).eq(q_other.levels().skip(1))
                 {
                     self.assert_eq_elem::<i8>(other)

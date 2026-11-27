@@ -20,7 +20,7 @@ use burn_std::id::ParamId;
 use burn_tensor::{
     Bool, DType, Device, DeviceType, Distribution, Int, Tensor, TensorData, Tolerance, Transaction,
     distributed::{DistributedConfig, DistributedContext},
-    quantization::ScaleDtype,
+    quantization::{BlockScale, ScaleDtype},
     remote::RemoteHost,
     server::RemoteServer,
 };
@@ -1242,7 +1242,7 @@ fn a_block_quantized_transpose_reads_and_moves_as_it_does_locally() {
     let host_2 = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
     let device_1 = Device::remote_options(&host_1).init().unwrap();
     let device_2 = Device::remote_options(&host_2).init().unwrap();
-    let scheme = int8_scheme(&device_1).per_block([32], ScaleDtype::F32);
+    let scheme = int8_scheme(&device_1).with_levels([BlockScale::per_block([32], ScaleDtype::F32)]);
 
     let expected = Tensor::<2>::from_data(wire_floats(), &Device::flex())
         .quantize_dynamic(&scheme)

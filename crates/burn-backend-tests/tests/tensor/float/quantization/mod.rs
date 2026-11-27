@@ -12,7 +12,7 @@ pub mod qtensor {
 
     use burn_tensor::{
         TensorData,
-        quantization::{QuantValue, ScaleDtype},
+        quantization::{BlockScale, QuantValue, ScaleDtype},
     };
 
     pub struct QTensor<const D: usize>;
@@ -33,7 +33,7 @@ pub mod qtensor {
                     .quantization
                     .scheme
                     .with_value(QuantValue::Q8S)
-                    .per_block([16], ScaleDtype::F32),
+                    .with_levels([BlockScale::per_block([16], ScaleDtype::F32)]),
             )
         }
 

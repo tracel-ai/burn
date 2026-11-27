@@ -39,6 +39,14 @@ impl QuantCodes for QuantValue {
             | QuantValue::Q4S
             | QuantValue::Q2F
             | QuantValue::Q2S => scaled.map(|scaled| round_half_even(scaled) as i8).collect(),
+            QuantValue::F32
+            | QuantValue::F16
+            | QuantValue::BF16
+            | QuantValue::Index8
+            | QuantValue::Index4
+            | QuantValue::Index2 => {
+                unreachable!("`quantizable` refuses {self:?}: a quantized tensor holds codes")
+            }
         }
     }
 
@@ -62,6 +70,14 @@ impl QuantCodes for QuantValue {
             | QuantValue::Q2S => codes
                 .map(move |(index, &code)| scale_of(index) * code as f32)
                 .collect(),
+            QuantValue::F32
+            | QuantValue::F16
+            | QuantValue::BF16
+            | QuantValue::Index8
+            | QuantValue::Index4
+            | QuantValue::Index2 => {
+                unreachable!("`quantizable` refuses {self:?}: a quantized tensor holds codes")
+            }
         }
     }
 }

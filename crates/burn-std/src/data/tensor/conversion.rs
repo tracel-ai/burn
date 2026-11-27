@@ -7,8 +7,7 @@ use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut};
 use crate::element::{Element, ElementConversion};
 use crate::tensor::DType;
 use crate::{
-    BoolStore, QuantMode, QuantScheme, QuantValue, QuantizedBytes, Reader, Writer, bf16, f16,
-    flex32,
+    BoolStore, QuantScheme, QuantValue, QuantizedBytes, Reader, Writer, bf16, f16, flex32,
 };
 
 use super::{DataError, TensorData};
@@ -179,7 +178,6 @@ impl TensorData {
                 ),
                 DType::QFloat(scheme) => match scheme {
                     QuantScheme {
-                        mode: QuantMode::Symmetric,
                         value:
                             QuantValue::Q8F
                             | QuantValue::Q8S
@@ -207,15 +205,19 @@ impl TensorData {
                         )
                     }
                     QuantScheme {
-                        mode: QuantMode::Symmetric,
                         value:
-                            QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,
+                            QuantValue::E4M3
+                            | QuantValue::E5M2
+                            | QuantValue::E2M1
+                            | QuantValue::F32
+                            | QuantValue::F16
+                            | QuantValue::BF16,
                         ..
                     } => {
                         unimplemented!("Not yet implemented for iteration");
                     }
                     QuantScheme {
-                        mode: QuantMode::Lookup,
+                        value: QuantValue::Index8 | QuantValue::Index4 | QuantValue::Index2,
                         ..
                     } => {
                         unimplemented!("lookup quantization is not supported for iteration");

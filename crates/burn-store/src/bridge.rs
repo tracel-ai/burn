@@ -266,7 +266,9 @@ mod tests {
     use alloc::format;
     use alloc::string::ToString;
     use alloc::vec;
-    use burn_core::tensor::quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype};
+    use burn_core::tensor::quantization::{
+        BlockScale, QuantScheme, QuantStore, QuantValue, ScaleDtype,
+    };
     use burn_core::tensor::{Bool, Device, Distribution, Int, shape};
 
     /// `byte_len` is computed from the declared shape and dtype rather than observed, and the
@@ -355,14 +357,21 @@ mod tests {
         // assumption; 6 in blocks of 3 and 10 in blocks of 5 do not.
         for (values, block) in [(8usize, 4usize), (6, 3), (10, 5)] {
             let scales = vec![0.5f32; values / block];
-            let one_level = base.per_block([block as u8], ScaleDtype::UE4M3);
-            let two_level = base
-                .per_block([block as u8], ScaleDtype::UE4M3)
-                .per_tensor(ScaleDtype::F32);
+            let one_level =
+                base.with_levels([BlockScale::per_block([block as u8], ScaleDtype::UE4M3)]);
+            let two_level = base.with_levels([
+                BlockScale::per_block([block as u8], ScaleDtype::UE4M3),
+                BlockScale::per_tensor(ScaleDtype::F32),
+            ]);
 
-            for (scheme, global) in [(one_level, None), (two_level, Some(3.0f32))] {
-                let data =
-                    TensorData::quantized(vec![0i8; values], [values], scheme, &scales, global);
+            for (scheme, global) in [(one_level, None), (two_level, Some([3.0f32]))] {
+                let data = TensorData::quantized(
+                    vec![0i8; values],
+                    [values],
+                    scheme,
+                    &scales,
+                    global.as_ref().map(|global| global.as_slice()),
+                );
 
                 assert_eq!(
                     data_len(data.dtype(), data.shape()),

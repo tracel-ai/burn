@@ -5,7 +5,8 @@ use burn_tensor::{
     kind::Autodiff,
     module,
     quantization::{
-        Calibration, QuantScheme, QuantValue, ScaleDtype, compute_q_params, compute_range,
+        BlockScale, Calibration, QuantScheme, QuantValue, ScaleDtype, compute_q_params,
+        compute_range,
     },
     s,
     shard::{DimSplit, ShardError},
@@ -466,7 +467,7 @@ fn shards_that_are_not_the_balanced_split_are_refused() {
 
 #[test]
 fn a_quantized_tensor_split_either_way_reads_back_unchanged() {
-    let scheme = QuantScheme::default().per_block([4], ScaleDtype::F32);
+    let scheme = QuantScheme::default().with_levels([BlockScale::per_block([4], ScaleDtype::F32)]);
     let whole = Tensor::<2>::from_data(values([4, 8], 1), &Device::flex())
         .quantize_dynamic(&scheme)
         .into_data();
@@ -489,7 +490,7 @@ fn a_quantized_tensor_on_a_sharded_compute_device_reports_its_sharding() {
 
 #[test]
 fn a_tensor_split_by_whole_blocks_quantizes_on_each_member() {
-    let scheme = QuantScheme::default().per_block([4], ScaleDtype::F32);
+    let scheme = QuantScheme::default().with_levels([BlockScale::per_block([4], ScaleDtype::F32)]);
     let data = values([4, 8], 1);
     let expected = Tensor::<2>::from_data(data.clone(), &one_member())
         .quantize_dynamic(&scheme)
@@ -524,7 +525,7 @@ fn a_split_tensor_quantizes_on_each_member_by_one_shared_scale() {
 #[cfg(not(any(feature = "test-cuda", feature = "test-mixed-runtimes")))]
 #[test]
 fn a_tensor_quantized_by_scales_of_another_grid_matches_one_device() {
-    let scheme = QuantScheme::default().per_block([4], ScaleDtype::F32);
+    let scheme = QuantScheme::default().with_levels([BlockScale::per_block([4], ScaleDtype::F32)]);
     let data = values([2, 8], 1);
     let quantize = |device: &Device, tensor: Tensor<2>| {
         let calibrated = Tensor::<2>::from_data(values([1, 16], 3), device);
@@ -548,8 +549,10 @@ fn a_tensor_quantized_by_scales_of_another_grid_matches_one_device() {
 fn a_select_of_a_split_tensor_with_a_global_scale_lands_whole() {
     let scheme = QuantScheme::default()
         .with_value(QuantValue::Q8S)
-        .per_block([4], ScaleDtype::F16)
-        .per_tensor(ScaleDtype::F32);
+        .with_levels([
+            BlockScale::per_block([4], ScaleDtype::F16),
+            BlockScale::per_tensor(ScaleDtype::F32),
+        ]);
     let values: Vec<f32> = (0..32)
         .map(|i| ((i * 7) as f32 * 0.37).sin() * if i % 8 < 4 { 1.0 } else { 4.0 })
         .collect();
@@ -883,7 +886,7 @@ fn on_members<const D: usize, K: Autodiff>(
 
 /// `data` quantized on the host with a scale per block of four along its last dim.
 fn block_quantized(data: TensorData) -> TensorData {
-    let scheme = QuantScheme::default().per_block([4], ScaleDtype::F32);
+    let scheme = QuantScheme::default().with_levels([BlockScale::per_block([4], ScaleDtype::F32)]);
     Tensor::<2>::from_data(data, &Device::flex())
         .quantize_dynamic(&scheme)
         .into_data()

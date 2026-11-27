@@ -3,7 +3,7 @@ use burn_core as burn;
 use burn::module::{Module, Quantizer};
 use burn::tensor::{
     Distribution, Tensor, Tolerance,
-    quantization::{Calibration, QuantScheme, QuantValue, ScaleDtype},
+    quantization::{BlockScale, Calibration, QuantScheme, QuantValue, ScaleDtype},
 };
 use burn_nn::{
     LinearConfig,
@@ -39,7 +39,7 @@ fn should_quantize_transformer() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .per_block([32], ScaleDtype::F32);
+        .with_levels([BlockScale::per_block([32], ScaleDtype::F32)]);
 
     should_quantize_module(
         transformer,
@@ -119,7 +119,7 @@ fn should_quantize_linear_blocks() {
         .scheme
         .with_value(QuantValue::Q8S)
         // .with_store(QuantStore::Native)
-        .per_block([16], ScaleDtype::F32);
+        .with_levels([BlockScale::per_block([16], ScaleDtype::F32)]);
 
     should_quantize_module(
         transformer,
@@ -139,7 +139,7 @@ fn should_quantize_linear_weights_blocks() {
         .scheme
         .with_value(QuantValue::Q8S)
         // .with_store(QuantStore::Native)
-        .per_block([16], ScaleDtype::F32);
+        .with_levels([BlockScale::per_block([16], ScaleDtype::F32)]);
 
     should_quantize_module(
         transformer,

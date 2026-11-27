@@ -1292,7 +1292,7 @@ impl FloatTensorOps<Flex> for Flex {
         #[cfg(feature = "simd")]
         let lhs = match unary::simd_map_float(lhs, crate::simd::PowI(exponent)) {
             Ok(out) => return out,
-            Err(lhs) => lhs,
+            Err(lhs) => *lhs,
         };
         unary::unary_op(
             lhs,

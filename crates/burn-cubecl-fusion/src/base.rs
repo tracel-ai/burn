@@ -1,5 +1,6 @@
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
+use burn_std::quantization::inner_level;
 use burn_std::{DType, Metadata, Shape, Strides, quantization::QParamTensor, strides};
 use cubecl::quant::scheme::{QuantScheme, ScaleDtype};
 use cubecl::{
@@ -181,7 +182,7 @@ impl CubeFusionHandle {
             client: self.client.clone(),
             handle,
             device: self.device.clone(),
-            dtype: match scheme.finest().dtype {
+            dtype: match inner_level(&scheme).dtype {
                 ScaleDtype::F32 => DType::F32,
                 ScaleDtype::F16 => DType::F16,
                 ScaleDtype::BF16 => DType::BF16,

@@ -1,6 +1,6 @@
 use alloc::string::String;
 use burn_backend::RandomKey;
-use burn_std::{BoolStore, DeviceSettings, QuantConfig, QuantMode, QuantScheme, QuantStore};
+use burn_std::{BoolStore, DeviceSettings, QuantConfig, QuantScheme, QuantStore};
 
 use burn_backend::{
     Backend, BackendTypes, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps, ExecutionError,
@@ -157,10 +157,7 @@ impl Backend for Flex {
             }
             DType::Bool(burn_std::BoolStore::U32) => DTypeUsageSet::empty(),
             // Ops without a quantized kernel dequantize, so a symmetric scheme serves every op.
-            DType::QFloat(scheme)
-                if scheme.mode == QuantMode::Symmetric
-                    && burn_std::quantization::quantizable(&scheme) =>
-            {
+            DType::QFloat(scheme) if burn_std::quantization::quantizable(&scheme) => {
                 DTypeUsage::general()
             }
             DType::QFloat(_) => DTypeUsageSet::empty(),
@@ -294,7 +291,7 @@ mod tests {
         }
         assert!(!Flex::supports_dtype(
             &device,
-            DType::QFloat(q8.with_mode(QuantMode::Lookup))
+            DType::QFloat(q8.with_value(QuantValue::Index8))
         ));
     }
 

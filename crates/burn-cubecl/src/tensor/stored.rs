@@ -49,6 +49,7 @@ mod tests {
         ops::QTensorOps,
         quantization::{QuantScheme, QuantValue, ScaleDtype},
     };
+    use burn_std::quantization::inner_level;
     use cubecl::quant::scheme::QuantStore;
     use cubek::matmul::kernels::tensor::StoredTensor;
     use cubek::std::matmul_dimensions::{K, N};
@@ -70,8 +71,10 @@ mod tests {
         let embedding: CubeTensor = from_data(TensorData::new(values, [n, k]), &device);
         let scheme = QuantScheme::default()
             .with_value(QuantValue::E2M1)
-            .per_block([16], ScaleDtype::UE4M3)
-            .per_tensor(ScaleDtype::F32)
+            .with_levels([
+                BlockScale::per_block([16], ScaleDtype::UE4M3),
+                BlockScale::per_tensor(ScaleDtype::F32),
+            ])
             .with_store(QuantStore::PackedU32(0));
         let head = swap_dims(CubeBackend::quantize_dynamic(embedding, &scheme), 0, 1);
 
@@ -100,8 +103,10 @@ mod tests {
         let values: Vec<f32> = (0..n * k).map(|i| (i % 29) as f32 / 29. - 0.5).collect();
         let scheme = QuantScheme::default()
             .with_value(QuantValue::E2M1)
-            .per_block([16], ScaleDtype::UE4M3)
-            .per_tensor(ScaleDtype::F32)
+            .with_levels([
+                BlockScale::per_block([16], ScaleDtype::UE4M3),
+                BlockScale::per_tensor(ScaleDtype::F32),
+            ])
             .with_store(QuantStore::PackedU32(0));
         // As a checkpoint holds a projection, `[n, k]` packed along `k`, served as `[k, n]`.
         let weight = from_data(TensorData::new(values, [n, k]), &device);
@@ -238,7 +243,7 @@ mod tests {
                             DType::U32,
                         ),
                         &tile_order::scales_dimensions(N),
-                        Field::of_scale(scheme.finest().dtype),
+                        Field::of_scale(inner_level(&scheme).dtype),
                         storage,
                     );
                     let bytes =

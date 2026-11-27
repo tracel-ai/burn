@@ -1,6 +1,6 @@
 use super::*;
 use alloc::vec;
-use burn_tensor::quantization::{QuantValue, ScaleDtype};
+use burn_tensor::quantization::{BlockScale, QuantValue, ScaleDtype};
 use burn_tensor::{Device, TensorData};
 
 #[test]
@@ -40,7 +40,7 @@ fn should_support_per_block_symmetric_int8() {
             .quantization
             .scheme
             .with_value(QuantValue::Q8S)
-            .per_block([8], ScaleDtype::F32),
+            .with_levels([BlockScale::per_block([8], ScaleDtype::F32)]),
         &[0.014_173_228, 0.000_314_96],
         None,
     );

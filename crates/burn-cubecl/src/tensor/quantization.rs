@@ -70,6 +70,7 @@ impl CubeTensor {
                 | QuantValue::E2M1 => {
                     panic!("Can't store native sub-byte values")
                 }
+                other => panic!("`quantizable` refuses {other:?}: a quantized tensor holds codes"),
             },
             QuantStore::PackedU32(_) if self.meta.is_tiled() => self.stored_values(DType::U32),
             QuantStore::PackedNative(_) if self.meta.is_tiled() => self.stored_values(DType::U8),
@@ -164,7 +165,7 @@ mod storage_tiled {
     use burn_backend::{
         DType, TensorMetadata,
         ops::QTensorOps,
-        quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype},
+        quantization::{BlockScale, QuantScheme, QuantStore, QuantValue, ScaleDtype},
     };
     use burn_std::{FloatDType, Metadata, TensorData};
     use cubecl::zspace::Tiling;
@@ -182,7 +183,7 @@ mod storage_tiled {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::PackedU32(0))
-            .per_block([32], ScaleDtype::F32);
+            .with_levels([BlockScale::per_block([32], ScaleDtype::F32)]);
         let quantized = CubeBackend::quantize_dynamic(
             from_data(TensorData::new(values, [64, 128]), &device),
             &scheme,

@@ -1,5 +1,6 @@
 //! This module declares input-output primitives to read and write values during kernel expansion.
 use crate::engine::codegen::{DynElem, DynSize};
+use burn_std::quantization::inner_level;
 
 use super::{ir::*, tensor::GlobalTensor};
 use burn_std::quantization::{BlockSize, QuantScheme};
@@ -330,7 +331,7 @@ pub fn input_as_scales_view<C: Scalar, N: Size>(
     let scales = inputs.tensors.index(pos);
     let tensor_len = tensor.tensor.len();
     let rank = config.rank;
-    let layout = match comptime![scheme.finest().size] {
+    let layout = match comptime![inner_level(&scheme).size] {
         BlockSize::TENSOR => ScalesLayout::new_PerTensor(PerTensorLayout::new(tensor_len)),
         block_size => {
             let block_size = comptime![block_size.extents_in_rank(rank).collect::<Vec<_>>()];

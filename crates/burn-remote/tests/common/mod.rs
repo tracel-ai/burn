@@ -1,6 +1,6 @@
 use burn_tensor::{
     Device, TensorData,
-    quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype},
+    quantization::{BlockScale, QuantScheme, QuantStore, QuantValue, ScaleDtype},
 };
 
 /// The scheme `device` quantizes with by default, with 8-bit symmetric values.
@@ -18,12 +18,14 @@ pub fn wire_schemes(device: &Device) -> [QuantScheme; 4] {
     let q8 = int8_scheme(device);
     [
         q8,
-        q8.per_block([32], ScaleDtype::F32),
+        q8.with_levels([BlockScale::per_block([32], ScaleDtype::F32)]),
         q8.with_value(QuantValue::Q4S)
             .with_store(QuantStore::PackedU32(0))
-            .per_block([32], ScaleDtype::F32),
-        q8.per_block([2, 16], ScaleDtype::UE4M3)
-            .per_tensor(ScaleDtype::F32),
+            .with_levels([BlockScale::per_block([32], ScaleDtype::F32)]),
+        q8.with_levels([
+            BlockScale::per_block([2, 16], ScaleDtype::UE4M3),
+            BlockScale::per_tensor(ScaleDtype::F32),
+        ]),
     ]
 }
 

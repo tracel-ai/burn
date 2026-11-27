@@ -11,8 +11,8 @@ use crate::distribution::Distribution;
 use crate::element::{Element, ElementConversion};
 use crate::tensor::DType;
 use crate::{
-    AccessError, BoolStore, Bytes, ExecutionError, QuantMode, QuantScheme, QuantValue,
-    QuantizedBytes, Reader, Shape, Writer, bf16, f16, flex32,
+    AccessError, BoolStore, Bytes, ExecutionError, QuantScheme, QuantValue, QuantizedBytes, Reader,
+    Shape, Writer, bf16, f16, flex32,
 };
 
 use serde::{Deserialize, Serialize};
@@ -747,7 +747,6 @@ impl core::fmt::Display for TensorData {
             DType::Bool(BoolStore::U32) => format!("{:?}", self.as_slice::<u32>().unwrap()),
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
-                    mode: QuantMode::Symmetric,
                     value:
                         QuantValue::Q8F
                         | QuantValue::Q8S
@@ -761,15 +760,19 @@ impl core::fmt::Display for TensorData {
                     format!("{:?} {scheme:?}", self.iter::<i8>().collect::<Vec<_>>())
                 },
                 QuantScheme {
-                        mode: QuantMode::Symmetric,
                         value:
-                            QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,
+                            QuantValue::E4M3
+                            | QuantValue::E5M2
+                            | QuantValue::E2M1
+                            | QuantValue::F32
+                            | QuantValue::F16
+                            | QuantValue::BF16,
                         ..
                     } => {
                         format!("<float-quantized> {scheme:?}")
                     }
                 QuantScheme {
-                    mode: QuantMode::Lookup,
+                    value: QuantValue::Index8 | QuantValue::Index4 | QuantValue::Index2,
                     ..
                 } => {
                     format!("<lookup-quantized> {scheme:?}")
@@ -1269,7 +1272,8 @@ mod tests {
 
     #[test]
     fn try_from_bytes_rejects_blocks_past_the_rank() {
-        let past_rank = QuantScheme::default().per_block([2, 1], crate::ScaleDtype::F32);
+        let past_rank = QuantScheme::default()
+            .with_levels([BlockScale::per_block([2, 1], crate::ScaleDtype::F32)]);
 
         assert!(matches!(
             TensorData::try_from_bytes_vec(vec![0; 8], [1], DType::QFloat(past_rank)),
@@ -1338,7 +1342,7 @@ mod tests {
 
         let per_block = QuantScheme::default()
             .with_store(QuantStore::Native)
-            .per_block([2], crate::ScaleDtype::F32);
+            .with_levels([BlockScale::per_block([2], crate::ScaleDtype::F32)]);
         let empty = TensorData::quantized(Vec::<i8>::new(), [0], per_block, &[], None);
         let (bytes, shape, dtype) = empty.into_parts();
         assert!(bytes.is_empty());

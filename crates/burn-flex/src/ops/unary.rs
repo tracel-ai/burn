@@ -159,9 +159,10 @@ where
 
 /// Runs a SIMD `op` over a contiguous tensor of dtype `E`: in place when the
 /// storage is unique and starts at offset 0, otherwise in one pass into a new
-/// buffer. Other dtypes and strided tensors are handed back as `Err`.
+/// buffer. Other dtypes and strided tensors are handed back as `Err`, boxed: a tensor is too large
+/// to travel unboxed in the error of every call.
 #[cfg(feature = "simd")]
-pub(crate) fn simd_map<E, O>(mut tensor: FlexTensor, op: O) -> Result<FlexTensor, FlexTensor>
+pub(crate) fn simd_map<E, O>(mut tensor: FlexTensor, op: O) -> Result<FlexTensor, Box<FlexTensor>>
 where
     E: burn_backend::Element + bytemuck::Pod + macerator::Scalar,
     O: crate::simd::LaneOp<E>,
@@ -174,7 +175,7 @@ where
         return Ok(tensor);
     }
     let Some(src) = tensor.as_slice::<E>() else {
-        return Err(tensor);
+        return Err(Box::new(tensor));
     };
     let out = crate::simd::map_to_vec(src, op);
     Ok(FlexTensor::new(
@@ -187,11 +188,11 @@ where
 /// [`simd_map`] for f32 and f64 tensors; other dtypes and strided tensors
 /// are handed back as `Err`.
 #[cfg(feature = "simd")]
-pub(crate) fn simd_map_float<O>(tensor: FlexTensor, op: O) -> Result<FlexTensor, FlexTensor>
+pub(crate) fn simd_map_float<O>(tensor: FlexTensor, op: O) -> Result<FlexTensor, Box<FlexTensor>>
 where
     O: crate::simd::LaneOp<f32> + crate::simd::LaneOp<f64>,
 {
-    simd_map::<f32, _>(tensor, op).or_else(|tensor| simd_map::<f64, _>(tensor, op))
+    simd_map::<f32, _>(tensor, op).or_else(|tensor| simd_map::<f64, _>(*tensor, op))
 }
 
 // ============================================================================
@@ -203,7 +204,7 @@ pub fn exp(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map::<f32, _>(tensor, crate::simd::Exp) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, |x| x.exp(), |x| x.exp())
 }
@@ -213,7 +214,7 @@ pub fn log(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map::<f32, _>(tensor, crate::simd::Ln) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, |x| x.ln(), |x| x.ln())
 }
@@ -223,7 +224,7 @@ pub fn log1p(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map::<f32, _>(tensor, crate::simd::Ln1p) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, |x| x.ln_1p(), |x| x.ln_1p())
 }
@@ -286,7 +287,7 @@ pub fn cos(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map::<f32, _>(tensor, crate::simd::Cos) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, |x| x.cos(), |x| x.cos())
 }
@@ -296,7 +297,7 @@ pub fn sin(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map::<f32, _>(tensor, crate::simd::Sin) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, |x| x.sin(), |x| x.sin())
 }
@@ -306,7 +307,7 @@ pub fn tan(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map::<f32, _>(tensor, crate::simd::Tan) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, |x| x.tan(), |x| x.tan())
 }
@@ -316,7 +317,7 @@ pub fn cosh(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map::<f32, _>(tensor, crate::simd::Cosh) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, |x| x.cosh(), |x| x.cosh())
 }
@@ -326,7 +327,7 @@ pub fn sinh(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map::<f32, _>(tensor, crate::simd::Sinh) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, |x| x.sinh(), |x| x.sinh())
 }
@@ -336,7 +337,7 @@ pub fn tanh(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map::<f32, _>(tensor, crate::simd::Tanh) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, |x| x.tanh(), |x| x.tanh())
 }
@@ -346,7 +347,7 @@ pub fn acos(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map::<f32, _>(tensor, crate::simd::Acos) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, |x| x.acos(), |x| x.acos())
 }
@@ -361,7 +362,7 @@ pub fn asin(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map::<f32, _>(tensor, crate::simd::Asin) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, |x| x.asin(), |x| x.asin())
 }
@@ -376,7 +377,7 @@ pub fn atan(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map::<f32, _>(tensor, crate::simd::Atan) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, |x| x.atan(), |x| x.atan())
 }
@@ -386,7 +387,7 @@ pub fn atanh(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map::<f32, _>(tensor, crate::simd::Atanh) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, |x| x.atanh(), |x| x.atanh())
 }
@@ -396,7 +397,7 @@ pub fn round(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map_float(tensor, crate::simd::RoundTiesEven) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, libm::roundevenf, libm::roundeven)
 }
@@ -406,7 +407,7 @@ pub fn floor(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map_float(tensor, crate::simd::Floor) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, |x| x.floor(), |x| x.floor())
 }
@@ -416,7 +417,7 @@ pub fn ceil(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map_float(tensor, crate::simd::Ceil) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, |x| x.ceil(), |x| x.ceil())
 }
@@ -426,7 +427,7 @@ pub fn trunc(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map_float(tensor, crate::simd::Trunc) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, |x| x.trunc(), |x| x.trunc())
 }
@@ -436,7 +437,7 @@ pub fn erf(tensor: FlexTensor) -> FlexTensor {
     #[cfg(feature = "simd")]
     let tensor = match simd_map::<f32, _>(tensor, crate::simd::Erf) {
         Ok(out) => return out,
-        Err(tensor) => tensor,
+        Err(tensor) => *tensor,
     };
     unary_op(tensor, erf_f32, erf_f64)
 }

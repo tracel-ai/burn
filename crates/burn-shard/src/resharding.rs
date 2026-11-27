@@ -149,7 +149,7 @@ impl Resharding {
 #[cfg(test)]
 mod tests {
     use burn_ir::{TensorId, TensorStatus};
-    use burn_std::{QuantScheme, ScaleDtype};
+    use burn_std::{BlockScale, QuantScheme, ScaleDtype};
 
     use super::*;
 
@@ -200,7 +200,8 @@ mod tests {
 
     #[test]
     fn a_quantized_split_that_cuts_a_block_has_no_resharding() {
-        let scheme = QuantScheme::default().per_block([2], ScaleDtype::F32);
+        let scheme =
+            QuantScheme::default().with_levels([BlockScale::per_block([2], ScaleDtype::F32)]);
         let quantized = tensor([3, 6], DType::QFloat(scheme));
 
         assert!(matches!(

@@ -1,14 +1,13 @@
 use crate::engine::codegen::{DynElem, DynSize};
 
 use super::{io::*, ir::*};
+use burn_std::quantization::inner_level;
 use burn_std::quantization::{QuantScheme, QuantStore, QuantValue};
 use cubecl::{
     ir::{ElemType, FloatKind, UIntKind},
     prelude::*,
 };
-use cubek::quantization::{
-    dequantize::dequantize_symmetric_packed_value_at, scale::Scales, scheme::QuantMode,
-};
+use cubek::quantization::{dequantize::dequantize_symmetric_packed_value_at, scale::Scales};
 
 #[cube]
 /// Fuse element-wise operations at the given write position.
@@ -1020,10 +1019,9 @@ fn dequantize<C: Float, N: Size>(
     #[comptime] scheme: QuantScheme,
     #[comptime] config: &FuseBlockConfig,
 ) {
-    comptime!(assert_eq!(
-        scheme.mode,
-        QuantMode::Symmetric,
-        "Only symmetric quantization mode is supported."
+    comptime!(assert!(
+        !scheme.value.is_index(),
+        "a fused dequantize reads numbers, not indices into a lookup table"
     ));
 
     let quant_ty = comptime![match scheme.store {
@@ -1036,6 +1034,7 @@ fn dequantize<C: Float, N: Size>(
             | QuantValue::Q2F
             | QuantValue::Q2S
             | QuantValue::E2M1 => unreachable!("Can't store native sub-byte values"),
+            other => unreachable!("no fused dequantize reads {other:?}: fusion declines it"),
         },
         QuantStore::PackedU32(_) => ElemType::UInt(UIntKind::U32),
         QuantStore::PackedNative(_) => match scheme.value {
@@ -1043,7 +1042,7 @@ fn dequantize<C: Float, N: Size>(
             other => panic!("{other:?} doesn't support native packing"),
         },
     }];
-    let scale_ty = comptime![ElemType::from_scale_dtype(scheme.finest().dtype)];
+    let scale_ty = comptime![ElemType::from_scale_dtype(inner_level(&scheme).dtype)];
     let define!(QStoreType) = quant_ty;
     let define!(QScaleType) = scale_ty;
     let size!(NumQuant) = scheme.num_quants();

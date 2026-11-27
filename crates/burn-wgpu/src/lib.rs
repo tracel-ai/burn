@@ -176,10 +176,11 @@ mod tests {
         let fp4 = QuantScheme::default()
             .with_value(QuantValue::E2M1)
             .with_store(QuantStore::PackedU32(0));
-        let nvfp4 = fp4
-            .per_block([16], ScaleDtype::UE4M3)
-            .per_tensor(ScaleDtype::F32);
-        let mxfp4 = fp4.per_block([32], ScaleDtype::UE8M0);
+        let nvfp4 = fp4.with_levels([
+            BlockScale::per_block([16], ScaleDtype::UE4M3),
+            BlockScale::per_tensor(ScaleDtype::F32),
+        ]);
+        let mxfp4 = fp4.with_levels([BlockScale::per_block([32], ScaleDtype::UE8M0)]);
         assert!(Wgpu::supports_dtype(device, DType::QFloat(nvfp4)));
         assert!(Wgpu::supports_dtype(device, DType::QFloat(mxfp4)));
     }

@@ -4,6 +4,7 @@ use crate::engine::{
     settings::FuseSettings,
 };
 use burn_ir::{TensorId, TensorIr, TensorStatus};
+use burn_std::quantization::inner_level;
 use burn_std::{DType, Shape};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, btree_map::Entry};
@@ -219,7 +220,7 @@ impl FuseBlockBuilder {
         let (precision, precision_scales) = match tensor.dtype {
             DType::QFloat(scheme) => (
                 FuseType::from_quant_scheme(scheme)?,
-                FuseType::from_scale_dtype(scheme.finest().dtype)?,
+                FuseType::from_scale_dtype(inner_level(&scheme).dtype)?,
             ),
             _ => return None,
         };

@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use burn_std::quantization::inner_level;
 pub use burn_std::{BlockLayout, QPARAM_ALIGN, params_shape};
 use burn_std::{
     FloatDType, QuantScheme, Shape,
@@ -56,7 +57,7 @@ pub fn compute_range<B: Backend>(
     calibration: &Calibration,
 ) -> (B::FloatTensorPrimitive, B::FloatTensorPrimitive) {
     match calibration {
-        Calibration::MinMax => match scheme.finest().size {
+        Calibration::MinMax => match inner_level(scheme).size {
             BlockSize::TENSOR => (B::float_min(tensor.clone()), B::float_max(tensor)),
             size => {
                 let block = size.values(tensor.shape().as_slice());
@@ -73,7 +74,7 @@ pub fn compute_range<B: Backend>(
                 "AbsMean calibration has no two-level form: BitNet's gamma is a mean over \
                  the whole tensor or block, which a coarser scale cannot decompose"
             );
-            let gamma = match scheme.finest().size {
+            let gamma = match inner_level(scheme).size {
                 BlockSize::TENSOR => B::float_mean(B::float_abs(tensor)),
                 size => {
                     let block = size.values(tensor.shape().as_slice());
@@ -110,7 +111,7 @@ pub fn compute_q_params<B: Backend>(
     let (scales, coarser) = match scheme.levels().nth(1) {
         None => (scales, None),
         Some(coarser) => {
-            let (scales, coarser) = normalize_scales::<B>(scales, &scheme.finest(), &coarser);
+            let (scales, coarser) = normalize_scales::<B>(scales, &inner_level(scheme), &coarser);
             (scales, Some(coarser))
         }
     };

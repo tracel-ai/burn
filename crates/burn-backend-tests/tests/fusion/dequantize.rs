@@ -1,6 +1,6 @@
 use super::*;
 use burn_tensor::quantization::{
-    BlockExtent, BlockSize, QuantScheme, QuantStore, QuantValue, ScaleDtype,
+    BlockExtent, BlockScale, BlockSize, QuantScheme, QuantStore, QuantValue, ScaleDtype,
 };
 use burn_tensor::{TensorData, Tolerance};
 
@@ -15,7 +15,7 @@ fn a_fused_dequantize_reads_a_scale_per_row() {
         let row = BlockSize::with_rest(&[BlockExtent::WholeAxis], BlockExtent::VALUE);
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
-            .per_block(row, ScaleDtype::F32)
+            .with_levels([BlockScale::per_block(row, ScaleDtype::F32)])
             .with_store(QuantStore::PackedU32(0));
         let rows = [VALUES, VALUES.map(|value| value * 1000.0)];
         let quant = TestTensor::<2>::from_data(rows, &device).quantize_dynamic(&scheme);
