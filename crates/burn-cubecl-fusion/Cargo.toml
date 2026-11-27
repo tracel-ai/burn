@@ -22,12 +22,6 @@ autotune-checks = ["cubecl/autotune-checks", "half"]
 doc = ["default", "dep:branches"]
 test-util = []
 std = ["cubecl/std", "burn-backend/std", "burn-fusion/std"]
-tracing = [
-    "cubecl/tracing",
-    "burn-std/tracing",
-    "burn-backend/tracing",
-    "burn-fusion/tracing",
-]
 
 [dependencies]
 branches = { workspace = true, optional = true }

@@ -1,5 +1,4 @@
 [package]
-workspace = "../.."
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science", "no-std", "embedded", "wasm"]
 description = "Flexible and Comprehensive Deep Learning Framework in Rust"
@@ -62,16 +61,6 @@ std = [
 ]
 # Arms the components' `#[compute]` annotations, for `burn::instrument::Instrument` to measure.
 instrument = ["std", "burn-core/instrument"]
-tracing = [
-    "cubecl?/tracing",
-    "burn-core/tracing",
-    "burn-signal?/tracing",
-    "burn-vision?/tracing",
-    "burn-nn/tracing",
-    "burn-linalg?/tracing",
-    "burn-optim?/tracing",
-]
-
 
 network = ["burn-core/network"]
 

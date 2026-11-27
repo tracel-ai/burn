@@ -1,5 +1,4 @@
 [package]
-workspace = "../.."
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
 description = "Generic backend that can be compiled just-in-time to any shader language target"
@@ -49,31 +48,21 @@ metal = ["cubecl/metal", "burn-backend/cubecl-metal"]
 vulkan = ["wgpu", "cubecl/vulkan", "burn-backend/cubecl-vulkan"]
 webgpu = ["wgpu", "cubecl/webgpu", "burn-backend/cubecl-webgpu"]
 
-tracing = [
-    "dep:tracing",
-    "cubecl/tracing",
-    "burn-std/tracing",
-    "burn-backend/tracing",
-    "burn-fusion?/tracing",
-    "burn-cubecl-fusion?/tracing",
-]
-
 # Compile persistent caches; runtime configuration controls which caches are used.
 persistence = ["cubecl/persistence", "burn-std/persistence"]
 autotune = ["burn-cubecl-fusion?/autotune"]
 autotune-checks = [
     "autotune",
+    "dep:bytemuck",
+    "dep:half",
     "cubecl/autotune-checks",
-    "cubek/autotune-checks",
     "burn-cubecl-fusion?/autotune-checks",
 ]
-
 
 fusion = ["burn-fusion", "burn-cubecl-fusion"]
 fusion-experimental = ["fusion"]
 
 template = []
-
 
 [dependencies]
 branches = { workspace = true, optional = true }
@@ -87,6 +76,8 @@ burn-backend = { workspace = true, features = [
     "cubecl-device",
 ] }
 cubecl = { workspace = true, features = ["stdlib"] }
+# `ServiceId`, which keys the tile convolution's tuner; `cubecl::device` is another module.
+cubecl-common = { workspace = true }
 cubek = { workspace = true, features = [
     "attention",
     "attention-tiled",
@@ -100,11 +91,15 @@ cubek = { workspace = true, features = [
     "reduce",
     "random",
     "quantization",
+    "rms-norm",
     "stdlib",
+    "swiglu",
 ] }
-tracing = { workspace = true, features = ["attributes"], optional = true }
 
 derive-new = { workspace = true }
+# What the autotune checks read two candidates' outputs back as.
+bytemuck = { workspace = true, optional = true }
+half = { workspace = true, optional = true, features = ["bytemuck"] }
 log = { workspace = true }
 
 # Async

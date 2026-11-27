@@ -69,10 +69,6 @@ pub fn copy_contiguous(tensor: CubeTensor) -> CubeTensor {
 
 /// Make a jit tensor contiguous with an aligned last stride. Tensor is considered already contiguous
 /// if runtime can read it as is. This is equivalent in practice.
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(level = "trace", skip(tensor))
-)]
 pub fn into_contiguous_aligned(tensor: CubeTensor) -> CubeTensor {
     let tensor = untile(tensor);
     if tensor
@@ -103,10 +99,6 @@ pub fn into_contiguous_aligned(tensor: CubeTensor) -> CubeTensor {
     )
 }
 
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(level = "trace", skip(tensor))
-)]
 fn into_contiguous_quantized(tensor: CubeTensor, strategy: MemoryLayoutStrategy) -> CubeTensor {
     let scheme = tensor.scheme();
     let output = empty_qtensor(tensor.shape(), tensor.scheme(), &tensor.device, strategy);
@@ -189,6 +181,7 @@ mod storage_tiled {
         ops::FloatTensorOps,
     };
     use burn_std::{Shape, TensorData};
+    use cubecl::zspace::Tiling;
 
     use crate::{
         CubeBackend, CubeDevice,
@@ -265,6 +258,59 @@ mod storage_tiled {
         assert!(!back.meta.is_tiled());
         assert_eq!(back.meta.shape().as_slice(), &[2, 64, 96]);
         assert_eq!(values(back), values(rhs));
+    }
+
+    /// A matrix stored `[m/16, k/16, m%8, k/2%4, k/8%2, m/8%2, k%2]`, as a tensor core takes a tile
+    /// of sixteen by sixteen, is laid back in rows.
+    #[test]
+    fn untile_lays_a_tensor_core_layout_back() {
+        let device = CubeDevice::default();
+        let rows = tensor(&[48, 80], &device, 3);
+        let back = untile(for_tensor_core(&rows));
+        assert_eq!(back.meta.shape().as_slice(), &[48, 80]);
+        assert_eq!(values(back), values(rows));
+    }
+
+    #[test]
+    fn a_transpose_keeps_a_tensor_core_layout() {
+        let device = CubeDevice::default();
+        let rows = tensor(&[48, 80], &device, 3);
+        let transposed = swap_dims(for_tensor_core(&rows), 0, 1);
+        assert!(transposed.meta.is_tiled());
+    }
+
+    /// A transpose moves each dim with its pieces, whichever physical dims they are.
+    #[test]
+    fn a_transpose_of_a_tensor_core_layout_reads_the_transposed_values() {
+        let device = CubeDevice::default();
+        let rows = tensor(&[48, 80], &device, 3);
+        let transposed = swap_dims(for_tensor_core(&rows), 0, 1);
+        assert_eq!(
+            values(transposed),
+            values(into_contiguous(swap_dims(rows, 0, 1)))
+        );
+    }
+
+    #[test]
+    fn an_elementwise_op_keeps_a_tensor_core_layout() {
+        let device = CubeDevice::default();
+        let (lhs, rhs) = (tensor(&[48, 80], &device, 3), tensor(&[48, 80], &device, 4));
+        let stored = for_tensor_core(&lhs);
+        let out = CubeBackend::float_add(stored.clone(), rhs);
+        assert_eq!(out.meta.tiling, stored.meta.tiling);
+    }
+
+    /// Rows are restated over the pieces as a tensor core lists them.
+    #[test]
+    fn an_elementwise_op_on_a_tensor_core_layout_reads_the_values_of_rows() {
+        let device = CubeDevice::default();
+        let (lhs, rhs) = (tensor(&[48, 80], &device, 3), tensor(&[48, 80], &device, 4));
+        let out = CubeBackend::float_add(for_tensor_core(&lhs), rhs.clone());
+        assert_close(
+            &values(out),
+            &values(CubeBackend::float_add(lhs, rhs)),
+            "a tensor core layout and rows",
+        );
     }
 
     #[test]
@@ -634,6 +680,31 @@ mod storage_tiled {
             tensor.device.clone(),
             tensor.dtype,
         )
+    }
+
+    /// `matrix`, 48 by 80, stored `[m/16, k/16, m%8, k/2%4, k/8%2, m/8%2, k%2]`, as a tensor core
+    /// takes a tile of sixteen by sixteen.
+    fn for_tensor_core(matrix: &CubeTensor) -> CubeTensor {
+        let device = matrix.device.clone();
+        let rows = values(matrix.clone());
+        let mut stored = vec![0f32; rows.len()];
+        for (at, value) in rows.into_iter().enumerate() {
+            let (m, k) = (at / 80, at % 80);
+            let tile = (m / 16 * 5 + k / 16) * 256;
+            let inside = m % 8 * 32 + k / 2 % 4 * 8 + k / 8 % 2 * 4 + m / 8 % 2 * 2 + k % 2;
+            stored[tile + inside] = value;
+        }
+        let dims = [3, 5, 8, 4, 2, 2, 2];
+        let stored = from_data(TensorData::new(stored, dims), &device);
+        let stored = into_contiguous(stored);
+        let meta = (*stored.meta)
+            .clone()
+            .with_tiling(Tiling::from_physical_dims(&[&[0, 5, 2][..], &[1, 4, 3, 6]]).unwrap())
+            .unwrap();
+        CubeTensor {
+            meta: Box::new(meta),
+            ..stored
+        }
     }
 
     /// The values in logical order, read at `f32` whatever the tensor holds.

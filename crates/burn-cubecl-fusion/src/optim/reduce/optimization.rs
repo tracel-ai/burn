@@ -1,5 +1,6 @@
 #[cfg(feature = "autotune")]
 use super::tune::fused_reduce_autotune;
+use crate::elector::elected_reduce;
 #[cfg(feature = "autotune")]
 use crate::tune::TunedTrace;
 use crate::{
@@ -26,9 +27,7 @@ use cubecl::{
     tile::{Geometry, launch::Decline},
 };
 use cubek::microkernel::reduce::ReduceOperation;
-use cubek::reduce::kernels::{
-    ReduceCandidate, ReduceElements, ReduceKey, ReduceTensors, ReduceWorkspace,
-};
+use cubek::reduce::kernels::{ReduceElements, ReduceKey, ReduceTensors, ReduceWorkspace};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -164,7 +163,7 @@ pub struct FusedReduce {
     pub(crate) inst: ReduceInstruction,
 }
 
-/// A fused reduce on the routine cubek's reduce autotune elected for the unfused reduce: its input
+/// A fused reduce on the routine the backend's reduce autotune elected for the unfused reduce: its input
 /// read through the trace's read block, its output written to `out`.
 #[derive(new)]
 pub struct FusedReduceLaunch<'a> {
@@ -405,7 +404,7 @@ impl TraceRunner for FusedReduceLaunch<'_> {
             elements,
         )
         .with_workspace(workspace);
-        let candidate = ReduceCandidate::fastest(client, self.device, &ReduceKey::from(&tensors))
+        let candidate = elected_reduce(client, self.device, &ReduceKey::from(&tensors))
             .ok_or(FusedReduceError::NoRoutineElected)?;
         candidate
             .launch_unbound::<TraceReadTileOperand>(&tensors, |source| {
@@ -434,10 +433,10 @@ fn reduce_workspace(
     let bytes = ReduceWorkspace::bytes_for(client, shape, axis, operation, elements, false);
     // A runtime may refuse an empty allocation: every buffer holds at least one counter.
     let at_least_one = |bytes: u64| (bytes as usize).max(size_of::<u32>());
-    let counters = at_least_one(bytes.arrivals) / size_of::<u32>();
+    let counters = at_least_one(bytes.arrivals_bytes) / size_of::<u32>();
     ReduceWorkspace {
-        partials: client.empty(at_least_one(bytes.partials)),
-        partial_indices: client.empty(at_least_one(bytes.partial_indices)),
+        partials: client.empty(at_least_one(bytes.partials_bytes)),
+        partial_indices: client.empty(at_least_one(bytes.partial_indices_bytes)),
         arrivals: client.create(Bytes::from_elems(vec![0u32; counters])),
     }
 }

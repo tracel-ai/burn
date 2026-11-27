@@ -15,7 +15,6 @@
 //! - `std` (default): standard library support.
 //! - `fusion` (default): kernel fusion.
 //! - `autotune` (default): benchmark kernel variants at runtime and keep the fastest.
-//! - `tracing`: instrument operations with the `tracing` crate.
 
 extern crate alloc;
 

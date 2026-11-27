@@ -19,7 +19,6 @@
 //!
 //! - `std` (default): standard library support.
 //! - `memory-checks`: check the fusion runtime for leaked tensors (for tests).
-//! - `tracing`: instrument operations with the `tracing` crate.
 
 #[macro_use]
 extern crate derive_new;

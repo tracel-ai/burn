@@ -626,8 +626,8 @@ impl LBFGS {
 
     /// Load the optimizer state from an [`OptimizerRecord`].
     ///
-    /// State tensors are materialized on the default device; the state is migrated to the gradient
-    /// device on the next [`step`](LBFGS::step), so no device argument is needed.
+    /// State tensors are restored on the default device and moved to the gradient's device on
+    /// the next [`step`](LBFGS::step). Both devices must support the saved dtypes.
     pub fn load_record(mut self, record: OptimizerRecord) -> Self {
         let device = Device::default();
         let mut source = StateSource::new(record.scalars);

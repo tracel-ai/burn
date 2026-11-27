@@ -1,8 +1,10 @@
 //! Which member of the profiled device an execution ran on.
 
-use burn_tensor::Device;
 use cubecl::logging::ExecutionPlace;
 use cubecl_common::device::ServiceId;
+
+use super::devices::DeviceList;
+use crate::breakdown::MemberSchedule;
 
 /// A member of the profiled device, by its index in member order: `0` on a device of one.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -13,57 +15,72 @@ pub struct Member(pub usize);
 pub enum RanOn {
     /// The one device a device of one runs everything on.
     Device,
-    /// A member of a sharded compute device.
+    /// A member of a sharded compute device, or one of the devices a run is timed across.
     Member(Member),
-    /// A device that is no member of the sharded compute device profiled, so it fills no
-    /// member's gaps and opens none.
+    /// A device that is no member of what was profiled, so it fills no member's gaps and opens
+    /// none.
     OffMembers,
 }
 
-/// The devices of a sharded compute device's members, in member order: what places an execution
-/// on a member. Empty for a device of one.
+/// The cubecl devices a run is timed on one by one, in member order: what places an execution on
+/// a member. Empty for a device of one.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MemberList {
     /// Each member's device with the runtime serving it, as an execution's place names it.
     services: Vec<ServiceId>,
+    schedule: MemberSchedule,
 }
 
 impl MemberList {
-    /// The members of `device` where it is a sharded compute device of cubecl members.
+    /// The members of a run on `devices`: each cubecl device in order, a sharded compute device's
+    /// members in member order. None when that is one device at most. Several devices run in
+    /// turn, a sharded compute device's members at once.
     ///
-    /// Opens each member's client, so it syncs `device` first: opening one waits on the device's
+    /// Opens each member's client, so it syncs `devices` first: opening one waits on the device's
     /// worker while holding cubecl's registry, which work still running there can need.
-    pub fn of(device: &Device) -> Self {
-        let ids = device.as_dispatch().shard_member_ids();
-        if !ids.is_empty() {
-            device
-                .sync()
-                .expect("the device answers before its members are reached");
+    pub fn of(devices: &DeviceList) -> Self {
+        let ids: Vec<_> = devices.member_ids().collect();
+        if ids.len() < 2 {
+            return Self::default();
         }
+        devices.sync("the device answers before its members are reached");
+        let schedule = match devices.several() {
+            false => MemberSchedule::Concurrent,
+            true => MemberSchedule::Sequential,
+        };
         Self::over(
             ids.into_iter()
                 .map(|id| cubecl::Device::from_id(id).client().service_id())
                 .collect(),
+            schedule,
         )
     }
 
-    /// The members whose devices are served at `services`, in member order.
+    /// The members whose devices are served at `services`, in member order, working on `schedule`.
     ///
     /// A device named twice is kept once: its executions name one place, so they cannot be told
     /// apart by member, and the device is timed as one.
-    pub fn over(services: Vec<ServiceId>) -> Self {
+    pub fn over(services: Vec<ServiceId>, schedule: MemberSchedule) -> Self {
         let mut kept: Vec<ServiceId> = Vec::with_capacity(services.len());
         for service in services {
             if !kept.contains(&service) {
                 kept.push(service);
             }
         }
-        Self { services: kept }
+        Self {
+            services: kept,
+            schedule,
+        }
     }
 
     /// How many members there are to time apart, one for a device of one.
     pub fn count(&self) -> usize {
         self.services.len().max(1)
+    }
+
+    /// Whether the members worked at once or in turn.
+    pub fn schedule(&self) -> MemberSchedule {
+        self.schedule
     }
 
     /// Whether the device has more than one member, so each is timed apart.
@@ -94,7 +111,10 @@ mod tests {
     /// devices alike.
     #[test]
     fn an_execution_is_placed_on_the_member_whose_service_it_names() {
-        let members = MemberList::over(vec![service::<u8>(0), service::<u16>(0)]);
+        let members = MemberList::over(
+            vec![service::<u8>(0), service::<u16>(0)],
+            MemberSchedule::Concurrent,
+        );
 
         assert_eq!(members.count(), 2);
         assert_eq!(
@@ -111,7 +131,10 @@ mod tests {
     /// A sharded compute device whose members are one device is timed as one.
     #[test]
     fn a_device_named_twice_is_one_member() {
-        let members = MemberList::over(vec![service::<u8>(3), service::<u8>(3)]);
+        let members = MemberList::over(
+            vec![service::<u8>(3), service::<u8>(3)],
+            MemberSchedule::Concurrent,
+        );
 
         assert!(!members.several());
         assert_eq!(members.ran_on(&place(service::<u8>(4))), RanOn::Device);

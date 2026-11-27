@@ -125,7 +125,7 @@ fn strip_labeling<I: Int, BT: CubePrimitive>(
         }
 
         // Initialize every run before another row follows its parent pointer.
-        sync_cube();
+        sync_storage();
 
         if UNIT_POS_X == 0 {
             shared_pixels[UNIT_POS_Y as usize] = pixels_y;

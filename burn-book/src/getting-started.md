@@ -62,6 +62,9 @@ cargo add burn --features wgpu
 Burn does not enable an execution backend by default. The `wgpu` feature selects GPU
 execution; use `--features flex` instead for the pure-Rust CPU backend.
 
+If you use `--no-default-features` with a CubeCL backend such as `wgpu`, add `fusion` and `autotune`
+explicitly to keep kernel fusion and automatic kernel selection.
+
 Finally, compile the local package by executing the following:
 
 ```console

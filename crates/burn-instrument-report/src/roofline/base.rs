@@ -141,8 +141,9 @@ pub struct Ladder {
     /// What the run took: the clean run's wall time where it was measured, and the device's
     /// time otherwise.
     pub measured: Duration,
-    /// Of that, what the device spent waiting on the host. Zero where the
-    /// split is not known, which leaves the whole run to the kernels.
+    /// Of that, what the device spent on no kernel: waiting on the host, and for members that
+    /// took turns, the hops between them too. Zero where the split is not known, which leaves the
+    /// whole run to the kernels.
     pub host: Duration,
     /// Every component at its own floor, taken as deep as the tree declares
     /// one — what faster kernels alone could reach.

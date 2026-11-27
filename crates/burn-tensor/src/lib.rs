@@ -40,7 +40,6 @@
 //! - `remote`, `remote-server`, `remote-websocket`: devices hosted by another machine.
 //! - `capture`: record operation graphs instead of executing them.
 //! - `extension`: access to backend primitives for backend extensions.
-//! - `tracing`: instrument operations with the `tracing` crate.
 //!
 //! # Note for contributors: `*_impl` helpers
 //!

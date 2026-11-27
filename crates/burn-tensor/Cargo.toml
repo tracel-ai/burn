@@ -35,7 +35,6 @@ std = [
     "burn-dispatch/std",
     "colored",
 ]
-tracing = ["burn-std/tracing", "burn-backend/tracing", "burn-dispatch/tracing"]
 
 cubecl = ["burn-backend/cubecl", "burn-dispatch/cubecl"]
 cubecl-cuda = ["burn-backend/cubecl-cuda"]

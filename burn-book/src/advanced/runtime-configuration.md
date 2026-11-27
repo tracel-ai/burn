@@ -1,7 +1,8 @@
 # Runtime Configuration
 
-Burn provides runtime configuration for matmul precision, autotuning, profiling, logging, operation
-fusion, and remote-backend batching.
+Burn provides runtime configuration for matmul precision, autotuning, logging, operation fusion, and
+remote-backend batching.
+To time a model, see [Profiling](../performance/profiling.md).
 
 ## Overview
 
@@ -30,9 +31,6 @@ allow_tf32 = true
 [cubecl.autotune]
 level = "balanced"
 
-[cubecl.profiling]
-logger = { level = "basic", stdout = true }
-
 [fusion]
 logger = { level = "basic", stderr = true }
 
@@ -46,7 +44,7 @@ flush_bytes_threshold = 1048576
 
 Each section configures a different aspect of Burn:
 
-- **cubecl**: Configures autotuning, profiling, compilation, and memory for CubeCL backends.
+- **cubecl**: Configures autotuning, compilation, and memory for CubeCL backends.
 - **cubek**: Configures CubeK kernels used by CubeCL backends, including matmul precision.
 - **fusion**: Controls operation fusion and its logging.
 - **autodiff**: Controls automatic differentiation logging.
@@ -88,12 +86,15 @@ configuration; separate files and embedded sections are not merged.
 
 #### Persistent caches
 
-The `persistence` Cargo feature enables persistent caches for selected CubeCL backends. It forwards
-to `cubecl/persistence`:
+The `persistence` Cargo feature forwards to `cubecl/persistence` so selected CubeCL backends can
+cache results across runs. With default features disabled, this example enables `autotune` to
+benchmark kernels and `fusion` to keep kernel fusion enabled.
 
 ```toml
-[dependencies]
-burn = { version = "0.22", default-features = false, features = ["std", "cuda", "persistence"] }
+[dependencies.burn]
+version = "0.22"
+default-features = false
+features = ["std", "cuda", "fusion", "autotune", "persistence"]
 ```
 
 Runtime configuration controls which caches are used. Persistent autotune results are enabled by

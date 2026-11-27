@@ -1,6 +1,6 @@
 use alloc::{vec, vec::Vec};
 
-use super::{QuantScheme, QuantStore, QuantValue, params_shape};
+use super::{BlockSize, QuantScheme, QuantStore, QuantValue, params_shape};
 use crate::Shape;
 
 /// How [`QuantizedBytes`](super::QuantizedBytes) lays out the values of a scheme.
@@ -33,7 +33,9 @@ impl ValueLayout {
     /// is not row-major: blocks of values packed along an outer axis.
     pub fn block_scale_order(&self, shape: &Shape, scheme: &QuantScheme) -> Option<PackedOrder> {
         match *self {
-            Self::Packed { packed_dim, .. } if packed_dim != 0 && scheme.block_size().is_some() => {
+            Self::Packed { packed_dim, .. }
+                if packed_dim != 0 && scheme.finest().size != BlockSize::TENSOR =>
+            {
                 Some(PackedOrder::new(
                     params_shape(shape, scheme).as_slice(),
                     packed_dim,

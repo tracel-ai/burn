@@ -51,6 +51,23 @@ fn cast_float_precision() {
 }
 
 #[test]
+fn cast_between_f32_and_flex32() {
+    let device = burn_tensor::Device::default();
+    if !device.supports_dtype(DType::Flex32) {
+        return;
+    }
+
+    for (source, target) in [(DType::F32, DType::Flex32), (DType::Flex32, DType::F32)] {
+        let input = TestTensor::<2>::from_data([[1.0001f32, -2.], [3., 4.]], (&device, source));
+        let output = input.transpose().cast(target);
+
+        assert_eq!(output.dtype(), target);
+        let expected = TensorData::from([[1.0001f32, 3.], [-2., 4.]]).convert_dtype(target);
+        output.into_data().assert_eq(&expected, true);
+    }
+}
+
+#[test]
 fn cast_float_to_int_with_dtype() {
     let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.4, 5.5, 6.6]]);
 

@@ -36,7 +36,6 @@ chapter of the Burn Book.
 - `autotune` (default): benchmark kernel variants at runtime and keep the fastest.
 - `fft`: FFT kernels.
 - `template`: launch hand-written, non-JIT kernels.
-- `tracing`: instrument operations with the `tracing` crate.
 
 <!-- burn-crate-footer -->
 

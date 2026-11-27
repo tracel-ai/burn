@@ -23,7 +23,6 @@
 //! - `cubecl`: conversions between Burn and CubeCL types.
 //! - `cubecl-device` and the `cubecl-<runtime>` features: implement [`DeviceOps`] for
 //!   `cubecl::Device`.
-//! - `tracing`: instrument operations with the `tracing` crate.
 
 #[macro_use]
 extern crate derive_new;

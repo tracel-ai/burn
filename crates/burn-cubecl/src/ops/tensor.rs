@@ -21,11 +21,6 @@ use cubek::reduce::ReduceOperation;
 use std::ops::Range;
 
 impl FloatTensorOps<Self> for CubeBackend {
-    #[cfg_attr(feature = "tracing", tracing::instrument(
-        level="trace",
-        skip(data),
-        fields(shape = ?data.shape(), dtype = ?data.dtype())
-    ))]
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         let dtype = data.dtype();
         if !dtype.is_float() {
@@ -56,20 +51,10 @@ impl FloatTensorOps<Self> for CubeBackend {
         }
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(
-        level="trace",
-        skip(tensor),
-        fields(from = ?tensor.device, meta = ?tensor.meta, dtype = ?tensor.dtype)
-    ))]
     fn float_into_data(tensor: FloatTensor<Self>) -> impl ReadFuture<TensorData> {
         super::into_data(tensor)
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(
-        level="trace",
-        skip(tensor),
-        fields(from = ?tensor.device, meta = ?tensor.meta, dtype = ?tensor.dtype)
-    ))]
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
         super::to_device(tensor, device)
     }

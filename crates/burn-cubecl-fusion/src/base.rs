@@ -1,10 +1,6 @@
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
-use burn_std::{
-    DType, Metadata, Shape, Strides,
-    quantization::{QParamTensor, global_scale_dtype},
-    strides,
-};
+use burn_std::{DType, Metadata, Shape, Strides, quantization::QParamTensor, strides};
 use cubecl::quant::scheme::{QuantScheme, ScaleDtype};
 use cubecl::{
     client::Client,
@@ -49,7 +45,7 @@ pub struct CubeFusionHandle {
 pub struct Tiles {
     /// The buffer's own dims, the fragments of the logical ones.
     pub shape: Shape,
-    /// How many fragments each logical dim is stored as.
+    /// The fragments each logical dim is stored as.
     pub tiling: Tiling,
 }
 
@@ -144,7 +140,7 @@ impl CubeFusionHandle {
         }
     }
 
-    /// How many fragments each logical dim is stored as; untiled for rows.
+    /// The fragments each logical dim is stored as; untiled for rows.
     pub fn tiling(&self) -> Tiling {
         self.tiles
             .as_ref()
@@ -171,11 +167,11 @@ impl CubeFusionHandle {
     /// Construct a separate tensor for the quantization scales, if present
     pub fn params(&self, scheme: QuantScheme) -> Option<Self> {
         let qparams = self.qparams.as_ref()?;
-        // Only the block scale is threaded through below; a two-level scheme's per-tensor scale
+        // Only the finest scales are threaded through below; a two-level scheme's coarser ones
         // would be silently dropped, so refuse rather than build a handle short one factor.
         assert!(
-            global_scale_dtype(&scheme).is_none(),
-            "fused kernels don't yet support a two-level scheme's per-tensor scale"
+            scheme.levels().count() == 1,
+            "fused kernels don't yet support a two-level scheme's coarser scales"
         );
         let mut handle = self.handle.clone();
         handle.offset_start = Some(qparams.scales.offset_start as u64);
@@ -185,7 +181,7 @@ impl CubeFusionHandle {
             client: self.client.clone(),
             handle,
             device: self.device.clone(),
-            dtype: match scheme.scale_dtype() {
+            dtype: match scheme.finest().dtype {
                 ScaleDtype::F32 => DType::F32,
                 ScaleDtype::F16 => DType::F16,
                 ScaleDtype::BF16 => DType::BF16,
