@@ -10,7 +10,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::{self, BufReader, Cursor, Read};
 use std::sync::{Arc, Mutex};
-use zip::read::ZipFile;
+use zip::read::{ArchiveOffset, Config as ZipConfig, ZipFile};
 use zip::{CompressionMethod, ZipArchive, ZipReadOptions};
 
 use crate::reader::{ArcBytes, Container, ContainerRead};
@@ -182,7 +182,11 @@ impl ZipSource {
                     )
                 }
             };
-        let archive = ZipArchive::new(archive_reader)?;
+        // Format detection requires the ZIP archive to start at byte zero.
+        let config = ZipConfig {
+            archive_offset: ArchiveOffset::Known(0),
+        };
+        let archive = ZipArchive::with_config(config, archive_reader)?;
         let root = archive
             .file_names()
             .collect::<zip::result::ZipResult<Vec<_>>>()?
