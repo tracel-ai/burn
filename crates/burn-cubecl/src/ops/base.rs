@@ -397,7 +397,8 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
     let coarser_level = (scheme.levels().nth(1)).filter(|level| level.size != BlockSize::TENSOR);
     let coarser_grid = coarser_level.map(|level| level_shape(&shape, &level));
     if let Some(level) = coarser_level {
-        let lined = level.size == BlockSize::with_rest(&level.size.extents[..1], BlockExtent::VALUE);
+        let lined =
+            level.size == BlockSize::with_rest(&level.size.extents[..1], BlockExtent::VALUE);
         if !lined || curr_shape.last() != Some(&shape_last) {
             unimplemented!(
                 "Cannot reshape a tensor under coarser scales per {:?} from {curr_shape:?} to {shape:?}",
@@ -531,8 +532,11 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
     }
 
     if let Some(grid) = coarser_grid {
-        let coarser = (tensor.qparams.as_mut().and_then(|qparams| qparams.coarser.as_mut()))
-            .expect("a two-level tensor holds its coarser scales");
+        let coarser = (tensor
+            .qparams
+            .as_mut()
+            .and_then(|qparams| qparams.coarser.as_mut()))
+        .expect("a two-level tensor holds its coarser scales");
         match reshape_action(coarser.metadata.shape(), coarser.metadata.strides(), &grid) {
             ReshapeAction::UpdateStrides { strides } => {
                 coarser.metadata = Metadata::new(grid, strides)
@@ -700,7 +704,9 @@ mod same_runtime_tests {
             (
                 tensor.handle.size_in_used(),
                 tensor.scales().map(|scales| scales.handle.size_in_used()),
-                tensor.coarser().map(|coarser| coarser.handle.size_in_used()),
+                tensor
+                    .coarser()
+                    .map(|coarser| coarser.handle.size_in_used()),
             )
         };
         let expected = into_data_sync(CubeBackend::dequantize(quantized.clone(), FloatDType::F32));
