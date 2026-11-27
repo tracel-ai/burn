@@ -113,11 +113,11 @@ and saved on any device that reaches its storage, a remote server's included.
 [#6373](https://github.com/tracel-ai/burn/pull/6373))
 
 - `ComputeEnvironment::prune` removes the compiled kernels the work never loaded: those only an
-  autotune race loaded and those another executable compiled, with the build records
-  `PruneOptions::records` does not keep (`RecordPruning::RemoveAll` by default). Every kernel the
-  work loaded stays, with the autotune answers; prune from the executable that runs the
-  environment. A remote device prunes on its server, so remote clients and servers must be
-  upgraded together (protocol version 14).
+  autotune race loaded and those another executable compiled, with the autotune answers the work
+  neither loaded nor measured and the build records `PruneOptions::records` does not keep
+  (`RecordPruning::RemoveAll` by default). Every kernel and answer the work used stays; prune from
+  the executable that runs the environment. A remote device prunes on its server, so remote
+  clients and servers must be upgraded together (protocol version 14).
   ([#6472](https://github.com/tracel-ai/burn/pull/6472))
 - A saved `EnvironmentBundle` says what it is without being loaded, through `ReadBundle` (with the
   `persistence` feature): `EnvironmentBundle::read` opens a saved file and holds it, and
@@ -127,15 +127,24 @@ and saved on any device that reaches its storage, a remote server's included.
   `saved_by` and `summary` are views of it. Each fails with `EnvironmentError`, never a panic.
   `ComputeEnvironment::save_named` names the bundle, and `ComputeEnvironment::summary` counts an
   environment as it stands, without saving it and without waiting on queued work: work not yet
-  executed is not counted, and an environment keeps every autotune answer, so one to a candidate
-  list no tuner runs any more still counts. The `persistence` feature of `burn-tensor` now links
-  the environment database engine on its own.
+  executed is not counted, and an environment keeps every autotune answer until it is pruned, so
+  one to a candidate list no tuner runs any more still counts. The `persistence` feature of
+  `burn-tensor` now links the environment database engine on its own.
   **Breaking:** `Backend::environment_save` takes `SaveOptions`, and backends gain
   `environment_summary`; `SaveOptions` and `PruneOptions` are non-exhaustive, built with `new()`
   and a setter per option. A remote device saves and counts on its server, so remote clients and
   servers must be upgraded together (protocol version 14).
   ([#6485](https://github.com/tracel-ai/burn/pull/6485),
   [CubeCL #2144](https://github.com/tracel-ai/cubecl/pull/2144))
+- `ReadBundle::used_answers` reads the autotune answers a saved environment's work used, each an
+  `AutotuneAnswer` trimmed to its pick, and `ComputeEnvironment::merge_answers` brings them into
+  another environment, whose work then loads them instead of measuring. Answers of another CubeCL
+  version's tables are left out, and one picking past the end of its candidates is tuned again.
+  `Device::hardware_identities` names the hardware answers hold for, every member's on a sharded
+  compute device and the server's on a remote one.
+  **Breaking:** `CubeCapabilities` gains `hardware`, `Pruned` gains `answers`, `EnvironmentOrigin`
+  gains `Answers`, and `ReadBundle` requires `used_answers`. Remote clients and servers must be
+  upgraded together (protocol version 17).
 
 #### CubeK tile kernels
 

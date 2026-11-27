@@ -1029,6 +1029,22 @@ impl Device {
         self.as_dispatch().capabilities()
     }
 
+    /// The hardware of the cubecl device behind this one, opening it, as its autotune answers
+    /// are kept: what is measured on one device holds for every device of the same hardware. A
+    /// sharded compute device names every member's, in member order, a remote device its
+    /// server's device's. Empty for a device on no cubecl runtime.
+    #[cfg(feature = "cubecl")]
+    pub fn hardware_identities(&self) -> Vec<String> {
+        match self.shard_members() {
+            Some(members) => members.iter().flat_map(Self::hardware_identities).collect(),
+            None => self
+                .capabilities()
+                .map(|capabilities| capabilities.hardware)
+                .into_iter()
+                .collect(),
+        }
+    }
+
     /// Every card this build can reach, once each, with the devices that reach it.
     ///
     /// A card visible to two runtimes (an NVIDIA GPU under CUDA and under Vulkan) is one entry

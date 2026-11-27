@@ -1,10 +1,11 @@
 pub use burn_backend::{
-    BuildStamp, EnvironmentBundle, EnvironmentError, EnvironmentSummary, PruneOptions, PruneTally,
-    Pruned, RecordPruning,
+    AutotuneAnswer, BuildStamp, EnvironmentBundle, EnvironmentError, EnvironmentSummary,
+    PruneOptions, PruneTally, Pruned, RecordPruning,
 };
 
 use crate::Device;
 use alloc::string::String;
+use alloc::vec::Vec;
 use burn_backend::{Backend, EnvironmentId, EnvironmentOrigin, SaveOptions};
 use burn_dispatch::Dispatch;
 
@@ -26,7 +27,7 @@ use burn_dispatch::Dispatch;
 /// let built = ComputeEnvironment::new(&device, "building")?;
 /// built.activate(&device)?;
 /// // ... compile-only and tune passes ...
-/// // Keep the kernels the work loaded; drop those only an autotune race loaded.
+/// // Keep the kernels and answers the work used; drop what only an autotune race loaded.
 /// built.prune(PruneOptions::default())?;
 /// std::fs::write(path, &*built.save_named("model on this device")?.bytes)?;
 /// previous.activate(&device)?;
@@ -39,7 +40,10 @@ use burn_dispatch::Dispatch;
 /// }
 ///
 /// // Or run in what it kept beside what the application already holds.
-/// ComputeEnvironment::active(&device)?.merge_bundle(bundle)?;
+/// ComputeEnvironment::active(&device)?.merge_bundle(bundle.clone())?;
+///
+/// // Or, in any executable, tune only what its answers leave: no kernel comes with them.
+/// ComputeEnvironment::new(&device, "tuned")?.merge_answers(bundle.used_answers()?)?;
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct ComputeEnvironment {
@@ -189,21 +193,41 @@ impl ComputeEnvironment {
         self.merge_from(EnvironmentOrigin::Bundle(bundle))
     }
 
-    /// Remove the compiled kernels the work never loaded, after every
-    /// operation registered so far on the calling stream: those only an
-    /// autotune race loaded, to measure a candidate or gather its kernels,
-    /// those another executable compiled, and the build records `options` does
-    /// not keep. Every kernel the work loaded stays, whatever shape it ran,
-    /// with the autotune answers, so the work runs from the environment with
-    /// the same picks and compiles nothing it ran before. A [save](Self::save)
-    /// after it holds no space the removed entries took.
+    /// Bring `answers` into this environment, as [`merge`](Self::merge) brings
+    /// another environment's entries: the work runs by them instead of
+    /// measuring its candidates again. They are what another environment's
+    /// work used, as its saved bundle gives them back
+    /// (`ReadBundle::used_answers`, with the `persistence` feature). An answer
+    /// this version's tuners do not read is left out, and the first of two to
+    /// one key is held.
+    ///
+    /// Brought into a [new](Self::new) environment before a
+    /// [bundle](Self::merge_bundle), they win over the bundle's own.
+    ///
+    /// # Errors
+    ///
+    /// The storage refused the write, or the device could not be reached.
+    pub fn merge_answers(&self, answers: Vec<AutotuneAnswer>) -> Result<(), EnvironmentError> {
+        self.merge_from(EnvironmentOrigin::Answers(answers))
+    }
+
+    /// Remove what the work never used, after every operation registered so
+    /// far on the calling stream: the compiled kernels only an autotune race
+    /// loaded, to measure a candidate or gather its kernels, those another
+    /// executable compiled, the autotune answers the work neither loaded nor
+    /// measured, and the build records `options` does not keep. Every kernel
+    /// the work loaded stays, whatever shape it ran, with every answer it
+    /// used, so the work runs from the environment with the same picks and
+    /// compiles nothing it ran before. A [save](Self::save) after it holds no
+    /// space the removed entries took.
     ///
     /// Prune once the work has run with its tunes settled: a work launch made
     /// while a key is still untuned records the candidate it ran, which the
     /// prune then keeps. Prune from the executable that runs the environment,
     /// the server's for a remote one: the kernels any other executable
-    /// compiled are removed. An environment the work never ran in keeps every
-    /// kernel this executable compiled.
+    /// compiled are removed, and the answers only it used. An environment the
+    /// work never ran in keeps every kernel this executable compiled, and every
+    /// answer.
     ///
     /// # Errors
     ///

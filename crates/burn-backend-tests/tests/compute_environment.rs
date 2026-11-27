@@ -21,8 +21,8 @@ mod backend;
 
 use backend::*;
 use burn_tensor::{
-    Bytes, ComputeEnvironment, Device, EnvironmentBundle, EnvironmentError, EnvironmentSummary,
-    PruneOptions, RecordPruning, TensorData,
+    AutotuneAnswer, Bytes, ComputeEnvironment, Device, EnvironmentBundle, EnvironmentError,
+    EnvironmentSummary, PruneOptions, RecordPruning, TensorData,
 };
 use serial_test::serial;
 
@@ -188,9 +188,9 @@ fn an_environment_merged_into_itself_is_unchanged() {
 
 /// A prune removes the build records and, where the runtime keeps compiled
 /// kernels, those only the tune's race loaded, keeping those its work loaded;
-/// the save shrinks by what went. The autotune answers stay: the work run
-/// again from what is left computes the same without tuning again, so the
-/// environment does not grow.
+/// the save shrinks by what went. The autotune answers the work used stay: the
+/// work run again from what is left computes the same without tuning again, so
+/// the environment does not grow.
 #[test]
 #[serial]
 fn a_pruned_environment_still_computes_its_work() {
@@ -268,6 +268,145 @@ fn a_prune_keeping_the_records_removes_none() {
 
     assert_eq!(pruned.records.removed, 0, "{pruned:?}");
     assert!(pruned.records.kept > 0, "{pruned:?}");
+}
+
+/// The answers a saved environment's work used, brought into another
+/// environment, are the ones the work there runs by: it measures none, and they
+/// come back as used. Each is held in a table of the hardware it was measured on.
+#[test]
+#[serial]
+#[cfg(feature = "persistence")]
+fn answers_brought_into_an_environment_are_loaded_and_given_back() {
+    use burn_tensor::{ProcessMode, ReadBundle};
+
+    let device = device();
+    let shape = [61, 19, 37];
+    let (measured, _) = built(&device, "answers-measured", shape);
+    let answers = measured.save().unwrap().used_answers().unwrap();
+    assert!(!answers.is_empty());
+    #[cfg(feature = "cube")]
+    for hardware in device.hardware_identities() {
+        for answer in &answers {
+            assert!(answer.table.contains(&hardware), "{hardware}: {answer:?}");
+        }
+    }
+
+    let brought = ComputeEnvironment::new(&device, "answers-brought").unwrap();
+    brought.merge_answers(answers.clone()).unwrap();
+    let unused = brought.save().unwrap().used_answers().unwrap();
+    let previous = brought.activate(&device).unwrap();
+    let counted = device.mode(ProcessMode::Execute).unwrap();
+    let product = product_of_ones(&device, shape).into_data();
+    let autotune = counted.close().unwrap().autotune;
+    previous.activate(&device).unwrap();
+
+    assert_eq!(unused, [], "held, and not used yet");
+    assert_eq!(autotune.measured, 0, "{autotune:?}");
+    assert_eq!(autotune.loaded, answers.len() as u64, "{autotune:?}");
+    assert_product_of_ones(product, shape, &device);
+    assert_eq!(brought.save().unwrap().used_answers().unwrap(), answers);
+}
+
+/// An answer picking past the end of its candidates is tuned again.
+#[test]
+#[serial]
+#[cfg(feature = "persistence")]
+fn an_answer_past_the_end_of_its_candidates_is_measured() {
+    use burn_tensor::{ProcessMode, ReadBundle};
+
+    let device = device();
+    let shape = [67, 23, 29];
+    let (measured, _) = built(&device, "answers-valid", shape);
+    let mut answers = measured.save().unwrap().used_answers().unwrap();
+    for answer in &mut answers {
+        answer.fastest_index = usize::MAX;
+    }
+
+    let stale = ComputeEnvironment::new(&device, "answers-stale").unwrap();
+    stale.merge_answers(answers.clone()).unwrap();
+    let previous = stale.activate(&device).unwrap();
+    let counted = device.mode(ProcessMode::Execute).unwrap();
+    let product = product_of_ones(&device, shape).into_data();
+    let autotune = counted.close().unwrap().autotune;
+    previous.activate(&device).unwrap();
+
+    assert_eq!(autotune.loaded, 0, "{autotune:?}");
+    assert_eq!(autotune.measured, answers.len() as u64, "{autotune:?}");
+    assert_product_of_ones(product, shape, &device);
+}
+
+/// An answer whose table this version does not read is left out.
+#[test]
+#[serial]
+fn an_answer_of_another_versions_table_is_left_out() {
+    let device = device();
+    let environment = ComputeEnvironment::new(&device, "answers-foreign").unwrap();
+
+    environment
+        .merge_answers(vec![AutotuneAnswer {
+            table: "autotune/0.0.0/layout-v1/hardware/tuner".into(),
+            key: Bytes::from_bytes_vec(b"key".to_vec()),
+            fastest_index: 0,
+        }])
+        .unwrap();
+
+    assert_eq!(
+        environment.summary().unwrap(),
+        EnvironmentSummary::default()
+    );
+}
+
+/// Answers brought before a bundle win over the bundle's own.
+#[test]
+#[serial]
+#[cfg(feature = "persistence")]
+fn answers_brought_before_a_bundle_win_over_its_own() {
+    use burn_tensor::ReadBundle;
+
+    let device = device();
+    let (measured, _) = built(&device, "answers-own", [71, 17, 41]);
+    let bundle = measured.save().unwrap();
+    let mut shared = bundle.used_answers().unwrap();
+    for answer in &mut shared {
+        answer.fastest_index += 1;
+    }
+
+    let environment = ComputeEnvironment::new(&device, "answers-shared").unwrap();
+    environment.merge_answers(shared.clone()).unwrap();
+    environment.merge_bundle(bundle).unwrap();
+
+    assert_eq!(environment.save().unwrap().used_answers().unwrap(), shared);
+}
+
+/// A prune removes the answers the work did not use, and keeps those it did.
+#[test]
+#[serial]
+#[cfg(feature = "persistence")]
+fn a_prune_removes_the_answers_the_work_did_not_use() {
+    use burn_tensor::ReadBundle;
+
+    let device = device();
+    let shape = [73, 13, 43];
+    let (measured, _) = built(&device, "answers-used", shape);
+    let used = measured.save().unwrap().used_answers().unwrap();
+    let (other, _) = built(&device, "answers-unused", [257, 129, 513]);
+    let unused = other.save().unwrap().used_answers().unwrap();
+    assert_ne!(used, unused);
+
+    let pruned = ComputeEnvironment::new(&device, "answers-pruned").unwrap();
+    pruned.merge_answers(used.clone()).unwrap();
+    pruned.merge_answers(unused).unwrap();
+    let held = pruned.summary().unwrap().autotune_answers;
+    let previous = pruned.activate(&device).unwrap();
+    product_of_ones(&device, shape).into_data();
+    let answers = pruned.prune(PruneOptions::default()).unwrap().answers;
+    previous.activate(&device).unwrap();
+
+    let kept = used.len() as u64;
+    assert_eq!(answers.kept, kept, "{answers:?}");
+    assert_eq!(answers.removed, held - kept, "{answers:?}");
+    assert!(answers.removed > 0, "{answers:?}");
+    assert_eq!(pruned.save().unwrap().used_answers().unwrap(), used);
 }
 
 /// An environment is counted as it stands, without saving it: empty when

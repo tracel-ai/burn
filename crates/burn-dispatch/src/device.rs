@@ -10,6 +10,8 @@ use burn_shard::{ShardCustomOps, ShardError, ShardedComputeDevice};
 
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
+#[cfg(cube_backend)]
+use alloc::string::ToString;
 use alloc::vec::Vec;
 
 // The capabilities come from `burn-backend` (which takes them from cubecl), so
@@ -72,9 +74,9 @@ pub const CAPABILITIES_QUERY: &str = "burn.cubecl.capabilities";
 #[cfg(feature = "cubecl")]
 impl DispatchDevice {
     /// What the cubecl device behind this one can do, opening it: its features, limits, memory,
-    /// identity and compile target. An autodiff device answers for the device it wraps, a remote
-    /// device with what its server's device reports. `None` for a device on no cubecl runtime,
-    /// and for a server that does not answer.
+    /// identity, hardware and compile target. An autodiff device answers for the device it wraps,
+    /// a remote device with what its server's device reports. `None` for a device on no cubecl
+    /// runtime, and for a server that does not answer.
     pub fn capabilities(&self) -> Option<CubeCapabilities> {
         match self {
             #[cfg(cube_backend)]
@@ -82,6 +84,7 @@ impl DispatchDevice {
                 let client = device.client();
                 Some(CubeCapabilities {
                     properties: client.properties().clone(),
+                    hardware: client.hardware_identity().to_string(),
                     target: client.target_properties().clone(),
                 })
             }

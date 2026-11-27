@@ -437,6 +437,22 @@ fn shards_join_into_one_tensor_and_come_back_as_they_were() {
     }
 }
 
+#[cfg(any(feature = "test-cuda", feature = "test-mixed-runtimes"))]
+#[test]
+fn a_sharded_compute_device_names_the_hardware_of_every_member() {
+    let device = sharded_compute(2);
+
+    let of_members: Vec<String> = device
+        .shard_members()
+        .unwrap()
+        .iter()
+        .flat_map(Device::hardware_identities)
+        .collect();
+
+    assert_eq!(of_members.len(), 2);
+    assert_eq!(device.hardware_identities(), of_members);
+}
+
 #[test]
 fn shards_that_are_not_the_balanced_split_are_refused() {
     let device = sharded_compute(2);
