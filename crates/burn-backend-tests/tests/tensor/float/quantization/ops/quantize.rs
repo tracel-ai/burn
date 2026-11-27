@@ -770,3 +770,31 @@ fn should_read_back_the_data_of_a_tensor_under_a_coarser_scale_for_each_row() {
 
     assert_round_trips(output.dequantize(), input);
 }
+
+/// MXFP4 factored by row: `e2m1` codes under `ue8m0` block scales, those under one `f32` a row.
+/// Each block holds a 6, so its scale is its row's times a power of two, the second block of a row
+/// three below the first: every value is exact under the factored scales.
+#[test]
+fn should_round_trip_mxfp4_factored_by_row() {
+    let device = Default::default();
+    let codes = [0.0f32, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0];
+    let rows = [0.37f32, 5.0, 0.002, 1.0];
+    let values: Vec<f32> = (0..rows.len() * 64)
+        .map(|i| {
+            let (row, col) = (i / 64, i % 64);
+            let sign = if col % 2 == 0 { 1.0 } else { -1.0 };
+            let block = if col < 32 { 1.0 } else { 0.125 };
+            sign * codes[col % 8] * block * rows[row]
+        })
+        .collect();
+    let input = TestTensor::<2>::from_data(TensorData::new(values, [4, 64]), &device);
+
+    let output = input
+        .clone()
+        .quantize_dynamic(&QuantScheme::mxfp4_row_factored());
+
+    output
+        .dequantize()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&input.into_data(), Tolerance::relative(1e-5));
+}
