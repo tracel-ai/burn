@@ -80,7 +80,8 @@ fn main() {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(7);
-            let out = SwigluTensors::allocate_out(&client, &call.both);
+            let out = SwigluTensors::allocate_out(&client, &call.both)
+                .expect("the probe's output should allocate");
             for candidate in &candidates {
                 for _ in 0..3 {
                     candidate
