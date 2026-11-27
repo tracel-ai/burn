@@ -486,15 +486,6 @@ impl DimSplit {
             .is_some_and(|coarser| self.level_extent(&coarser.size, rank) != BlockExtent::WholeAxis)
     }
 
-    /// The same split over a two-level scheme's coarser grid, which lies row-major on the
-    /// tensor's own dims.
-    fn coarser_split(self, coarser: &TensorData) -> Self {
-        Self {
-            len: coarser.shape()[self.dim],
-            ..self
-        }
-    }
-
     /// Each member's chunk of `data`, in member order, cut on the host. A quantized chunk keeps
     /// its codes and scales as they are.
     ///
@@ -559,7 +550,7 @@ impl DimSplit {
                     None => vec![scales],
                 };
                 let coarser: Vec<_> = match (&parts.coarser, cuts_coarser) {
-                    (Some(coarser), true) => (self.coarser_split(coarser))
+                    (Some(coarser), true) => (self.stored_split(&parts, coarser))
                         .byte_ranges(coarser, member)
                         .map(|range| &coarser.as_bytes()[range])
                         .collect(),
@@ -604,14 +595,10 @@ impl DimSplit {
             BlockExtent::Values(_) => joined(|part| &part.scales),
         };
         let coarser = parts[0].coarser.as_ref().map(|first| match cuts_coarser {
-            true => {
-                let grids: Vec<_> = parts
-                    .iter()
-                    .filter_map(|part| part.coarser.clone())
-                    .collect();
-                let len = grids.iter().map(|grid| grid.shape()[self.dim]).sum();
-                DimSplit { len, ..self }.whole_plain(&grids)
-            }
+            true => joined(|part| {
+                (part.coarser.as_ref())
+                    .expect("every chunk of a two-level scheme holds its coarser scales")
+            }),
             false => first.clone(),
         });
         let mut shape = chunks[0].shape().clone();
@@ -778,8 +765,8 @@ struct QuantizedParts {
     values: TensorData,
     /// One scale per block in stored order, or a single one for a per-tensor scheme.
     scales: TensorData,
-    /// A two-level scheme's coarser scales, row-major on the tensor's own dims: a grid each chunk
-    /// holds its part of along a dim it varies along, and keeps whole along any other.
+    /// A two-level scheme's coarser scales, in the stored order the block scales follow: a grid
+    /// each chunk holds its part of along a dim it varies along, and keeps whole along any other.
     coarser: Option<TensorData>,
 }
 
@@ -830,6 +817,10 @@ impl QuantizedParts {
                 unsigned_of_size(scale_bytes),
             ),
             coarser: coarser_shape(shape, &scheme).map(|grid| {
+                let grid = match scheme.levels().nth(1).map(|level| level.size) {
+                    Some(BlockSize::TENSOR) => grid,
+                    _ => lay(grid),
+                };
                 let coarser_end = scales_end + coarser_scales_size(&scheme, shape);
                 TensorData::from_bytes(
                     section(scales_end, coarser_end),
@@ -1048,10 +1039,25 @@ mod tests {
             .plain_chunks(&block_scales)
             .collect(),
         };
+        let coarser_chunks: Vec<Option<Vec<f32>>> =
+            match (scales.coarser, coarser_shape(&shape, &scheme)) {
+                (Some(coarser), Some(grid)) if split.cuts_coarser(&scheme, shape.num_dims()) => {
+                    let grid = TensorData::new(coarser, grid);
+                    DimSplit {
+                        len: grid.shape()[split.dim],
+                        ..split
+                    }
+                    .plain_chunks(&grid)
+                    .map(|chunk| Some(chunk.try_to_vec::<f32>().unwrap()))
+                    .collect()
+                }
+                (coarser, _) => vec![coarser; split.members],
+            };
         split
             .plain_chunks(&codes)
             .zip(block_chunks)
-            .map(|(codes, block)| {
+            .zip(coarser_chunks)
+            .map(|((codes, block), coarser)| {
                 let shape = codes.shape().clone();
                 let block = block.try_to_vec::<f32>().unwrap();
                 TensorData::quantized(
@@ -1059,7 +1065,7 @@ mod tests {
                     shape,
                     scheme,
                     &block,
-                    scales.coarser.as_deref(),
+                    coarser.as_deref(),
                 )
             })
             .collect()
@@ -1067,6 +1073,10 @@ mod tests {
 
     #[test]
     fn quantized_chunks_cut_the_stored_bytes_as_decoding_would() {
+        // MXFP4 under one coarser scale a column, its words and blocks down the dim before the
+        // last: the row-factored weight as a projection serves it.
+        let mut mxfp4_column_factored = QuantScheme::mxfp4_row_factored();
+        mxfp4_column_factored.swap_dims(3, 1, 2);
         let nvfp4 = |store, block: &[u8]| {
             QuantScheme::default()
                 .with_value(QuantValue::E2M1)
@@ -1087,6 +1097,8 @@ mod tests {
             QuantScheme::default()
                 .with_value(QuantValue::Q4S)
                 .with_store(QuantStore::PackedU32(1)),
+            QuantScheme::mxfp4_row_factored(),
+            mxfp4_column_factored,
         ];
         let shape = [32, 32, 32];
         let elements = shape.iter().product::<usize>();
@@ -1102,8 +1114,12 @@ mod tests {
             let scales: Vec<f32> = (0..blocks)
                 .map(|block| (1 + block % 7) as f32 * 0.25)
                 .collect();
-            let coarser = coarser_shape(&Shape::from(shape), &scheme)
-                .map(|grid| vec![3.0; grid.num_elements()]);
+            // Each coarser scale its own, so a grid cut along the wrong dim reads another's.
+            let coarser = coarser_shape(&Shape::from(shape), &scheme).map(|grid| {
+                (0..grid.num_elements())
+                    .map(|i| 1.0 + i as f32)
+                    .collect::<Vec<_>>()
+            });
             let data = TensorData::quantized(codes, shape, scheme, &scales, coarser.as_deref());
             for (dim, members) in [(0, 2), (0, 3), (1, 2), (1, 4), (2, 2), (2, 4)] {
                 let split = DimSplit {
