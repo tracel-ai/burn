@@ -28,7 +28,7 @@ impl L2Norm {
                 squares: zero,
             };
         }
-        let peak = grad.clone().abs().max();
+        let peak = grad.clone().max_abs();
         // A zero tensor contributes zero. An infinite entry should still give an infinite
         // norm, without introducing a NaN from dividing infinity by itself.
         let divisor = peak
