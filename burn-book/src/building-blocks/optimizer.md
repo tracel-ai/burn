@@ -144,10 +144,13 @@ let optimizer = optimizer.with_grad_clipping(GradientClipping::GlobalNorm(1.0));
 ```
 
 Both `step` and `step_multi` compute one scale from the accumulated gradients across all groups.
-If their joint norm exceeds the limit, every gradient is multiplied by that scale before any
-group-specific clipping or optimizer update. With `with_grad_clipping`, `Norm` limits each
-fallback parameter's gradient norm independently and `Value` clips its individual elements.
-Pass `Norm` or `Value` to `with_group` to clip gradients in that group.
+If their joint norm exceeds the limit, every gradient is multiplied by that scale before the
+optimizer update. Pass `None` for clipping in each `with_group` call when using `GlobalNorm`.
+Combining it with explicit group clipping panics during configuration in either builder order.
+
+For per-parameter clipping, `Norm` limits each gradient tensor's norm independently and `Value`
+clips its individual elements. Set these with `with_grad_clipping` for the fallback group or
+with `with_group` for a specific group.
 
 `GlobalNorm` accepts floating-point gradients, including adapter gradients when fine-tuning a
 frozen quantized model. A manually supplied quantized gradient causes the step to panic.

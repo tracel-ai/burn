@@ -94,15 +94,24 @@ impl ModuleOptimizer {
     }
 
     /// Sets clipping for optimizer updates. [`GradientClipping::GlobalNorm`] limits the joint L2
-    /// norm across all parameter groups after gradient accumulation. Clipping configured with
-    /// [`with_group`](Self::with_group) then applies to the scaled gradients in that group.
+    /// norm across all parameter groups after gradient accumulation. Use `None` for clipping
+    /// in every [`with_group`](Self::with_group) when this mode is selected.
     /// [`GradientClipping::Norm`] and [`GradientClipping::Value`] apply only to the fallback group.
     ///
     /// # Panics
     ///
-    /// Panics if the global norm limit is negative or NaN.
+    /// Panics if the global norm limit is negative or NaN, or if an added group has its own
+    /// clipping configured when selecting [`GradientClipping::GlobalNorm`].
     pub fn with_grad_clipping(mut self, gradient_clipping: GradientClipping) -> Self {
         gradient_clipping.validate_global_limit();
+        if matches!(gradient_clipping, GradientClipping::GlobalNorm(_)) {
+            assert!(
+                self.optimizers[1..]
+                    .iter()
+                    .all(|g| g.grad_clipping.is_none()),
+                "GlobalNorm requires all parameter groups to use None for clipping"
+            );
+        }
         self.optimizers[0].grad_clipping = Some(gradient_clipping);
         self
     }
@@ -146,7 +155,8 @@ impl ModuleOptimizer {
     /// # Panics
     ///
     /// Panics for [`GradientClipping::GlobalNorm`]. Set it with [`Self::with_grad_clipping`]
-    /// to include gradients from every group.
+    /// to include gradients from every group. Panics if group clipping is supplied while
+    /// the module optimizer uses `GlobalNorm`.
     pub fn with_group<O>(
         mut self,
         group: ParamGroup,
@@ -159,6 +169,11 @@ impl ModuleOptimizer {
         assert!(
             !matches!(grad_clipping, Some(GradientClipping::GlobalNorm(_))),
             "Set GlobalNorm on the module optimizer with with_grad_clipping"
+        );
+        assert!(
+            grad_clipping.is_none()
+                || !matches!(self.grad_clipping(), Some(GradientClipping::GlobalNorm(_))),
+            "GlobalNorm requires all parameter groups to use None for clipping"
         );
         self.optimizers.push(OptimizerGroup {
             group: group.clone(),
@@ -415,13 +430,10 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
                 device,
                 "The gradient is on the provided device"
             );
-            let grad = match &self.global_norm {
-                Some(global_norm) => global_norm.clip(id, grad, &device),
-                None => grad,
-            };
-            let clipped_grad = match &group.grad_clipping {
-                Some(GradientClipping::GlobalNorm(_)) | None => grad,
-                Some(clipping) => clipping.clip_gradient(grad),
+            let clipped_grad = match (&self.global_norm, &group.grad_clipping) {
+                (Some(global_norm), _) => global_norm.clip(id, grad, &device),
+                (None, Some(clipping)) => clipping.clip_gradient(grad),
+                (None, None) => grad,
             };
 
             debug_assert_eq!(
@@ -707,22 +719,41 @@ mod tests {
     }
 
     #[test]
-    fn global_norm_spans_parameter_groups_before_group_clipping() {
+    fn global_norm_spans_parameter_groups() {
         let model = scalar_params(DType::F32);
-        for (group_clipping, expected) in [
-            (None, [-2.7, -3.6]),
-            (Some(GradientClipping::Value(3.0)), [-2.7, -3.0]),
-        ] {
-            let mut optim = sgd()
-                .with_grad_clipping(GradientClipping::GlobalNorm(4.5))
-                .with_group(
-                    ParamGroup::from_ids(vec![model[1].id]),
-                    SgdConfig::new().build(),
-                    group_clipping,
-                );
-            let updated = optim.step(1.0, model.clone(), scalar_grads(&model, [3.0, 4.0]));
-            assert_params(&updated, expected);
-        }
+        let mut optim = sgd()
+            .with_grad_clipping(GradientClipping::GlobalNorm(4.5))
+            .with_group(
+                ParamGroup::from_ids(vec![model[1].id]),
+                SgdConfig::new().build(),
+                None,
+            );
+        let grads = scalar_grads(&model, [3.0, 4.0]);
+        assert_params(&optim.step(1.0, model, grads), [-2.7, -3.6]);
+    }
+
+    #[test]
+    #[should_panic(expected = "GlobalNorm requires all parameter groups to use None for clipping")]
+    fn global_norm_rejects_adding_a_group_with_clipping() {
+        sgd()
+            .with_grad_clipping(GradientClipping::GlobalNorm(1.0))
+            .with_group(
+                ParamGroup::all(),
+                SgdConfig::new().build(),
+                Some(GradientClipping::Value(0.5)),
+            );
+    }
+
+    #[test]
+    #[should_panic(expected = "GlobalNorm requires all parameter groups to use None for clipping")]
+    fn global_norm_rejects_existing_group_clipping() {
+        sgd()
+            .with_group(
+                ParamGroup::all(),
+                SgdConfig::new().build(),
+                Some(GradientClipping::Norm(0.5)),
+            )
+            .with_grad_clipping(GradientClipping::GlobalNorm(1.0));
     }
 
     #[test]
