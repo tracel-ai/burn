@@ -25,6 +25,7 @@ mod padded_layout;
 #[cfg(feature = "cube")]
 mod pair_extrema;
 mod reduce_broadcasted;
+mod reduce_indexed_input;
 mod reduce_logical;
 mod select;
 

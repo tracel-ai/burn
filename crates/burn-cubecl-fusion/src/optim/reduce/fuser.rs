@@ -117,14 +117,20 @@ impl ReduceFuser {
         }
 
         let mut fuser_read = self.fuser.clone();
-        fuser_read.next_block([&op.input], self.settings_write, false);
+        let read = fuser_read.next_block([&op.input], self.settings_write, false);
+        let next = self
+            .fuser
+            .next_block([&op.input], self.settings_write, false);
+        let (Some(_), Some([input])) = (read, next) else {
+            // The reduce input has no value of its own in the block before it, as when that
+            // block only reads it through `select` or `gather`: the reduce runs apart.
+            self.fuser.close();
+            self.fuser_read_fallback.close();
+            return;
+        };
         fuser_read.current_output_shape = op.out.shape.clone();
         fuser_read.close();
         self.fuser_read = Some(fuser_read);
-
-        let [input] = self
-            .fuser
-            .next_block([&op.input], self.settings_write, false);
 
         let output = self.fuser.output_unhandled(&op.out);
         let axis = op.axis;
