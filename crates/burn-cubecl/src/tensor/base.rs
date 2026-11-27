@@ -42,7 +42,7 @@ impl From<CubeTensor> for TensorHandle {
     }
 }
 
-impl cubecl::tune::AutotuneCheckable for CubeTensor {
+impl cubecl::tune::AutotuneOutput for CubeTensor {
     #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) -> Result<(), String> {
         use crate::ops::into_data_sync;

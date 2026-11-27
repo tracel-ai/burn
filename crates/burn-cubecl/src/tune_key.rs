@@ -1,7 +1,7 @@
 use crate::kernel::conv::{
     ConvAutotuneKey, ConvTranspose2dAutotuneKey, ConvTranspose3dAutotuneKey,
 };
-use cubecl::tune::AutotuneKeyable;
+use cubecl::tune::AutotuneKey;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
@@ -26,4 +26,4 @@ impl Display for CubeAutotuneKey {
     }
 }
 
-impl AutotuneKeyable for CubeAutotuneKey {}
+impl AutotuneKey for CubeAutotuneKey {}

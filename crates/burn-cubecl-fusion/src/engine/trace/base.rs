@@ -217,7 +217,7 @@ impl TuneOutput {
     }
 }
 
-impl cubecl::tune::AutotuneCheckable for TuneOutput {
+impl cubecl::tune::AutotuneOutput for TuneOutput {
     #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) -> Result<(), String> {
         use burn_backend::Tolerance;
