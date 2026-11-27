@@ -17,6 +17,7 @@ pub enum GradientClippingConfig {
     Norm(f32),
 
     /// Limit the joint L2 norm of all parameter gradients in a module optimizer step.
+    /// See [`GradientClipping::GlobalNorm`] for the precision limits of the clipping scale.
     GlobalNorm(f32),
 }
 
@@ -47,6 +48,10 @@ pub enum GradientClipping {
     Norm(f32),
 
     /// Limit the joint L2 norm of all parameter gradients in a module optimizer step.
+    ///
+    /// When the F32 scale `max_norm / joint_norm` is subnormal, rounding can leave the
+    /// clipped norm above or below the requested limit. If the scale rounds to zero,
+    /// every finite gradient component scaled by it becomes zero.
     GlobalNorm(f32),
 }
 

@@ -867,14 +867,26 @@ mod tests {
     }
 
     #[test]
-    fn global_norm_squares_fp16_gradients_in_fp32() {
-        let model = scalar_params(DType::F16);
-        let grads = scalar_grads(&model, [300.0, 400.0]);
+    fn global_norm_widens_the_sum_of_squares_for_fp16_gradients() {
+        let device = Device::default();
+        // The sum of squares is 65,536, which overflows F16. Its square root is exactly 256.
+        let shape = [65_536];
+        let param = Param::from_tensor(Tensor::<1>::zeros(
+            shape,
+            (&device.clone().autodiff(), DType::F16),
+        ));
+        let mut grads = GradientsParams::new();
+        grads.register(param.id, Tensor::<1>::ones(shape, (&device, DType::F16)));
+
         let updated = sgd()
-            .with_grad_clipping(GradientClipping::GlobalNorm(50.0))
-            .step(1.0, model, grads);
-        assert_params(&updated, [-30.0, -40.0]);
-        assert_eq!(updated[0].val().dtype(), DType::F16);
+            .with_grad_clipping(GradientClipping::GlobalNorm(1.0))
+            .step(1.0, param, grads)
+            .val();
+
+        assert_eq!(updated.dtype(), DType::F16);
+        for value in updated.into_data().iter::<f32>() {
+            assert_eq!(value, -1.0 / 256.0);
+        }
     }
 
     #[test]
