@@ -654,6 +654,11 @@ whose tensors are split over `devices` (crate `burn-shard`).
   directions. ([#6647](https://github.com/tracel-ai/burn/pull/6647))
   [@laggui](https://github.com/laggui)
 
+- Fix `matmul` and the ops built on it (`linear`, `attention`, `deform_conv2d`, and their
+  gradients) panicking on `Flex32` tensors on CubeCL backends: CubeK's routines now read and write
+  them as the `f32` they are stored as, and the output keeps the `Flex32` dtype.
+  [@kongxinjun](https://github.com/kongxinjun)
+
 #### Grid sampling
 
 - Fix bilinear `grid_sample_2d` on CubeCL backends reading the wrong y coordinates when the grid's

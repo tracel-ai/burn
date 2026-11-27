@@ -2,6 +2,7 @@
 pub use super::*; // re-export test types
 
 mod activation;
+mod flex32;
 mod grid;
 mod module;
 mod ops;

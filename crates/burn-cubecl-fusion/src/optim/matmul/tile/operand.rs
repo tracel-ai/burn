@@ -2,7 +2,7 @@
 
 use super::TileFusedMatmulError;
 use crate::CubeFusionHandle;
-use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::cubecl::{dtype_to_cubek_storage_type, dtype_to_storage_type};
 use burn_fusion::stream::Context;
 use burn_ir::TensorIr;
 use burn_std::{DType, quantization::QParamTensor};
@@ -49,7 +49,7 @@ impl<'a> TraceOperand<'a> {
         let meta = handle.metadata(tensor.shape.clone());
         let values = handle.clone().binding(tensor.shape.clone());
         let DType::QFloat(scheme) = tensor.dtype else {
-            let elem = dtype_to_storage_type(tensor.dtype);
+            let elem = dtype_to_cubek_storage_type(tensor.dtype);
             return Ok(MatmulCallInput::plain(PlainTensor::new(values, elem)));
         };
         let qparams = handle
