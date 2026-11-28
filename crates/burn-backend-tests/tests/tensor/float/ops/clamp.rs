@@ -104,8 +104,7 @@ fn clamp_max_nan_propagation() {
 }
 
 // A NaN bound makes every element NaN, not just one: x > NaN and x < NaN are both false, so
-// each element falls through to the bound. Flex only.
-#[cfg(feature = "flex")]
+// a comparison alone would keep every element.
 #[test]
 fn clamp_min_nan_bound_propagation() {
     let tensor = TestTensor::<1>::from([-1.0, 0.0, 5.0]);
@@ -116,7 +115,6 @@ fn clamp_min_nan_bound_propagation() {
     assert!(values.iter().all(|v| v.is_nan()), "{values:?}");
 }
 
-#[cfg(feature = "flex")]
 #[test]
 fn clamp_max_nan_bound_propagation() {
     let tensor = TestTensor::<1>::from([-1.0, 0.0, 5.0]);
