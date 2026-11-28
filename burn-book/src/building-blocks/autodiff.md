@@ -92,6 +92,38 @@ forward pass for each backward. Parameter leaves can be reused in fresh forwards
 not a check that another backward will succeed. `detach()` starts a new lineage; it does not restore
 consumed graph steps. Checkpointing does not change this lifetime rule.
 
+## Graphs that are never backpropagated
+
+Autodiff records a step whenever an operation depends on a tracked tensor. `backward()` does more
+than calculate gradients: it consumes the reachable steps and performs the graph cleanup associated
+with that backward pass. A graph that is never passed to `backward()` is not consumed by that
+mechanism. Its registered steps and any backend allocations they still reference can therefore
+remain available for a later backward until the graph runtime can prove that they are no longer
+useful.
+
+This matters for validation and inspection loops. A loop that repeatedly reads an autodiff model
+parameter and then calls operations such as `abs().max().into_scalar()` creates new autodiff
+steps even though the result will never be differentiated. Dropping the scalar or the temporary
+tensor does not turn those steps into a backward pass.
+
+When an operation is only reading or inspecting a value, move the tensor to the inner backend
+first:
+
+```rust, ignore
+fn inspect<const D: usize>(param: &burn::module::Param<burn::tensor::Tensor<D>>) -> f32 {
+    param.val().without_autodiff().abs().max().into_scalar()
+}
+```
+
+`without_autodiff()` consumes the tensor wrapper, drops its graph reference, and runs subsequent
+operations without autodiff when all their inputs are also inner tensors. The historical
+`inner()` method is equivalent. This is different from `detach()`: `detach()` starts a new
+autodiff lineage, so inspection after `detach()` can still record more steps.
+
+`Device::memory_cleanup()` only releases allocations that the backend allocator considers unused;
+it cannot clear live autodiff graph state. Drop the tensors and use the inner backend for
+non-differentiable inspection before relying on allocator cleanup to reduce cached memory.
+
 ## Difference with PyTorch
 
 Similarly named APIs do not always have the same semantics:

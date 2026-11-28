@@ -147,7 +147,8 @@ The following methods are also useful when coordinating execution:
 - `is_autodiff()` reports whether autodiff is associated with the device.
 - `gradient_checkpointing_strategy()` returns the active strategy, or `None` without autodiff.
 - `supports_dtype(dtype)` reports whether the device supports a dtype.
-- `memory_cleanup()` asks the backend to release unused cached allocations.
+- `memory_cleanup()` asks the backend to release unused cached allocations. It does not consume
+  autodiff graph steps or reclaim allocations still held by live tensors or graph state.
 
 ## Device Settings
 
