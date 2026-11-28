@@ -21,7 +21,7 @@ use burn_backend::tensor::FloatTensor;
 use crate::grads::GradSyncContext;
 
 struct TapeResult {
-    tape: Vec<Vec<StepBoxed>>,
+    tape: Vec<Vec<NodeId>>,
     checkpointer: Checkpointer,
     #[cfg(feature = "std")]
     distributed: Option<GradSyncContext>,
@@ -59,12 +59,14 @@ impl AutodiffServer {
         self.actions_builder.insert(node_id, actions);
     }
 
+    /// Runs backward from `node_id`. With `retain`, the graph stays registered for later passes.
     pub fn backward<NC: NodeCleaner, B: Backend>(
         &mut self,
         root_node: NodeRef,
         root_tensor: FloatTensor<B>,
         node_id: NodeId,
         mode: BackwardMode,
+        retain: bool,
     ) -> Gradients {
         // The graph mutex stays locked through validation and consumption. Reject invalid
         // ancestry before removing even the root so fresh branches survive the rejection.
@@ -73,14 +75,15 @@ impl AutodiffServer {
             .unwrap_or_else(|missing| {
                 panic!(
                     "Cannot run backward: graph tape has already been consumed at {missing}. \
-                     Burn does not support retain_graph. Combine losses before backward or \
-                     recompute the forward pass. Use detach() only to intentionally sever \
-                     gradients through the previous computation."
+                     Use backward_retain() for every backward pass but the last, combine losses \
+                     before backward, or recompute the forward pass. Use detach() only to \
+                     intentionally sever gradients through the previous computation."
                 );
             });
 
         let tape_result = self.build_tape(
             &nodes,
+            retain,
             #[cfg(feature = "std")]
             core::any::TypeId::of::<B>(),
         );
@@ -94,9 +97,17 @@ impl AutodiffServer {
             _ => Gradients::new::<B>(root_node, root_tensor),
         };
 
-        let gradients = Self::execute_steps(tape_result.tape, grads, tape_result.checkpointer);
+        let gradients = Self::execute_steps(
+            &mut self.steps,
+            tape_result.tape,
+            grads,
+            tape_result.checkpointer,
+            retain,
+        );
 
-        self.cleanup::<NC>(&nodes);
+        if !retain {
+            self.cleanup::<NC>(&nodes);
+        }
 
         gradients
     }
@@ -125,6 +136,7 @@ impl AutodiffServer {
     fn build_tape(
         &mut self,
         nodes: &[NodeId],
+        retain: bool,
         #[cfg(feature = "std")] root_backend: core::any::TypeId,
     ) -> TapeResult {
         let root_depth = self.steps[&nodes[0]].depth();
@@ -145,9 +157,11 @@ impl AutodiffServer {
         for &id in nodes {
             let step = self
                 .steps
-                .remove(&id)
+                .get(&id)
                 .expect("Validated steps must remain registered until tape construction");
-            self.memory_management.consume_node(id);
+            if !retain {
+                self.memory_management.consume_node(id);
+            }
 
             let depth = step.depth();
 
@@ -177,10 +191,17 @@ impl AutodiffServer {
                     })
                     .filter(|s| *s != id);
                 tree.insert(id, parents.collect());
-                steps.push(step);
+                steps.push(id);
+            } else if !retain {
+                self.steps.remove(&id);
             }
 
-            if let Some(node_builder) = self.actions_builder.remove(&id) {
+            // Retained passes rebuild the checkpointer from a copy, so state counts start fresh.
+            let node_builder = match retain {
+                true => self.actions_builder.get(&id).cloned(),
+                false => self.actions_builder.remove(&id),
+            };
+            if let Some(node_builder) = node_builder {
                 builder.extend(node_builder);
             }
         }
@@ -201,15 +222,22 @@ impl AutodiffServer {
     }
 
     fn execute_steps(
-        tape: Vec<Vec<StepBoxed>>,
+        steps: &mut HashMap<NodeId, StepBoxed>,
+        tape: Vec<Vec<NodeId>>,
         mut grads: Gradients,
         mut checkpointer: Checkpointer,
+        retain: bool,
     ) -> Gradients {
-        tape.into_iter().rev().for_each(|steps| {
-            steps
-                .into_iter()
-                .for_each(|step| step.step(&mut grads, &mut checkpointer))
-        });
+        for id in tape.into_iter().rev().flatten() {
+            if retain {
+                steps[&id].step_retained(&mut grads, &mut checkpointer);
+            } else {
+                let step = steps
+                    .remove(&id)
+                    .expect("Taped steps must remain registered");
+                step.step(&mut grads, &mut checkpointer);
+            }
+        }
 
         // For checkpointing tests
         #[cfg(feature = "export_tests")]

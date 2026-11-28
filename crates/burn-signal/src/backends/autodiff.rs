@@ -22,7 +22,7 @@ impl<B: Backend + SignalOps, C: CheckpointStrategy> SignalOps for Autodiff<B, C>
             type State = (usize, Option<usize>, usize, usize, Vec<Slice>, Vec<Slice>);
 
             fn backward(
-                self,
+                &self,
                 ops: Ops<Self::State, 1>,
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
@@ -98,7 +98,7 @@ impl<B: Backend + SignalOps, C: CheckpointStrategy> SignalOps for Autodiff<B, C>
             type State = (usize, Option<usize>, usize, usize);
 
             fn backward(
-                self,
+                &self,
                 ops: Ops<Self::State, 2>,
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,

@@ -10,8 +10,13 @@ use burn_backend::Backend;
 pub trait AutodiffClient: Send + Clone {
     /// Register a new step.
     fn register(&self, node_id: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder);
-    /// Call backpropagation from the given tensor.
-    fn backward<B: Backend>(&self, tensor: AutodiffTensor<B>, mode: BackwardMode) -> Gradients;
+    /// Call backpropagation from the given tensor, keeping the graph registered when `retain` is set.
+    fn backward<B: Backend>(
+        &self,
+        tensor: AutodiffTensor<B>,
+        mode: BackwardMode,
+        retain: bool,
+    ) -> Gradients;
 }
 
 /// Client implementation in used.

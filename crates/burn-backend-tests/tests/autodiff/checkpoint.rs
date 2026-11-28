@@ -29,6 +29,27 @@ fn test_autodiff_checkpoint_complicated_computation() {
 }
 
 #[test]
+fn test_autodiff_checkpoint_retained_backward() {
+    let data = TensorData::from([[0.3, 7.0], [7.0, 7.0]]);
+
+    let device = AutodiffDevice::new();
+    let tensor_0 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_1 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data, &device).require_grad();
+
+    let tensor_3 = memory_bound_eager(tensor_0, tensor_1.clone());
+    let tensor_4 = compute_bound_lazy(tensor_3.clone(), tensor_2);
+    let tensor_5 = memory_bound_lazy(tensor_3, tensor_1);
+    let tensor_6 = compute_bound_lazy(tensor_4, tensor_5);
+
+    // Each retained backward rebuilds its checkpointer, so the requirement counts must match on
+    // every pass, not only the first.
+    tensor_6.backward_retain();
+    tensor_6.backward_retain();
+    assert_checkpoint(tensor_6);
+}
+
+#[test]
 fn test_autodiff_checkpoint_with_missing_requirement() {
     let data_0 = TensorData::from([[0.0, 7.0], [7.0, 7.0]]);
     let data_1 = TensorData::from([[0.1, 7.0], [7.0, 7.0]]);

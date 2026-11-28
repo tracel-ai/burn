@@ -299,7 +299,7 @@ struct CollectiveBackward<B: Backend> {
 impl<B: Backend> Step for CollectiveBackward<B> {
     /// Takes every output's gradient, with zeros for one the loss never used, runs the backward
     /// collective, and registers each tracked input's gradient.
-    fn step(self: Box<Self>, grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
+    fn step_retained(&self, grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
         let output_grads: Vec<_> = self
             .outputs
             .iter()
@@ -375,7 +375,7 @@ struct CollectiveOutputStep {
 
 impl Step for CollectiveOutputStep {
     /// Leaves the output's gradient registered, for the collective's backward to consume.
-    fn step(self: Box<Self>, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {}
+    fn step_retained(&self, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {}
 
     /// One past the collective's node, so this step runs before that node's backward.
     fn depth(&self) -> usize {
