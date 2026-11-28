@@ -61,6 +61,38 @@ pub enum OpKind<'a> {
     Quantize,
     /// Attention of a query, key and value, then an optional mask or bias, or both.
     Attention,
+    /// Treats each entry of its first `leading` dims independently and reads the others whole,
+    /// like a pool over batch and channels. Every input has its first's leading dims.
+    Spatial { leading: usize },
+    /// Per element of its first input, each further input holding one entry per channel of its
+    /// dim 1, like a batch norm with its statistics.
+    PerChannel,
+    /// The rows of its first input, a table, at the indices of its second, each row a new last
+    /// dim.
+    Embedding,
+    /// The gradient of an embedding's table, the shape of its first input: the rows of its second
+    /// summed at the indices of its third.
+    EmbeddingBackward,
+    /// A convolution, or one of its gradients, with its channels cut into `groups`. A transposed
+    /// one's weight holds its input channels first.
+    Conv {
+        pass: ConvPass,
+        groups: usize,
+        transposed: bool,
+    },
+}
+
+/// What a convolution op computes, which names its inputs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConvPass {
+    /// The output, from its input, its weight and an optional bias.
+    Forward,
+    /// The input's gradient, from the input, the weight and the output's gradient.
+    InputGrad,
+    /// The weight's gradient, from the input, the weight and the output's gradient.
+    WeightGrad,
+    /// The bias's gradient, from the input, the bias and the output's gradient.
+    BiasGrad,
 }
 
 /// Which inputs of an elementwise op a partial sum can pass through: its output stays partial

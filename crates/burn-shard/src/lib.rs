@@ -18,11 +18,12 @@ pub use backend::{
 };
 pub use burn_router::CustomOpRegistry;
 pub use burn_std::distributed::{Sharding, ShardingError, Shards, ShardsError};
-pub use kind::{Linearity, OpKind, ReducedDims, ReductionKind};
+pub use kind::{ConvPass, Linearity, OpKind, ReducedDims, ReductionKind};
 
 use resharding::Resharding;
 use rules::{
-    AlongDimRule, AttentionRule, ElementwiseRule, GridSampleRule, IndexNdRule, IndexRule,
-    LayoutRule, MatmulRule, ReduceRule, ReshapeRule,
+    AlongDimRule, AttentionRule, ConvRule, ElementwiseRule, EmbeddingRule, GridSampleRule,
+    IndexNdRule, IndexRule, LayoutRule, MatmulRule, PerChannelRule, ReduceRule, ReshapeRule,
+    SpatialRule,
 };
 use sharding::{OpInputs, OpOutputs, OpSharding, ShardMember};

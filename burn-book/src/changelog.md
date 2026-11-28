@@ -61,7 +61,7 @@ conflicts with it (E0119); delete the handwritten one.
   not read whole, instead of gathering their inputs. `gather` and `scatter` keep a split of any
   input along a dim they do not index, where every input has the same length, and `select_assign`
   one of its tensor or values. `gather_nd` and `scatter_nd` keep a split of a dim the index tuples
-  do not address. Module ops other than attention still gather.
+  do not address.
   ([#6576](https://github.com/tracel-ai/burn/pull/6576))
 
 - On a sharded compute device, a quantized tensor whose scales are all per block stays split
@@ -71,6 +71,13 @@ conflicts with it (E0119); delete the handwritten one.
   member quantizing its own blocks. Those ops still land a tensor with a per-tensor or global
   scale whole, as do other ops with a quantized output.
   ([#6577](https://github.com/tracel-ai/burn/pull/6577))
+
+- On a sharded compute device, pools, `interpolate`, convolutions and their gradients keep a split
+  of the batch or the channels instead of gathering their inputs, and `unfold4d` one of the batch.
+  `batch_norm` keeps any split, and `layer_norm` one of any dim it does not normalize. A convolution splits along its output channels, or along its input
+  channels into a partial sum when it has no bias; a grouped one splits along the batch only.
+  `embedding` and its gradient keep a split of the indices or of the table's columns. Splits of
+  spatial dims still gather, as do deformable convolutions and CTC loss.
 
 #### Compilation and autotuning
 
