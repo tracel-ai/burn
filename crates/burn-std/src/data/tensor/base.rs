@@ -83,6 +83,10 @@ pub enum DataError {
         /// The quantized storage dtype.
         dtype: DType,
     },
+
+    /// The encoded parts of a quantized tensor do not fit its shape and scheme.
+    #[error(transparent)]
+    QuantizedParts(#[from] crate::tensor::quantization::QuantizedPartsError),
 }
 
 /// Errors that can occur while reading host data from a tensor.
@@ -206,6 +210,23 @@ impl TensorData {
             shape,
             dtype: DType::QFloat(q_bytes.scheme),
         }
+    }
+
+    /// Creates a quantized tensor data structure from bytes already in the encoding of
+    /// `scheme` (unlike [`TensorData::quantized`] that takes unpacked values as plain Rust types).
+    ///
+    /// # Errors
+    ///
+    /// [`DataError::QuantizedParts`] when a part's length disagrees with `shape` and `scheme`.
+    pub fn from_quantized_parts<S: Into<Shape>>(
+        codes: Bytes,
+        scales: &[u8],
+        global: Option<&[u8]>,
+        shape: S,
+        scheme: QuantScheme,
+    ) -> Result<Self, DataError> {
+        let q_bytes = QuantizedBytes::from_parts(codes, scales, global, shape, scheme)?;
+        Self::try_from_bytes(q_bytes.bytes, q_bytes.shape, DType::QFloat(q_bytes.scheme))
     }
 
     /// Creates a new tensor data structure from raw bytes.

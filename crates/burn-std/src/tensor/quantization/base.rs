@@ -238,27 +238,19 @@ impl QuantizedBytes {
         }
 
         let i8s: Vec<i8> = bytemuck::allocation::cast_vec(value);
-        let layout = ValueLayout::new(&scheme);
-        let mut bytes = match layout {
+        let codes = match ValueLayout::new(&scheme) {
             ValueLayout::Bytes => Bytes::from_elems(i8s),
             ValueLayout::Packed { packed_dim, word } => {
                 Bytes::from_elems(PackedOrder::new(shape.as_slice(), packed_dim).pack(&i8s, &word))
             }
         };
-
-        let scales = match (
-            scheme.finest().size,
-            layout.block_scale_order(&shape, &scheme),
-        ) {
-            (BlockSize::TENSOR, _) => scales[..1].to_vec(),
-            (_, Some(order)) => order.to_stored(scales),
-            (_, None) => scales.to_vec(),
+        let scales = match scheme.finest().size {
+            BlockSize::TENSOR => &scales[..1],
+            _ => scales,
         };
-        let scale_bytes = encode_scales(&scales, scheme.finest().dtype);
-        bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), QPARAM_ALIGN);
+        let scales = encode_scales(scales, scheme.finest().dtype);
 
-        // Last, so a reader can peel it off the end before the block scales it normalizes.
-        match (global_scale_dtype(&scheme), global) {
+        let global = match (global_scale_dtype(&scheme), global) {
             (Some(dtype), Some(global)) => {
                 // Encoding the per-tensor scale narrower would round it, and the block scales were
                 // normalized against the unrounded one.
@@ -267,19 +259,64 @@ impl QuantizedBytes {
                     ScaleDtype::F32,
                     "a two-level scheme stores its per-tensor scale as f32, got {scheme:?}"
                 );
-                let global_bytes = encode_scales(&[global], dtype);
-                bytes.extend_from_byte_slice_aligned(global_bytes.as_slice(), QPARAM_ALIGN);
+                Some(encode_scales(&[global], dtype))
             }
             (Some(_), None) => panic!("{scheme:?} requires a per-tensor scale"),
             (None, Some(_)) => panic!("{scheme:?} does not take a per-tensor scale"),
-            (None, None) => {}
+            (None, None) => None,
+        };
+
+        Self::from_parts(codes, &scales, global.as_deref(), shape, scheme)
+            .unwrap_or_else(|err| panic!("{err}"))
+    }
+
+    /// Creates a quantized bytes representation from parts already in the encoding of `scheme`
+    /// (unlike [`new`](Self::new) that takes values unpacked as plain Rust types). Codes are kept
+    /// as given and the scales only reordered, for a store that packs them along an outer axis.
+    ///
+    /// # Errors
+    ///
+    /// [`QuantizedPartsError`] when a part's length disagrees with `shape` and `scheme`, or when
+    /// `scheme` lays out no storage for `shape`.
+    pub fn from_parts(
+        codes: Bytes,
+        scales: &[u8],
+        global: Option<&[u8]>,
+        shape: impl Into<Shape>,
+        scheme: QuantScheme,
+    ) -> Result<Self, QuantizedPartsError> {
+        let shape = shape.into();
+        check_quantized_parts(
+            &shape,
+            &scheme,
+            [codes.len(), scales.len()],
+            global.map(<[u8]>::len),
+        )?;
+        let width = scale_size(scheme.finest().dtype);
+
+        let mut bytes = codes;
+        let order = match scheme.finest().size {
+            BlockSize::TENSOR => None,
+            _ => ValueLayout::new(&scheme).block_scale_order(&shape, &scheme),
+        };
+        let stored: Vec<u8> = match order {
+            Some(order) => {
+                let entries: Vec<&[u8]> = scales.chunks(width).collect();
+                order.to_stored(&entries).concat()
+            }
+            None => scales.to_vec(),
+        };
+        bytes.extend_from_byte_slice_aligned(&stored, QPARAM_ALIGN);
+        // Last, so a reader can peel it off the end before the block scales it normalizes.
+        if let Some(global) = global {
+            bytes.extend_from_byte_slice_aligned(global, QPARAM_ALIGN);
         }
 
-        Self {
+        Ok(Self {
             bytes,
             scheme,
             shape,
-        }
+        })
     }
 
     /// The number of quantized elements.
@@ -350,6 +387,77 @@ impl QuantizedBytes {
 
         (values, (qparams, num_params))
     }
+}
+
+/// Whether the lengths of the codes, block scales and per-tensor scale are expected for a tensor
+/// of `shape` under `scheme`, each in its stored encoding.
+///
+/// # Errors
+///
+/// [`QuantizedPartsError`] naming the first part whose length is wrong.
+pub fn check_quantized_parts(
+    shape: &Shape,
+    scheme: &QuantScheme,
+    lengths: [usize; 2],
+    global: Option<usize>,
+) -> Result<(), QuantizedPartsError> {
+    let codes = storage_elements(scheme, shape).ok_or_else(|| QuantizedPartsError::Layout {
+        shape: shape.clone(),
+        scheme: *scheme,
+    })? * scheme.size_bits_stored().div_ceil(8);
+    let scales = params_shape(shape, scheme).num_elements() * scale_size(scheme.finest().dtype);
+    let expected = [
+        (QuantizedPart::Codes, codes, lengths[0]),
+        (QuantizedPart::Scales, scales, lengths[1]),
+        (
+            QuantizedPart::Global,
+            global_scale_size(scheme),
+            global.unwrap_or(0),
+        ),
+    ];
+    if let Some(&(part, expected, actual)) = expected.iter().find(|(_, e, a)| e != a) {
+        return Err(QuantizedPartsError::Length {
+            part,
+            expected,
+            actual,
+        });
+    }
+    Ok(())
+}
+
+// A part of a quantized tensor's storage: the codes, the block
+/// scales, and the per-tensor scale of a two-level scheme.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuantizedPart {
+    /// The quantized values.
+    Codes,
+    /// The block scales.
+    Scales,
+    /// The per-tensor scale of a two-level scheme.
+    Global,
+}
+
+/// Why stored codes and scales cannot form a quantized tensor of a given shape and scheme.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum QuantizedPartsError {
+    /// A part holds another number of bytes than the shape and scheme lay out for it.
+    #[error("the {part:?} of a quantized tensor take {expected} bytes, not {actual}")]
+    Length {
+        /// The part whose length is wrong.
+        part: QuantizedPart,
+        /// The bytes the shape and scheme lay out for it.
+        expected: usize,
+        /// The bytes given.
+        actual: usize,
+    },
+    /// The scheme lays out no storage for the shape, or its size overflows.
+    #[error("{scheme:?} lays out no storage for shape {:?}", shape.as_slice())]
+    Layout {
+        /// The shape of the tensor.
+        shape: Shape,
+        /// The scheme it is quantized under.
+        scheme: QuantScheme,
+    },
 }
 
 /// Round a scale up to the smallest value representable by the scale dtype that is no smaller.
@@ -655,6 +763,32 @@ mod tests {
         assert_eq!(q_values, values);
         assert_eq!(scales.block, block_scales);
         assert_eq!(scales.global, None);
+    }
+
+    /// A part of the wrong length is refused, naming it.
+    #[test]
+    fn parts_of_the_wrong_length_are_refused() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::E4M3)
+            .with_store(QuantStore::Native)
+            .per_block([32, 32], ScaleDtype::UE8M0);
+
+        let refused = QuantizedBytes::from_parts(
+            Bytes::from_bytes_vec(alloc::vec![0; 64 * 64]),
+            &[0; 3],
+            None,
+            [64, 64],
+            scheme,
+        );
+
+        assert!(matches!(
+            refused,
+            Err(QuantizedPartsError::Length {
+                part: QuantizedPart::Scales,
+                expected: 4,
+                actual: 3
+            })
+        ));
     }
 
     #[test]

@@ -126,7 +126,10 @@ pub use pytorch_reader;
 #[cfg(feature = "safetensors")]
 mod safetensors;
 #[cfg(feature = "safetensors")]
-pub use safetensors::{SafetensorsStore, SafetensorsStoreError};
+pub use safetensors::{
+    NoGrouping, QuantizedGroup, SafetensorsDtype, SafetensorsEntry, SafetensorsStore,
+    SafetensorsStoreError, TensorGrouping,
+};
 
 mod burnpack;
 pub use burnpack::BurnpackStore;
