@@ -1,5 +1,5 @@
 use crate::bridge::{BasicOps, Ordered};
-use crate::ops::{AttentionModuleOptions, CausalAlignment};
+use crate::ops::{AttentionModuleOptions, CausalAlignment, Interpolate3dOptions};
 use crate::{Bool, DType, Device, Int, Shape, Slice, Tensor};
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -47,6 +47,78 @@ fn dequantized_dtype<const D: usize, K: BasicOps>(tensor: &Tensor<D, K>) -> DTyp
 }
 
 impl TensorCheck {
+    pub(crate) fn interpolate3d(input_size: [usize; 3], options: &Interpolate3dOptions) -> Self {
+        let mut check = Self::Ok;
+        if input_size.contains(&0) {
+            check = check.register(
+                "interpolate3d",
+                TensorError::new("Input spatial dimensions must be positive.")
+                    .details(format!("Input size: {input_size:?}.")),
+            );
+        }
+        match (options.output_size, options.scale_factor) {
+            (Some(size), None) => {
+                if size.contains(&0) {
+                    check = check.register(
+                        "interpolate3d",
+                        TensorError::new("Output spatial dimensions must be positive.")
+                            .details(format!("Output size: {size:?}.")),
+                    );
+                }
+            }
+            (None, Some(scale)) => {
+                for i in 0..3 {
+                    let size = input_size[i] as f64 * f64::from(scale[i]);
+                    if !scale[i].is_finite() || scale[i] <= 0.0 {
+                        check = check.register(
+                            "interpolate3d",
+                            TensorError::new("Scale factors must be finite and strictly positive.")
+                                .details(format!(
+                                    "Scale factor at spatial dimension {i}: {}.",
+                                    scale[i]
+                                )),
+                        );
+                    } else if size < 1.0 || size >= usize::MAX as f64 {
+                        check = check.register(
+                            "interpolate3d",
+                            TensorError::new(
+                                "Scaled spatial dimensions must be positive and fit in usize.",
+                            )
+                            .details(format!(
+                                "Input size: {input_size:?}, scale factors: {scale:?}."
+                            )),
+                        );
+                    }
+                }
+            }
+            _ => {
+                check = check.register(
+                    "interpolate3d",
+                    TensorError::new("Exactly one of output_size or scale_factor must be set."),
+                );
+            }
+        }
+        check
+    }
+
+    pub(crate) fn interpolate3d_shapes(input: [usize; 5], output: [usize; 5]) -> Self {
+        let intermediate = [input[0], input[1], input[2], output[3], output[4]];
+        for shape in [intermediate, output] {
+            if shape
+                .into_iter()
+                .try_fold(1usize, usize::checked_mul)
+                .is_none()
+            {
+                return Self::Ok.register(
+                    "interpolate3d",
+                    TensorError::new("Intermediate and output element counts must fit in usize.")
+                        .details(format!("Input shape: {input:?}, output shape: {output:?}.")),
+                );
+            }
+        }
+        Self::Ok
+    }
+
     /// Checks device and shape compatibility for element wise binary operations.
     pub(crate) fn binary_ops_ew<const D: usize, K: BasicOps>(
         ops: &str,

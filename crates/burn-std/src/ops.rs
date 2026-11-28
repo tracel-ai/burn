@@ -447,7 +447,7 @@ pub enum InterpolateMode {
     },
 }
 
-/// Coordinate transformation mode for bilinear, bicubic and Lanczos3 interpolation.
+/// Coordinate transformation mode for bilinear, trilinear, bicubic and Lanczos3 interpolation.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum CoordinateTransformMode {
     /// Half-pixel coordinate mapping: `(x_out + 0.5) / scale - 0.5`.
@@ -493,6 +493,61 @@ impl InterpolateOptions {
 
     /// Set the scale factor `[scale_height, scale_width]`, clearing any output size.
     pub fn with_scale_factor(mut self, scale_factor: [f32; 2]) -> Self {
+        self.scale_factor = Some(scale_factor);
+        self.output_size = None;
+        self
+    }
+}
+
+/// Algorithm for interpolating three spatial dimensions.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize, serde::Serialize)]
+pub enum Interpolate3dMode {
+    /// Nearest neighbor with asymmetric coordinates and floor rounding.
+    Nearest,
+    /// Nearest neighbor with half-pixel coordinates and rounding ties upward.
+    NearestExact,
+    /// Trilinear interpolation.
+    Trilinear {
+        /// Mapping from output coordinates to input coordinates.
+        coordinate_transform: CoordinateTransformMode,
+    },
+}
+
+/// Options for interpolating tensors with shape `[batch, channels, depth, height, width]`.
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct Interpolate3dOptions {
+    /// Algorithm used.
+    pub mode: Interpolate3dMode,
+    /// Output spatial size `[depth, height, width]`.
+    /// Exactly one of `output_size` or `scale_factor` must be set.
+    pub output_size: Option<[usize; 3]>,
+    /// Scale factors `[depth, height, width]`, producing `floor(input_size * scale_factor)`.
+    ///
+    /// Supplied factors also determine sampling coordinates, except with `AlignCorners`.
+    /// CubeCL backends require each factor to equal the resolved output/input ratio,
+    /// unless using `AlignCorners`.
+    pub scale_factor: Option<[f32; 3]>,
+}
+
+impl Interpolate3dOptions {
+    /// Create options for the selected algorithm.
+    pub fn new(mode: Interpolate3dMode) -> Self {
+        Self {
+            mode,
+            output_size: None,
+            scale_factor: None,
+        }
+    }
+
+    /// Set the output size `[depth, height, width]`, clearing any scale factors.
+    pub fn with_output_size(mut self, output_size: [usize; 3]) -> Self {
+        self.output_size = Some(output_size);
+        self.scale_factor = None;
+        self
+    }
+
+    /// Set the scale factors `[depth, height, width]`, clearing any output size.
+    pub fn with_scale_factor(mut self, scale_factor: [f32; 3]) -> Self {
         self.scale_factor = Some(scale_factor);
         self.output_size = None;
         self
