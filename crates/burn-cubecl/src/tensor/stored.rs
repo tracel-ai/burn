@@ -22,7 +22,7 @@ impl CubeTensor {
     /// For a quantized tensor, what [`StoredTensor::of_quantized`] declines.
     pub fn stored(self, dimensions: [Dimension; 2]) -> Result<StoredTensor, Decline> {
         let DType::QFloat(scheme) = self.dtype else {
-            return Ok(StoredTensor::Plain(self.plain()));
+            return Ok(StoredTensor::plain(self.plain()));
         };
         let block_scales = self
             .scales()
@@ -51,7 +51,7 @@ mod tests {
     };
     use burn_std::quantization::inner_level;
     use cubecl::quant::scheme::QuantStore;
-    use cubek::matmul::kernels::tensor::StoredTensor;
+    use cubek::matmul::kernels::tensor::StoredRead;
     use cubek::std::matmul_dimensions::{K, N};
 
     use crate::{
@@ -80,7 +80,10 @@ mod tests {
 
         let stored = head.stored([K, N]);
         assert!(
-            matches!(stored, Ok(StoredTensor::Packed(_))),
+            matches!(
+                stored.map(|stored| stored.read()),
+                Ok(StoredRead::Blocks(_))
+            ),
             "a transposed packed matrix is read packed, got {stored:?}"
         );
     }
@@ -131,7 +134,10 @@ mod tests {
 
         let stored = tiled.clone().stored([K, N]);
         assert!(
-            matches!(stored, Ok(StoredTensor::Packed(_))),
+            matches!(
+                stored.map(|stored| stored.read()),
+                Ok(StoredRead::Blocks(_))
+            ),
             "a packed matrix in tile order is read packed, got {stored:?}"
         );
 

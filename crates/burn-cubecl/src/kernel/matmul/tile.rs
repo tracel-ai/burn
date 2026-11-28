@@ -25,7 +25,7 @@ use cubek::matmul::{
             problem::{MatmulProblem, OperandKind},
             selector::select,
         },
-        tensor::StoredTensor,
+        tensor::StoredRead,
     },
 };
 use cubek::std::{
@@ -144,7 +144,9 @@ fn call_input(
     match tensor.clone().stored(dimensions) {
         // No routine reads tiles stored a column at a time, as a transposed weight's are: such
         // an input is read as rows.
-        Ok(StoredTensor::Plain(plain)) if plain.is_tiled_column_first() => {
+        Ok(stored)
+            if stored.read() == StoredRead::Float && stored.values().is_tiled_column_first() =>
+        {
             Ok(MatmulCallInput::plain(untile(tensor).plain()))
         }
         Ok(stored) => Ok(MatmulCallInput {

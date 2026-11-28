@@ -11,7 +11,7 @@ use cubecl::std::tensor::TensorHandle;
 use cubecl::tile::launch::Decline;
 use cubecl::tune::{AutotuneOutput, LocalTuner, TunableSet, local_tuner};
 use cubecl::{CubeTuneId, Device};
-use cubek::matmul::kernels::tensor::LhsOutput;
+use cubek::matmul::kernels::tensor::StoredTensor;
 use cubek::std::Hardware;
 use cubek::std::routine::Routine;
 use cubek::swiglu::kernels::{
@@ -100,7 +100,7 @@ pub fn launch_into_tuned(
     call: &SwigluCall,
     device: &Device,
     tile: GroupPriority,
-    out: LhsOutput,
+    out: StoredTensor,
 ) -> Result<(), Decline> {
     if let Some(elected) = fastest_swiglu_routine(call, device, tile)
         && elected.launch_into(call, out.clone()).is_ok()

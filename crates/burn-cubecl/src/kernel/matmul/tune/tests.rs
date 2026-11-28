@@ -337,7 +337,7 @@ fn a_race_runs_on_the_calls_buffers() {
     use crate::CubeDevice;
     use cubecl::CubeTuneId;
     use cubek::matmul::kernels::plan::{MatmulCall, MatmulCallInput};
-    use cubek::matmul::kernels::tensor::{PlainTensor, StoredTensor};
+    use cubek::matmul::kernels::tensor::{PlainTensor, StoredRead};
 
     let device = CubeDevice::default();
     let client = device.client();
@@ -359,9 +359,9 @@ fn a_race_runs_on_the_calls_buffers() {
 
     let tunables = few_rows::candidates(call.hw.clone(), MatmulAutotuneGroups::default());
     let raced = tunables.generate_inputs(&call.key(), &call);
-    let memory = |input: &MatmulCallInput| match &input.tensor {
-        StoredTensor::Plain(tensor) => tensor.binding.handle.memory.id(),
-        StoredTensor::Scaled(_) | StoredTensor::Packed(_) => unreachable!("a float call"),
+    let memory = |input: &MatmulCallInput| match input.tensor.read() {
+        StoredRead::Float => input.tensor.values().binding.handle.memory.id(),
+        StoredRead::ScalesAlong(_) | StoredRead::Blocks(_) => unreachable!("a float call"),
     };
     assert_eq!(memory(&raced.lhs), memory(&call.lhs));
     assert_eq!(memory(&raced.rhs), memory(&call.rhs));

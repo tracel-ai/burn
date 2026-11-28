@@ -11,7 +11,7 @@ use cubecl::std::tensor::TensorHandle;
 use cubecl::tile::launch::Decline;
 use cubecl::tune::{AutotuneOutput, LocalTuner, TunableSet, local_tuner};
 use cubecl::{CubeTuneId, Device};
-use cubek::matmul::kernels::tensor::{LhsOutput, PlainTensor};
+use cubek::matmul::kernels::tensor::{PlainTensor, StoredTensor};
 use cubek::rms_norm::kernels::{
     CubeGroupsRmsNormRoutine, CubeRmsNormRoutine, PlaneRmsNormRoutine, RmsNormBlueprint,
     RmsNormCall, RmsNormCandidate, RmsNormKey, RmsNormRoutine, RmsNormRoutineCandidate,
@@ -102,7 +102,7 @@ pub fn launch_into_tuned(
     call: &RmsNormCall,
     device: &Device,
     tile: GroupPriority,
-    out: LhsOutput,
+    out: StoredTensor,
 ) -> Result<(), Decline> {
     if let Some(elected) = fastest_rms_norm_routine(&call.client, device, &call.input, tile)
         && elected.launch_into(call, out.clone()).is_ok()
