@@ -131,16 +131,19 @@ struct GraphCleaner<'a> {
 
 impl<'a> GraphCleaner<'a> {
     fn cleanup_orphaned_entries() {
+        // Collect one handle per live graph and release the lock. Cloning the whole
+        // node-to-graph map here cost O(registered nodes) on every backward; the map holds
+        // one entry per alias, while `keys` holds one entry per graph.
         let graphs = {
-            // Get the available graphs and release the lock
-            match STATE.lock().as_ref() {
-                Some(state) => state.graphs.clone(),
+            let state = STATE.lock();
+            match state.as_ref() {
+                Some(state) => state.live_graphs(),
                 None => return,
             }
         };
 
         let mut should_remove = Vec::new();
-        for graph in graphs.values() {
+        for graph in &graphs {
             {
                 // Best-effort sweep: a graph whose mutex is contended is in
                 // use — possibly by this very thread, when a `Backward` step
@@ -319,6 +322,24 @@ impl GraphLocator {
         graph
     }
 
+    /// Collects one handle per live graph, in `keys` order.
+    ///
+    /// The origin node may have been freed while other aliases still point to
+    /// the graph: `remove_entry` drops `graphs[origin]` but keeps
+    /// `keys[origin]` as long as aliases remain. In that case fall back to a
+    /// surviving alias so the graph is not silently skipped by the sweep.
+    fn live_graphs(&self) -> Vec<Arc<Graph>> {
+        self.keys
+            .iter()
+            .filter_map(|(origin, aliases)| {
+                self.graphs
+                    .get(origin)
+                    .or_else(|| aliases.iter().find_map(|alias| self.graphs.get(alias)))
+                    .cloned()
+            })
+            .collect()
+    }
+
     fn remove_entry(&mut self, node: &NodeId) {
         if let Some(graph) = self.graphs.remove(node) {
             let mut remove = false;
@@ -344,4 +365,49 @@ enum GraphAnalysis {
     NoCollision(Arc<Graph>),
     /// Collision detected, contains a map of node IDs to their associated graphs.
     Collisions(BTreeMap<NodeId, Arc<Graph>>),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn id(value: u64) -> NodeId {
+        NodeId { value }
+    }
+
+    #[test]
+    fn live_graphs_finds_graph_when_origin_freed_but_aliases_remain() {
+        let mut locator = GraphLocator::default();
+        let origin = id(1);
+        let alias = id(2);
+
+        // A graph with one origin and one surviving alias, as produced by a
+        // merge: both node ids map to the graph and keys[origin] tracks the
+        // alias.
+        let graph = locator.new_graph(origin);
+        locator.keys.get_mut(&origin).unwrap().insert(alias);
+        locator.graphs.insert(alias, graph.clone());
+
+        // Free the origin node; the alias still points to the graph.
+        locator.remove_entry(&origin);
+        assert!(locator.graphs.get(&origin).is_none());
+        assert_eq!(locator.keys.get(&origin).map(|s| s.len()), Some(1));
+
+        let graphs = locator.live_graphs();
+        assert_eq!(
+            graphs.len(),
+            1,
+            "a graph reachable only via aliases must still be swept"
+        );
+        assert_eq!(graphs[0].origin, origin);
+    }
+
+    #[test]
+    fn live_graphs_returns_one_handle_per_graph() {
+        let mut locator = GraphLocator::default();
+        locator.new_graph(id(1));
+        locator.new_graph(id(2));
+
+        assert_eq!(locator.live_graphs().len(), 2);
+    }
 }

@@ -33,6 +33,7 @@ num-traits = { workspace = true }
 portable-atomic = { workspace = true }
 
 [dev-dependencies]
+burn-tensor = { path = "../burn-tensor", features = ["autodiff", "flex"] }
 # Test-only dependency; omit it from the published package.
 burn-flex = { path = "../burn-flex", default-features = false }
 

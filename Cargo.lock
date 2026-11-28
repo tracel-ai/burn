@@ -944,6 +944,7 @@ dependencies = [
  "burn-backend",
  "burn-flex",
  "burn-std",
+ "burn-tensor",
  "derive-new",
  "hashbrown 0.17.1",
  "num-traits",
