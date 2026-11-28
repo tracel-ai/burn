@@ -12,7 +12,7 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::DType;
-use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::cubecl::dtype_to_tile_storage_type;
 use burn_std::Metadata;
 use cubecl::std::tensor::TensorHandle;
 use cubecl::tile::{Dimension, launch::Decline};
@@ -73,7 +73,7 @@ pub(crate) fn launch(
         tune_id,
         lhs,
         rhs,
-        out: dtype_to_storage_type(out_dtype),
+        out: dtype_to_tile_storage_type(out_dtype),
         destination: Some(handle_of(out)),
     };
     plan.launch(&call).map_err(invalid)?;
@@ -165,7 +165,7 @@ fn handle_of(tensor: CubeTensor) -> TensorHandle {
         tensor.handle,
         shape,
         strides,
-        dtype_to_storage_type(tensor.dtype),
+        dtype_to_tile_storage_type(tensor.dtype),
     )
 }
 

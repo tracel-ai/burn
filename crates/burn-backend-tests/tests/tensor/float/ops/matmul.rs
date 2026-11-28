@@ -513,3 +513,33 @@ fn float_should_panic_when_batch_dimensions_are_not_broadcastable() {
     let tensor_3 = tensor_1.matmul(tensor_2);
     tensor_3.into_data();
 }
+
+/// A `Flex32` matmul keeps its dtype and matches the `F32` one, for a product of few rows and one
+/// of many, which go to different autotunes.
+#[test]
+fn should_matmul_flex32() {
+    use burn_tensor::{DType, Distribution, FloatDType};
+
+    let device = burn_tensor::Device::default();
+    if !device.supports_dtype(DType::Flex32) {
+        return;
+    }
+
+    for (lhs, rhs) in [([3, 1, 64], [3, 64, 16]), ([2, 17, 33], [2, 33, 15])] {
+        let lhs = TestTensor::<3>::random(lhs, Distribution::Uniform(-1., 1.), &device)
+            .cast(FloatDType::F32);
+        let rhs = TestTensor::<3>::random(rhs, Distribution::Uniform(-1., 1.), &device)
+            .cast(FloatDType::F32);
+        let expected = lhs.clone().matmul(rhs.clone()).into_data();
+
+        let output = lhs
+            .cast(FloatDType::Flex32)
+            .matmul(rhs.cast(FloatDType::Flex32));
+
+        assert_eq!(output.dtype(), DType::Flex32);
+        output
+            .cast(FloatDType::F32)
+            .into_data()
+            .assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
+    }
+}

@@ -1212,3 +1212,41 @@ fn test_attention_sliding_window_with_top_left_causal_intersects() {
         );
     }
 }
+
+/// A `Flex32` attention keeps its dtype and matches the `F32` one.
+#[test]
+fn test_attention_flex32() {
+    use burn_tensor::{DType, FloatDType};
+
+    let device = burn_tensor::Device::default();
+    if !device.supports_dtype(DType::Flex32) {
+        return;
+    }
+    let random = |shape: [usize; 4]| {
+        TestTensor::<4>::random(shape, Distribution::Uniform(0., 1.), &device).cast(FloatDType::F32)
+    };
+    let (query, key, value) = (
+        random([1, 2, 16, 32]),
+        random([1, 2, 24, 32]),
+        random([1, 2, 24, 32]),
+    );
+    let expected = attention(
+        query.clone(),
+        key.clone(),
+        value.clone(),
+        None,
+        None,
+        None,
+        Default::default(),
+    )
+    .into_data();
+
+    let [query, key, value] = [query, key, value].map(|t| t.cast(FloatDType::Flex32));
+    let output = attention(query, key, value, None, None, None, Default::default());
+
+    assert_eq!(output.dtype(), DType::Flex32);
+    output
+        .cast(FloatDType::F32)
+        .into_data()
+        .assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(1e-3, 1e-3));
+}

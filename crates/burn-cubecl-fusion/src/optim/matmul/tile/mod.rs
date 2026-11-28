@@ -21,7 +21,7 @@ use crate::{
     tune::{FusionInputGen, TuneInput},
 };
 use burn_backend::cubecl::autotune::{RACED_PRIORITY, raced_group};
-use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::cubecl::dtype_to_tile_storage_type;
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeTuneId,
@@ -151,7 +151,7 @@ fn matmul_call(
         tune_id: CubeTuneId::new(&info.client, &info.device),
         lhs,
         rhs,
-        out: dtype_to_storage_type(context.tensors[&op.out.id].dtype),
+        out: dtype_to_tile_storage_type(context.tensors[&op.out.id].dtype),
         destination: None,
     })
 }
@@ -199,7 +199,7 @@ fn create_autotune_key(input: &TuneInput<MatmulOptimizationTuneArg>) -> TileFuse
     let routine = opt.routine.map(|settings| settings.to_string());
     let lhs = TraceOperand::new(input.context(), &op.lhs).key();
     let rhs = TraceOperand::new(input.context(), &op.rhs).key();
-    let out = dtype_to_storage_type(input.tensors()[&op.out.id].dtype);
+    let out = dtype_to_tile_storage_type(input.tensors()[&op.out.id].dtype);
     TileFusedMatmulAutotuneKey::new(
         create_key(out, (&lhs.0, lhs.1), (&rhs.0, rhs.1)),
         opt.info.num_output_buffers(),

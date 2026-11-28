@@ -3,14 +3,14 @@
 
 use super::CubeTensor;
 use burn_backend::DType;
-use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::cubecl::dtype_to_tile_storage_type;
 use cubecl::tile::{Dimension, launch::Decline};
 use cubek::matmul::kernels::tensor::{PlainTensor, StoredTensor};
 
 impl CubeTensor {
-    /// This tensor bound as its values, at the element they are stored in.
+    /// This tensor bound as its values, at the element they are stored in (`f32` for `Flex32`).
     pub fn plain(self) -> PlainTensor {
-        let elem = dtype_to_storage_type(self.dtype);
+        let elem = dtype_to_tile_storage_type(self.dtype);
         PlainTensor::new(self.stored_binding(), elem)
     }
 

@@ -147,6 +147,16 @@ pub fn dtype_to_storage_type(dtype: DType) -> ElemType {
     }
 }
 
+/// Convert a burn [`DType`] into the element CubeK's tile-DSL routines bind it at: its
+/// [storage type](dtype_to_storage_type), except `Flex32`, which is stored as `f32` and bound as
+/// such, since the matmul routines are verified at `f32`, `f16`, `bf16` and `i32` only.
+pub fn dtype_to_tile_storage_type(dtype: DType) -> ElemType {
+    match dtype {
+        DType::Flex32 => ElemType::Float(FloatKind::F32),
+        dtype => dtype_to_storage_type(dtype),
+    }
+}
+
 /// Convert a burn [`ReduceOperation`] into the cubecl reduction it runs as.
 pub fn reduce_operation_to_cubecl(op: ReduceOperation) -> cubecl::server::ReduceOperation {
     match op {

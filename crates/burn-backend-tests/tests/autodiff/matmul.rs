@@ -117,3 +117,39 @@ fn should_diff_matmul_broadcast_lhs_single_column() {
         false,
     );
 }
+
+/// The gradients of a `Flex32` matmul keep the dtype and match the `F32` ones.
+#[test]
+fn should_diff_matmul_flex32() {
+    use burn_tensor::{DType, Distribution, FloatDType, Tolerance};
+
+    let device = AutodiffDevice::new();
+    if !device.supports_dtype(DType::Flex32) {
+        return;
+    }
+    let lhs = TestTensor::<3>::random([2, 5, 6], Distribution::Uniform(-1., 1.), &device)
+        .cast(FloatDType::F32)
+        .into_data();
+    let rhs = TestTensor::<3>::random([2, 6, 3], Distribution::Uniform(-1., 1.), &device)
+        .cast(FloatDType::F32)
+        .into_data();
+
+    let grads = |dtype: FloatDType| {
+        let lhs = TestTensor::<3>::from_data(lhs.clone(), &device)
+            .cast(dtype)
+            .require_grad();
+        let rhs = TestTensor::<3>::from_data(rhs.clone(), &device)
+            .cast(dtype)
+            .require_grad();
+        let grads = lhs.clone().matmul(rhs.clone()).sum().backward();
+        [lhs.grad(&grads).unwrap(), rhs.grad(&grads).unwrap()]
+    };
+
+    let expected = grads(FloatDType::F32);
+    for (grad, expected) in grads(FloatDType::Flex32).into_iter().zip(expected) {
+        assert_eq!(grad.dtype(), DType::Flex32);
+        grad.cast(FloatDType::F32)
+            .into_data()
+            .assert_approx_eq::<f32>(&expected.into_data(), Tolerance::rel_abs(1e-4, 1e-4));
+    }
+}
