@@ -1,3 +1,4 @@
+mod barrier;
 mod epoch;
 mod processor;
 mod step;
