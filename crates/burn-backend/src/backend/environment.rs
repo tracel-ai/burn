@@ -44,6 +44,13 @@ pub enum EnvironmentError {
         /// The environment's name.
         name: String,
     },
+    /// A save of the tunes the work used would hold none: the work used none
+    /// in the environment, its tuners persist nothing, or the tunes it used
+    /// are gone.
+    NoTunesUsed {
+        /// The environment's name.
+        name: String,
+    },
     /// The storage refused a read or a write.
     Storage {
         /// Why, in the storage's words.
@@ -61,6 +68,7 @@ impl From<StorageError> for EnvironmentError {
             },
             StorageError::Active { name } => Self::Active { name },
             StorageError::SelfFork { name } => Self::SelfFork { name },
+            StorageError::NoTunesUsed { name } => Self::NoTunesUsed { name },
             StorageError::Storage { reason } => Self::Storage { reason },
         }
     }
@@ -91,6 +99,10 @@ impl core::fmt::Display for EnvironmentError {
             Self::SelfFork { name } => write!(
                 f,
                 "the compute environment {name} cannot be created from itself"
+            ),
+            Self::NoTunesUsed { name } => write!(
+                f,
+                "the work used no tunes in the compute environment {name}, so there are none to save"
             ),
             Self::Storage { reason } => write!(f, "the environment storage failed: {reason}"),
             Self::Execution(error) => write!(f, "{error}"),

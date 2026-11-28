@@ -68,7 +68,7 @@ pub fn conv_tile_autotune(tensors: ConvTensors) -> Result<(), Decline> {
         let attempts = candidates.map(|candidate| candidate.serves(&tensors));
         first_served(attempts, ROUTINE_LISTS_NO_SETTING).is_ok()
     };
-    let tuned = match TUNER.fastest_identity(&id, &tunables, &key) {
+    let tuned = match TUNER.winner_identity(&id, &tunables, &key) {
         None => serves(&mut list.iter()),
         Some(winner) => match winner.routine() {
             Some(settings) => serves(&mut list.iter().filter(|c| c.settings() == &settings)),

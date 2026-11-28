@@ -49,7 +49,7 @@ pub(crate) fn fastest_tuned(
 ) -> Option<ReduceCandidate> {
     let id = CubeTuneId::new(client, device);
     let tunables = tunables(&id, client);
-    TUNER.fastest_identity(&id, &tunables, key)?.routine()
+    TUNER.winner_identity(&id, &tunables, key)?.routine()
 }
 
 /// The autotune for the device `id` names, built on first touch. The one place it is built: a

@@ -131,7 +131,7 @@ pub fn fastest_rms_norm_routine(
     let id = CubeTuneId::new(client, device);
     let tunables = tunables(&id, client, tile);
     let key = RmsNormKey::from(input);
-    TUNER.fastest_identity(&id, &tunables, &key)?.routine()
+    TUNER.winner_identity(&id, &tunables, &key)?.routine()
 }
 
 /// The autotune for the device `id` names, built on first touch, its candidates grouped at
