@@ -4,6 +4,7 @@ mod celu;
 mod elu;
 mod gelu;
 mod glu;
+mod half_precision;
 mod hard_sigmoid;
 mod hardtanh;
 mod leaky_relu;

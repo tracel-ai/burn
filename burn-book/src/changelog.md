@@ -981,6 +981,14 @@ version 14).
 - Correct GELU gradients.
   ([#6114](https://github.com/tracel-ai/burn/pull/6114))
 
+#### Half-precision activations
+
+- Evaluate `gelu`, `gelu_approximate`, `sigmoid`, `silu`, `softplus`, `mish` and the `tanh`
+  activation in f32 for f16 and bf16 inputs and round the result once, as PyTorch does. In the half
+  type, `gelu_approximate` and the CubeCL `gelu` overflowed to `inf` for large inputs, and the
+  negative tails of `gelu`, `silu`, `softplus` and `mish` lost most of their digits or reached zero.
+  ([#6599](https://github.com/tracel-ai/burn/pull/6599))
+
 #### Interpolation options
 
 **Breaking:** `InterpolateMode` variants now own their coordinate transform and cubic coefficient
