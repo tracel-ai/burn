@@ -1102,6 +1102,13 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 
 #### CTC loss
 
+- Reduce temporary heap use in Flex CPU CTC loss for evaluation and training. Forward uses two
+  reusable state rows; backward recomputes alpha history per sample and streams beta rows directly
+  into gradients. Large batches can run in parallel. Support F16, BF16, F32, and F64 scores with
+  matching integer targets and lengths, using F32 accumulation for half-precision gradients.
+  Unsupported inputs retain the generic recurrence.
+  ([#6357](https://github.com/tracel-ai/burn/pull/6357)) [@Mikyx-1](https://github.com/Mikyx-1)
+
 - Improve half-precision CTC loss accuracy. Fix CTC execution through router and remote backends
   and reject CTC inputs exceeding the device shared-memory limit.
   ([#6103](https://github.com/tracel-ai/burn/pull/6103),
