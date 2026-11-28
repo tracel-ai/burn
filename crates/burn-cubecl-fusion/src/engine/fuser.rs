@@ -274,14 +274,15 @@ impl TraceOperationFuser {
     ///
     /// # Returns
     ///
-    /// None if it's impossible to create a next block with the given arguments. Otherwise, the
-    /// corresponding [arguments](FuseArg) to the given tensors are returned.
+    /// None if it's impossible to create a next block with the given arguments, in which case
+    /// the fuser is closed. Otherwise, the corresponding [arguments](FuseArg) to the given
+    /// tensors are returned.
     pub fn next_block<const N: usize>(
         &mut self,
         arguments: [&TensorIr; N],
         settings: FuseSettings,
         global: bool,
-    ) -> [FuseArg; N] {
+    ) -> Option<[FuseArg; N]> {
         let block_pos = self.fuser.fuser.num_previous_blocks();
         let current_output_shape =
             core::mem::replace(&mut self.current_output_shape, Shape::new([]));
@@ -292,16 +293,33 @@ impl TraceOperationFuser {
         self.settings = settings;
         self.status = FuserStatus::Open;
 
-        arguments.map(|arg| self.fuser.fuser.block_local_input(arg, block_pos, global))
+        let arguments =
+            arguments.map(|arg| self.fuser.fuser.block_local_input(arg, block_pos, global));
+        if arguments.iter().any(Option::is_none) {
+            self.close();
+            return None;
+        }
+
+        Some(arguments.map(|arg| arg.expect("every argument has a block-local value")))
     }
 
     /// Tag the [tensor](TensorIr) as received from a previous block.
     ///
-    /// This will avoid reading the input again and instead use le local version when possible.
-    pub fn block_local_input(&mut self, tensor: &TensorIr, block_pos: usize, global: bool) {
+    /// This will avoid reading the input again and instead use the local version when possible.
+    ///
+    /// # Returns
+    ///
+    /// `None` when that block has no local value for the tensor
+    /// ([`TraceFuser::block_local_input`](crate::engine::trace::TraceFuser::block_local_input)).
+    pub fn block_local_input(
+        &mut self,
+        tensor: &TensorIr,
+        block_pos: usize,
+        global: bool,
+    ) -> Option<FuseArg> {
         self.fuser
             .fuser
-            .block_local_input(tensor, block_pos, global);
+            .block_local_input(tensor, block_pos, global)
     }
 
     fn fuse_base(&mut self, ops: &BaseOperationIr) -> bool {

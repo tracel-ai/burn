@@ -104,23 +104,27 @@ impl TraceFuser {
 
     /// Tag the [tensor](TensorIr) as received from a previous block.
     ///
-    /// This will avoid reading the input again and instead use le local version when possible.
+    /// This will avoid reading the input again and instead use the local version when possible.
+    ///
+    /// # Returns
+    ///
+    /// `None` when that block has no local value for the tensor: it reads the tensor only through
+    /// [`input_indexed`](Self::input_indexed) (`select`, `gather`, `cat`), the tensor is
+    /// quantized, or it is registered as an earlier block's global value.
     pub fn block_local_input(
         &mut self,
         tensor: &TensorIr,
         block_pos: usize,
         global: bool,
-    ) -> FuseArg {
+    ) -> Option<FuseArg> {
         let block = &mut self.blocks_previous[block_pos];
 
         let src_arg = match block.multi_block_variable(block_pos, tensor, global) {
             Some(val) => val,
             None => {
                 // We try to read the input if not present.
-                block.input(tensor, &mut self.resources);
-                block
-                    .multi_block_variable(block_pos, tensor, global)
-                    .unwrap()
+                block.input(tensor, &mut self.resources)?;
+                block.multi_block_variable(block_pos, tensor, global)?
             }
         };
 
@@ -133,7 +137,7 @@ impl TraceFuser {
         self.block_current
             .local_inputs
             .insert(tensor.id, src_arg.clone());
-        src_arg
+        Some(src_arg)
     }
 
     /// Register an output relayout to NHWC.
