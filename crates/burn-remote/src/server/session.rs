@@ -14,7 +14,7 @@ use crate::server::local_comm::LocalCommService;
 use crate::server::service::{SessionChannels, SessionService};
 use crate::server::spawn::spawn_detached;
 use crate::server::transfer::TensorTransfer;
-use crate::server::worker::{SessionHandler, SessionServices};
+use crate::server::worker::{SessionServices, spawn_session_worker};
 use crate::shared::{HANDSHAKE_DTYPES, SessionId, Task, TaskResponse};
 use crate::telemetry::{TelemetryEvent, TelemetryProbe};
 
@@ -27,7 +27,7 @@ const RESPONSE_CHANNEL_CAPACITY: usize = 64;
 
 /// Coordinates per-session state.
 ///
-/// Each [`Session`] owns a dedicated [`SessionHandler`] that holds the session's
+/// Each [`Session`] owns a dedicated worker that holds the session's
 /// [`TensorInterpreter`] with its own [`HandleContainer`](burn_ir::HandleContainer) — different
 /// sessions never share tensor handles, so concurrent sessions can't race on each other's backend
 /// state. Cross-session tensor transfers go through `external_comm` (cross-server) or `local_comm`
@@ -164,7 +164,7 @@ where
                 self.device(device_index),
                 self.custom_ops.clone(),
             );
-            let task_sender = SessionHandler::spawn(
+            let task_sender = spawn_session_worker(
                 session_id,
                 runner,
                 sender,
