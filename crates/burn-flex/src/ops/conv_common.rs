@@ -3,7 +3,8 @@
 use crate::{FlexTensor, Layout};
 use alloc::vec::Vec;
 use burn_backend::DType;
-use burn_std::{Bytes, Element, ElementAdd, Shape, bf16};
+use burn_std::{Bytes, Element, ElementAdd, Shape, bf16, f16};
+use half::slice::HalfFloatSliceExt;
 
 // ============================================================================
 // Macros for dtype wrappers
@@ -39,6 +40,25 @@ macro_rules! bf16_via_f32 {
             let bias_f32 = bias.map(|b| $crate::ops::conv_common::convert_bf16_to_f32(&b));
             let result_f32 = $f32_fn(x_f32, weight_f32, bias_f32, options);
             $crate::ops::conv_common::convert_f32_to_bf16(&result_f32)
+        }
+    };
+}
+
+/// Generates an f16 function that converts to f32, calls the f32 variant, converts back, so the
+/// convolution sums in f32 and rounds once.
+macro_rules! f16_via_f32 {
+    ($f16_fn:ident, $f32_fn:ident, $dim:literal, $Options:ident) => {
+        pub fn $f16_fn(
+            x: FlexTensor,
+            weight: FlexTensor,
+            bias: Option<FlexTensor>,
+            options: &$Options<$dim>,
+        ) -> FlexTensor {
+            let x_f32 = $crate::ops::conv_common::convert_f16_to_f32(&x);
+            let weight_f32 = $crate::ops::conv_common::convert_f16_to_f32(&weight);
+            let bias_f32 = bias.map(|b| $crate::ops::conv_common::convert_f16_to_f32(&b));
+            let result_f32 = $f32_fn(x_f32, weight_f32, bias_f32, options);
+            $crate::ops::conv_common::convert_f32_to_f16(&result_f32)
         }
     };
 }
@@ -81,6 +101,29 @@ pub(crate) fn convert_f32_to_bf16(tensor: &FlexTensor) -> FlexTensor {
         Bytes::from_elems(bf16_data),
         Layout::contiguous(tensor.layout().shape().clone()),
         DType::BF16,
+    )
+}
+
+pub(crate) fn convert_f16_to_f32(tensor: &FlexTensor) -> FlexTensor {
+    let tensor = tensor.to_contiguous();
+    let data: &[f16] = tensor.storage();
+    let mut f32_data = alloc::vec![0f32; data.len()];
+    data.convert_to_f32_slice(&mut f32_data);
+    FlexTensor::new(
+        Bytes::from_elems(f32_data),
+        Layout::contiguous(tensor.layout().shape().clone()),
+        DType::F32,
+    )
+}
+
+pub(crate) fn convert_f32_to_f16(tensor: &FlexTensor) -> FlexTensor {
+    let data: &[f32] = tensor.storage();
+    let mut f16_data = alloc::vec![f16::ZERO; data.len()];
+    f16_data.convert_from_f32_slice(data);
+    FlexTensor::new(
+        Bytes::from_elems(f16_data),
+        Layout::contiguous(tensor.layout().shape().clone()),
+        DType::F16,
     )
 }
 
