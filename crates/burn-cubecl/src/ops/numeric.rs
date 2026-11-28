@@ -400,13 +400,17 @@ impl<N: Numeric> CumulativeOp<N> for MinOp {
 /// Each unit reads its line once and writes every prefix as it goes, so the work is linear in the
 /// number of elements. The units run in parallel across lines, not along one: a tensor that is a
 /// single long line runs on a single unit.
+///
+/// The running value is kept in `A`, which [`cumulative_op`] widens to `f32` for half-precision
+/// storage `C`: summed in f16, a prefix stops growing at 2048, where `x + 1` rounds back to `x`.
+/// Each prefix is rounded to `C` once, as it is stored.
 #[cube(launch_unchecked, address_type = "dynamic")]
-fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
+fn cumulative_kernel<C: Numeric, A: Numeric, O: CumulativeOpFamily>(
     input: &Tensor<C>,
     output: &mut Tensor<C>,
     shape: Sequence<FastDivmod<usize>>,
     #[comptime] dim: usize,
-    #[define(C)] _dtype: ElemType,
+    #[define(C, A)] _dtypes: [ElemType; 2],
 ) {
     let length = input.shape(dim);
     if ABSOLUTE_POS >= output.len() / length {
@@ -431,10 +435,11 @@ fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
 
     let input_stride = input.stride(dim);
     let output_stride = output.stride(dim);
-    let mut result = O::CumulativeOp::<C>::init_value(input[input_offset]);
+    let mut result = O::CumulativeOp::<A>::init_value(A::cast_from(input[input_offset]));
     for i in 0..length {
-        result = O::CumulativeOp::<C>::execute(result, input[input_offset + i * input_stride]);
-        output[output_offset + i * output_stride] = result;
+        let value = A::cast_from(input[input_offset + i * input_stride]);
+        result = O::CumulativeOp::<A>::execute(result, value);
+        output[output_offset + i * output_stride] = C::cast_from(result);
     }
 }
 
@@ -474,6 +479,11 @@ fn cumulative_op<O: CumulativeOpFamily>(input: CubeTensor, dim: usize) -> CubeTe
     let cube_dim = CubeDim::new(&client, working_units);
     let cube_count = calculate_cube_count_elemwise(&client, working_units, cube_dim);
     let shape = shape_divmod(&input);
+    let storage = dtype_to_storage_type(output.dtype);
+    let accumulator = match output.dtype {
+        DType::F16 | DType::BF16 => dtype_to_storage_type(DType::F32),
+        _ => storage,
+    };
 
     unsafe {
         cumulative_kernel::launch_unchecked::<O>(
@@ -485,7 +495,7 @@ fn cumulative_op<O: CumulativeOpFamily>(input: CubeTensor, dim: usize) -> CubeTe
             output.clone().into_tensor_arg(),
             shape,
             dim,
-            dtype_to_storage_type(output.dtype),
+            [storage, accumulator],
         );
     }
 
