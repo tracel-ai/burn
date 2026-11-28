@@ -683,6 +683,14 @@ whose tensors are split over `devices` (crate `burn-shard`).
 - Fix bilinear `grid_sample_2d` on CubeCL backends reading the wrong y coordinates when the grid's
   last dimension is not contiguous, such as a `[N, 2, H, W]` flow field permuted to `[N, H, W, 2]`.
 
+#### Half-precision matrix multiplication
+
+- Fix f16 `matmul` on Flex rounding its partial sums to f16, in long contractions and in
+  vector-matrix products. It now multiplies in f32 and rounds once, as bf16 already did. Large f16
+  products take up to about 1.25 times as long, and vector-matrix products about 6 times. The f16
+  and bf16 conversions are split across threads with the `rayon` feature.
+  ([#6608](https://github.com/tracel-ai/burn/pull/6608))
+
 #### Integer arithmetic overflow
 
 - Wrap integer arithmetic on overflow on Flex, as release builds and CubeCL backends already did.

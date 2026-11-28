@@ -1,7 +1,8 @@
 //! Matrix multiplication via gemm crate.
 //!
 //! Optimizations:
-//! - Strided gemm for f32/f64/f16 avoids copying non-contiguous tensors
+//! - Strided gemm for f32/f64 avoids copying non-contiguous tensors
+//! - f16 and bf16 multiply in f32 and round once, so partial sums keep f32 precision
 //! - Enables parallelism for large matrices (with rayon feature)
 //! - Batched matmul parallelized across batch dimension
 
@@ -9,11 +10,12 @@ use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::{DType, Element};
 use burn_std::{Bytes, Shape, bf16, f16};
+use half::slice::HalfFloatSliceExt;
 
 use crate::{FlexTensor, Layout};
 
 /// Types that can be used with gemm-based matmul.
-/// Only implement for types that `gemm::gemm` dispatches on via TypeId (f32, f64, f16).
+/// Only implement for types that `gemm::gemm` dispatches on via TypeId (f32, f64).
 trait GemmScalar: Element + bytemuck::Pod {
     fn zero() -> Self;
     fn one() -> Self;
@@ -34,15 +36,6 @@ impl GemmScalar for f64 {
     }
     fn one() -> Self {
         1.0
-    }
-}
-
-impl GemmScalar for f16 {
-    fn zero() -> Self {
-        f16::from_f32(0.0)
-    }
-    fn one() -> Self {
-        f16::from_f32(1.0)
     }
 }
 
@@ -99,8 +92,8 @@ pub fn matmul(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
     match lhs.dtype() {
         DType::F32 => matmul_gemm::<f32>(lhs, rhs),
         DType::F64 => matmul_gemm::<f64>(lhs, rhs),
-        DType::F16 => matmul_gemm::<f16>(lhs, rhs),
-        DType::BF16 => matmul_bf16(lhs, rhs),
+        DType::F16 => matmul_via_f32::<f16>(lhs, rhs),
+        DType::BF16 => matmul_via_f32::<bf16>(lhs, rhs),
         _ => panic!("matmul: unsupported dtype {:?}", lhs.dtype()),
     }
 }
@@ -229,7 +222,7 @@ fn batch_elem_offset(b: usize, broadcast_shape: &[usize], elem_strides: &[isize]
 }
 
 // ============================================================================
-// Generic gemm-based matmul (f32, f64, f16)
+// Generic gemm-based matmul (f32, f64)
 // ============================================================================
 
 fn matmul_gemm<T: GemmScalar>(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
@@ -447,47 +440,65 @@ fn matmul_batched_gemm<T: GemmScalar>(lhs: FlexTensor, rhs: FlexTensor) -> FlexT
 }
 
 // ============================================================================
-// bf16 matmul (via f32 conversion)
+// Half-precision matmul (via f32 conversion)
 // ============================================================================
 
-fn matmul_bf16(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
+/// Multiplies half-precision tensors in f32 and rounds the result once, as PyTorch's CPU f16 and
+/// bf16 matmul do. `gemm`'s own f16 kernel stores its partial sums back into the f16 output
+/// between blocks of `k`, which rounds them to f16 once `k` spans more than one block.
+fn matmul_via_f32<H>(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor
+where
+    H: Element + bytemuck::Pod,
+    [H]: HalfFloatSliceExt,
+{
+    let dtype = lhs.dtype();
     let lhs = lhs.to_contiguous();
     let rhs = rhs.to_contiguous();
 
-    let lhs_shape = lhs.layout().shape();
-    let rhs_shape = rhs.layout().shape();
+    let widen = |tensor: &FlexTensor| {
+        let half: &[H] = tensor.storage();
+        let mut values = vec![0f32; half.len()];
+        convert_in_chunks(half, &mut values, |src, dst| src.convert_to_f32_slice(dst));
+        FlexTensor::new(
+            Bytes::from_elems(values),
+            Layout::contiguous(tensor.layout().shape().clone()),
+            DType::F32,
+        )
+    };
+    let result_f32 = matmul_gemm::<f32>(widen(&lhs), widen(&rhs));
 
-    // Convert bf16 -> f32
-    let lhs_f32: Vec<f32> = lhs.storage::<bf16>().iter().map(|x| x.to_f32()).collect();
-    let rhs_f32: Vec<f32> = rhs.storage::<bf16>().iter().map(|x| x.to_f32()).collect();
-
-    // Create f32 tensors
-    let lhs_f32_tensor = FlexTensor::new(
-        Bytes::from_elems(lhs_f32),
-        Layout::contiguous(lhs_shape.clone()),
-        DType::F32,
-    );
-    let rhs_f32_tensor = FlexTensor::new(
-        Bytes::from_elems(rhs_f32),
-        Layout::contiguous(rhs_shape.clone()),
-        DType::F32,
-    );
-
-    // Compute matmul in f32
-    let result_f32 = matmul_gemm::<f32>(lhs_f32_tensor, rhs_f32_tensor);
-
-    // Convert f32 -> bf16
-    let result_bf16: Vec<bf16> = result_f32
-        .storage::<f32>()
-        .iter()
-        .map(|x| bf16::from_f32(*x))
-        .collect();
+    let mut result = vec![H::zeroed(); result_f32.layout().num_elements()];
+    convert_in_chunks(result_f32.storage::<f32>(), &mut result, |src, dst| {
+        dst.convert_from_f32_slice(src)
+    });
 
     FlexTensor::new(
-        Bytes::from_elems(result_bf16),
+        Bytes::from_elems(result),
         result_f32.layout().clone(),
-        DType::BF16,
+        dtype,
     )
+}
+
+/// Applies the slice conversion `convert` to `src` and `dst` in chunks, in parallel with the
+/// `rayon` feature. A vector-matrix product converts as many elements as it multiplies, so a
+/// single-threaded conversion would dominate its cost.
+fn convert_in_chunks<A: Sync, B: Send>(
+    src: &[A],
+    dst: &mut [B],
+    convert: impl Fn(&[A], &mut [B]) + Sync,
+) {
+    #[cfg(feature = "rayon")]
+    {
+        use rayon::prelude::*;
+        const CHUNK: usize = 1 << 16;
+        if src.len() > CHUNK {
+            src.par_chunks(CHUNK)
+                .zip(dst.par_chunks_mut(CHUNK))
+                .for_each(|(src, dst)| convert(src, dst));
+            return;
+        }
+    }
+    convert(src, dst);
 }
 
 // ============================================================================
