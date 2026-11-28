@@ -106,7 +106,7 @@ pub fn fastest_routine(
     let (tuner, tunables) = tunables(autotune, call, groups);
     let key = tunables.generate_key(call);
     tuner
-        .fastest_identity(&call.tune_id, &tunables, &key)?
+        .winner_identity(&call.tune_id, &tunables, &key)?
         .routine()
 }
 

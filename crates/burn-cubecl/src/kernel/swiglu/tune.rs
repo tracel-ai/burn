@@ -123,7 +123,7 @@ fn fastest_swiglu_routine(
     let id = CubeTuneId::new(&call.client, device);
     let tunables = tunables(&id, &call.client, tile);
     TUNER
-        .fastest_identity(&id, &tunables, &SwigluKey::from(&call.both))?
+        .winner_identity(&id, &tunables, &SwigluKey::from(&call.both))?
         .routine()
 }
 

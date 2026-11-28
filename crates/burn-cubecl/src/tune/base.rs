@@ -217,7 +217,7 @@ impl<K: AutotuneKey, I: TuneInputs, O: 'static, Id: Identity> Autotune<K, I, O, 
 
     /// [`prioritized`](Self::prioritized), each candidate identified by what `identify` names it,
     /// and named by that: the value cubecl's tuner hands back once the candidate wins a key
-    /// ([`LocalTuner::fastest_identity`](cubecl::tune::LocalTuner::fastest_identity)), for a caller that builds
+    /// ([`LocalTuner::winner_identity`](cubecl::tune::LocalTuner::winner_identity)), for a caller that builds
     /// something else from the winner.
     pub fn identified<C, Identify, Run>(
         self,
@@ -441,7 +441,7 @@ impl Display for GroupLayout {
 
 /// What an autotune's candidate is identified by where the autotune is asked which kernel won a key: a
 /// routine candidate by its routine and setting, which the tuner hands back once it is the fastest
-/// ([`LocalTuner::fastest_identity`](cubecl::tune::LocalTuner::fastest_identity)), and every other
+/// ([`LocalTuner::winner_identity`](cubecl::tune::LocalTuner::winner_identity)), and every other
 /// candidate — a foreign kernel, the floor named apart, the group layout — by its name alone.
 ///
 /// `S` is the family's routine settings: one value naming the routine and its setting.
